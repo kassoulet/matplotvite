@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "plt-rs"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
+
+[tool.maturin]
+python-source = "python"
+module-name = "plt_rs._core"

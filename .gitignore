@@ -1,0 +1,21 @@
+# Rust
+target/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.dylib
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+wheels/
+*.egg-info/
+.venv/
+env/
+
+# Output
+visual/
