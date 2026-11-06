@@ -1,19 +1,40 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  prek:
+    name: prek checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: j178/prek-action@v3
+
   test:
+    name: test (python ${{ matrix.python }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.9", "3.13"]
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: "${{ matrix.python }}" }
+        with:
+          python-version: ${{ matrix.python }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: |
+      - name: Build & Test
+        run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install maturin numpy pytest

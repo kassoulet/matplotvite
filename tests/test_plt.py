@@ -38,7 +38,7 @@ def test_empty_raises(tmp_path):
 
 
 def test_bad_path():
-    plt.figure(); plt.plot([1, 2]); 
+    plt.figure(); plt.plot([1, 2]);
     with pytest.raises(RuntimeError):
         plt.savefig("/nonexistent/dir/x.png")
 
