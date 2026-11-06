@@ -4,28 +4,36 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
 // Geist (OFL, see assets/fonts/LICENSE_GEIST_OFL.txt)
-static FONTS: [(&str, &[u8]); 3] = [
-    (
-        "sans-serif",
-        include_bytes!("../assets/fonts/Geist-Regular.ttf"),
-    ),
-    (
-        "serif",
-        include_bytes!("../assets/fonts/GeistSerif-Regular.ttf"),
-    ),
-    (
-        "monospace",
-        include_bytes!("../assets/fonts/GeistMono-Regular.ttf"),
-    ),
-];
+static FONT_SANS: &[u8] = include_bytes!("../assets/fonts/Geist-Regular.ttf");
+static FONT_SERIF: &[u8] = include_bytes!("../assets/fonts/GeistSerif-Regular.ttf");
+static FONT_MONO: &[u8] = include_bytes!("../assets/fonts/GeistMono-Regular.ttf");
 
-fn register_font() {
+/// Register fonts into plotters (for SVG text element names) — called once.
+fn register_plotters_fonts() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        for (name, bytes) in FONTS {
+        let fonts: &[(&str, &[u8])] = &[
+            ("sans-serif", FONT_SANS),
+            ("serif", FONT_SERIF),
+            ("monospace", FONT_MONO),
+        ];
+        for (name, bytes) in fonts {
             let _ = plotters::style::register_font(name, FontStyle::Normal, bytes);
         }
     });
+}
+
+/// Build a fontdb loaded with our embedded Geist faces (for resvg rasterisation).
+fn build_fontdb() -> usvg::fontdb::Database {
+    let mut db = usvg::fontdb::Database::new();
+    db.load_font_data(FONT_SANS.to_vec());
+    db.load_font_data(FONT_SERIF.to_vec());
+    db.load_font_data(FONT_MONO.to_vec());
+    // Map CSS generic families to Geist variants
+    db.set_sans_serif_family("Geist");
+    db.set_serif_family("Geist Serif");
+    db.set_monospace_family("Geist Mono");
+    db
 }
 
 type Series<'py> = (
@@ -130,59 +138,58 @@ where
     Ok(())
 }
 
-fn draw<DB: DrawingBackend>(
-    root: DrawingArea<DB, plotters::coord::Shift>,
-    grid: (usize, usize),
-    panels: &[Panel],
-) -> Result<(), Box<dyn std::error::Error>>
-where
-    DB::ErrorType: 'static,
-{
-    root.fill(&WHITE)?;
-    let cells = root.split_evenly(grid);
-    for p in panels {
-        draw_panel(cells.get(p.pos).ok_or("subplot index out of range")?, p)?;
+/// Render all panels to an SVG string via plotters.
+fn render_svg(size: (u32, u32), grid: (usize, usize), panels: &[Panel]) -> Result<String, String> {
+    let (w, h) = size;
+    let mut svg = String::new();
+    {
+        let root = SVGBackend::with_string(&mut svg, (w, h)).into_drawing_area();
+        root.fill(&WHITE).map_err(|e| e.to_string())?;
+        let cells = root.split_evenly(grid);
+        for p in panels {
+            draw_panel(cells.get(p.pos).ok_or("subplot index out of range")?, p)
+                .map_err(|e| e.to_string())?;
+        }
+        root.present().map_err(|e| e.to_string())?;
     }
-    root.present()?;
-    Ok(())
+    Ok(svg)
 }
 
-/// Render series and write to `path`: SVG if it ends in ".svg", else PNG (all in Rust).
+/// Rasterise an SVG string to PNG bytes via resvg + tiny-skia.
+/// Fonts embedded in `build_fontdb()` are used — no system fonts needed.
+fn svg_to_png(svg: &str, w: u32, h: u32) -> Result<Vec<u8>, String> {
+    let fontdb = std::sync::Arc::new(build_fontdb());
+    let opts = usvg::Options {
+        fontdb: fontdb.clone(),
+        ..Default::default()
+    };
+    let tree = usvg::Tree::from_str(svg, &opts).map_err(|e| e.to_string())?;
+    let mut pixmap = tiny_skia::Pixmap::new(w, h).ok_or("failed to allocate pixmap")?;
+    pixmap.fill(tiny_skia::Color::WHITE);
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::identity(),
+        &mut pixmap.as_mut(),
+    );
+    pixmap.encode_png().map_err(|e| e.to_string())
+}
+
+/// Render series and write to `path`: SVG if it ends in ".svg", else anti-aliased PNG.
 #[pyfunction]
 fn save(path: &str, size: (u32, u32), grid: (usize, usize), panels: Vec<Panel>) -> PyResult<()> {
-    let err = |e: &dyn std::fmt::Display| PyRuntimeError::new_err(e.to_string());
-    register_font();
-    let (w, h) = size;
+    let err = |e: &str| PyRuntimeError::new_err(e.to_string());
+    register_plotters_fonts();
     if panels.iter().all(|p| p.series.is_empty()) {
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }
-    let out: Vec<u8> = if path.to_lowercase().ends_with(".svg") {
-        let mut svg = String::new();
-        draw(
-            SVGBackend::with_string(&mut svg, (w, h)).into_drawing_area(),
-            grid,
-            &panels,
-        )
-        .map_err(|e| err(&e))?;
+    let (w, h) = size;
+    let svg = render_svg(size, grid, &panels).map_err(|e| err(&e))?;
+    let bytes: Vec<u8> = if path.to_lowercase().ends_with(".svg") {
         svg.into_bytes()
     } else {
-        let mut buf = vec![255u8; (w * h * 3) as usize];
-        draw(
-            BitMapBackend::with_buffer(&mut buf, (w, h)).into_drawing_area(),
-            grid,
-            &panels,
-        )
-        .map_err(|e| err(&e))?;
-        let mut out = Vec::new();
-        let mut enc = png::Encoder::new(&mut out, w, h);
-        enc.set_color(png::ColorType::Rgb);
-        enc.set_depth(png::BitDepth::Eight);
-        enc.write_header()
-            .and_then(|mut wr| wr.write_image_data(&buf))
-            .map_err(|e| err(&e))?;
-        out
+        svg_to_png(&svg, w, h).map_err(|e| err(&e))?
     };
-    std::fs::write(path, out).map_err(|e| err(&e))
+    std::fs::write(path, bytes).map_err(|e| err(&e.to_string()))
 }
 
 #[pymodule]
