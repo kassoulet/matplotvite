@@ -2041,6 +2041,24 @@ fn rasterize(svg: &str, w: u32, h: u32, transparent: bool) -> Result<tiny_skia::
     Ok(pixmap)
 }
 
+/// Encode a pixmap as PNG. This matches `tiny_skia::Pixmap::encode_png`
+/// (including alpha demultiplication) but uses the png crate's fast
+/// compression: at figure sizes the default level dominates save time.
+fn encode_png_fast(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, png::EncodingError> {
+    let copy = pixmap.to_owned();
+    let rgba = copy.take_demultiplied();
+    let mut out = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut out, pixmap.width(), pixmap.height());
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.set_compression(png::Compression::Fast);
+        let mut writer = encoder.write_header()?;
+        writer.write_image_data(&rgba)?;
+    }
+    Ok(out)
+}
+
 type Bbox = (u32, u32, u32, u32); // x, y, width, height
 
 /// Smallest rectangle containing drawn pixels, or `None` if the figure is blank.
@@ -2212,7 +2230,7 @@ fn save(
             Some(bbox) => crop_pixmap(&pixmap, bbox).map_err(|e| err(&e))?,
             None => pixmap,
         };
-        pixmap.encode_png().map_err(|e| err(&e.to_string()))?
+        encode_png_fast(&pixmap).map_err(|e| err(&e.to_string()))?
     };
     std::fs::write(path, bytes).map_err(|e| err(&e.to_string()))
 }

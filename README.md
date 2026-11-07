@@ -9,14 +9,14 @@ Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
 | Benchmark Case | `plt.rs` | `matplotlib` | Speedup |
 |---|---:|---:|---:|
-| Single Line (100 pts, PNG) | **11.80 ms** | 123.65 ms | **10.5x** |
-| Single Line (1,000 pts, PNG) | **11.45 ms** | 128.97 ms | **11.3x** |
-| Single Line (10,000 pts, PNG) | **19.14 ms** | 142.87 ms | **7.5x** |
-| Single Line (100,000 pts, PNG) | **89.72 ms** | 155.20 ms | **1.7x** |
-| Multi-Series (5 lines x 2,000 pts, PNG) | **22.38 ms** | 194.35 ms | **8.7x** |
-| Subplots (2x2 grid, PNG) | **24.99 ms** | 226.45 ms | **9.1x** |
-| Vector SVG Export (1k pts) | **1.04 ms** | 119.39 ms | **114.9x** |
-| Cold CLI Process Execution | **146.7 ms** | 733.5 ms | **5.0x** |
+| Single Line (100 pts, PNG) | **4.03 ms** | 88.42 ms | **21.9x** |
+| Single Line (1,000 pts, PNG) | **3.60 ms** | 91.05 ms | **25.3x** |
+| Single Line (10,000 pts, PNG) | **7.17 ms** | 96.59 ms | **13.5x** |
+| Single Line (100,000 pts, PNG) | **51.58 ms** | 131.65 ms | **2.6x** |
+| Multi-Series (5 lines x 2,000 pts, PNG) | **10.78 ms** | 147.40 ms | **13.7x** |
+| Subplots (2x2 grid, PNG) | **9.39 ms** | 144.10 ms | **15.3x** |
+| Vector SVG Export (1k pts) | **0.51 ms** | 98.43 ms | **192.4x** |
+| Cold CLI Process Execution | **146.5 ms** | 607.4 ms | **4.1x** |
 
 *Measured on a shared Linux x86_64 host (AMD Ryzen 5 5600G, Python 3.14, matplotlib 3.11.2); wall-clock times vary with machine load. View full interactive charts on the [Benchmarks Page](https://kassoulet.github.io/plt_rs/benchmarks.html) and regenerate with `python tools/benchmark.py`.*
 
