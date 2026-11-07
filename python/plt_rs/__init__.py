@@ -8,7 +8,8 @@ from ._colors import CSS_COLORS as _CSS_COLORS
 from ._core import __version__, render as _render
 
 __all__ = (
-    "Axes", "AxesImage", "Colorbar", "ContourSet", "DPI", "Figure",
+    "Axes", "AxesImage", "Colorbar", "ContourSet", "DPI", "Figure", "GridSpec",
+    "SubplotSpec",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "fill", "fill_between",
@@ -16,7 +17,7 @@ __all__ = (
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show", "style",
-    "stackplot", "stairs", "stem", "step", "subplot", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
+    "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
     "ylabel", "ylim", "yscale", "yticks", "__version__",
 )
@@ -1906,6 +1907,90 @@ class AxesImage:
         return dict(cmap=self._e["cmap"], vmin=lo, vmax=hi)
 
 
+def _span_index(key, size):
+    """Normalise an int or slice into an inclusive (start, stop) span."""
+    if isinstance(key, slice):
+        step = 1 if key.step is None else int(key.step)
+        if step != 1:
+            raise ValueError("GridSpec slices must have step 1")
+        start = 0 if key.start is None else int(key.start)
+        stop = size if key.stop is None else int(key.stop)
+        if start < 0:
+            start += size
+        if stop < 0:
+            stop += size
+        if not 0 <= start < stop <= size:
+            raise ValueError("GridSpec slice out of range")
+        return start, stop - 1
+    index = int(key)
+    if index < 0:
+        index += size
+    if not 0 <= index < size:
+        raise IndexError("GridSpec index out of range")
+    return index, index
+
+
+class SubplotSpec:
+    """A rectangular region of a `GridSpec`, accepted by `Figure.add_subplot`."""
+
+    def __init__(self, gridspec, rows, cols):
+        self.gridspec = gridspec
+        self.rows = rows
+        self.cols = cols
+
+    def get_position(self, figure=None):
+        x, y, w, h = self.gridspec._bounds(self.rows, self.cols)
+        return _Bbox(x, y, x + w, y + h)
+
+    def subgridspec(self, nrows, ncols, **kwargs):
+        """Nested grid confined to this region."""
+        x, y, w, h = self.gridspec._bounds(self.rows, self.cols)
+        return GridSpec(nrows, ncols, figure=self.gridspec.figure,
+                        left=x, right=x + w, bottom=y, top=y + h, **kwargs)
+
+
+class GridSpec:
+    """Irregular row/column layout; index it to get a `SubplotSpec`."""
+
+    def __init__(self, nrows, ncols, figure=None, left=0.0, right=1.0,
+                 bottom=0.0, top=1.0, wspace=None, hspace=None):
+        if int(nrows) < 1 or int(ncols) < 1:
+            raise ValueError("GridSpec needs at least one row and one column")
+        self.nrows, self.ncols = int(nrows), int(ncols)
+        self.figure = figure
+        self.left, self.right = float(left), float(right)
+        self.bottom, self.top = float(bottom), float(top)
+        self.wspace = 0.2 if wspace is None else float(wspace)
+        self.hspace = 0.2 if hspace is None else float(hspace)
+
+    def __getitem__(self, key):
+        rows, cols = key if isinstance(key, tuple) else (key, key)
+        return SubplotSpec(self, _span_index(rows, self.nrows),
+                           _span_index(cols, self.ncols))
+
+    def get_geometry(self):
+        return self.nrows, self.ncols
+
+    def _bounds(self, rows, cols):
+        r0, r1 = rows
+        c0, c1 = cols
+        cell_w = (self.right - self.left) / self.ncols
+        cell_h = (self.top - self.bottom) / self.nrows
+        x0 = self.left + c0 * cell_w
+        x1 = self.left + (c1 + 1) * cell_w
+        y1 = self.top - r0 * cell_h
+        y0 = self.top - (r1 + 1) * cell_h
+        if c0 > 0:
+            x0 += self.wspace * cell_w / 2.0
+        if c1 < self.ncols - 1:
+            x1 -= self.wspace * cell_w / 2.0
+        if r0 > 0:
+            y1 -= self.hspace * cell_h / 2.0
+        if r1 < self.nrows - 1:
+            y0 += self.hspace * cell_h / 2.0
+        return (x0, y0, max(x1 - x0, 0.01), max(y1 - y0, 0.01))
+
+
 class Colorbar:
     """Handle returned by `Figure.colorbar`."""
 
@@ -1933,8 +2018,11 @@ class Figure:
         self._suptitle = dict(text=str(t), size=size, x=float(x), y=float(y))
         return None
 
-    def add_subplot(self, nrows=1, ncols=1, index=1):
-        """index is 1-based, row-major (matplotlib convention)."""
+    def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
+        """index is 1-based, row-major (matplotlib convention); a `SubplotSpec`
+        may be passed instead to place the axes on an irregular grid."""
+        if isinstance(nrows, SubplotSpec):
+            return self._add_spec(nrows)
         if (nrows, ncols) != self.grid:
             if self.axes:
                 raise ValueError("mixed subplot grids are not supported yet")
@@ -1945,6 +2033,42 @@ class Figure:
         ax._fig = self
         self._cur = ax
         return ax
+
+    def _add_spec(self, spec):
+        ax = Axes(len(self.axes))
+        ax._fig = self
+        ax._pos_override = spec.gridspec._bounds(spec.rows, spec.cols)
+        self.axes.append(ax)
+        self._cur = ax
+        return ax
+
+    def add_gridspec(self, nrows=1, ncols=1, **kwargs):
+        return GridSpec(nrows, ncols, figure=self, **kwargs)
+
+    def subplot_mosaic(self, mosaic, empty_sentinel=".", **kwargs):
+        """Create one axes per mosaic label from a string or list-of-lists grid."""
+        rows = [list(row) for row in mosaic]
+        if not rows or not rows[0]:
+            raise ValueError("subplot_mosaic needs a non-empty mosaic")
+        ncols = len(rows[0])
+        if any(len(row) != ncols for row in rows):
+            raise ValueError("all mosaic rows must have the same length")
+        gs = self.add_gridspec(len(rows), ncols)
+        cells = {}
+        for r, row in enumerate(rows):
+            for c, label in enumerate(row):
+                if label == empty_sentinel:
+                    continue
+                cells.setdefault(label, []).append((r, c))
+        out = {}
+        for label, coords in sorted(cells.items(), key=lambda item: str(item[0])):
+            r0, r1 = min(r for r, _ in coords), max(r for r, _ in coords)
+            c0, c1 = min(c for _, c in coords), max(c for _, c in coords)
+            expected = {(r, c) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)}
+            if set(coords) != expected:
+                raise ValueError(f"mosaic region for {label!r} is not rectangular")
+            out[label] = self.add_subplot(SubplotSpec(gs, (r0, r1), (c0, c1)))
+        return out
 
     def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True):
         axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
@@ -2098,7 +2222,15 @@ def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
     return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey, squeeze=squeeze)
 
 
-def subplot(nrows, ncols, index): return gcf().add_subplot(nrows, ncols, index)
+def subplot(*args, **kwargs):
+    """`subplot(nrows, ncols, index)` or `subplot(gs[row, col])`."""
+    return gcf().add_subplot(*args)
+
+
+def subplot_mosaic(mosaic, empty_sentinel=".", figsize=(6.4, 4.8), dpi=None,
+                   facecolor=None, edgecolor=None, **kwargs):
+    fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
+    return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
 def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
     return gcf().suptitle(t, x=x, y=y, fontsize=fontsize, **kwargs)
 def plot(*args, **kwargs): return gca().plot(*args, **kwargs)

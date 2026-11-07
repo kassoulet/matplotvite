@@ -1514,6 +1514,47 @@ def test_subplots_squeeze_false_keeps_array():
     assert axs[0, 0].get_figure() is fig
 
 
+def test_gridspec_spans_multiple_cells(tmp_path):
+    fig = plt.figure((5, 4))
+    gs = fig.add_gridspec(2, 3)
+    top = fig.add_subplot(gs[0, :])
+    left = fig.add_subplot(gs[1, 0])
+    right = fig.add_subplot(gs[1, 1:])
+    top.plot([0, 1], [0, 1])
+    left.bar([0, 1], [2, 3])
+    right.scatter([0, 1], [1, 0])
+    assert isinstance(gs, plt.GridSpec) and gs.get_geometry() == (2, 3)
+    btop, bleft, bright = (ax._panel()["bounds"] for ax in (top, left, right))
+    assert btop[2] > bleft[2] * 2
+    assert bright[0] > bleft[0]
+    assert top.get_position().width > left.get_position().width
+    p = tmp_path / "gridspec.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_subplot_mosaic_labels_and_empty_cells(tmp_path):
+    fig, axes = plt.subplot_mosaic([["left", "right"], ["left", "bottom"]], figsize=(4, 4))
+    assert set(axes) == {"left", "right", "bottom"}
+    assert axes["left"].get_position().height > axes["right"].get_position().height
+    axes["left"].plot([0, 1], [0, 1])
+    axes["right"].plot([0, 1], [1, 0])
+    p = tmp_path / "mosaic.svg"
+    fig.savefig(p)
+    assert p.read_text().startswith("<svg")
+    fig2, only = plt.subplot_mosaic([[".", "a"]])
+    assert list(only) == ["a"]
+    assert fig2 is plt.gcf()
+
+
+def test_pyplot_subplot_accepts_subplotspec():
+    fig = plt.figure()
+    gs = fig.add_gridspec(1, 2)
+    ax = plt.subplot(gs[0, 1])
+    assert ax.get_figure() is fig
+    assert ax.get_position().x0 > 0.4
+
+
 def test_twinx_adds_right_axis_on_the_same_panel(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.plot([0, 1, 2], [1, 4, 9], color="red")
