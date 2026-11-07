@@ -86,7 +86,8 @@
 - [x] `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` / `barh(...)` — rectangles drawn in pixel space, returning a `BarContainer` of mutable handles; labelled bars get a legend swatch
 - [x] `bar_label(container, labels=, fmt=, label_type=, padding=)` — values placed at the bar end or centred
 - [x] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, orientation=)` — implemented over `bar`, returns `(counts, edges, handles)`; `histtype` covers `bar`/`step`/`stepfilled` and `bottom` offsets
-- [x] `step(x, y, where=, color=, label=)` — delegates to `plot` with `steps-pre`/`steps-post`; `where="mid"` raises
+- [x] `step(x, y, where="pre"|"post"|"mid", color=, label=)` — delegates to `plot` with `steps-pre`/`steps-post`/`steps-mid`; `where="mid"` now supported
+- [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline
 - [x] `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(x, ymin, ymax, ...)` — one segment per entry, per-segment colour and style
 
 ### 3.2 Log / symlog scales
@@ -107,8 +108,8 @@
 - [x] `grid(True|False, which=, axis=)` — light gridlines under the data; `visible=None` flips the current state
 - [x] `tick_params(...)` — accepted and recorded; tick styling is not rendered
 - [x] `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from the data limits
-- [ ] `rcParams` subset that actually changes output: `lines.linewidth`, `axes.labelsize`, `font.size`, `figure.dpi`, `axes.prop_cycle`
-- [ ] Color cycle customization (`set_prop_cycle`)
+- [x] `rcParams` subset that actually changes output: `lines.linewidth`, `lines.markersize`, `lines.markerlinewidth`, `axes.labelsize`, `font.size`, `figure.dpi`, `axes.prop_cycle`
+- [x] Color cycle customization (`set_prop_cycle`)
 - [x] `plt.show()` as a silent no-op (compatibility)
 - [x] `plt.draw()` as a no-op (compatibility)
 - [x] `plt.axes()` / `plt.pause()` / `plt.ion()` / `plt.ioff()` compatibility shims

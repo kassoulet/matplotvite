@@ -25,6 +25,14 @@ plt.savefig(OUT)""",
     "linestyle": "plt.plot(x, x, linestyle='--'); plt.savefig(OUT)",
     "scatter": "plt.scatter(x, np.sin(x)); plt.savefig(OUT)",
     "subplots": "fig, ax = plt.subplots(); ax.plot(x, x); ax.set_xlim(0, 5); fig.savefig(OUT)",
+    "step_pre": "plt.step(x, np.sin(x), where='pre'); plt.savefig(OUT)",
+    "step_post": "plt.step(x, np.sin(x), where='post'); plt.savefig(OUT)",
+    "step_mid": "plt.step(x, np.sin(x), where='mid'); plt.savefig(OUT)",
+    "stairs": "plt.stairs([1, 2, 3], edges=[0, 1, 2, 3], fill=True); plt.savefig(OUT)",
+    "hist_step": "plt.hist(np.random.randn(100), bins=10, histtype='step'); plt.savefig(OUT)",
+    "hist_stepfilled": "plt.hist(np.random.randn(100), bins=10, histtype='stepfilled'); plt.savefig(OUT)",
+    "broken_barh": "plt.broken_barh([(0, 1), (2, 0.5)], (2, 0.5), colors='blue'); plt.savefig(OUT)",
+    "errorbar_markers": "plt.errorbar([1, 2, 3], [1, 4, 9], yerr=[0.5, 1.0, 1.5], fmt='ro', capsize=3); plt.savefig(OUT)",
 }
 
 out = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "visual"); out.mkdir(exist_ok=True)

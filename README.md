@@ -72,8 +72,9 @@ plt.savefig("contours.png")
 - `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars
 - `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar` (or as a `step`/`stepfilled` outline),
   returning `(counts, edges, handles)`
-- `step(x, y, where="pre"|"post")` and `stairs(values, edges=, baseline=, fill=)` —
+- `step(x, y, where="pre"|"post"|"mid")` and `stairs(values, edges=, baseline=, fill=)` —
   staircase lines, with optional fill to a baseline
+  (`where="mid"` places corners at interval midpoints)
 - `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline (`orientation="horizontal"` works)
 - `pie(x, labels=, autopct=, colors=, explode=, startangle=)` — filled wedges with
   equal aspect, returning `(wedges, texts, autotexts)`
