@@ -346,6 +346,59 @@ pub(crate) struct Panel<'py> {
     /// Gap reserved for the twin axis labels, as a figure-width fraction.
     #[pyo3(item)]
     pub(crate) twin_gap: f64,
+    #[pyo3(item)]
+    pub(crate) patches: Vec<ArtistPatch>,
+    #[pyo3(item)]
+    pub(crate) collections: Vec<ArtistCollection>,
+}
+
+/// A patch added through `add_patch`, reduced to simple data-space geometry.
+#[derive(FromPyObject)]
+pub(crate) struct ArtistPatch {
+    #[pyo3(item)]
+    pub(crate) kind: String,
+    #[pyo3(item)]
+    pub(crate) x: f64,
+    #[pyo3(item)]
+    pub(crate) y: f64,
+    #[pyo3(item)]
+    pub(crate) width: f64,
+    #[pyo3(item)]
+    pub(crate) height: f64,
+    /// Flattened xy pairs for `kind == "polygon"`.
+    #[pyo3(item)]
+    pub(crate) points: Vec<f64>,
+    #[pyo3(item)]
+    pub(crate) facecolor: Option<String>,
+    #[pyo3(item)]
+    pub(crate) edgecolor: Option<String>,
+    #[pyo3(item)]
+    pub(crate) linewidth: f64,
+    #[pyo3(item)]
+    pub(crate) alpha: f64,
+    #[pyo3(item)]
+    pub(crate) label: String,
+}
+
+/// A collection added through `add_collection`: point offsets and/or polylines.
+#[derive(FromPyObject)]
+pub(crate) struct ArtistCollection {
+    #[pyo3(item)]
+    pub(crate) points: Vec<f64>,
+    #[pyo3(item)]
+    pub(crate) segments: Vec<Vec<f64>>,
+    #[pyo3(item)]
+    pub(crate) sizes: Vec<f64>,
+    #[pyo3(item)]
+    pub(crate) colors: Vec<String>,
+    #[pyo3(item)]
+    pub(crate) marker: String,
+    #[pyo3(item)]
+    pub(crate) alpha: f64,
+    #[pyo3(item)]
+    pub(crate) linewidth: f64,
+    #[pyo3(item)]
+    pub(crate) label: String,
 }
 
 /// One `bar`/`barh` call: axis-aligned rectangles in data coordinates.

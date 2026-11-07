@@ -1514,6 +1514,59 @@ def test_subplots_squeeze_false_keeps_array():
     assert axs[0, 0].get_figure() is fig
 
 
+class _FakeRect:
+    def __init__(self, x, y, w, h, face="red", edge="black", lw=2.0, alpha=1.0):
+        self._v = (x, y, w, h)
+        self._face, self._edge, self._lw, self._alpha = face, edge, lw, alpha
+
+    def get_x(self): return self._v[0]
+    def get_y(self): return self._v[1]
+    def get_width(self): return self._v[2]
+    def get_height(self): return self._v[3]
+    def get_facecolor(self): return self._face
+    def get_edgecolor(self): return self._edge
+    def get_linewidth(self): return self._lw
+    def get_alpha(self): return self._alpha
+    def get_label(self): return ""
+
+
+class _FakeCollection:
+    def __init__(self, offsets, colors, sizes):
+        self._offsets, self._colors, self._sizes = offsets, colors, sizes
+
+    def get_offsets(self): return np.asarray(self._offsets, dtype=float)
+    def get_facecolor(self): return np.asarray(self._colors, dtype=float)
+    def get_sizes(self): return np.asarray(self._sizes, dtype=float)
+    def get_alpha(self): return 1.0
+    def get_marker(self): return "o"
+    def get_label(self): return ""
+
+
+def test_add_patch_renders_and_expands_limits(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    rect = _FakeRect(2, 3, 4, 5)
+    assert ax.add_patch(rect) is rect
+    assert ax.get_xlim()[1] >= 6 and ax.get_ylim()[1] >= 8
+    panel = ax._panel()
+    assert panel["patches"][0]["kind"] == "rect"
+    svg = fig.savefig(None, format="svg").decode().upper()
+    assert "#FF0000" in svg
+    p = tmp_path / "patch.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_add_collection_renders_offsets(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    coll = _FakeCollection([[0, 1], [2, 3]], [(0, 0, 1, 1), (1, 0, 0, 1)], [25, 100])
+    assert ax.add_collection(coll) is coll
+    assert ax._panel()["collections"][0]["points"] == [0.0, 1.0, 2.0, 3.0]
+    assert ax.get_xlim()[1] >= 2 and ax.get_ylim()[1] >= 3
+    svg = fig.savefig(None, format="svg").decode().upper()
+    assert "#0000FF" in svg and "#FF0000" in svg
+
+
 def test_window_extent_accounts_for_labels_and_title():
     fig, ax = plt.subplots(figsize=(4, 3), dpi=100)
     ax.plot([0, 1], [0, 1])

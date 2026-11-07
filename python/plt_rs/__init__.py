@@ -323,6 +323,154 @@ class _BarContainer(list):
         return list(self)
 
 
+def _call(obj, name):
+    """Call an optional getter, treating broken or missing members as absent."""
+    fn = getattr(obj, name, None)
+    if fn is None:
+        return None
+    try:
+        return fn()
+    except Exception:
+        return None
+
+
+def _number(value, default):
+    try:
+        return float(value) if value is not None else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _numbers(value):
+    if value is None:
+        return []
+    if isinstance(value, (int, float, np.number)):
+        return [float(value)]
+    try:
+        return [float(v) for v in np.asarray(value, dtype=float).ravel()]
+    except (TypeError, ValueError):
+        return []
+
+
+def _single_color(value, fallback=None):
+    """Pick one colour from a matplotlib colour, list or colour array."""
+    if value is None:
+        return fallback
+    try:
+        if isinstance(value, np.ndarray):
+            if value.ndim == 2:
+                return fallback if value.shape[0] == 0 else _norm_color(value[0])
+            if value.ndim == 1 and value.size in (3, 4):
+                return _norm_color(value)
+            return fallback if value.size == 0 else _single_color(value.ravel()[0], fallback)
+        if isinstance(value, (list, tuple)):
+            if not value:
+                return fallback
+            if len(value) in (3, 4) and all(isinstance(v, (int, float, np.number)) for v in value):
+                return _norm_color(value)
+            return _single_color(value[0], fallback)
+        return _norm_color(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _color_list(value):
+    """Normalise a colour, a list of colours or an Nx4 colour array."""
+    if value is None:
+        return []
+    if isinstance(value, np.ndarray):
+        if value.ndim == 2:
+            return [_norm_color(row) for row in value]
+        value = value.ravel().tolist()
+    if isinstance(value, str) or _is_rgb(value):
+        return [_norm_color(value)]
+    if isinstance(value, (list, tuple)):
+        out = []
+        for item in value:
+            out.extend(_color_list(item))
+        return out
+    return []
+
+
+def _patch_entry(artist):
+    """Reduce a Rectangle/Circle/Polygon-like object, or return None."""
+    kind = None
+    x = y = w = h = 0.0
+    points = []
+    xy = _call(artist, "get_xy")
+    if xy is not None:
+        try:
+            pts = np.asarray(xy, dtype=float)
+            if pts.ndim == 2 and pts.shape[1] >= 2:
+                pts = pts[np.isfinite(pts[:, :2]).all(axis=1)]
+                if len(pts) >= 2:
+                    kind, points = "polygon", pts[:, :2].ravel().tolist()
+        except (TypeError, ValueError):
+            points = []
+    if kind is None and _call(artist, "get_radius") is not None:
+        center = _call(artist, "get_center")
+        if center is not None:
+            kind, x, y = "circle", float(center[0]), float(center[1])
+            w = float(_call(artist, "get_radius"))
+    if kind is None:
+        vals = [_call(artist, name) for name in
+                ("get_x", "get_y", "get_width", "get_height")]
+        if all(v is not None for v in vals):
+            kind = "rect"
+            x, y, w, h = (float(v) for v in vals)
+    if kind is None:
+        return None
+    return dict(kind=kind, x=x, y=y, width=w, height=h, points=points,
+                facecolor=_single_color(_call(artist, "get_facecolor")),
+                edgecolor=_single_color(_call(artist, "get_edgecolor")),
+                linewidth=_number(_call(artist, "get_linewidth"), 1.0),
+                alpha=_number(_call(artist, "get_alpha"), 1.0),
+                label=str(_call(artist, "get_label") or ""))
+
+
+def _collection_entry(artist):
+    """Reduce a scatter/line collection, or return None."""
+    points, segments = [], []
+    offsets = _call(artist, "get_offsets")
+    if offsets is not None:
+        try:
+            a = np.asarray(offsets, dtype=float)
+            if a.size:
+                a = a.reshape(-1, 2)
+                a = a[np.isfinite(a).all(axis=1)]
+                points = a.ravel().tolist()
+        except (TypeError, ValueError):
+            points = []
+    raw_segments = _call(artist, "get_segments")
+    if raw_segments is not None:
+        try:
+            items = list(raw_segments)
+        except TypeError:
+            items = []
+        for raw in items:
+            try:
+                seg = np.asarray(raw, dtype=float).reshape(-1, 2)
+            except (TypeError, ValueError):
+                continue
+            seg = seg[np.isfinite(seg).all(axis=1)]
+            if len(seg) >= 2:
+                segments.append(seg.ravel().tolist())
+    if not points and not segments:
+        return None
+    colors = _call(artist, "get_facecolor")
+    if colors is None or (hasattr(colors, "__len__") and len(colors) == 0):
+        colors = _call(artist, "get_colors") or _call(artist, "get_edgecolor")
+    marker = _call(artist, "get_marker")
+    alpha = _number(_call(artist, "get_alpha"), 1.0)
+    return dict(points=points, segments=segments,
+                sizes=_numbers(_call(artist, "get_sizes")),
+                colors=_color_list(colors),
+                marker="o" if marker is None else str(marker),
+                alpha=1.0 if alpha is None else alpha,
+                linewidth=_number(_call(artist, "get_linewidth"), 1.5),
+                label=str(_call(artist, "get_label") or ""))
+
+
 class Axes:
     def __init__(self, pos):
         self.pos, self.lines, self.texts = pos, [], []
@@ -500,6 +648,33 @@ class Axes:
         fig._cur = twin
         return twin
 
+    def _artist_extents(self):
+        """Data bounds of registered patches and collections."""
+        xs, ys = [], []
+        for artist in self.artists:
+            patch = _patch_entry(artist)
+            if patch is not None:
+                if patch["kind"] == "rect":
+                    xs += [patch["x"], patch["x"] + patch["width"]]
+                    ys += [patch["y"], patch["y"] + patch["height"]]
+                elif patch["kind"] == "circle":
+                    xs += [patch["x"] - patch["width"], patch["x"] + patch["width"]]
+                    ys += [patch["y"] - patch["width"], patch["y"] + patch["width"]]
+                else:
+                    pts = np.asarray(patch["points"], dtype=float).reshape(-1, 2)
+                    xs += pts[:, 0].tolist()
+                    ys += pts[:, 1].tolist()
+                continue
+            coll = _collection_entry(artist)
+            if coll is not None:
+                for flat in [coll["points"], *coll["segments"]]:
+                    pts = np.asarray(flat, dtype=float)
+                    if pts.size:
+                        pts = pts.reshape(-1, 2)
+                        xs += pts[:, 0].tolist()
+                        ys += pts[:, 1].tolist()
+        return xs, ys
+
     def _extent_x(self):
         xs = []
         for entry in self.lines:
@@ -518,6 +693,7 @@ class Axes:
         for e in self.errors:
             xs.extend(e[0] - e[4])
             xs.extend(e[0] + e[5])
+        xs.extend(self._artist_extents()[0])
         return _span(xs)
 
     def _extent_y(self):
@@ -538,6 +714,7 @@ class Axes:
         for e in self.errors:
             ys.extend(e[1] - e[2])
             ys.extend(e[1] + e[3])
+        ys.extend(self._artist_extents()[1])
         return _span(ys)
 
     def get_xlim(self):
@@ -1500,6 +1677,8 @@ class Axes:
         bars = [dict(b, colors=[_norm_color(c) for c in b["colors"]],
                      edgecolor=_norm_color(b["edgecolor"])) for b in bars]
         bands = [dict(b, color=_norm_color(b["color"])) for b in self.bands]
+        patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
+        collections = [c for c in (_collection_entry(a) for a in self.artists) if c is not None]
         texts = [self._resolve_text(t, x0, x1, y0, y1) for t in self.texts]
         scatter = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
                    for e in self.scatter_pts]
@@ -1545,6 +1724,7 @@ class Axes:
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
                     foreground=_norm_color(rcParams.get("text.color")),
                     bounds=self._pos_override, twin=self._twin, twin_gap=self._twin_gap,
+                    patches=patches, collections=collections,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
                             for e in self.images])
 
@@ -2156,7 +2336,7 @@ class Figure:
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
                     x_log=False, y_log=False, log_base=10.0, aspect=None,
                     axis_off=False, facecolor=None, foreground=None,
-                    bounds=None, twin="", twin_gap=0.0,
+                    bounds=None, twin="", twin_gap=0.0, patches=[], collections=[],
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,

@@ -54,6 +54,8 @@ fn render(
                 && p.scatter.is_empty()
                 && p.bars.is_empty()
                 && p.bands.is_empty()
+                && p.patches.is_empty()
+                && p.collections.is_empty()
                 && p.colorbar.is_none()
         })
     {

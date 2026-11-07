@@ -1077,6 +1077,166 @@ where
             }
         }
     }
+    // Patches and collections registered through add_patch/add_collection.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for patch in &p.patches {
+            let alpha = patch.alpha.clamp(0.0, 1.0);
+            let face = patch.facecolor.as_deref().map(color).filter(|c| c.3 > 0.0);
+            let fill = face.map(|c| c.mix(alpha));
+            let stroke = patch
+                .edgecolor
+                .as_deref()
+                .map(color)
+                .filter(|c| c.3 > 0.0)
+                .map(|c| {
+                    c.mix(alpha)
+                        .stroke_width(patch.linewidth.max(1.0).round() as u32)
+                });
+            if !patch.label.is_empty() {
+                entries.push(LegendEntry {
+                    label: patch.label.clone(),
+                    swatch: LegendSwatch::Rect(face.unwrap_or(RGBAColor(31, 119, 180, 1.0))),
+                });
+            }
+            let map = |x: f64, y: f64| {
+                let (px, py) = chart_area.map_coordinate(&(tx(x), ty(y)));
+                (px - base.0, py - base.1)
+            };
+            match patch.kind.as_str() {
+                "rect" => {
+                    let (ax0, ay0) = map(patch.x, patch.y);
+                    let (ax1, ay1) = map(patch.x + patch.width, patch.y + patch.height);
+                    let (xl, xr) = (ax0.min(ax1), ax0.max(ax1));
+                    let (yt, yb) = (ay0.min(ay1), ay0.max(ay1));
+                    if xr <= xl || yb <= yt {
+                        continue;
+                    }
+                    let rect = [(xl, yt), (xr, yb)];
+                    if let Some(c) = fill {
+                        area.draw(&Rectangle::new(rect, c.filled()))?;
+                    }
+                    if let Some(c) = stroke {
+                        area.draw(&Rectangle::new(rect, c))?;
+                    }
+                }
+                "circle" => {
+                    let (cx, cy) = map(patch.x, patch.y);
+                    let (rxp, _) = map(patch.x + patch.width, patch.y);
+                    let (_, ryp) = map(patch.x, patch.y + patch.width);
+                    let (rx, ry) = ((rxp - cx).abs() as f64, (ryp - cy).abs() as f64);
+                    let pts: Vec<(i32, i32)> = (0..48)
+                        .map(|i| {
+                            let t = i as f64 / 48.0 * std::f64::consts::TAU;
+                            (
+                                cx + (rx * t.cos()).round() as i32,
+                                cy + (ry * t.sin()).round() as i32,
+                            )
+                        })
+                        .collect();
+                    if let Some(c) = fill {
+                        area.draw(&Polygon::new(pts.clone(), c.filled()))?;
+                    }
+                    if let Some(c) = stroke {
+                        let mut outline = pts.clone();
+                        outline.push(pts[0]);
+                        area.draw(&PathElement::new(outline, c))?;
+                    }
+                }
+                _ => {
+                    if patch.points.len() < 4 {
+                        continue;
+                    }
+                    let pts: Vec<(i32, i32)> = patch
+                        .points
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|pair| map(pair[0], pair[1]))
+                        .collect();
+                    if let Some(c) = fill {
+                        if pts.len() >= 3 {
+                            area.draw(&Polygon::new(pts.clone(), c.filled()))?;
+                        }
+                    }
+                    if let Some(c) = stroke {
+                        let mut outline = pts.clone();
+                        if let Some(&first) = pts.first() {
+                            outline.push(first);
+                        }
+                        if outline.len() >= 2 {
+                            area.draw(&PathElement::new(outline, c))?;
+                        }
+                    }
+                }
+            }
+        }
+        for coll in &p.collections {
+            let alpha = coll.alpha.clamp(0.0, 1.0);
+            let marker = if coll.marker.is_empty() {
+                "o"
+            } else {
+                coll.marker.as_str()
+            };
+            if !coll.label.is_empty() {
+                let icon = coll
+                    .colors
+                    .first()
+                    .map(|c| color(c))
+                    .unwrap_or(RGBAColor(31, 119, 180, 1.0));
+                entries.push(LegendEntry {
+                    label: coll.label.clone(),
+                    swatch: LegendSwatch::Circle(icon.mix(alpha)),
+                });
+            }
+            for i in 0..coll.points.len() / 2 {
+                let (x, y) = (coll.points[i * 2], coll.points[i * 2 + 1]);
+                if !x.is_finite() || !y.is_finite() {
+                    continue;
+                }
+                let (px, py) = chart_area.map_coordinate(&(tx(x), ty(y)));
+                let size = coll
+                    .sizes
+                    .get(i)
+                    .or_else(|| coll.sizes.first())
+                    .copied()
+                    .unwrap_or(36.0)
+                    .max(0.0);
+                let r = (size.sqrt() / 2.0 * 1.39).max(1.0);
+                let col = if coll.colors.is_empty() {
+                    RGBAColor(31, 119, 180, 1.0)
+                } else {
+                    color(&coll.colors[i % coll.colors.len()])
+                };
+                draw_marker(area, base, (px, py), r, col.mix(alpha), 1, marker)?;
+            }
+            for (i, seg) in coll.segments.iter().enumerate() {
+                if seg.len() < 4 {
+                    continue;
+                }
+                let pts: Vec<(i32, i32)> = seg
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| {
+                        let (px, py) = chart_area.map_coordinate(&(tx(pair[0]), ty(pair[1])));
+                        (px - base.0, py - base.1)
+                    })
+                    .collect();
+                let col = if coll.colors.is_empty() {
+                    RGBAColor(31, 119, 180, 1.0)
+                } else {
+                    color(&coll.colors[i % coll.colors.len()])
+                };
+                area.draw(&PathElement::new(
+                    pts,
+                    col.mix(alpha)
+                        .stroke_width(coll.linewidth.max(1.0).round() as u32),
+                ))?;
+            }
+        }
+    }
     for s in &p.series {
         let base = area.get_base_pixel();
         let xs = s.x.as_array();

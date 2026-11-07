@@ -68,6 +68,36 @@ pub(crate) fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
             ys.extend([*a, *b]);
         }
     }
+    for patch in &p.patches {
+        match patch.kind.as_str() {
+            "rect" => {
+                xs.extend([patch.x, patch.x + patch.width]);
+                ys.extend([patch.y, patch.y + patch.height]);
+            }
+            "circle" => {
+                xs.extend([patch.x - patch.width, patch.x + patch.width]);
+                ys.extend([patch.y - patch.width, patch.y + patch.width]);
+            }
+            _ => {
+                for pair in patch.points.as_chunks::<2>().0 {
+                    xs.push(pair[0]);
+                    ys.push(pair[1]);
+                }
+            }
+        }
+    }
+    for coll in &p.collections {
+        for pair in coll.points.as_chunks::<2>().0 {
+            xs.push(pair[0]);
+            ys.push(pair[1]);
+        }
+        for seg in &coll.segments {
+            for pair in seg.as_chunks::<2>().0 {
+                xs.push(pair[0]);
+                ys.push(pair[1]);
+            }
+        }
+    }
     if xs.is_empty() {
         xs = vec![0.0, 1.0];
     }
