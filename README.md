@@ -9,21 +9,44 @@ Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
 | Benchmark Case | `plt.rs` | `matplotlib` | Speedup |
 |---|---:|---:|---:|
-| Single Line (100 pts, PNG) | **0.44 ms** | 60.37 ms | **137x** |
-| Single Line (1,000 pts, PNG) | **0.56 ms** | 60.38 ms | **108x** |
-| Single Line (10,000 pts, PNG) | **0.78 ms** | 63.68 ms | **82x** |
-| Subplots (2x2 grid, PNG) | **1.53 ms** | 110.28 ms | **72x** |
-| Vector SVG Export (1k pts) | **0.13 ms** | 55.02 ms | **428x** |
-| Cold CLI Process Execution | **71 ms** | 404 ms | **5.7x** |
-| Peak Memory (RSS) | **30.7 MB** | 93.4 MB | **67% less RAM** |
+| Single Line (100 pts, PNG) | **11.80 ms** | 123.65 ms | **10.5x** |
+| Single Line (1,000 pts, PNG) | **11.45 ms** | 128.97 ms | **11.3x** |
+| Single Line (10,000 pts, PNG) | **19.14 ms** | 142.87 ms | **7.5x** |
+| Single Line (100,000 pts, PNG) | **89.72 ms** | 155.20 ms | **1.7x** |
+| Multi-Series (5 lines x 2,000 pts, PNG) | **22.38 ms** | 194.35 ms | **8.7x** |
+| Subplots (2x2 grid, PNG) | **24.99 ms** | 226.45 ms | **9.1x** |
+| Vector SVG Export (1k pts) | **1.04 ms** | 119.39 ms | **114.9x** |
+| Cold CLI Process Execution | **146.7 ms** | 733.5 ms | **5.0x** |
 
-*Measured on Linux x86_64. View full interactive charts on the [Benchmarks Page](https://kassoulet.github.io/plt_rs/benchmarks.html).*
+*Measured on a shared Linux x86_64 host (AMD Ryzen 5 5600G, Python 3.14, matplotlib 3.11.2); wall-clock times vary with machine load. View full interactive charts on the [Benchmarks Page](https://kassoulet.github.io/plt_rs/benchmarks.html) and regenerate with `python tools/benchmark.py`.*
 
 ## Build
 ```bash
 pip install maturin numpy
 maturin develop --release
 ```
+
+## Dependencies
+
+The wheel is a compiled Rust extension. No C/C++ sources are compiled and there is no
+system graphics stack (Cairo, Pango, fontconfig) to install. Python needs only NumPy
+at runtime.
+
+| Layer | Dependency | Language / boundary |
+|---|---|---|
+| Python runtime | `numpy` | the only required Python package |
+| Native FFI | `pyo3` → CPython, `numpy` crate → NumPy C API | **non-Rust boundary**: CPython and NumPy are C/C++; these crates contain `unsafe` FFI code |
+| Native FFI | `libc`, `memmap2` (via `fontdb`) | **non-Rust boundary**: OS/libc bindings, used for memory-mapped font files |
+| Rendering | `plotters` | Rust |
+| Rendering | `resvg`, `usvg`, `tiny-skia` | Rust (`tiny-skia` contains some `unsafe` SIMD internals) |
+| Rendering | `svg2pdf`, `pdf-writer`, `png` | Rust |
+| Text | `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter` | Rust; only the embedded Geist faces are loaded |
+| Fonts | Geist sans/serif/mono TTFs | OFL, embedded in the binary (see `assets/fonts/`) |
+| Build | Rust stable, `maturin`, CPython (with development headers) | NumPy is only needed to import the built module |
+
+`plt.rs` itself contains no `unsafe` code. All non-Rust code sits behind the
+`pyo3`/`numpy` and `libc` bindings; nothing on the drawing path shells out or links
+a C library directly.
 
 ## Usage
 ```python
@@ -61,6 +84,8 @@ plt.savefig("contours.png")
 - `plot` styling: `linestyle`/`ls`, `linewidth`/`lw`, `marker`, `markersize`/`ms`,
   `markerfacecolor`/`mfc`, `markeredgecolor`/`mec`, `markeredgewidth`/`mew`, `alpha`,
   `drawstyle="steps-pre"|"steps-post"`, and fmt shorthand (`plot(x, y, "r--o")`)
+- Colors: all 148 CSS4 names (plus `tab:*` aliases), hex strings, RGB/RGBA tuples,
+  `C0`–`C9` and `0`–`9` cycle references, and `"none"`/`"transparent"`
 - `scatter(x, y, s=, c=, alpha=, cmap=, marker=)` — per-point sizes and colours,
   markers `o s ^ v < > D x + .`, with a legend handle when labelled
 - `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)` — scalar, per-point or
@@ -87,11 +112,11 @@ plt.savefig("contours.png")
   unknown names raise `AttributeError`, and values are not validated
 - `tight_layout`/`subplots_adjust`/`set_in_layout` — accepted as no-ops (window-fitted
   panels, so there is nothing to negotiate)
-- `grid(True|False)`, `tick_params(...)` — gridlines are drawn; tick styling is recorded
-  but not rendered
 - `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from limits
 - `rc("lines", linewidth=2)`, `rc_context`, `rcParams`, `rcdefaults` — recorded settings
-  with restore-on-exit; the renderer keeps its fixed style defaults
+  with restore-on-exit; `lines.linewidth`, `lines.markersize`, `lines.markerlinewidth`,
+  `axes.labelsize`, `axes.titlesize`, `font.size`, `legend.fontsize` and `figure.dpi`
+  affect output
 - `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
   filled polygons; `where` masks split into separate runs, `label=` gives a legend swatch
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
@@ -111,20 +136,30 @@ plt.savefig("contours.png")
 - `colorbar(mappable, label=)` — gradient strip with min/mid/max ticks
 
 **Axes & layout**
-- `figure(figsize=)`, `subplots(nrows, ncols)`, `subplot`, `gca`, `gcf`, `axes`
-- `xlabel` / `ylabel` / `title` / `legend`, `xlim` / `ylim`
+- `figure(figsize=, dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through,
+  `subplot`, `gca`, `gcf`, `axes`
+- `xlabel` / `ylabel` / `title` (all with `fontsize=`), `legend(...)`, `xlim` / `ylim`
+- `legend(loc=, ncol=, frameon=, fontsize=, title=, title_fontsize=, bbox_to_anchor=)` —
+  cardinal/2-tuple locations, multi-column layouts, titles and axes-fraction anchors
+- `xticks(ticks, labels=, rotation=, fontsize=)` / `yticks(...)` — manual ticks whose
+  labels, rotation and size are rendered
+- `tick_params(axis=, labelsize=, length=, width=, color=, rotation=)` — label and tick
+  mark styling
+- `grid(visible, axis="both", linestyle=, linewidth=, alpha=, color=)` — styled gridlines
+- `text(x, y, s, color=, fontsize=, ha=, va=, transform=)` — data, `ax.transAxes` or
+  `fig.transFigure` coordinates; `annotate(text, xy, xytext=)` adds a straight arrow
 - `set_aspect("equal" | "auto" | <number>)` — shrinks the plotting box, like
   matplotlib's `adjustable="box"` (images default to `"equal"`)
-- `text(x, y, s, color=, fontsize=, ha=, va=)`, `annotate(text, xy, xytext=)`
-- `savefig(path, format=, dpi=, bbox_inches="tight", transparent=)` — PNG, SVG and
-  vector PDF (text stays selectable; the page is sized from `figsize`)
-- `set(**kwargs)` shorthand, `axis("off" | "equal" | [limits])`, `invert_xaxis`/`invert_yaxis`
+- `savefig(path | file-like | None, format=, dpi=, bbox_inches="tight", transparent=,
+  facecolor=, edgecolor=)` — PNG, SVG and vector PDF (text stays selectable; the page is
+  sized from `figsize`); no path returns `bytes`
+- `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
+  `invert_xaxis`/`invert_yaxis`
 
 **Introspection:** `get_xlim`/`get_ylim`, `get_position`, `get_window_extent`,
 `get_visible`/`set_visible`, `remove`, `clear`, `add_artist`/`add_patch`,
 `get_children`, `get_transform`, `get_figure`, `get_facecolor`, `get_alpha`.
-Visibility and removal are honoured by the renderer; tick getters/setters store
-values but the renderer still chooses tick locations automatically.
+Visibility, removal, and custom tick positions/labels are honoured by the renderer.
 
 **Compatibility no-ops:** `show`, `draw`, `pause`, `ion`, `ioff`, `update`, `margins`,
 `autoscale`, `set_clip_on`, `set_path_effects`.
@@ -138,7 +173,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 842 / 10 098 (87%)**. CI re-runs the trace against
+accepts — currently **8 896 / 10 098 (88%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks
@@ -155,7 +190,8 @@ python tools/benchmark.py
 
 ## Test
 ```bash
-pip install pytest && pytest
+pip install pytest ruff && pytest
+ruff check python tests tools examples
 ```
 
 ## License

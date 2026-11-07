@@ -1,6 +1,5 @@
 """Tests verifying that all sample use cases in examples/samples.py execute correctly."""
 
-from pathlib import Path
 import numpy as np
 import pytest
 from examples.samples import SAMPLES

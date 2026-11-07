@@ -2,7 +2,7 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **8842/10098** (87%)
+Call sites supported: **8896/10098** (88%)
 
 ## pyplot: unsupported (by call count)
 
@@ -17,7 +17,6 @@ Call sites supported: **8842/10098** (87%)
 | 10 | `pie` | 1 |
 | 8 | `imsave` | 1 |
 | 8 | `fignum_exists` | 2 |
-| 7 | `xticks` | 3 |
 | 7 | `tricontourf` | 2 |
 | 7 | `subplot2grid` | 2 |
 | 7 | `polar` | 2 |
@@ -35,7 +34,6 @@ Call sites supported: **8842/10098** (87%)
 | 3 | `suptitle` | 3 |
 | 3 | `get_cmap` | 3 |
 | 3 | `FixedLocator` | 1 |
-| 2 | `yticks` | 2 |
 | 2 | `triplot` | 1 |
 | 2 | `tripcolor` | 1 |
 | 2 | `specgram` | 1 |
@@ -64,7 +62,7 @@ Call sites supported: **8842/10098** (87%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `title`, `rc_context`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `fill_between`, `eventplot`, `yscale`, `xscale`, `fill`, `axline`, `annotate`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `title`, `rc_context`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xticks`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `yticks`, `fill_between`, `eventplot`, `yscale`, `xscale`, `fill`, `axline`, `annotate`
 
 ## Axes: unsupported (by call count)
 
@@ -193,7 +191,6 @@ Axes supported: `plot`, `imshow`, `text`, `draw`, `set_xlim`, `legend`, `set_yli
 | calls | name | files |
 |--:|---|--:|
 | 47 | `suptitle` | 10 |
-| 45 | `get_edgecolor` | 6 |
 | 39 | `subfigures` | 15 |
 | 20 | `add_gridspec` | 4 |
 | 19 | `subplot_mosaic` | 2 |
@@ -229,18 +226,15 @@ Axes supported: `plot`, `imshow`, `text`, `draw`, `set_xlim`, `legend`, `set_yli
 | 1 | `align_titles` | 1 |
 | 1 | `align_labels` | 1 |
 
-Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_without_rendering`, `add_axes`, `subplots_adjust`, `tight_layout`, `set_size_inches`, `gca`, `get_layout_engine`, `set_layout_engine`, `get_size_inches`, `get_axes`, `get_dpi`
+Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_without_rendering`, `add_axes`, `get_edgecolor`, `subplots_adjust`, `tight_layout`, `set_size_inches`, `gca`, `get_layout_engine`, `set_layout_engine`, `get_size_inches`, `get_axes`, `get_dpi`
 
 ## Unsupported kwargs on supported calls
 
-- `subplots`: `layout` (65), `sharex` (50), `sharey` (42), `subplot_kw` (23), `constrained_layout` (19), `dpi` (16), `gridspec_kw` (6), `squeeze` (5), `width_ratios` (4), `tight_layout` (4), `num` (4), `clear` (2), `height_ratios` (1)
-- `text`: `horizontalalignment` (31), `verticalalignment` (30), `size` (17), `wrap` (15), `usetex` (15), `rotation` (15), `math_fontfamily` (9), `font` (9), `family` (9), `transform` (8), `bbox` (7), `antialiased` (6), `alpha` (6), `fontproperties` (5), `clip_on` (5), `url` (4), `style` (3), `rotation_mode` (3), `linespacing` (3), `language` (3)
+- `text`: `horizontalalignment` (31), `verticalalignment` (30), `size` (17), `wrap` (15), `usetex` (15), `rotation` (15), `math_fontfamily` (9), `font` (9), `family` (9), `bbox` (7), `antialiased` (6), `alpha` (6), `fontproperties` (5), `clip_on` (5), `url` (4), `style` (3), `rotation_mode` (3), `linespacing` (3), `language` (3), `weight` (2)
 - `imshow`: `norm` (39), `interpolation_stage` (20), `transform` (10), `colorizer` (3), `clip_path` (3), `clip_on` (2), `rasterized` (1), `data` (1), `clim` (1), `animated` (1)
 - `colorbar`: `orientation` (33), `shrink` (27), `extend` (25), `location` (22), `cax` (17), `use_gridspec` (15), `pad` (12), `aspect` (10), `panchor` (6), `anchor` (6), `spacing` (4), `ticks` (3), `fraction` (2), `format` (2), `extendfrac` (2), `boundaries` (2), `ticklocation` (1), `extendrect` (1)
-- `legend`: `loc` (76), `labelcolor` (39), `labels` (35), `title` (13), `shadow` (8), `bbox_to_anchor` (8), `handles` (6), `title_fontproperties` (5), `numpoints` (5), `ncols` (5), `mode` (4), `title_fontsize` (2), `reverse` (2), `linewidth` (2), `handler_map` (2), `handlelength` (2), `draggable` (2), `ncol` (1), `markerfirst` (1), `handleheight` (1)
-- `savefig`: `metadata` (12), `pil_kwargs` (6), `backend` (5), `facecolor` (4), `papertype` (3), `pad_inches` (3), `orientation` (2), `edgecolor` (2), `non_existent_kwarg` (1)
+- `savefig`: `metadata` (12), `pil_kwargs` (6), `backend` (5), `papertype` (3), `pad_inches` (3), `orientation` (2), `non_existent_kwarg` (1)
 - `annotate`: `xycoords` (26), `textcoords` (22), `va` (7), `fontproperties` (5), `clip_on` (3), `verticalalignment` (2), `size` (2), `horizontalalignment` (2), `ha` (2), `path_effects` (1), `clip_path` (1), `bbox` (1), `annotation_clip` (1)
-- `figure`: `layout` (23), `dpi` (16), `constrained_layout` (5), `num` (3), `frameon` (2), `clear` (2)
 - `psd`: `noverlap` (22), `NFFT` (22), `Fs` (22), `sides` (21), `x` (19), `window` (15), `pad_to` (11), `detrend` (6), `scale_by_freq` (5)
 - `violinplot`: `positions` (22), `showmedians` (17), `showmeans` (17), `showextrema` (17), `orientation` (11), `quantiles` (7), `points` (4), `facecolor` (4), `linecolor` (3), `side` (2), `widths` (1), `vert` (1), `data` (1)
 - `add_subplot`: `projection` (48), `polar` (5), `xticks` (4), `facecolor` (3), `axes_class` (3), `aspect` (3), `yticks` (2), `yscale` (2), `xticklabels` (2), `xscale` (2), `sharey` (2), `sharex` (2), `zorder` (1), `ylim` (1), `xlim` (1), `autoscale_on` (1), `anchor` (1)
@@ -253,12 +247,9 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `hexbin`: `gridsize` (8), `extent` (7), `reduce_C_function` (4), `bins` (4), `yscale` (2), `vmin` (2), `vmax` (2), `mincnt` (2), `marginals` (2), `edgecolors` (2), `colorizer` (2), `C` (2), `xscale` (1), `picker` (1), `norm` (1), `data` (1)
 - `subplot`: `projection` (22), `polar` (5), `theta_offset` (3), `sharey` (2), `anchor` (2), `sharex` (1), `aspect` (1)
 - `streamplot`: `linewidth` (7), `start_points` (5), `density` (5), `color` (5), `maxlength` (3), `num_arrows` (2), `integration_max_step_scale` (2), `integration_max_error_scale` (2), `cmap` (2), `broken_streamlines` (2), `transform` (1), `integration_direction` (1), `arrowsize` (1)
-- `set_title`: `loc` (16), `fontsize` (9), `pad` (5), `fontweight` (5), `y` (1)
 - `clabel`: `fontsize` (10), `inline` (8), `manual` (6), `use_clabeltext` (2), `fmt` (2), `colors` (2), `zorder` (1), `levels` (1), `inline_spacing` (1)
 - `quiver`: `angles` (5), `scale_units` (3), `scale` (3), `pivot` (3), `width` (2), `units` (2), `transform` (2), `headlength` (2), `zorder` (1), `headwidth` (1), `headaxislength` (1), `color` (1)
 - `subplot_mosaic`: `layout` (5), `subplot_kw` (4), `width_ratios` (3), `num` (3), `sharey` (2), `sharex` (2), `per_subplot_kw` (2), `height_ratios` (2), `gridspec_kw` (2), `clear` (1)
-- `set_ylabel`: `loc` (7), `y` (5), `fontsize` (5), `ha` (4), `fontweight` (2), `fontname` (1)
-- `set_xlabel`: `loc` (7), `fontsize` (6), `x` (4), `ha` (3), `fontname` (1)
 - `set_xlim`: `right` (9), `left` (9), `xmin` (1), `xmax` (1), `auto` (1)
 - `csd`: `NFFT` (5), `pad_to` (3), `noverlap` (3), `Fs` (3), `y` (2), `x` (2), `sides` (2)
 - `Circle`: `gid` (6), `transform` (5), `zorder` (3), `facecolor` (3), `clip_on` (2), `alpha` (1)
@@ -289,21 +280,17 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `triplot`: `color` (2), `lw` (1), `ls` (1), `linestyle` (1), `label` (1)
 - `locator_params`: `nbins` (5)
 - `tricontourf`: `levels` (3), `colorizer` (2)
-- `xticks`: `labels` (2), `rotation` (1), `minor` (1)
 - `twinx`: `delta_zorder` (2), `foo` (1), `axes_class` (1)
 - `get_title`: `loc` (4)
-- `ylabel`: `size` (1), `fontproperties` (1), `family` (1), `color` (1)
 - `pie_label`: `rotate` (1), `distance` (1), `alignment` (1)
 - `get_tightbbox`: `for_layout_only` (2), `bbox_extra_artists` (1)
 - `set_position`: `which` (3)
 - `magnitude_spectrum`: `sides` (2), `scale` (1)
-- `xlabel`: `usetex` (1), `size` (1), `fontproperties` (1)
 - `set_sketch_params`: `scale` (1), `randomness` (1), `length` (1)
 - `figtext`: `usetex` (2), `c` (1)
 - `supxlabel`: `x` (1), `weight` (1), `size` (1)
 - `supylabel`: `y` (1), `weight` (1), `size` (1)
 - `cohere`: `noverlap` (1), `NFFT` (1), `Fs` (1)
-- `yticks`: `ticks` (1), `minor` (1), `labels` (1)
 - `acorr`: `maxlags` (2)
 - `spy`: `origin` (1), `marker` (1)
 - `set_xbound`: `upper` (1), `lower` (1)
@@ -325,6 +312,5 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `bxp`: `orientation` (1)
 - `add_subfigure`: `facecolor` (1)
 - `waitforbuttonpress`: `timeout` (1)
-- `title`: `path_effects` (1)
 - `indicate_inset_zoom`: `ec` (1)
 - `label_outer`: `remove_inner_ticks` (1)

@@ -1,5 +1,7 @@
 use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn};
+use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
+use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
@@ -59,6 +61,10 @@ struct SaveOptions {
     bbox_inches: Option<String>,
     #[pyo3(item)]
     dpi: f64,
+    #[pyo3(item)]
+    facecolor: Option<String>,
+    #[pyo3(item)]
+    edgecolor: Option<String>,
 }
 
 /// Build a fontdb loaded with our embedded Geist faces (for resvg rasterisation).
@@ -173,17 +179,50 @@ type ContourItem<'py> = (
     bool,
 );
 
-fn color(s: &str) -> RGBColor {
-    let h = match s {
-        "red" | "r" => "d62728",
-        "green" | "g" => "2ca02c",
-        "blue" | "b" => "1f77b4",
-        "orange" => "ff7f0e",
-        "black" | "k" => "000000",
-        o => o.trim_start_matches('#'),
+/// Parse a normalised colour (`#rgb`, `#rrggbb`, `#rrggbbaa`) or a legacy name.
+/// "none"/"transparent" become fully transparent so callers can draw them
+/// without special-casing.
+fn color(s: &str) -> RGBAColor {
+    let raw = s.trim();
+    let lower = raw.to_ascii_lowercase();
+    if lower == "none" || lower == "transparent" {
+        return RGBAColor(0, 0, 0, 0.0);
+    }
+    let named = match lower.as_str() {
+        "red" | "r" => Some("ff0000"),
+        "green" | "g" => Some("008000"),
+        "blue" | "b" => Some("0000ff"),
+        "orange" => Some("ffa500"),
+        "black" | "k" => Some("000000"),
+        "white" | "w" => Some("ffffff"),
+        "cyan" | "c" => Some("00ffff"),
+        "magenta" | "m" => Some("ff00ff"),
+        "yellow" | "y" => Some("ffff00"),
+        "grey" | "gray" => Some("808080"),
+        _ => None,
     };
-    let n = u32::from_str_radix(h, 16).unwrap_or(0x1f77b4);
-    RGBColor((n >> 16) as u8, (n >> 8) as u8, n as u8)
+    let h = named
+        .unwrap_or(raw)
+        .trim_start_matches('#')
+        .to_ascii_lowercase();
+    let valid = h.chars().all(|c| c.is_ascii_hexdigit());
+    let expand = |ch: char| {
+        let v = ch.to_digit(16).unwrap_or(1) as u8;
+        v * 16 + v
+    };
+    let byte = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).unwrap_or(0);
+    if !valid {
+        return RGBAColor(31, 119, 180, 1.0);
+    }
+    match h.len() {
+        3 => {
+            let chars: Vec<char> = h.chars().collect();
+            RGBAColor(expand(chars[0]), expand(chars[1]), expand(chars[2]), 1.0)
+        }
+        6 => RGBAColor(byte(0), byte(2), byte(4), 1.0),
+        8 => RGBAColor(byte(0), byte(2), byte(4), byte(6) as f64 / 255.0),
+        _ => RGBAColor(31, 119, 180, 1.0),
+    }
 }
 
 fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
@@ -266,7 +305,7 @@ fn draw_label<DB: DrawingBackend>(
     base: (i32, i32),
     pos: (i32, i32),
     s: &str,
-    col: RGBColor,
+    col: RGBAColor,
     size: f64,
     ha: &str,
     va: &str,
@@ -302,7 +341,7 @@ fn draw_arrow<DB: DrawingBackend>(
     base: (i32, i32),
     from: (i32, i32),
     to: (i32, i32),
-    col: RGBColor,
+    col: RGBAColor,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -451,6 +490,110 @@ fn insert_overlay(svg: &str, tag: &str) -> String {
 }
 
 #[derive(FromPyObject)]
+struct TickStyle {
+    #[pyo3(item)]
+    labelsize: f64,
+    #[pyo3(item)]
+    length: f64,
+    #[pyo3(item)]
+    width: f64,
+    #[pyo3(item)]
+    color: Option<String>,
+    #[pyo3(item)]
+    labelcolor: Option<String>,
+    #[pyo3(item)]
+    rotation: f64,
+}
+
+impl TickStyle {
+    fn is_custom(&self) -> bool {
+        self.rotation != 0.0
+            || self.length != 3.5
+            || self.width != 1.0
+            || self.color.is_some()
+            || self.labelcolor.is_some()
+            || (self.labelsize - 10.0).abs() > 0.01
+    }
+}
+
+#[derive(FromPyObject)]
+struct Ticks {
+    #[pyo3(item)]
+    xticks: Option<Vec<f64>>,
+    #[pyo3(item)]
+    xticklabels: Option<Vec<String>>,
+    #[pyo3(item)]
+    yticks: Option<Vec<f64>>,
+    #[pyo3(item)]
+    yticklabels: Option<Vec<String>>,
+    #[pyo3(item)]
+    xstyle: TickStyle,
+    #[pyo3(item)]
+    ystyle: TickStyle,
+}
+
+/// One collected legend row; icons match the artist that registered it.
+enum LegendSwatch {
+    Line(RGBAColor, u32),
+    Rect(RGBAColor),
+    Circle(RGBAColor),
+}
+
+struct LegendEntry {
+    label: String,
+    swatch: LegendSwatch,
+}
+
+#[derive(FromPyObject)]
+struct Legend {
+    #[pyo3(item)]
+    show: bool,
+    #[pyo3(item)]
+    loc: String,
+    #[pyo3(item)]
+    ncol: usize,
+    #[pyo3(item)]
+    frameon: bool,
+    #[pyo3(item)]
+    fontsize: f64,
+    #[pyo3(item)]
+    title: String,
+    #[pyo3(item)]
+    title_fontsize: f64,
+    #[pyo3(item)]
+    anchor: Option<(f64, f64)>,
+}
+
+impl Legend {
+    /// The plotters legend only covers the default layout; every placement or
+    /// typographic option goes through the manual renderer.
+    fn is_custom(&self) -> bool {
+        self.loc != "best"
+            || self.ncol > 1
+            || !self.frameon
+            || !self.title.is_empty()
+            || self.anchor.is_some()
+            || (self.fontsize - 10.0).abs() > 0.01
+    }
+}
+
+#[derive(FromPyObject)]
+struct Grid {
+    #[pyo3(item)]
+    show: bool,
+    #[pyo3(item)]
+    color: Option<String>,
+    #[pyo3(item)]
+    linewidth: Option<f64>,
+    #[pyo3(item)]
+    alpha: Option<f64>,
+    #[pyo3(item)]
+    linestyle: Option<String>,
+    #[pyo3(item)]
+    axis: String,
+}
+
+#[derive(FromPyObject)]
 struct Panel<'py> {
     #[pyo3(item)]
     pos: usize, // row-major cell index
@@ -463,7 +606,13 @@ struct Panel<'py> {
     #[pyo3(item)]
     ylabel: String,
     #[pyo3(item)]
-    legend: bool,
+    title_size: Option<f64>,
+    #[pyo3(item)]
+    xlabel_size: Option<f64>,
+    #[pyo3(item)]
+    ylabel_size: Option<f64>,
+    #[pyo3(item)]
+    legend: Legend,
     #[pyo3(item)]
     xlim: Option<(f64, f64)>,
     #[pyo3(item)]
@@ -489,7 +638,9 @@ struct Panel<'py> {
     #[pyo3(item)]
     bands: Vec<Band<'py>>,
     #[pyo3(item)]
-    grid: bool,
+    grid: Grid,
+    #[pyo3(item)]
+    ticks: Ticks,
     #[pyo3(item)]
     x_log: bool,
     #[pyo3(item)]
@@ -501,6 +652,362 @@ struct Panel<'py> {
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
     #[pyo3(item)]
     axis_off: bool,
+}
+
+/// Roughly `target` evenly spaced values on a 1/2/5 x 10^k step.
+fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
+    if hi <= lo || !lo.is_finite() || !hi.is_finite() {
+        return Vec::new();
+    }
+    let raw = (hi - lo) / target.max(1) as f64;
+    let mag = 10f64.powf(raw.log10().floor());
+    let norm = raw / mag;
+    let step = if norm <= 1.0 {
+        1.0
+    } else if norm <= 2.0 {
+        2.0
+    } else if norm <= 5.0 {
+        5.0
+    } else {
+        10.0
+    } * mag;
+    let mut value = (lo / step).ceil() * step;
+    let mut out = Vec::new();
+    while value <= hi + step * 1e-9 && out.len() < 50 {
+        out.push(value);
+        value += step;
+    }
+    out
+}
+
+/// Tick positions in chart space (log axes already transformed).
+fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
+    if log {
+        let (start, end) = (lo.ceil(), hi.floor());
+        if end >= start && end - start <= 12.0 {
+            let mut out = Vec::new();
+            let mut k = start as i64;
+            while (k as f64) <= end {
+                out.push(k as f64);
+                k += 1;
+            }
+            if !out.is_empty() {
+                return out;
+            }
+        }
+    }
+    nice_ticks(lo, hi, 6)
+}
+
+fn rotated_style(size: f64, col: RGBAColor, rotation: f64) -> TextStyle<'static> {
+    let style = ("sans-serif", size.max(6.0).round() as u32)
+        .into_font()
+        .color(&col);
+    let deg = rotation.rem_euclid(360.0);
+    if (45.0..135.0).contains(&deg) {
+        style.transform(FontTransform::Rotate90)
+    } else if (135.0..225.0).contains(&deg) {
+        style.transform(FontTransform::Rotate180)
+    } else if (225.0..315.0).contains(&deg) {
+        style.transform(FontTransform::Rotate270)
+    } else {
+        style
+    }
+}
+
+/// Draw ticks, tick labels and styled gridlines for panels whose tick layout is
+/// controlled from Python. The plotters mesh still provides the axis frame and
+/// descriptions; this only replaces its ticks and grid.
+fn draw_manual_ticks<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    chart: &ChartContext<DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    p: &Panel,
+    ranges: (f64, f64, f64, f64),
+    log_base: f64,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let (x0, x1, y0, y1) = ranges;
+    let pa = chart.plotting_area();
+    let origin = area.get_base_pixel();
+    let tl = pa.map_coordinate(&(x0, y1));
+    let br = pa.map_coordinate(&(x1, y0));
+    let (left, top) = (tl.0 - origin.0, tl.1 - origin.1);
+    let (right, bottom) = (br.0 - origin.0, br.1 - origin.1);
+    let grid_col = color(p.grid.color.as_deref().unwrap_or("#b0b0b0"));
+    let grid_alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
+    let grid_w = p.grid.linewidth.unwrap_or(1.0).max(1.0).round() as u32;
+    let grid_style = grid_col.mix(grid_alpha).stroke_width(grid_w);
+    let grid_dash = p.grid.linestyle.as_deref().and_then(dash_pattern);
+
+    let to_chart_x = |v: f64| {
+        if p.x_log {
+            v.max(f64::MIN_POSITIVE).log(log_base)
+        } else {
+            v
+        }
+    };
+    let to_chart_y = |v: f64| {
+        if p.y_log {
+            v.max(f64::MIN_POSITIVE).log(log_base)
+        } else {
+            v
+        }
+    };
+    let xs: Vec<f64> = match &p.ticks.xticks {
+        Some(v) => v.iter().map(|&v| to_chart_x(v)).collect(),
+        None => auto_ticks(x0, x1, p.x_log),
+    };
+    let ys: Vec<f64> = match &p.ticks.yticks {
+        Some(v) => v.iter().map(|&v| to_chart_y(v)).collect(),
+        None => auto_ticks(y0, y1, p.y_log),
+    };
+    let xlabels: Vec<String> = match (&p.ticks.xticklabels, &p.ticks.xticks) {
+        (Some(labels), Some(_)) => (0..xs.len())
+            .map(|i| labels.get(i).cloned().unwrap_or_default())
+            .collect(),
+        _ => xs
+            .iter()
+            .map(|v| {
+                if p.x_log {
+                    log_label(*v, log_base)
+                } else {
+                    tick_label(*v)
+                }
+            })
+            .collect(),
+    };
+    let ylabels: Vec<String> = match (&p.ticks.yticklabels, &p.ticks.yticks) {
+        (Some(labels), Some(_)) => (0..ys.len())
+            .map(|i| labels.get(i).cloned().unwrap_or_default())
+            .collect(),
+        _ => ys
+            .iter()
+            .map(|v| {
+                if p.y_log {
+                    log_label(*v, log_base)
+                } else {
+                    tick_label(*v)
+                }
+            })
+            .collect(),
+    };
+
+    if p.grid.show && p.grid.axis != "y" {
+        for v in &xs {
+            let (px, _) = pa.map_coordinate(&(*v, y0));
+            let px = px - origin.0;
+            if let Some((dash, gap)) = grid_dash {
+                draw_dashed(
+                    area,
+                    &[(px, top), (px, bottom)],
+                    grid_col.mix(grid_alpha),
+                    grid_w,
+                    dash,
+                    gap,
+                )?;
+            } else {
+                area.draw(&PathElement::new(vec![(px, top), (px, bottom)], grid_style))?;
+            }
+        }
+    }
+    if p.grid.show && p.grid.axis != "x" {
+        for v in &ys {
+            let (_, py) = pa.map_coordinate(&(x0, *v));
+            let py = py - origin.1;
+            if let Some((dash, gap)) = grid_dash {
+                draw_dashed(
+                    area,
+                    &[(left, py), (right, py)],
+                    grid_col.mix(grid_alpha),
+                    grid_w,
+                    dash,
+                    gap,
+                )?;
+            } else {
+                area.draw(&PathElement::new(vec![(left, py), (right, py)], grid_style))?;
+            }
+        }
+    }
+
+    let xstyle = &p.ticks.xstyle;
+    let xtick_col = color(xstyle.color.as_deref().unwrap_or("#000000"));
+    let xlabel_col = color(xstyle.labelcolor.as_deref().unwrap_or("#000000"));
+    let xtick_w = xstyle.width.max(1.0).round() as u32;
+    let xtick_len = xstyle.length.max(0.0);
+    for (v, label) in xs.iter().zip(xlabels.iter()) {
+        let (px, _) = pa.map_coordinate(&(*v, y0));
+        let px = px - origin.0;
+        area.draw(&PathElement::new(
+            vec![(px, bottom), (px, bottom + xtick_len as i32)],
+            xtick_col.stroke_width(xtick_w),
+        ))?;
+        if !label.is_empty() {
+            let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation)
+                .pos(Pos::new(HPos::Center, VPos::Top));
+            area.draw(&Text::new(
+                label.clone(),
+                (px, bottom + xtick_len as i32 + 4),
+                style,
+            ))?;
+        }
+    }
+    let ystyle = &p.ticks.ystyle;
+    let ytick_col = color(ystyle.color.as_deref().unwrap_or("#000000"));
+    let ylabel_col = color(ystyle.labelcolor.as_deref().unwrap_or("#000000"));
+    let ytick_w = ystyle.width.max(1.0).round() as u32;
+    let ytick_len = ystyle.length.max(0.0);
+    for (v, label) in ys.iter().zip(ylabels.iter()) {
+        let (_, py) = pa.map_coordinate(&(x0, *v));
+        let py = py - origin.1;
+        area.draw(&PathElement::new(
+            vec![(left - ytick_len as i32, py), (left, py)],
+            ytick_col.stroke_width(ytick_w),
+        ))?;
+        if !label.is_empty() {
+            let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation)
+                .pos(Pos::new(HPos::Right, VPos::Center));
+            area.draw(&Text::new(
+                label.clone(),
+                (left - ytick_len as i32 - 4, py),
+                style,
+            ))?;
+        }
+    }
+    Ok(())
+}
+
+/// Draw the legend myself so placement, columns, title and frame options all
+/// work; plotters' built-in legend only supports a single column.
+fn draw_legend<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    rect: (i32, i32, i32, i32),
+    entries: &[LegendEntry],
+    opts: &Legend,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let fs = opts.fontsize.max(6.0);
+    let title_fs = opts.title_fontsize.max(6.0);
+    let cols = opts.ncol.max(1);
+    let rows = entries.len().div_ceil(cols);
+    let col_w = entries
+        .iter()
+        .map(|e| e.label.chars().count())
+        .max()
+        .unwrap_or(0) as f64
+        * fs
+        * 0.58
+        + 36.0;
+    let row_h = fs * 1.6;
+    let title_h = if opts.title.is_empty() {
+        0.0
+    } else {
+        title_fs * 1.5
+    };
+    let box_w = col_w * cols as f64 + 8.0;
+    let box_h = rows as f64 * row_h + title_h + 8.0;
+    let (left, top, right, bottom) = rect;
+    let (ax, ay) = opts.anchor.unwrap_or(match opts.loc.as_str() {
+        "upper left" => (0.0, 1.0),
+        "lower left" => (0.0, 0.0),
+        "lower right" => (1.0, 0.0),
+        "center" => (0.5, 0.5),
+        "center left" => (0.0, 0.5),
+        "center right" | "right" => (1.0, 0.5),
+        "upper center" => (0.5, 1.0),
+        "lower center" => (0.5, 0.0),
+        _ => (1.0, 1.0),
+    });
+    let px = left as f64 + ax * (right - left) as f64;
+    let py = bottom as f64 - ay * (bottom - top) as f64;
+    let loc = opts.loc.as_str();
+    let mut x = if loc.contains("right") {
+        px - box_w
+    } else if loc.contains("left") {
+        px
+    } else {
+        px - box_w / 2.0
+    };
+    let mut y = if loc.contains("upper") {
+        py
+    } else if loc.contains("lower") {
+        py - box_h
+    } else {
+        py - box_h / 2.0
+    };
+    x = x.clamp(left as f64, (right as f64 - box_w).max(left as f64));
+    y = y.clamp(top as f64, (bottom as f64 - box_h).max(top as f64));
+    if opts.frameon {
+        area.draw(&Rectangle::new(
+            [
+                (x as i32, y as i32),
+                ((x + box_w) as i32, (y + box_h) as i32),
+            ],
+            WHITE.filled(),
+        ))?;
+        area.draw(&Rectangle::new(
+            [
+                (x as i32, y as i32),
+                ((x + box_w) as i32, (y + box_h) as i32),
+            ],
+            BLACK.stroke_width(1),
+        ))?;
+    }
+    if !opts.title.is_empty() {
+        let style = ("sans-serif", title_fs.round() as u32)
+            .into_font()
+            .color(&BLACK);
+        area.draw(&Text::new(
+            opts.title.clone(),
+            ((x + box_w / 2.0) as i32, (y + title_h / 2.0) as i32),
+            style.pos(Pos::new(HPos::Center, VPos::Center)),
+        ))?;
+    }
+    for (i, entry) in entries.iter().enumerate() {
+        let col = i / rows.max(1);
+        let row = i % rows.max(1);
+        let cx = x + 6.0 + col as f64 * col_w;
+        let cy = y + title_h + 4.0 + row as f64 * row_h + row_h / 2.0;
+        match &entry.swatch {
+            LegendSwatch::Line(c, w) => area.draw(&PathElement::new(
+                vec![(cx as i32, cy as i32), ((cx + 20.0) as i32, cy as i32)],
+                c.stroke_width(*w),
+            ))?,
+            LegendSwatch::Rect(c) => area.draw(&Rectangle::new(
+                [
+                    ((cx + 2.0) as i32, (cy - 5.0) as i32),
+                    ((cx + 22.0) as i32, (cy + 5.0) as i32),
+                ],
+                c.filled(),
+            ))?,
+            LegendSwatch::Circle(c) => {
+                area.draw(&Circle::new(((cx + 10.0) as i32, cy as i32), 5, c.filled()))?
+            }
+        }
+        let style = ("sans-serif", fs.round() as u32).into_font().color(&BLACK);
+        area.draw(&Text::new(
+            entry.label.clone(),
+            ((cx + 28.0) as i32, cy as i32),
+            style.pos(Pos::new(HPos::Left, VPos::Center)),
+        ))?;
+    }
+    Ok(())
+}
+
+/// Map a matplotlib linestyle name onto a dash/gap length in pixels.
+fn dash_pattern(linestyle: &str) -> Option<(f64, f64)> {
+    match linestyle {
+        "--" | "dashed" => Some((6.0, 4.0)),
+        ":" | "dotted" => Some((1.0, 3.0)),
+        "-." | "dashdot" => Some((6.0, 3.0)),
+        _ => None,
+    }
 }
 
 /// Stroke a polyline as dashes, in panel-local pixels.
@@ -686,7 +1193,7 @@ where
         let c = colormap(cmap, t);
         area.draw(&Rectangle::new(
             [(x0, y0 + i), (x1, y0 + i + 1)],
-            RGBColor(c[0], c[1], c[2]).filled(),
+            RGBAColor(c[0], c[1], c[2], 1.0).filled(),
         ))?;
     }
     let frame = RGBColor(90, 90, 90);
@@ -703,7 +1210,7 @@ where
             (0, 0),
             (x1 + 6, y),
             &num(v),
-            RGBColor(0, 0, 0),
+            RGBAColor(0, 0, 0, 1.0),
             13.0,
             "left",
             "center",
@@ -715,7 +1222,7 @@ where
             (0, 0),
             (x1 + 6, h as i32 - 6),
             label,
-            RGBColor(0, 0, 0),
+            RGBAColor(0, 0, 0, 1.0),
             14.0,
             "left",
             "bottom",
@@ -886,9 +1393,21 @@ where
     }
     // A fixed aspect shrinks the plotting box instead of bending the data limits,
     // like matplotlib's adjustable="box".
+    let title_size = p.title_size.unwrap_or(18.0).max(6.0).round() as u32;
+    let custom_legend = p.legend.show && p.legend.is_custom();
+    let mut entries: Vec<LegendEntry> = Vec::new();
+    let manual = p.ticks.xticks.is_some()
+        || p.ticks.yticks.is_some()
+        || p.ticks.xstyle.is_custom()
+        || p.ticks.ystyle.is_custom()
+        || (p.grid.show
+            && (p.grid.color.is_some()
+                || p.grid.linewidth.is_some()
+                || p.grid.alpha.is_some()
+                || p.grid.linestyle.is_some()));
     let shrunk_area;
     let mut chart = ChartBuilder::on(area)
-        .caption(&p.title, ("sans-serif", 24))
+        .caption(&p.title, ("sans-serif", title_size))
         .margin(10)
         .x_label_area_size(40)
         .y_label_area_size(55)
@@ -907,7 +1426,7 @@ where
             if dw > 0 || dh > 0 {
                 shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
                 chart = ChartBuilder::on(&shrunk_area)
-                    .caption(&p.title, ("sans-serif", 24))
+                    .caption(&p.title, ("sans-serif", title_size))
                     .margin(10)
                     .x_label_area_size(40)
                     .y_label_area_size(55)
@@ -917,28 +1436,66 @@ where
     }
     if !p.axis_off {
         let x_fmt = move |v: &f64| {
-            if p.x_log {
+            if manual {
+                String::new()
+            } else if p.x_log {
                 log_label(*v, base)
             } else {
                 tick_label(*v)
             }
         };
         let y_fmt = move |v: &f64| {
-            if p.y_log {
+            if manual {
+                String::new()
+            } else if p.y_log {
                 log_label(*v, base)
             } else {
                 tick_label(*v)
             }
         };
+        let label_size = p.ticks.xstyle.labelsize.max(6.0).round() as u32;
+        let desc_size = p
+            .xlabel_size
+            .unwrap_or(10.0)
+            .max(p.ylabel_size.unwrap_or(10.0))
+            .max(6.0)
+            .round() as u32;
         let mut mesh = chart.configure_mesh();
-        if !p.grid {
+        if !p.grid.show {
             mesh.disable_mesh();
+        } else if p.grid.color.is_some() || p.grid.linewidth.is_some() || p.grid.alpha.is_some() {
+            let gc = color(p.grid.color.as_deref().unwrap_or("#b0b0b0"));
+            let alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
+            let width = p.grid.linewidth.unwrap_or(1.0).max(1.0).round() as u32;
+            let style = gc.mix(alpha).stroke_width(width);
+            mesh.light_line_style(style).bold_line_style(style);
         }
-        mesh.x_desc(&p.xlabel)
+        if p.grid.show {
+            match p.grid.axis.as_str() {
+                "x" => {
+                    mesh.disable_y_mesh();
+                }
+                "y" => {
+                    mesh.disable_x_mesh();
+                }
+                _ => {}
+            }
+        }
+        if manual {
+            // Manual ticks own the tick marks and gridlines; the mesh only
+            // contributes the axis spines and descriptions.
+            mesh.disable_mesh().set_all_tick_mark_size(0);
+        }
+        mesh.label_style(("sans-serif", label_size))
+            .axis_desc_style(("sans-serif", desc_size))
+            .x_desc(&p.xlabel)
             .y_desc(&p.ylabel)
             .x_label_formatter(&x_fmt)
             .y_label_formatter(&y_fmt)
             .draw()?;
+        if manual {
+            draw_manual_ticks(area, &chart, p, (x0, x1, y0, y1), base)?;
+        }
     }
     // Filled contours sit on the image layer, under the line series.
     {
@@ -960,7 +1517,7 @@ where
                 let (lo, hi) = (levels[band], levels[band + 1]);
                 let col = if colors.is_empty() {
                     let c = colormap(cmap, (band as f64 + 0.5) / bands as f64);
-                    RGBColor(c[0], c[1], c[2])
+                    RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     color(&colors[band % colors.len()])
                 };
@@ -1018,15 +1575,20 @@ where
                 legend_bands.push((band.label.clone(), col));
             }
         }
-        // Registered once the plotting-area borrow is released.
         for (label, col) in legend_bands {
-            let series = chart.draw_series(std::iter::once(Rectangle::new(
-                [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                RGBColor(0, 0, 0).mix(0.0).filled(),
-            )))?;
-            series
-                .label(label.as_str())
-                .legend(move |(x, y)| Rectangle::new([(x, y - 3), (x + 20, y + 7)], col.filled()));
+            entries.push(LegendEntry {
+                label: label.clone(),
+                swatch: LegendSwatch::Rect(col),
+            });
+            if !custom_legend {
+                let series = chart.draw_series(std::iter::once(Rectangle::new(
+                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                    RGBColor(0, 0, 0).mix(0.0).filled(),
+                )))?;
+                series.label(label.as_str()).legend(move |(x, y)| {
+                    Rectangle::new([(x, y - 3), (x + 20, y + 7)], col.filled())
+                });
+            }
         }
     }
     // Bars: axis-aligned rectangles, above the filled contours and below lines.
@@ -1040,7 +1602,7 @@ where
             let mut swatch: Option<RGBAColor> = None;
             for i in 0..l.len().min(b.len()).min(w.len()).min(h.len()) {
                 let col = if bars.colors.is_empty() {
-                    RGBColor(31, 119, 180)
+                    RGBAColor(31, 119, 180, 1.0)
                 } else {
                     color(&bars.colors[i % bars.colors.len()])
                 };
@@ -1069,17 +1631,20 @@ where
                 legend_bars.push((bars.label.clone(), cs));
             }
         }
-        // Registered after the loop so the plotting-area borrow on `chart` has ended.
         for (label, cs) in legend_bars {
-            // A transparent zero-size rectangle only carries the legend entry; the
-            // closure paints a filled swatch instead of a line.
-            let series = chart.draw_series(std::iter::once(Rectangle::new(
-                [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                RGBColor(0, 0, 0).mix(0.0).filled(),
-            )))?;
-            series
-                .label(label.as_str())
-                .legend(move |(x, y)| Rectangle::new([(x, y - 3), (x + 20, y + 7)], cs.filled()));
+            entries.push(LegendEntry {
+                label: label.clone(),
+                swatch: LegendSwatch::Rect(cs),
+            });
+            if !custom_legend {
+                let series = chart.draw_series(std::iter::once(Rectangle::new(
+                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                    RGBColor(0, 0, 0).mix(0.0).filled(),
+                )))?;
+                series.label(label.as_str()).legend(move |(x, y)| {
+                    Rectangle::new([(x, y - 3), (x + 20, y + 7)], cs.filled())
+                });
+            }
         }
     }
     for s in &p.series {
@@ -1121,22 +1686,34 @@ where
             };
             draw_dashed(area, &px, col, width, dash, gap)?;
             if !s.label.is_empty() {
-                chart
-                    .draw_series(LineSeries::new(
-                        Vec::<(f64, f64)>::new(),
-                        col.stroke_width(width),
-                    ))?
-                    .label(s.label.as_str())
-                    .legend(move |(x, y)| {
-                        PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
-                    });
+                entries.push(LegendEntry {
+                    label: s.label.clone(),
+                    swatch: LegendSwatch::Line(col, width),
+                });
+                if !custom_legend {
+                    chart
+                        .draw_series(LineSeries::new(
+                            Vec::<(f64, f64)>::new(),
+                            col.stroke_width(width),
+                        ))?
+                        .label(s.label.as_str())
+                        .legend(move |(x, y)| {
+                            PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
+                        });
+                }
             }
         } else {
             let series = chart.draw_series(LineSeries::new(pts, col.stroke_width(width)))?;
             if !s.label.is_empty() {
-                series.label(s.label.as_str()).legend(move |(x, y)| {
-                    PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
+                entries.push(LegendEntry {
+                    label: s.label.clone(),
+                    swatch: LegendSwatch::Line(col, width),
                 });
+                if !custom_legend {
+                    series.label(s.label.as_str()).legend(move |(x, y)| {
+                        PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
+                    });
+                }
             }
         }
         if !s.marker.is_empty() && s.markersize > 0.0 {
@@ -1241,15 +1818,15 @@ where
                         0.5
                     };
                     let c = colormap(&sc.cmap, t);
-                    RGBColor(c[0], c[1], c[2])
+                    RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
-                    RGBColor(31, 119, 180)
+                    RGBAColor(31, 119, 180, 1.0)
                 };
                 draw_marker(area, base, (cx, cy), r, col.mix(alpha), 2, &sc.marker)?;
             }
             if !sc.label.is_empty() {
                 let icon = if sc.colors.is_empty() {
-                    RGBColor(31, 119, 180)
+                    RGBAColor(31, 119, 180, 1.0)
                 } else {
                     color(&sc.colors[0])
                 };
@@ -1258,13 +1835,19 @@ where
         }
         // Registered once the plotting-area borrow is released.
         for (label, col) in legend_scatter {
-            let series = chart.draw_series(std::iter::once(Rectangle::new(
-                [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                RGBColor(0, 0, 0).mix(0.0).filled(),
-            )))?;
-            series
-                .label(label.as_str())
-                .legend(move |(x, y)| Circle::new((x + 10, y + 4), 4, col.filled()));
+            entries.push(LegendEntry {
+                label: label.clone(),
+                swatch: LegendSwatch::Circle(col),
+            });
+            if !custom_legend {
+                let series = chart.draw_series(std::iter::once(Rectangle::new(
+                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                    RGBColor(0, 0, 0).mix(0.0).filled(),
+                )))?;
+                series
+                    .label(label.as_str())
+                    .legend(move |(x, y)| Circle::new((x + 10, y + 4), 4, col.filled()));
+            }
         }
     }
     // Iso-lines are stroked above the series, one segment per marching-squares cell.
@@ -1287,7 +1870,7 @@ where
                 let col = if colors.is_empty() {
                     let t = if n > 1.0 { li as f64 / (n - 1.0) } else { 0.5 };
                     let c = colormap(cmap, t);
-                    RGBColor(c[0], c[1], c[2])
+                    RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     color(&colors[li % colors.len()])
                 };
@@ -1351,12 +1934,42 @@ where
             ));
         }
     }
-    if p.legend {
-        chart
-            .configure_series_labels()
-            .background_style(WHITE.mix(0.8))
-            .border_style(BLACK)
-            .draw()?;
+    if p.legend.show && custom_legend {
+        let base = area.get_base_pixel();
+        let pa = chart.plotting_area();
+        let tl = pa.map_coordinate(&(x0, y1));
+        let br = pa.map_coordinate(&(x1, y0));
+        draw_legend(
+            area,
+            (tl.0 - base.0, tl.1 - base.1, br.0 - base.0, br.1 - base.1),
+            &entries,
+            &p.legend,
+        )?;
+    } else if p.legend.show {
+        let loc = p.legend.loc.as_str();
+        let position = match loc {
+            "upper left" => SeriesLabelPosition::UpperLeft,
+            "upper center" => SeriesLabelPosition::UpperMiddle,
+            "lower left" => SeriesLabelPosition::LowerLeft,
+            "lower center" => SeriesLabelPosition::LowerMiddle,
+            "lower right" => SeriesLabelPosition::LowerRight,
+            "center left" => SeriesLabelPosition::MiddleLeft,
+            "center right" | "right" => SeriesLabelPosition::MiddleRight,
+            "center" => SeriesLabelPosition::MiddleRight,
+            _ => SeriesLabelPosition::UpperRight,
+        };
+        let mut labels = chart.configure_series_labels();
+        labels
+            .position(position)
+            .label_font(("sans-serif", p.legend.fontsize.max(6.0).round() as u32));
+        if p.legend.frameon {
+            labels.background_style(WHITE.mix(0.8)).border_style(BLACK);
+        } else {
+            labels
+                .background_style(TRANSPARENT)
+                .border_style(TRANSPARENT);
+        }
+        labels.draw()?;
     }
     Ok(())
 }
@@ -1367,6 +1980,8 @@ fn render_svg(
     grid: (usize, usize),
     panels: &[Panel],
     transparent: bool,
+    facecolor: Option<&str>,
+    edgecolor: Option<&str>,
 ) -> Result<String, String> {
     let (w, h) = size;
     let mut svg = String::new();
@@ -1376,7 +1991,10 @@ fn render_svg(
         // A transparent figure gets no background rect at all, so the SVG (and the
         // PNG rasterised from it) keeps alpha where nothing was drawn.
         if !transparent {
-            root.fill(&WHITE).map_err(|e| e.to_string())?;
+            let bg = facecolor
+                .map(color)
+                .unwrap_or(RGBAColor(255, 255, 255, 1.0));
+            root.fill(&bg).map_err(|e| e.to_string())?;
         }
         let cells = root.split_evenly(grid);
         for p in panels {
@@ -1385,6 +2003,13 @@ fn render_svg(
                 p,
                 &mut overlays,
             )
+            .map_err(|e| e.to_string())?;
+        }
+        if let Some(ec) = edgecolor {
+            root.draw(&Rectangle::new(
+                [(0, 0), (w as i32 - 1, h as i32 - 1)],
+                color(ec).stroke_width(1),
+            ))
             .map_err(|e| e.to_string())?;
         }
         root.present().map_err(|e| e.to_string())?;
@@ -1511,6 +2136,8 @@ fn save(
         transparent,
         bbox_inches,
         dpi,
+        facecolor,
+        edgecolor,
     } = options;
     let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
@@ -1549,7 +2176,15 @@ fn save(
     };
 
     let (w, h) = size;
-    let svg = render_svg(size, grid, &panels, transparent).map_err(|e| err(&e))?;
+    let svg = render_svg(
+        size,
+        grid,
+        &panels,
+        transparent,
+        facecolor.as_deref(),
+        edgecolor.as_deref(),
+    )
+    .map_err(|e| err(&e))?;
     let bytes: Vec<u8> = if fmt == "svg" || fmt == "pdf" {
         let svg = match if tight {
             rasterize(&svg, w, h, transparent)

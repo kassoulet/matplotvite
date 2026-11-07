@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **8 842 / 10 098 call sites covered (87%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 896 / 10 098 call sites covered (88%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -22,7 +22,7 @@
 
 ---
 
-## V2 — Plot style & axis control  *(high-frequency gaps)*
+## ✅ V2 — Plot style & axis control (done)
 
 > TRACE priorities: `plot` kwargs (lw ×44, marker ×35, linestyle ×14, alpha ×10), `savefig` kwargs (format ×112, dpi ×8, bbox_inches ×10), `axis` ×11, `grid` ×28, `xticks/yticks`.
 
@@ -35,44 +35,43 @@
 - [x] `drawstyle` — `"default"`, `"steps-pre"`, `"steps-post"` (other values raise)
 
 ### 2.2 Color system
-- [ ] Full CSS named colors (140+) in `color()` fn
-- [ ] RGB tuple `(r, g, b)` and RGBA tuple `(r, g, b, a)` — 0–1 floats
-- [ ] `C0`–`C9` shorthand (tab10 cycle references)
-- [ ] `"none"` / `"transparent"` color
+- [x] Full CSS named colors (148) in `_colors.py` — CSS4 names plus `tab:*` aliases for the tab10 palette
+- [x] RGB tuple `(r, g, b)` and RGBA tuple `(r, g, b, a)` — 0–1 floats, plus hex strings
+- [x] `C0`–`C9` shorthand (tab10 cycle references) and bare `0`–`9` aliases
+- [x] `"none"` / `"transparent"` color
 
 ### 2.3 Axes control
-- [ ] `grid(visible, axis, linestyle, linewidth, alpha, color)`
-- [ ] `xticks(ticks, labels, rotation)` / `yticks(ticks, labels, rotation)`
-- [ ] `tick_params(axis, labelsize, length, width, color, rotation)`
-- [ ] `axis("off" | "equal" | "scaled" | [xmin,xmax,ymin,ymax])`
+- [x] `grid(visible, axis, which, linestyle, linewidth, alpha, color)` — styled major gridlines on x, y or both
+- [x] `xticks(ticks, labels, rotation, fontsize)` / `yticks(...)` — manual ticks and labels, ticks are drawn by the renderer
+- [x] `tick_params(axis, labelsize, length, width, color, rotation)` — label size/colour/rotation and tick mark length/width/colour
+- [x] `axis("off" | "on" | "equal" | "scaled" | "auto" | [xmin,xmax,ymin,ymax])`
 - [x] `set_aspect("equal" | float)` — box shrink, see V4
 - [x] `axhline(y, color=, linestyle=, linewidth=, xmin=, xmax=)` / `axvline(x, ...)` — axes-fraction ends resolved against the final limits at draw time; `zorder` ignored
 - [x] `axhspan(ymin, ymax, xmin=, xmax=)` / `axvspan` (shaded band) — drawn as an unedged bar rectangle over an axes-fraction span
 
 ### 2.4 Text & annotations
 - [x] `text(x, y, s, color=, fontsize=, ha=, va=)`
-- [ ] `text(..., transform=)` — axes / figure coordinate transforms
+- [x] `text(..., transform=)` — `ax.transAxes`, `fig.transFigure` and data coordinates
 - [x] `annotate(text, xy, xytext=)` — label plus straight arrow; `arrowprops` styling is accepted but ignored
 
 ### 2.5 Fill
 - [x] `fill_between(x, y1, y2, where=, color=, alpha=)` / `fill_betweenx` / `fill(...)` — polygons in data space, `where` runs emitted separately (`interpolate`/`step`/`hatch` ignored); `label=` adds a legend swatch
-- [ ] `fill(x, y, color, alpha)`
 
 ### 2.6 Legend kwargs
-- [ ] `loc` — `"best"`, cardinal strings, 2-tuple
-- [ ] `ncol` / `ncols`, `frameon`, `fontsize`, `title`, `title_fontsize`
-- [ ] `bbox_to_anchor`
+- [x] `loc` — `"best"`, cardinal strings, 2-tuple
+- [x] `ncol` / `ncols`, `frameon`, `fontsize`, `title`, `title_fontsize`
+- [x] `bbox_to_anchor` — axes-fraction or data coordinates
 
 ### 2.7 savefig / figure kwargs
 - [x] `savefig(format=, dpi=)` — `format` overrides the file extension
 - [x] `savefig(bbox_inches="tight", transparent=)` — tight crops PNG pixels / rewrites the SVG viewBox
-- [ ] `savefig(facecolor=)`
-- [ ] `figure(dpi=, facecolor=, edgecolor=)`
-- [ ] `savefig()` returning bytes (no path — for streaming / in-memory use)
+- [x] `savefig(facecolor=, edgecolor=)`
+- [x] `figure(dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through
+- [x] `savefig()` returning bytes (no path) and writing to file-like objects
 
 ### 2.8 Font sizes
-- [ ] `title(fontsize=)`, `xlabel(fontsize=)`, `ylabel(fontsize=)`
-- [ ] Global default font size
+- [x] `title(fontsize=)`, `xlabel(fontsize=)`, `ylabel(fontsize=)`, and `text(fontsize=)`
+- [x] Global `rcParams` font size (`font.size`, `axes.labelsize`, `axes.titlesize`, `legend.fontsize`)
 
 ---
 
@@ -105,11 +104,11 @@
 ### 3.4 Style & theming
 - [ ] `plt.style.use("dark_background" | "ggplot" | "seaborn-v0_8")` — a small preset palette set
 - [x] `rc`/`rc_context`/`rcParams`/`rcdefaults` — settings are recorded, `rc_context` restores them on exit; the renderer still uses its fixed defaults
-- [x] `grid(True|False, which=, axis=)` — light gridlines under the data; `visible=None` flips the current state
-- [x] `tick_params(...)` — accepted and recorded; tick styling is not rendered
+- [x] `grid(True|False, which=, axis=)` — light gridlines under the data; `visible=None` flips the current state, styling is passed through
+- [x] `tick_params(...)` — label size/rotation/colour and tick length/width/colour are rendered
 - [x] `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from the data limits
-- [x] `rcParams` subset that actually changes output: `lines.linewidth`, `lines.markersize`, `lines.markerlinewidth`, `axes.labelsize`, `font.size`, `figure.dpi`, `axes.prop_cycle`
-- [x] Color cycle customization (`set_prop_cycle`)
+- [x] `rcParams` subset that actually changes output: `lines.linewidth`, `lines.markersize`, `lines.markerlinewidth`, `axes.labelsize`, `axes.titlesize`, `font.size`, `legend.fontsize`, `figure.dpi`
+- [ ] Color cycle customization (`set_prop_cycle`)
 - [x] `plt.show()` as a silent no-op (compatibility)
 - [x] `plt.draw()` as a no-op (compatibility)
 - [x] `plt.axes()` / `plt.pause()` / `plt.ion()` / `plt.ioff()` compatibility shims
@@ -118,7 +117,7 @@
 - [x] State getters: `get_xlim`/`get_ylim`/`get_xbound`/`get_ybound`, `get_position`/`set_position`, `get_visible`/`set_visible`, `get_facecolor`/`set_facecolor`, `get_alpha`/`set_alpha`, `get_label`/`set_label`, `get_zorder`/`set_zorder`, `get_title`/`get_xlabel`/`get_ylabel`, `get_figure`, `get_children`
 - [x] No-ops that keep scripts running: `draw`, `update`, `margins`, `relim`, `autoscale`, `autoscale_view`, `set_clip_on`/`set_clip_path`, `set_path_effects`, `add_artist`/`add_patch`/`add_collection`/`add_line`
 - [x] Real behaviour: `remove()` and `set_visible(False)` drop the panel, `axis("off")` hides axes/ticks/labels, `axis("equal"|"auto"|[limits])`, `invert_xaxis`/`invert_yaxis`, `clear`/`cla`, `set(**kwargs)` dispatch
-- [x] Tick/label storage: `set_xticks`/`set_yticks`, `set_xticklabels`/`set_yticklabels`, `get_xticks`/`get_yticks`, `get_xticklabels`/`get_yticklabels` (stored values are not yet used by the renderer)
+- [x] Tick/label storage: `set_xticks`/`set_yticks`, `set_xticklabels`/`set_yticklabels`, `get_xticks`/`get_yticks`, `get_xticklabels`/`get_yticklabels` — custom ticks and labels are rendered
 - [ ] `get_window_extent` that accounts for labels/titles rather than the raw grid cell
 - [x] `setp`/`getp` cover bar handles (`set_height`/`set_width`/`set_x`/`set_y`, `get_facecolor`) but only artists that expose matching `set_*`/`get_*` methods
 - [ ] Render artists registered through `add_patch`/`add_collection`
@@ -155,9 +154,9 @@
 ## V5 — Ecosystem & output  *(wheels, integrations, advanced output)*
 
 ### 5.1 Output formats
-- [ ] PDF output via `printpdf` or `cairo` Rust crate
-- [ ] `savefig()` to `io.BytesIO` / file-like object (Python buffer protocol)
-- [ ] `savefig()` → `bytes` return (no path argument)
+- [x] PDF output via `svg2pdf` (real vector text, page size from `dpi`)
+- [x] `savefig()` to `io.BytesIO` / file-like object
+- [x] `savefig()` → `bytes` return (no path argument)
 - [ ] WebP output option
 
 ### 5.2 Data integration
@@ -171,7 +170,7 @@
 
 ### 5.4 Packaging & distribution
 - [ ] Type stubs (`.pyi`) for IDE autocomplete and mypy
-- [ ] PyPI wheel CI: manylinux2014 (x86_64, aarch64), macOS arm64, Windows x86_64 via maturin `--release`
+- [x] Wheel CI: manylinux (x86_64, aarch64), macOS arm64, Windows x86_64 via maturin `--release`, with install smoke tests on each platform
 - [ ] `maturin publish` GitHub Action on tag push
 
 ### 5.5 Performance

@@ -2,7 +2,7 @@
   "matplotlib": "3.11.2",
   "files": 91,
   "total": 10098,
-  "supported": 8842,
+  "supported": 8896,
   "supported_names": [
     "Axes.add_artist",
     "Axes.add_collection",
@@ -116,7 +116,9 @@
     "Axes.update",
     "Axes.vlines",
     "Axes.xaxis_inverted",
+    "Axes.xticks",
     "Axes.yaxis_inverted",
+    "Axes.yticks",
     "Figure.add_axes",
     "Figure.add_subplot",
     "Figure.colorbar",
@@ -125,6 +127,8 @@
     "Figure.gca",
     "Figure.get_axes",
     "Figure.get_dpi",
+    "Figure.get_edgecolor",
+    "Figure.get_facecolor",
     "Figure.get_layout_engine",
     "Figure.get_size_inches",
     "Figure.savefig",
@@ -201,8 +205,10 @@
     "pyplot.xlabel",
     "pyplot.xlim",
     "pyplot.xscale",
+    "pyplot.xticks",
     "pyplot.ylabel",
     "pyplot.ylim",
-    "pyplot.yscale"
+    "pyplot.yscale",
+    "pyplot.yticks"
   ]
 }

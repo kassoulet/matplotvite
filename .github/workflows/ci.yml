@@ -21,6 +21,17 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
 
+  lint:
+    name: python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: pip install ruff==0.17.4
+      - run: ruff check python tests tools examples
+
   test:
     name: test (python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -50,6 +61,45 @@ jobs:
           pip install maturin numpy pytest
           maturin develop --release
           pytest -q
+
+  wheels:
+    name: wheel (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            manylinux: auto
+          - os: ubuntu-24.04-arm
+            name: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            manylinux: auto
+          - os: macos-latest
+            name: macos-arm64
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist
+      - name: Install the built wheel
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pytest
+          python -m pip install --no-index --find-links dist plt-rs
+      - name: Verify the installed wheel
+        run: python -m pytest -q tests/test_wheel.py
 
   trace:
     name: coverage trace

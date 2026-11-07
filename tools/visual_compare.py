@@ -4,7 +4,7 @@ usage: python tools/visual_compare.py [outdir=visual]   (dev tool: needs matplot
 Add cases to CASES: code runs with `plt` and `np` bound to either library.
 Unsupported features show up as failures (AttributeError/TypeError) in the gallery.
 """
-import html, pathlib, sys, traceback
+import html, pathlib, sys
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")

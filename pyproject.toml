@@ -27,9 +27,20 @@ classifiers = [
 ]
 dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
 
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff==0.17.4"]
+
 [project.urls]
 Homepage = "https://kassoulet.github.io/plt_rs/"
 Repository = "https://github.com/kassoulet/plt_rs"
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+# Pyflakes plus syntax/runtime errors. The drawing code uses a deliberately
+# compact one-statement-per-line style, so formatting rules are not enforced.
+select = ["F", "E9"]
 
 [tool.pytest.ini_options]
 # `pytest` inserts only the test directory on sys.path, so bare invocations (CI)

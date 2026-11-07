@@ -3,11 +3,70 @@ from contextlib import contextmanager
 
 import numpy as np
 
+from ._colors import CSS_COLORS
 from ._core import save
 
-_CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+# matplotlib's tab10 cycle; also the targets of the C0-C9 shorthand.
+_CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+          "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
 # Only the one-letter colors plt_rs can render are honoured in fmt strings.
 _FMT_COLORS = {"b": "blue", "g": "green", "r": "red", "k": "black"}
+_SHORT_COLORS = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
+                 "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
+_TAB10 = {"tab:blue": "#1f77b4", "tab:orange": "#ff7f0e", "tab:green": "#2ca02c",
+          "tab:red": "#d62728", "tab:purple": "#9467bd", "tab:brown": "#8c564b",
+          "tab:pink": "#e377c2", "tab:gray": "#7f7f7f", "tab:grey": "#7f7f7f",
+          "tab:olive": "#bcbd22", "tab:cyan": "#17becf"}
+
+
+def _norm_color(c):
+    """Normalise a matplotlib colour spec to `#rrggbb`, `#rrggbbaa` or "none".
+
+    Accepts CSS4 names, single-letter shorthands, `C0`-`C9`, hex strings
+    (3/6/8 digits), RGB(A) tuples in 0-1 and greyscale strings such as "0.5".
+    """
+    if c is None:
+        return None
+    if isinstance(c, (tuple, list, np.ndarray)):
+        vals = [float(v) for v in np.asarray(c, dtype=float).ravel()]
+        if len(vals) not in (3, 4):
+            raise ValueError("a colour tuple needs 3 (RGB) or 4 (RGBA) values")
+        if any(not 0.0 <= v <= 1.0 for v in vals):
+            raise ValueError("colour tuple values must be between 0 and 1")
+        return "#" + "".join(f"{round(v * 255):02x}" for v in vals)
+    s = str(c).strip().lower()
+    if s in ("none", "transparent"):
+        return "none"
+    if s in _SHORT_COLORS:
+        return CSS_COLORS[_SHORT_COLORS[s]].lower()
+    if s in _TAB10:
+        return _TAB10[s]
+    if s in CSS_COLORS:
+        return CSS_COLORS[s].lower()
+    if len(s) == 2 and s[0] == "c" and s[1].isdigit():
+        return _CYCLE[int(s[1]) % len(_CYCLE)]
+    if s.startswith("#"):
+        body = s[1:]
+        if len(body) == 3:
+            body = "".join(ch * 2 for ch in body)
+        if len(body) not in (6, 8):
+            raise ValueError(f"invalid hex colour: {c!r}")
+        return "#" + body
+    try:
+        grey = float(s)
+    except ValueError:
+        return s  # not a colour we recognise; the renderer falls back
+    if 0.0 <= grey <= 1.0:
+        v = f"{round(grey * 255):02x}"
+        return f"#{v}{v}{v}"
+    raise ValueError(f"invalid colour: {c!r}")
+
+
+class _CoordTransform:
+    """Marker for `text(transform=...)`: data, axes or figure coordinates."""
+
+    def __init__(self, kind):
+        self.kind = kind
 
 
 class _Bbox:
@@ -181,8 +240,22 @@ class Axes:
         self.xscale = self.yscale = "linear"
         self.log_base = 10.0
         self.show_grid = False
+        self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
+        self.grid_axis = "both"
         self.minor_ticks = False
         self.tick_params_box = {}
+        self.tick_params_x = {}
+        self.tick_params_y = {}
+        self.legend_loc = "best"
+        self.legend_ncol = 1
+        self.legend_frameon = True
+        self.legend_fontsize = None
+        self.legend_title = ""
+        self.legend_title_fontsize = None
+        self.legend_anchor = None
+        self.title_size = self.xlabel_size = self.ylabel_size = None
+        self.transAxes = _CoordTransform("axes")
+        self.transData = _CoordTransform("data")
         self._axlines = []
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
@@ -343,7 +416,8 @@ class Axes:
     def get_window_extent(self, renderer=None):
         b = self.get_position()
         w, h = self._fig.figsize if self._fig is not None else (6.4, 4.8)
-        return _Bbox(b.x0 * w * DPI, b.y0 * h * DPI, b.x1 * w * DPI, b.y1 * h * DPI)
+        dpi = self._fig.dpi if self._fig is not None else DPI
+        return _Bbox(b.x0 * w * dpi, b.y0 * h * dpi, b.x1 * w * dpi, b.y1 * h * dpi)
 
     def get_tightbbox(self, renderer=None): return self.get_window_extent(renderer)
     def get_figure(self): return self._fig
@@ -387,23 +461,63 @@ class Axes:
         self.vspans.clear()
         self.artists.clear()
         self.title = self.xlabel = self.ylabel = ""
+        self.title_size = self.xlabel_size = self.ylabel_size = None
         self.show_legend, self.xlim, self.ylim = False, None, None
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
         self.show_grid = False
+        self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
+        self.grid_axis = "both"
+        self.tick_params_x.clear()
+        self.tick_params_y.clear()
+        self.tick_params_box.clear()
+        self.legend_loc, self.legend_ncol = "best", 1
+        self.legend_frameon, self.legend_fontsize = True, None
+        self.legend_title, self.legend_title_fontsize = "", None
+        self.legend_anchor = None
         self._axlines.clear()
 
     cla = clear
 
-    def set_xticks(self, ticks, labels=None, **kwargs):
+    def set_xticks(self, ticks, labels=None, rotation=None, fontsize=None,
+                   color=None, **kwargs):
         self._xticks = [float(t) for t in np.asarray(ticks).ravel()]
         if labels is not None:
             self._xticklabels = [str(v) for v in np.asarray(labels).ravel()]
+        self._tick_style("x", rotation=rotation, labelsize=fontsize, labelcolor=color)
 
-    def set_yticks(self, ticks, labels=None, **kwargs):
+    def set_yticks(self, ticks, labels=None, rotation=None, fontsize=None,
+                   color=None, **kwargs):
         self._yticks = [float(t) for t in np.asarray(ticks).ravel()]
         if labels is not None:
             self._yticklabels = [str(v) for v in np.asarray(labels).ravel()]
+        self._tick_style("y", rotation=rotation, labelsize=fontsize, labelcolor=color)
+
+    def _tick_style(self, axis, **kwargs):
+        """Merge tick styling into the per-axis settings (`axis` is x or y)."""
+        target = self.tick_params_x if axis == "x" else self.tick_params_y
+        aliases = {"labelsize": "labelsize", "fontsize": "labelsize",
+                   "labelcolor": "labelcolor", "color": "labelcolor",
+                   "rotation": "rotation", "length": "length",
+                   "width": "width", "pad": "pad", "direction": "direction",
+                   "tickcolor": "color"}
+        for key, value in kwargs.items():
+            if value is not None and key in aliases:
+                target[aliases[key]] = value
+
+    def xticks(self, ticks=None, labels=None, **kwargs):
+        """`plt.xticks(...)` shim: set ticks/labels or return the current pair."""
+        if ticks is None:
+            return (self.get_xticks(), self.get_xticklabels())
+        self.set_xticks(ticks, labels=labels, **kwargs)
+        return (self.get_xticks(), self.get_xticklabels())
+
+    def yticks(self, ticks=None, labels=None, **kwargs):
+        """`plt.yticks(...)` shim, mirroring `xticks`."""
+        if ticks is None:
+            return (self.get_yticks(), self.get_yticklabels())
+        self.set_yticks(ticks, labels=labels, **kwargs)
+        return (self.get_yticks(), self.get_yticklabels())
 
     def get_xticks(self, minor=False):
         if self._xticks is not None:
@@ -489,13 +603,19 @@ class Axes:
                     raise AttributeError(f"Axes.set() does not support {key!r}")
                 setter(value)
 
-    def text(self, x, y, s, color="black", fontsize=12, ha="left", va="baseline"):
-        """Place text at data coordinates (x, y)."""
+    def text(self, x, y, s, color="black", fontsize=None, ha="left", va="baseline",
+             transform=None):
+        """Place text at (x, y); `transform` may be `ax.transAxes` or
+        `fig.transFigure` to use axes- or figure-fraction coordinates."""
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va not in ("baseline", "bottom", "center", "top"):
             raise ValueError(f"unsupported va: {va!r}")
-        self.texts.append((float(x), float(y), str(s), color, float(fontsize), ha, va))
+        kind = getattr(transform, "kind", "data") if transform is not None else "data"
+        if kind not in ("data", "axes", "figure"):
+            raise ValueError(f"unsupported text transform: {transform!r}")
+        size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
+        self.texts.append((float(x), float(y), str(s), _norm_color(color), size, ha, va, kind))
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None):
@@ -719,11 +839,12 @@ class Axes:
     def pcolorfast(self, *args, **kwargs):
         return self.pcolormesh(*args, **kwargs)
 
-    def annotate(self, text, xy, xytext=None, arrowprops=None, color="black", fontsize=12):
+    def annotate(self, text, xy, xytext=None, arrowprops=None, color="black", fontsize=None):
         """Text at `xytext` with an arrow pointing at `xy`."""
+        size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
         self.annotations.append((str(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
-                                 color, float(fontsize)))
+                                 _norm_color(color), size))
 
     def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
                 vmin=None, vmax=None, **kwargs):
@@ -782,12 +903,53 @@ class Axes:
         self.contours.append(entry)
         return ContourSet(entry)
 
-    def set_title(self, t): self.title = t
-    def set_xlabel(self, t): self.xlabel = t
-    def set_ylabel(self, t): self.ylabel = t
+    def set_title(self, t, fontsize=None, **kwargs):
+        self.title = t
+        self.title_size = self._size_or(fontsize, "axes.titlesize")
+
+    def set_xlabel(self, t, fontsize=None, **kwargs):
+        self.xlabel = t
+        self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
+
+    def set_ylabel(self, t, fontsize=None, **kwargs):
+        self.ylabel = t
+        self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
+
+    @staticmethod
+    def _size_or(value, key):
+        return float(value) if value is not None else float(rcParams.get(key, rcParams.get("font.size", 10.0)))
+
     def set_xlim(self, lo, hi): self.xlim = (float(lo), float(hi))
     def set_ylim(self, lo, hi): self.ylim = (float(lo), float(hi))
-    def legend(self): self.show_legend = True
+
+    def legend(self, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
+               title=None, title_fontsize=None, bbox_to_anchor=None, **kwargs):
+        """Show a legend. Supports matplotlib's common placement and layout kwargs."""
+        self.show_legend = True
+        if isinstance(loc, (tuple, list)):
+            self.legend_anchor = (float(loc[0]), float(loc[1]))
+            self.legend_loc = "lower left"
+        elif loc is not None:
+            self.legend_loc = str(loc)
+        cols = ncol if ncol is not None else ncols
+        if cols is not None:
+            self.legend_ncol = max(1, int(cols))
+        if frameon is not None:
+            self.legend_frameon = bool(frameon)
+        if fontsize is not None:
+            self.legend_fontsize = float(fontsize)
+        if title is not None:
+            self.legend_title = str(title)
+        if title_fontsize is not None:
+            self.legend_title_fontsize = float(title_fontsize)
+        elif title is not None and self.legend_title_fontsize is None:
+            self.legend_title_fontsize = float(rcParams.get("legend.fontsize", 10.0)) * 1.1
+        if bbox_to_anchor is not None:
+            anchor = [float(v) for v in np.asarray(bbox_to_anchor).ravel()]
+            if len(anchor) not in (2, 4):
+                raise ValueError("bbox_to_anchor needs 2 or 4 values")
+            self.legend_anchor = (anchor[0], anchor[1])
+        return None
 
     def minorticks_on(self): self.minor_ticks = True
     def minorticks_off(self): self.minor_ticks = False
@@ -839,13 +1001,38 @@ class Axes:
         return None
 
     def grid(self, visible=None, which="major", axis="both", **kwargs):
-        """Toggle gridlines; `visible=None` flips the current state."""
+        """Toggle gridlines and style them (`color`, `linewidth`, `alpha`,
+        `linestyle`, `axis`). `visible=None` flips the current state."""
+        if axis not in ("both", "x", "y"):
+            raise ValueError(f"unsupported grid axis: {axis!r}")
         self.show_grid = (not self.show_grid) if visible is None else bool(visible)
+        self.grid_axis = axis
+        if "color" in kwargs or "c" in kwargs:
+            self.grid_color = _norm_color(kwargs.get("color", kwargs.get("c")))
+        if "linewidth" in kwargs or "lw" in kwargs:
+            self.grid_linewidth = float(kwargs.get("linewidth", kwargs.get("lw")))
+        if "linestyle" in kwargs or "ls" in kwargs:
+            self.grid_linestyle = str(kwargs.get("linestyle", kwargs.get("ls")))
+        if "alpha" in kwargs:
+            self.grid_alpha = float(kwargs["alpha"])
         return None
 
     def tick_params(self, axis="both", **kwargs):
-        """Tick styling is recorded but not rendered."""
+        """Style ticks on `axis` ("x", "y" or "both"); stored for the renderer."""
+        if axis not in ("x", "y", "both"):
+            raise ValueError(f"unsupported tick axis: {axis!r}")
         self.tick_params_box.update(kwargs)
+        axes = ("x", "y") if axis == "both" else (axis,)
+        for name in axes:
+            self._tick_style(name, **{
+                "rotation": kwargs.get("rotation"),
+                "labelsize": kwargs.get("labelsize"),
+                "labelcolor": kwargs.get("labelcolor", kwargs.get("color")),
+                "tickcolor": kwargs.get("color"),
+                "length": kwargs.get("length"),
+                "width": kwargs.get("width"),
+                "pad": kwargs.get("pad"),
+            })
         return None
 
     def axline(self, xy1, xy2=None, slope=None, **kwargs):
@@ -997,7 +1184,8 @@ class Axes:
     def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
         """Staircase line through `x`/`y`; `where` picks the corner placement."""
         if where in ("pre", "post"):
-            style = "steps-pre" if where == "pre" else "steps-post"
+            return self.plot(x, y, fmt, label=label, color=color,
+                             drawstyle=f"steps-{where}", **kwargs)
         elif where == "mid":
             # For 'mid', corners are at midpoints of each interval
             x_arr = np.asarray(x, dtype=np.float64).ravel()
@@ -1093,26 +1281,76 @@ class Axes:
                              height=np.array([(s["ymax"] - s["ymin"]) * dy]),
                              colors=[s["color"] or "0.5"], edgecolor=None, alpha=s["alpha"],
                              label="", vertical=True))
-        return dict(pos=self.pos, series=series, texts=self.texts, title=self.title,
-                    xlabel=self.xlabel, ylabel=self.ylabel, legend=self.show_legend,
+        series = [dict(s, color=_norm_color(s["color"]), mfc=_norm_color(s["mfc"]),
+                       mec=_norm_color(s["mec"])) for s in series]
+        bars = [dict(b, colors=[_norm_color(c) for c in b["colors"]],
+                     edgecolor=_norm_color(b["edgecolor"])) for b in bars]
+        bands = [dict(b, color=_norm_color(b["color"])) for b in self.bands]
+        texts = [self._resolve_text(t, x0, x1, y0, y1) for t in self.texts]
+        scatter = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
+                   for e in self.scatter_pts]
+        contours = [(c["x"], c["y"], c["z"], c["levels"],
+                     [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"])
+                    for c in self.contours]
+        font = float(rcParams.get("font.size", 10.0))
+        legend_font = (float(self.legend_fontsize) if self.legend_fontsize is not None
+                       else float(rcParams.get("legend.fontsize", font)))
+        legend_title = (float(self.legend_title_fontsize)
+                        if self.legend_title_fontsize is not None else legend_font * 1.1)
+        return dict(pos=self.pos, series=series, texts=texts, title=self.title,
+                    xlabel=self.xlabel, ylabel=self.ylabel,
+                    title_size=self.title_size, xlabel_size=self.xlabel_size,
+                    ylabel_size=self.ylabel_size,
+                    legend=dict(show=self.show_legend, loc=self.legend_loc,
+                                ncol=self.legend_ncol, frameon=self.legend_frameon,
+                                fontsize=legend_font, title=self.legend_title,
+                                title_fontsize=legend_title, anchor=self.legend_anchor),
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
-                    contours=[(c["x"], c["y"], c["z"], c["levels"], c["colors"], c["cmap"],
-                               c["filled"]) for c in self.contours],
+                    contours=contours,
                     errors=self.errors,
                     bars=bars,
-                    bands=self.bands,
+                    bands=bands,
                     x_log=self.xscale == "log", y_log=self.yscale == "log",
                     log_base=float(getattr(self, "log_base", 10.0)),
-                    grid=self.show_grid,
+                    grid=dict(show=self.show_grid, color=self.grid_color,
+                              linewidth=self.grid_linewidth, alpha=self.grid_alpha,
+                              linestyle=self.grid_linestyle, axis=self.grid_axis),
+                    ticks=dict(xticks=self._xticks, xticklabels=self._xticklabels,
+                               yticks=self._yticks, yticklabels=self._yticklabels,
+                               xstyle=self._tick_style_dict("x"),
+                               ystyle=self._tick_style_dict("y")),
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
-                             for e in self.scatter_pts],
+                             for e in scatter],
                     colorbar=None,
                     axis_off=self._axis_off,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
                             for e in self.images])
+
+    def _resolve_text(self, t, x0, x1, y0, y1):
+        """Turn axes/figure coordinates into the data coordinates the renderer uses."""
+        x, y, s, c, size, ha, va, kind = t
+        if kind == "axes":
+            x, y = x0 + x * (x1 - x0), y0 + y * (y1 - y0)
+        elif kind == "figure":
+            rows, cols = self._fig.grid if self._fig is not None else (1, 1)
+            row, col = divmod(self.pos, cols)
+            fx0, fy0 = col / cols, (rows - 1 - row) / rows
+            x = x0 + (x - fx0) * cols * (x1 - x0)
+            y = y0 + (y - fy0) * rows * (y1 - y0)
+        return (x, y, s, c, size, ha, va)
+
+    def _tick_style_dict(self, axis):
+        style = self.tick_params_x if axis == "x" else self.tick_params_y
+        font = float(rcParams.get("font.size", 10.0))
+        return dict(labelsize=float(style.get("labelsize", font)),
+                    length=float(style.get("length", 3.5)),
+                    width=float(style.get("width", 1.0)),
+                    color=_norm_color(style.get("labelcolor")),
+                    labelcolor=_norm_color(style.get("labelcolor")),
+                    rotation=float(style.get("rotation", 0.0)))
 
 
 def _norm_aspect(a):
@@ -1466,9 +1704,13 @@ class Colorbar:
 
 
 class Figure:
-    def __init__(self, figsize=(6.4, 4.8)):
+    def __init__(self, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None):
         self.figsize, self.grid, self.axes, self._cur = figsize, (1, 1), [], None
         self._colorbar = None
+        self.dpi = float(dpi if dpi is not None else rcParams.get("figure.dpi", DPI))
+        self.facecolor = _norm_color(facecolor)
+        self.edgecolor = _norm_color(edgecolor)
+        self.transFigure = _CoordTransform("figure")
 
     def add_subplot(self, nrows=1, ncols=1, index=1):
         """index is 1-based, row-major (matplotlib convention)."""
@@ -1507,7 +1749,9 @@ class Figure:
     def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
     def get_layout_engine(self): return getattr(self, "layout_engine", None)
     def get_axes(self): return list(self.axes)
-    def get_dpi(self): return DPI
+    def get_dpi(self): return self.dpi or DPI
+    def get_facecolor(self): return self.facecolor or "white"
+    def get_edgecolor(self): return self.edgecolor
     def get_size_inches(self): return self.figsize
 
     def set_size_inches(self, width, height=None):
@@ -1535,17 +1779,30 @@ class Figure:
 
     def _colorbar_panel(self):
         cb = self._colorbar
+        tick = dict(labelsize=10.0, length=3.5, width=1.0, color=None,
+                    labelcolor=None, rotation=0.0)
         return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
-                    legend=False, xlim=None, ylim=None, annotations=[], images=[],
+                    title_size=None, xlabel_size=None, ylabel_size=None,
+                    legend=dict(show=False, loc="best", ncol=1, frameon=True,
+                                fontsize=10.0, title="", title_fontsize=11.0,
+                                anchor=None),
+                    grid=dict(show=False, color=None, linewidth=None, alpha=None,
+                              linestyle=None, axis="both"),
+                    ticks=dict(xticks=None, xticklabels=None, yticks=None,
+                               yticklabels=None, xstyle=dict(tick), ystyle=dict(tick)),
+                    xlim=None, ylim=None, annotations=[], images=[],
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
-                    x_log=False, y_log=False, log_base=10.0, grid=False, aspect=None,
+                    x_log=False, y_log=False, log_base=10.0, aspect=None,
                     axis_off=False,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
-    def savefig(self, filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
-        """Write this figure. `format` overrides the file extension; `dpi` scales
-        the pixel size; `bbox_inches="tight"` crops to the drawn content."""
-        w, h = (round(v * (dpi or DPI)) for v in self.figsize)
+    def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
+                transparent=False, facecolor=None, edgecolor=None):
+        """Write this figure, or return its bytes when `filepath` is None or a
+        file-like object. `format` overrides the extension, `dpi` scales the
+        pixel size and `bbox_inches="tight"` crops to the drawn content."""
+        dpi = float(dpi or self.dpi or DPI)
+        w, h = (round(v * dpi) for v in self.figsize)
         fmt = format.lower().lstrip(".") if format else None
         if fmt is not None and fmt not in _FORMATS:
             raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg' or 'pdf')")
@@ -1554,20 +1811,40 @@ class Figure:
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
         if self._colorbar is not None:
             panels.append(self._colorbar_panel())
-        save(str(filepath), (w, h), self.grid, panels, {
+        options = {
             "format": fmt,
             "transparent": bool(transparent),
             "bbox_inches": bbox_inches,
-            "dpi": dpi or DPI,
-        })
+            "dpi": dpi,
+            "facecolor": _norm_color(facecolor) or self.facecolor,
+            "edgecolor": _norm_color(edgecolor) or self.edgecolor,
+        }
+        if filepath is None or hasattr(filepath, "write"):
+            import os
+            import tempfile
+            suffix = "." + (fmt or "png")
+            fd, tmp = tempfile.mkstemp(suffix=suffix)
+            os.close(fd)
+            try:
+                save(tmp, (w, h), self.grid, panels, options)
+                with open(tmp, "rb") as fh:
+                    data = fh.read()
+            finally:
+                os.unlink(tmp)
+            if filepath is None:
+                return data
+            filepath.write(data)
+            return None
+        save(str(filepath), (w, h), self.grid, panels, options)
+        return None
 
 
 _fig = None
 
 
-def figure(figsize=(6.4, 4.8)):
+def figure(figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None, **kwargs):
     global _fig
-    _fig = Figure(figsize)
+    _fig = Figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return _fig
 
 
@@ -1576,18 +1853,23 @@ def gca(): return gcf().gca()
 def close(*_): global _fig; _fig = None
 
 
-def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8)):
-    fig = figure(figsize)
+def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
+             edgecolor=None, **kwargs):
+    fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplots(nrows, ncols)
 
 
 def subplot(nrows, ncols, index): return gcf().add_subplot(nrows, ncols, index)
 def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
-def xlabel(text): gca().set_xlabel(text)
-def ylabel(text): gca().set_ylabel(text)
-def title(text): gca().set_title(text)
-def text(x, y, s, color="black", fontsize=12, ha="left", va="baseline"):
-    gca().text(x, y, s, color=color, fontsize=fontsize, ha=ha, va=va)
+def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
+def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
+def title(text, fontsize=None, **kwargs): gca().set_title(text, fontsize=fontsize)
+def text(x, y, s, color="black", fontsize=None, ha="left", va="baseline", transform=None):
+    gca().text(x, y, s, color=color, fontsize=fontsize, ha=ha, va=va, transform=transform)
+def xticks(ticks=None, labels=None, **kwargs):
+    return gca().xticks(ticks, labels=labels, **kwargs)
+def yticks(ticks=None, labels=None, **kwargs):
+    return gca().yticks(ticks, labels=labels, **kwargs)
 def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
            interpolation=None, aspect=None, alpha=None):
     return gca().imshow(X, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin=origin,
@@ -1620,7 +1902,7 @@ def pcolor(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolorfast(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 
 
-def annotate(text, xy, xytext=None, arrowprops=None, color="black", fontsize=12):
+def annotate(text, xy, xytext=None, arrowprops=None, color="black", fontsize=None):
     gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, color=color,
                    fontsize=fontsize)
 
@@ -1669,7 +1951,7 @@ def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
 
 def xlim(lo, hi): gca().set_xlim(lo, hi)
 def ylim(lo, hi): gca().set_ylim(lo, hi)
-def legend(): gca().legend()
+def legend(*args, **kwargs): return gca().legend(*args, **kwargs)
 def eventplot(*args, **kwargs): return gca().eventplot(*args, **kwargs)
 def broken_barh(*args, **kwargs): return gca().broken_barh(*args, **kwargs)
 def minorticks_on(): return gca().minorticks_on()
@@ -1743,5 +2025,7 @@ def rcdefaults():
     rcParams.update(_RC_DEFAULTS)
 
 
-def savefig(filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
-    gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)
+def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=False,
+            facecolor=None, edgecolor=None):
+    return gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches,
+                         transparent=transparent, facecolor=facecolor, edgecolor=edgecolor)

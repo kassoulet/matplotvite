@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-import pytest
 from tools.benchmark import measure_callable
 from tools.build_pages import build_pages
 
