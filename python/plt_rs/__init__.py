@@ -67,7 +67,7 @@ def _span(values):
     lo, hi = min(vals), max(vals)
     return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 DPI = 100
-_FORMATS = ("png", "svg")
+_FORMATS = ("png", "svg", "pdf")
 
 
 class _Wedge:
@@ -1751,4 +1751,8 @@ def rcdefaults():
 
 
 def savefig(filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
+    if format == "pdf":
+        filepath = str(filepath).rsplit(".", 1)[0] + ".pdf"
+        format = "pdf"
+    gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)
     gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)

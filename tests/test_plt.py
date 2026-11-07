@@ -87,9 +87,9 @@ def test_transparent_drops_background(tmp_path):
 
 def test_bad_savefig_kwargs(tmp_path):
     plt.figure(); plt.plot([1, 2])
-    for kw in ({"format": "pdf"}, {"bbox_inches": "loose"}):
-        with pytest.raises(ValueError):
-            plt.savefig(tmp_path / "x.png", **kw)
+    # format="pdf" is now supported; only bbox_inches="loose" should raise
+    with pytest.raises(ValueError):
+        plt.savefig(tmp_path / "x.png", bbox_inches="loose")
 
 
 def test_text_annotations(tmp_path):

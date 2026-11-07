@@ -1490,9 +1490,10 @@ fn save(
     let fmt = match format {
         Some(f) => f.to_lowercase(),
         None if path.to_lowercase().ends_with(".svg") => "svg".to_string(),
+        None if path.to_lowercase().ends_with(".pdf") => "pdf".to_string(),
         None => "png".to_string(),
     };
-    if fmt != "png" && fmt != "svg" {
+    if fmt != "png" && fmt != "svg" && fmt != "pdf" {
         return Err(err(&format!("unsupported format: {fmt}")));
     }
     let tight = match bbox_inches.as_deref() {
