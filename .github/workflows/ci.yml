@@ -92,7 +92,9 @@ jobs:
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
-          args: --release --out dist
+          # The manylinux container has its own Python installations, so build
+          # for every interpreter it provides instead of only the host one.
+          args: --release --out dist --find-interpreter
       - name: Install the built wheel
         run: |
           python -m pip install --upgrade pip
