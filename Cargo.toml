@@ -14,8 +14,8 @@ name = "_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.27", features = ["extension-module"] }
-numpy = "0.27"
+pyo3 = { version = "0.30", features = ["extension-module"] }
+numpy = "0.30"
 png = "0.17"
 plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "svg_backend", "line_series", "ab_glyph"] }
 resvg = "0.49.0"

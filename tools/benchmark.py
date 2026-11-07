@@ -197,17 +197,20 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
     # 5. Cold process startup & execution
     env = dict(**os.environ, PYTHONPATH=str(ROOT / "python"))
 
-    code_rs = "import numpy as np, plt_rs as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); plt.savefig('/tmp/bench_cold.png')"
-    code_mpl = "import numpy as np, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); plt.savefig('/tmp/bench_cold.png')"
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "bench_cold.png"
+        save = f"plt.savefig({str(out)!r})"
+        code_rs = f"import numpy as np, plt_rs as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); {save}"
+        code_mpl = f"import numpy as np, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); {save}"
 
-    def run_cold(code: str) -> float:
-        t0 = time.perf_counter()
-        subprocess.run([sys.executable, "-c", code], env=env, check=True, capture_output=True)
-        return (time.perf_counter() - t0) * 1000.0
+        def run_cold(code: str) -> float:
+            t0 = time.perf_counter()
+            subprocess.run([sys.executable, "-c", code], env=env, check=True, capture_output=True)
+            return (time.perf_counter() - t0) * 1000.0
 
-    cold_iters = 3 if quick else 6
-    t_cold_rs = min(run_cold(code_rs) for _ in range(cold_iters))
-    t_cold_mpl = min(run_cold(code_mpl) for _ in range(cold_iters))
+        cold_iters = 3 if quick else 6
+        t_cold_rs = min(run_cold(code_rs) for _ in range(cold_iters))
+        t_cold_mpl = min(run_cold(code_mpl) for _ in range(cold_iters))
 
     results.append({
         "category": "Startup & Process",
@@ -217,12 +220,6 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         "mpl_ms": round(t_cold_mpl, 1),
         "speedup": round(t_cold_mpl / t_cold_rs, 1) if t_cold_rs > 0 else 0,
     })
-
-    # Clean up tmp file
-    try:
-        os.remove("/tmp/bench_cold.png")
-    except OSError:
-        pass
 
     # System metadata
     system_info = {
