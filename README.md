@@ -9,14 +9,14 @@ Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
 | Benchmark Case | `plt.rs` | `matplotlib` | Speedup |
 |---|---:|---:|---:|
-| Single Line (100 pts, PNG) | **4.03 ms** | 88.42 ms | **21.9x** |
-| Single Line (1,000 pts, PNG) | **3.60 ms** | 91.05 ms | **25.3x** |
-| Single Line (10,000 pts, PNG) | **7.17 ms** | 96.59 ms | **13.5x** |
-| Single Line (100,000 pts, PNG) | **51.58 ms** | 131.65 ms | **2.6x** |
-| Multi-Series (5 lines x 2,000 pts, PNG) | **10.78 ms** | 147.40 ms | **13.7x** |
-| Subplots (2x2 grid, PNG) | **9.39 ms** | 144.10 ms | **15.3x** |
-| Vector SVG Export (1k pts) | **0.51 ms** | 98.43 ms | **192.4x** |
-| Cold CLI Process Execution | **146.5 ms** | 607.4 ms | **4.1x** |
+| Single Line (100 pts, PNG) | **3.05 ms** | 77.51 ms | **25.4x** |
+| Single Line (1,000 pts, PNG) | **2.68 ms** | 77.72 ms | **29.0x** |
+| Single Line (10,000 pts, PNG) | **6.06 ms** | 81.34 ms | **13.4x** |
+| Single Line (100,000 pts, PNG) | **38.74 ms** | 103.96 ms | **2.7x** |
+| Multi-Series (5 lines x 2,000 pts, PNG) | **8.97 ms** | 121.98 ms | **13.6x** |
+| Subplots (2x2 grid, PNG) | **7.88 ms** | 131.19 ms | **16.6x** |
+| Vector SVG Export (1k pts) | **0.44 ms** | 70.09 ms | **160.6x** |
+| Cold CLI Process Execution | **83.1 ms** | 463.4 ms | **5.6x** |
 
 *Measured on a shared Linux x86_64 host (AMD Ryzen 5 5600G, Python 3.14, matplotlib 3.11.2); wall-clock times vary with machine load. View full interactive charts on the [Benchmarks Page](https://kassoulet.github.io/plt_rs/benchmarks.html) and regenerate with `python tools/benchmark.py`.*
 
@@ -151,8 +151,9 @@ plt.savefig("contours.png")
 - `set_aspect("equal" | "auto" | <number>)` — shrinks the plotting box, like
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `savefig(path | file-like | None, format=, dpi=, bbox_inches="tight", transparent=,
-  facecolor=, edgecolor=)` — PNG, SVG and vector PDF (text stays selectable; the page is
-  sized from `figsize`); no path returns `bytes`
+  facecolor=, edgecolor=, compression=)` — PNG, SVG and vector PDF (text stays selectable;
+  the page is sized from `figsize`); no path returns `bytes`. PNG compression is
+  `"fast"` (default), `"default"`, or `"best"`
 - `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
   `invert_xaxis`/`invert_yaxis`
 

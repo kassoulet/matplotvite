@@ -1,9 +1,11 @@
+use std::sync::{Arc, OnceLock};
+
 use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn};
 use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
 // Geist (OFL, see assets/fonts/LICENSE_GEIST_OFL.txt)
@@ -26,18 +28,30 @@ fn register_plotters_fonts() {
     });
 }
 
-/// Options for the `usvg` bundled with `svg2pdf` (a different major version than
+/// Fonts for the `usvg` bundled with `svg2pdf` (a different major version than
 /// the one used for rasterisation), loaded with the same embedded Geist faces.
+fn pdf_fontdb() -> Arc<svg2pdf::usvg::fontdb::Database> {
+    static FONTDB: OnceLock<Arc<svg2pdf::usvg::fontdb::Database>> = OnceLock::new();
+    FONTDB
+        .get_or_init(|| {
+            let mut db = svg2pdf::usvg::fontdb::Database::new();
+            db.load_font_data(FONT_SANS.to_vec());
+            db.load_font_data(FONT_SERIF.to_vec());
+            db.load_font_data(FONT_MONO.to_vec());
+            db.set_sans_serif_family("Geist");
+            db.set_serif_family("Geist Serif");
+            db.set_monospace_family("Geist Mono");
+            Arc::new(db)
+        })
+        .clone()
+}
+
+/// Options for the `usvg` bundled with `svg2pdf`.
 fn pdf_options() -> svg2pdf::usvg::Options<'static> {
-    let mut opts = svg2pdf::usvg::Options::default();
-    let db = opts.fontdb_mut();
-    db.load_font_data(FONT_SANS.to_vec());
-    db.load_font_data(FONT_SERIF.to_vec());
-    db.load_font_data(FONT_MONO.to_vec());
-    db.set_sans_serif_family("Geist");
-    db.set_serif_family("Geist Serif");
-    db.set_monospace_family("Geist Mono");
-    opts
+    svg2pdf::usvg::Options {
+        fontdb: pdf_fontdb(),
+        ..Default::default()
+    }
 }
 
 /// Convert SVG markup into a single-page vector PDF. `dpi` sets the physical
@@ -65,6 +79,35 @@ struct SaveOptions {
     facecolor: Option<String>,
     #[pyo3(item)]
     edgecolor: Option<String>,
+    #[pyo3(item)]
+    compression: Option<String>,
+}
+
+/// PNG compression level selectable through `savefig(compression=...)`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PngCompression {
+    Fast,
+    Default,
+    Best,
+}
+
+impl PngCompression {
+    fn parse(value: &str) -> Option<Self> {
+        match value.to_ascii_lowercase().as_str() {
+            "fast" => Some(Self::Fast),
+            "default" => Some(Self::Default),
+            "best" => Some(Self::Best),
+            _ => None,
+        }
+    }
+
+    fn to_png(self) -> png::Compression {
+        match self {
+            Self::Fast => png::Compression::Fast,
+            Self::Default => png::Compression::Default,
+            Self::Best => png::Compression::Best,
+        }
+    }
 }
 
 /// Build a fontdb loaded with our embedded Geist faces (for resvg rasterisation).
@@ -78,6 +121,12 @@ fn build_fontdb() -> usvg::fontdb::Database {
     db.set_serif_family("Geist Serif");
     db.set_monospace_family("Geist Mono");
     db
+}
+
+/// The embedded font database is immutable, so build it once per process.
+fn fontdb() -> Arc<usvg::fontdb::Database> {
+    static FONTDB: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
+    FONTDB.get_or_init(|| Arc::new(build_fontdb())).clone()
 }
 
 /// One `plot` call, including its styling keywords.
@@ -2023,9 +2072,8 @@ fn render_svg(
 /// Rasterise an SVG string via resvg + tiny-skia.
 /// Fonts embedded in `build_fontdb()` are used — no system fonts needed.
 fn rasterize(svg: &str, w: u32, h: u32, transparent: bool) -> Result<tiny_skia::Pixmap, String> {
-    let fontdb = std::sync::Arc::new(build_fontdb());
     let opts = usvg::Options {
-        fontdb: fontdb.clone(),
+        fontdb: fontdb(),
         ..Default::default()
     };
     let tree = usvg::Tree::from_str(svg, &opts).map_err(|e| e.to_string())?;
@@ -2042,9 +2090,12 @@ fn rasterize(svg: &str, w: u32, h: u32, transparent: bool) -> Result<tiny_skia::
 }
 
 /// Encode a pixmap as PNG. This matches `tiny_skia::Pixmap::encode_png`
-/// (including alpha demultiplication) but uses the png crate's fast
-/// compression: at figure sizes the default level dominates save time.
-fn encode_png_fast(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, png::EncodingError> {
+/// (including alpha demultiplication) but exposes the compression level because
+/// the default level dominates save time for typical figure sizes.
+fn encode_png(
+    pixmap: &tiny_skia::Pixmap,
+    compression: PngCompression,
+) -> Result<Vec<u8>, png::EncodingError> {
     let copy = pixmap.to_owned();
     let rgba = copy.take_demultiplied();
     let mut out = Vec::new();
@@ -2052,7 +2103,8 @@ fn encode_png_fast(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, png::EncodingE
         let mut encoder = png::Encoder::new(&mut out, pixmap.width(), pixmap.height());
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
-        encoder.set_compression(png::Compression::Fast);
+        encoder.set_compression(compression.to_png());
+        encoder.set_filter(png::FilterType::Sub);
         let mut writer = encoder.write_header()?;
         writer.write_image_data(&rgba)?;
     }
@@ -2156,6 +2208,7 @@ fn save(
         dpi,
         facecolor,
         edgecolor,
+        compression,
     } = options;
     let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
@@ -2186,6 +2239,19 @@ fn save(
     };
     if fmt != "png" && fmt != "svg" && fmt != "pdf" {
         return Err(err(&format!("unsupported format: {fmt}")));
+    }
+    let compression = match compression {
+        Some(value) => Some(PngCompression::parse(&value).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unsupported compression: {value:?} (use 'fast', 'default', or 'best')"
+            ))
+        })?),
+        None => None,
+    };
+    if compression.is_some() && fmt != "png" {
+        return Err(PyValueError::new_err(
+            "compression is only supported for PNG output",
+        ));
     }
     let tight = match bbox_inches.as_deref() {
         None => false,
@@ -2230,7 +2296,8 @@ fn save(
             Some(bbox) => crop_pixmap(&pixmap, bbox).map_err(|e| err(&e))?,
             None => pixmap,
         };
-        encode_png_fast(&pixmap).map_err(|e| err(&e.to_string()))?
+        encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast))
+            .map_err(|e| err(&e.to_string()))?
     };
     std::fs::write(path, bytes).map_err(|e| err(&e.to_string()))
 }
@@ -2238,4 +2305,44 @@ fn save(
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(save, m)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
+        let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        buf.truncate(info.buffer_size());
+        (info.width, info.height, buf)
+    }
+
+    #[test]
+    fn png_compression_preserves_transparent_pixels() {
+        let mut pixmap = tiny_skia::Pixmap::new(3, 2).unwrap();
+        let colors = [
+            (0, 0, 0, 0),
+            (64, 32, 16, 128),
+            (255, 128, 0, 255),
+            (10, 20, 30, 64),
+            (128, 128, 128, 128),
+            (1, 2, 3, 255),
+        ];
+        for (pixel, &(r, g, b, a)) in pixmap.pixels_mut().iter_mut().zip(&colors) {
+            *pixel = tiny_skia::PremultipliedColorU8::from_rgba(r, g, b, a).unwrap();
+        }
+
+        let reference = decode_png(&pixmap.encode_png().unwrap());
+        for compression in [
+            PngCompression::Fast,
+            PngCompression::Default,
+            PngCompression::Best,
+        ] {
+            let encoded = encode_png(&pixmap, compression).unwrap();
+            assert_eq!(decode_png(&encoded), reference);
+        }
+    }
 }

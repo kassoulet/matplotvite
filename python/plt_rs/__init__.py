@@ -127,6 +127,7 @@ def _span(values):
     return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 DPI = 100
 _FORMATS = ("png", "svg", "pdf")
+_COMPRESSIONS = ("fast", "default", "best")
 
 
 class _Wedge:
@@ -1797,11 +1798,21 @@ class Figure:
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
-                transparent=False, facecolor=None, edgecolor=None):
+                transparent=False, facecolor=None, edgecolor=None,
+                compression=None):
         """Write this figure, or return its bytes when `filepath` is None or a
         file-like object. `format` overrides the extension, `dpi` scales the
-        pixel size and `bbox_inches="tight"` crops to the drawn content."""
+        pixel size and `bbox_inches="tight"` crops to the drawn content.
+        `compression` selects PNG compression: "fast" (default), "default",
+        or "best"."""
         dpi = float(dpi or self.dpi or DPI)
+        if compression is not None:
+            compression = str(compression).lower()
+            if compression not in _COMPRESSIONS:
+                raise ValueError(
+                    f"unsupported compression: {compression!r} "
+                    "(use 'fast', 'default', or 'best')"
+                )
         w, h = (round(v * dpi) for v in self.figsize)
         fmt = format.lower().lstrip(".") if format else None
         if fmt is not None and fmt not in _FORMATS:
@@ -1818,6 +1829,7 @@ class Figure:
             "dpi": dpi,
             "facecolor": _norm_color(facecolor) or self.facecolor,
             "edgecolor": _norm_color(edgecolor) or self.edgecolor,
+            "compression": compression,
         }
         if filepath is None or hasattr(filepath, "write"):
             import os
@@ -2026,6 +2038,7 @@ def rcdefaults():
 
 
 def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=False,
-            facecolor=None, edgecolor=None):
+            facecolor=None, edgecolor=None, compression=None):
     return gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches,
-                         transparent=transparent, facecolor=facecolor, edgecolor=edgecolor)
+                         transparent=transparent, facecolor=facecolor, edgecolor=edgecolor,
+                         compression=compression)

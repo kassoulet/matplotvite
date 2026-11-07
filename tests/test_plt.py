@@ -21,6 +21,21 @@ def test_png(tmp_path):
     assert int.from_bytes(b[16:20], "big") == 400 and int.from_bytes(b[20:24], "big") == 300
 
 
+@pytest.mark.parametrize("compression", ["fast", "default", "best"])
+def test_png_compression(tmp_path, compression):
+    p = tmp_path / f"{compression}.png"
+    _fig()
+    plt.savefig(p, compression=compression)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_png_compression_invalid(tmp_path):
+    with pytest.raises(ValueError):
+        _fig().savefig(tmp_path / "bad.png", compression="tiny")
+    with pytest.raises(ValueError):
+        _fig().savefig(tmp_path / "bad.svg", compression="fast")
+
+
 def test_svg(tmp_path):
     p = tmp_path / "a.svg"
     plt.savefig(_fig() and p)

@@ -5,72 +5,72 @@
     "python_version": "3.14.4",
     "matplotlib_version": "3.11.2",
     "plt_rs_version": "0.1.0",
-    "timestamp": "2026-11-07 17:10:34 UTC"
+    "timestamp": "2026-11-07 17:37:38 UTC"
   },
   "results": [
     {
       "category": "Data Scaling",
       "name": "Single Line (100 points, PNG)",
       "points": 100,
-      "rs_ms": 4.03,
-      "mpl_ms": 88.42,
-      "speedup": 21.9
+      "rs_ms": 3.05,
+      "mpl_ms": 77.51,
+      "speedup": 25.4
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (1,000 points, PNG)",
       "points": 1000,
-      "rs_ms": 3.6,
-      "mpl_ms": 91.05,
-      "speedup": 25.3
+      "rs_ms": 2.68,
+      "mpl_ms": 77.72,
+      "speedup": 29.0
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (10,000 points, PNG)",
       "points": 10000,
-      "rs_ms": 7.17,
-      "mpl_ms": 96.59,
-      "speedup": 13.5
+      "rs_ms": 6.06,
+      "mpl_ms": 81.34,
+      "speedup": 13.4
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (100,000 points, PNG)",
       "points": 100000,
-      "rs_ms": 51.58,
-      "mpl_ms": 131.65,
-      "speedup": 2.6
+      "rs_ms": 38.74,
+      "mpl_ms": 103.96,
+      "speedup": 2.7
     },
     {
       "category": "Complex Layouts",
       "name": "Multi-Series (5 lines x 2,000 pts, PNG)",
       "points": 10000,
-      "rs_ms": 10.78,
-      "mpl_ms": 147.4,
-      "speedup": 13.7
+      "rs_ms": 8.97,
+      "mpl_ms": 121.98,
+      "speedup": 13.6
     },
     {
       "category": "Complex Layouts",
       "name": "Subplots (2x2 grid, PNG)",
       "points": 4000,
-      "rs_ms": 9.39,
-      "mpl_ms": 144.1,
-      "speedup": 15.3
+      "rs_ms": 7.88,
+      "mpl_ms": 131.19,
+      "speedup": 16.6
     },
     {
       "category": "Vector Output",
       "name": "Vector SVG Export (1,000 pts, SVG)",
       "points": 1000,
-      "rs_ms": 0.51,
-      "mpl_ms": 98.43,
-      "speedup": 192.4
+      "rs_ms": 0.44,
+      "mpl_ms": 70.09,
+      "speedup": 160.6
     },
     {
       "category": "Startup & Process",
       "name": "Cold CLI Execution (Process start + plot + save)",
       "points": 1000,
-      "rs_ms": 146.5,
-      "mpl_ms": 607.4,
-      "speedup": 4.1
+      "rs_ms": 83.1,
+      "mpl_ms": 463.4,
+      "speedup": 5.6
     }
   ]
 }
