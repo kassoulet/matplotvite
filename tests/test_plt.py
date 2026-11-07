@@ -1514,6 +1514,23 @@ def test_subplots_squeeze_false_keeps_array():
     assert axs[0, 0].get_figure() is fig
 
 
+def test_window_extent_accounts_for_labels_and_title():
+    fig, ax = plt.subplots(figsize=(4, 3), dpi=100)
+    ax.plot([0, 1], [0, 1])
+    bare = ax.get_window_extent()
+    ax.set_ylabel("values")
+    ax.set_xlabel("time")
+    labelled = ax.get_window_extent()
+    assert labelled.x0 < bare.x0 and labelled.y0 < bare.y0
+    ax.set_title("A title", fontsize=20)
+    titled = ax.get_window_extent()
+    assert titled.y1 > labelled.y1
+    assert titled.width >= labelled.width
+    ax.axis("off")
+    bare_axes = ax.get_window_extent()
+    assert bare_axes.width < titled.width and bare_axes.height < titled.height
+
+
 def test_gridspec_spans_multiple_cells(tmp_path):
     fig = plt.figure((5, 4))
     gs = fig.add_gridspec(2, 3)

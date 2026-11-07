@@ -608,10 +608,22 @@ class Axes:
     def get_transform(self): return _Transform()
 
     def get_window_extent(self, renderer=None):
+        """Pixel box covering the axes plus the space its labels and title use."""
         b = self.get_position()
         w, h = self._fig.figsize if self._fig is not None else (6.4, 4.8)
         dpi = self._fig.dpi if self._fig is not None else DPI
-        return _Bbox(b.x0 * w * dpi, b.y0 * h * dpi, b.x1 * w * dpi, b.y1 * h * dpi)
+        scale = dpi / 100.0
+        if self._axis_off:
+            left_pad = bottom_pad = 10.0
+        else:
+            left_pad = 55.0 + (8.0 if self.ylabel else 0.0)
+            bottom_pad = 40.0 + (8.0 if self.xlabel else 0.0)
+        size = self.title_size or float(rcParams.get("axes.titlesize", 12.0))
+        top_pad = 10.0 + (size * 1.6 if self.title else 0.0)
+        return _Bbox(b.x0 * w * dpi - left_pad * scale,
+                     b.y0 * h * dpi - bottom_pad * scale,
+                     b.x1 * w * dpi + 10.0 * scale,
+                     b.y1 * h * dpi + top_pad * scale)
 
     def get_tightbbox(self, renderer=None): return self.get_window_extent(renderer)
     def get_figure(self): return self._fig
