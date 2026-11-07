@@ -80,12 +80,28 @@ pub(crate) fn render_svg(
         let content = root.margin(top_pad, 0, 0, 0);
         let cells = content.split_evenly(grid);
         for p in panels {
-            draw_panel(
-                cells.get(p.pos).ok_or("subplot index out of range")?,
-                p,
-                &mut overlays,
-            )
-            .map_err(|e| e.to_string())?;
+            let gap = if p.twin.is_empty() {
+                0
+            } else {
+                (p.twin_gap * w as f64).round() as i32
+            };
+            match p.bounds {
+                Some((x, y, pw, ph)) => {
+                    let left = (x * w as f64).round() as i32;
+                    let top = ((1.0 - y - ph) * h as f64).round() as i32;
+                    let right = (w as f64 - (x + pw) * w as f64).round() as i32;
+                    let bottom = (y * h as f64).round() as i32;
+                    let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
+                    draw_panel(&area, p, &mut overlays, gap).map_err(|e| e.to_string())?;
+                }
+                None => draw_panel(
+                    cells.get(p.pos).ok_or("subplot index out of range")?,
+                    p,
+                    &mut overlays,
+                    gap,
+                )
+                .map_err(|e| e.to_string())?,
+            }
         }
         if let Some(s) = suptitle {
             let style = ("sans-serif", s.size.max(6.0).round() as u32)

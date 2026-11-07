@@ -1514,6 +1514,40 @@ def test_subplots_squeeze_false_keeps_array():
     assert axs[0, 0].get_figure() is fig
 
 
+def test_twinx_adds_right_axis_on_the_same_panel(tmp_path):
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.plot([0, 1, 2], [1, 4, 9], color="red")
+    ax.set_ylabel("left")
+    original = ax.get_position().bounds
+    twin = ax.twinx()
+    twin.plot([0, 1, 2], [100, 50, 10], color="blue")
+    twin.set_ylabel("right")
+    assert twin._twin_of is ax and twin._twin == "y"
+    assert twin.get_xlim() == ax.get_xlim()
+    assert ax.get_position().x1 < original[0] + original[2]
+    assert twin.get_position().bounds == original
+    assert ax._panel()["bounds"] is not None and twin._panel()["bounds"] is not None
+    assert twin._panel()["ticks"]["hide_xlabels"]
+    p = tmp_path / "twinx.svg"
+    fig.savefig(p)
+    s = p.read_text().upper()
+    assert "#FF0000" in s and "#0000FF" in s
+    assert "right" in p.read_text()
+
+
+def test_twiny_adds_top_axis_on_the_same_panel(tmp_path):
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.plot([0, 1, 2], [10, 20, 30])
+    twin = ax.twiny()
+    twin.plot([100, 200, 300], [0, 1, 2], color="green")
+    twin.set_xlabel("top")
+    assert twin._twin == "x" and twin.get_ylim() == ax.get_ylim()
+    assert twin._panel()["ticks"]["hide_ylabels"]
+    p = tmp_path / "twiny.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_set_prop_cycle_controls_default_colors(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.set_prop_cycle(color=["red", "green"])

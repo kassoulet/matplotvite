@@ -104,6 +104,8 @@ fn draw_manual_ticks<DB: DrawingBackend>(
     p: &Panel,
     ranges: (f64, f64, f64, f64),
     log_base: f64,
+    side: &str,
+    gap: i32,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -174,7 +176,7 @@ where
             .collect(),
     };
 
-    if p.grid.show && p.grid.axis != "y" {
+    if side.is_empty() && p.grid.show && p.grid.axis != "y" {
         for v in &xs {
             let (px, _) = pa.map_coordinate(&(*v, y0));
             let px = px - origin.0;
@@ -192,7 +194,7 @@ where
             }
         }
     }
-    if p.grid.show && p.grid.axis != "x" {
+    if side.is_empty() && p.grid.show && p.grid.axis != "x" {
         for v in &ys {
             let (_, py) = pa.map_coordinate(&(x0, *v));
             let py = py - origin.1;
@@ -217,21 +219,34 @@ where
     let xlabel_col = color(xstyle.labelcolor.as_deref().unwrap_or(default_tick));
     let xtick_w = xstyle.width.max(1.0).round() as u32;
     let xtick_len = xstyle.length.max(0.0);
-    for (v, label) in xs.iter().zip(xlabels.iter()) {
-        let (px, _) = pa.map_coordinate(&(*v, y0));
-        let px = px - origin.0;
-        area.draw(&PathElement::new(
-            vec![(px, bottom), (px, bottom + xtick_len as i32)],
-            xtick_col.stroke_width(xtick_w),
-        ))?;
-        if !label.is_empty() && !p.ticks.hide_xlabels {
-            let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation)
-                .pos(Pos::new(HPos::Center, VPos::Top));
-            area.draw(&Text::new(
-                label.clone(),
-                (px, bottom + xtick_len as i32 + 4),
-                style,
+    if side != "right" {
+        for (v, label) in xs.iter().zip(xlabels.iter()) {
+            let (px, _) = pa.map_coordinate(&(*v, y0));
+            let px = px - origin.0;
+            let (base_y, tick_y, label_y, vpos) = if side == "top" {
+                (
+                    top,
+                    top - xtick_len as i32,
+                    top - xtick_len as i32 - 4,
+                    VPos::Bottom,
+                )
+            } else {
+                (
+                    bottom,
+                    bottom + xtick_len as i32,
+                    bottom + xtick_len as i32 + 4,
+                    VPos::Top,
+                )
+            };
+            area.draw(&PathElement::new(
+                vec![(px, base_y), (px, tick_y)],
+                xtick_col.stroke_width(xtick_w),
             ))?;
+            if !label.is_empty() && !p.ticks.hide_xlabels {
+                let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation)
+                    .pos(Pos::new(HPos::Center, vpos));
+                area.draw(&Text::new(label.clone(), (px, label_y), style))?;
+            }
         }
     }
     let ystyle = &p.ticks.ystyle;
@@ -239,22 +254,53 @@ where
     let ylabel_col = color(ystyle.labelcolor.as_deref().unwrap_or(default_tick));
     let ytick_w = ystyle.width.max(1.0).round() as u32;
     let ytick_len = ystyle.length.max(0.0);
-    for (v, label) in ys.iter().zip(ylabels.iter()) {
-        let (_, py) = pa.map_coordinate(&(x0, *v));
-        let py = py - origin.1;
-        area.draw(&PathElement::new(
-            vec![(left - ytick_len as i32, py), (left, py)],
-            ytick_col.stroke_width(ytick_w),
-        ))?;
-        if !label.is_empty() && !p.ticks.hide_ylabels {
-            let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation)
-                .pos(Pos::new(HPos::Right, VPos::Center));
-            area.draw(&Text::new(
-                label.clone(),
-                (left - ytick_len as i32 - 4, py),
-                style,
+    if side != "top" {
+        for (v, label) in ys.iter().zip(ylabels.iter()) {
+            let (_, py) = pa.map_coordinate(&(x0, *v));
+            let py = py - origin.1;
+            let (tick_x, edge_x, label_x, hpos) = if side == "right" {
+                (
+                    right + ytick_len as i32,
+                    right,
+                    right + ytick_len as i32 + 4,
+                    HPos::Left,
+                )
+            } else {
+                (
+                    left - ytick_len as i32,
+                    left,
+                    left - ytick_len as i32 - 4,
+                    HPos::Right,
+                )
+            };
+            area.draw(&PathElement::new(
+                vec![(tick_x, py), (edge_x, py)],
+                ytick_col.stroke_width(ytick_w),
             ))?;
+            if !label.is_empty() && !p.ticks.hide_ylabels {
+                let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation)
+                    .pos(Pos::new(hpos, VPos::Center));
+                area.draw(&Text::new(label.clone(), (label_x, py), style))?;
+            }
         }
+    }
+    let fg = color(default_tick);
+    if side == "right" && !p.ylabel.is_empty() {
+        let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
+        let style = rotated_style(size, fg, 270.0).pos(Pos::new(HPos::Center, VPos::Center));
+        area.draw(&Text::new(
+            p.ylabel.clone(),
+            (right + gap - 4, (top + bottom) / 2),
+            style,
+        ))?;
+    } else if side == "top" && !p.xlabel.is_empty() {
+        let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
+        let style = rotated_style(size, fg, 0.0).pos(Pos::new(HPos::Center, VPos::Center));
+        area.draw(&Text::new(
+            p.xlabel.clone(),
+            ((left + right) / 2, top - gap + 10),
+            style,
+        ))?;
     }
     Ok(())
 }
@@ -700,6 +746,7 @@ pub(crate) fn draw_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     p: &Panel,
     overlays: &mut Vec<String>,
+    twin_gap_px: i32,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -708,6 +755,7 @@ where
         return draw_colorbar(area, cmap, *vmin, *vmax, label);
     }
     let fg = color(p.foreground.as_deref().unwrap_or("#000000"));
+    let twin_side = p.twin.as_str();
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
     // Log axes are laid out in log10 space: the ranges and every mapped point are
     // transformed, and the tick labels are converted back to powers of ten.
@@ -747,15 +795,22 @@ where
         || p.ticks.yticks.is_some()
         || p.ticks.xstyle.is_custom()
         || p.ticks.ystyle.is_custom()
+        || !twin_side.is_empty()
         || (p.grid.show
             && (p.grid.color.is_some()
                 || p.grid.linewidth.is_some()
                 || p.grid.alpha.is_some()
                 || p.grid.linestyle.is_some()));
     let shrunk_area;
-    let mut chart = ChartBuilder::on(area)
+    let mut builder = ChartBuilder::on(area);
+    builder.margin(10);
+    if twin_side == "y" {
+        builder.margin_right(10 + twin_gap_px);
+    } else if twin_side == "x" {
+        builder.margin_top(10 + twin_gap_px);
+    }
+    let mut chart = builder
         .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
-        .margin(10)
         .x_label_area_size(40)
         .y_label_area_size(55)
         .build_cartesian_2d(x0..x1, y0..y1)?;
@@ -772,9 +827,15 @@ where
             }
             if dw > 0 || dh > 0 {
                 shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
-                chart = ChartBuilder::on(&shrunk_area)
+                let mut rb = ChartBuilder::on(&shrunk_area);
+                rb.margin(10);
+                if twin_side == "y" {
+                    rb.margin_right(10 + twin_gap_px);
+                } else if twin_side == "x" {
+                    rb.margin_top(10 + twin_gap_px);
+                }
+                chart = rb
                     .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
-                    .margin(10)
                     .x_label_area_size(40)
                     .y_label_area_size(55)
                     .build_cartesian_2d(x0..x1, y0..y1)?;
@@ -836,16 +897,34 @@ where
             // contributes the axis spines and descriptions.
             mesh.disable_mesh().set_all_tick_mark_size(0);
         }
+        let (x_desc, y_desc) = if twin_side.is_empty() {
+            (p.xlabel.as_str(), p.ylabel.as_str())
+        } else {
+            ("", "")
+        };
         mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
             .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
             .axis_style(fg.stroke_width(1))
-            .x_desc(&p.xlabel)
-            .y_desc(&p.ylabel)
+            .x_desc(x_desc)
+            .y_desc(y_desc)
             .x_label_formatter(&x_fmt)
             .y_label_formatter(&y_fmt)
             .draw()?;
         if manual {
-            draw_manual_ticks(area, &chart, p, (x0, x1, y0, y1), base)?;
+            let axis_side = match twin_side {
+                "y" => "right",
+                "x" => "top",
+                _ => "",
+            };
+            draw_manual_ticks(
+                area,
+                &chart,
+                p,
+                (x0, x1, y0, y1),
+                base,
+                axis_side,
+                twin_gap_px,
+            )?;
         }
     }
     // Filled contours sit on the image layer, under the line series.

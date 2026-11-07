@@ -337,6 +337,15 @@ pub(crate) struct Panel<'py> {
     pub(crate) facecolor: Option<String>,
     #[pyo3(item)]
     pub(crate) foreground: Option<String>,
+    /// Figure-fraction `(x, y, width, height)`; `None` uses the grid cell.
+    #[pyo3(item)]
+    pub(crate) bounds: Option<(f64, f64, f64, f64)>,
+    /// Empty for a normal axes, `"y"` for `twinx`, `"x"` for `twiny`.
+    #[pyo3(item)]
+    pub(crate) twin: String,
+    /// Gap reserved for the twin axis labels, as a figure-width fraction.
+    #[pyo3(item)]
+    pub(crate) twin_gap: f64,
 }
 
 /// One `bar`/`barh` call: axis-aligned rectangles in data coordinates.

@@ -369,6 +369,7 @@ class Axes:
         self.hide_xticklabels = self.hide_yticklabels = False
         self._prop_cycle = list(rcParams.get("axes.prop_cycle", _CYCLE))
         self._cycle_pos = 0
+        self._twin, self._twin_gap, self._twin_of = "", 0.0, None
         self._fig = None
 
     def _next_color(self):
@@ -453,6 +454,50 @@ class Axes:
 
     def set_position(self, pos):
         self._pos_override = tuple(float(v) for v in pos)
+
+    def twinx(self):
+        """A second axes sharing the x axis, with its own y axis on the right."""
+        return self._make_twin("y")
+
+    def twiny(self):
+        """A second axes sharing the y axis, with its own x axis on top."""
+        return self._make_twin("x")
+
+    def _make_twin(self, axis):
+        if self._fig is None:
+            raise RuntimeError("twinx/twiny needs an axes attached to a figure")
+        fig = self._fig
+        box = self.get_position()
+        if axis == "y":
+            gap = 60.0 / (fig.figsize[0] * fig.get_dpi())
+            base = (box.x0, box.y0, max(box.width - gap, 0.05), box.height)
+        else:
+            gap = 50.0 / (fig.figsize[1] * fig.get_dpi())
+            base = (box.x0, box.y0, box.width, max(box.height - gap, 0.05))
+        self._pos_override = base
+        twin = Axes(self.pos)
+        twin._fig, twin._twin, twin._twin_gap = fig, axis, gap
+        twin._twin_of = self
+        twin._pos_override = box.bounds
+        twin.facecolor = "none"
+        if axis == "y":
+            group = self._share_x or _Share()
+            if self._share_x is None:
+                group.axes.append(self)
+                self._share_x = group
+                group.limits = self.xlim
+            twin._share_x = group
+        else:
+            group = self._share_y or _Share()
+            if self._share_y is None:
+                group.axes.append(self)
+                self._share_y = group
+                group.limits = self.ylim
+            twin._share_y = group
+        group.axes.append(twin)
+        fig.axes.append(twin)
+        fig._cur = twin
+        return twin
 
     def _extent_x(self):
         xs = []
@@ -1476,8 +1521,8 @@ class Axes:
                                yticks=self._yticks, yticklabels=self._yticklabels,
                                xstyle=self._tick_style_dict("x"),
                                ystyle=self._tick_style_dict("y"),
-                               hide_xlabels=self.hide_xticklabels,
-                               hide_ylabels=self.hide_yticklabels),
+                               hide_xlabels=self.hide_xticklabels or self._twin == "y",
+                               hide_ylabels=self.hide_yticklabels or self._twin == "x"),
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
@@ -1486,6 +1531,7 @@ class Axes:
                     axis_off=self._axis_off,
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
                     foreground=_norm_color(rcParams.get("text.color")),
+                    bounds=self._pos_override, twin=self._twin, twin_gap=self._twin_gap,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
                             for e in self.images])
 
@@ -1974,6 +2020,7 @@ class Figure:
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
                     x_log=False, y_log=False, log_base=10.0, aspect=None,
                     axis_off=False, facecolor=None, foreground=None,
+                    bounds=None, twin="", twin_gap=0.0,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
