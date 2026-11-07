@@ -1548,7 +1548,7 @@ class Figure:
         w, h = (round(v * (dpi or DPI)) for v in self.figsize)
         fmt = format.lower().lstrip(".") if format else None
         if fmt is not None and fmt not in _FORMATS:
-            raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg')")
+            raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg' or 'pdf')")
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
