@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **8 777 / 10 098 call sites covered (86%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 842 / 10 098 call sites covered (87%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -119,6 +119,7 @@
 - [x] Real behaviour: `remove()` and `set_visible(False)` drop the panel, `axis("off")` hides axes/ticks/labels, `axis("equal"|"auto"|[limits])`, `invert_xaxis`/`invert_yaxis`, `clear`/`cla`, `set(**kwargs)` dispatch
 - [x] Tick/label storage: `set_xticks`/`set_yticks`, `set_xticklabels`/`set_yticklabels`, `get_xticks`/`get_yticks`, `get_xticklabels`/`get_yticklabels` (stored values are not yet used by the renderer)
 - [ ] `get_window_extent` that accounts for labels/titles rather than the raw grid cell
+- [x] `setp`/`getp` cover bar handles (`set_height`/`set_width`/`set_x`/`set_y`, `get_facecolor`) but only artists that expose matching `set_*`/`get_*` methods
 - [ ] Render artists registered through `add_patch`/`add_collection`
 
 ---
@@ -143,6 +144,10 @@
 - [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` (`baseline="zero"` only)
 - [ ] `quiver(X, Y, U, V)` — vector field arrows
 - [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline (`orientation="horizontal"` raises)
+- [x] `eventplot(positions, orientation=, lineoffsets=, linelengths=, colors=, linestyles=)` — one short line per event, one row per positions array; `linewidths` accepted but ignored
+- [x] `broken_barh(xranges, yrange, colors=)` — `(start, width)` pairs drawn as bars over a shared y range (no edge/alpha control)
+- [x] `minorticks_on()` / `minorticks_off()` — recorded only; minor ticks are not rendered
+- [x] `setp(artist, **kwargs)` / `getp(artist, *names)` — generic `set_*`/`get_*` dispatch, raising `AttributeError` for unknown names (no validation of values)
 
 ---
 

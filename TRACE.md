@@ -2,7 +2,7 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **8777/10098** (86%)
+Call sites supported: **8842/10098** (87%)
 
 ## pyplot: unsupported (by call count)
 
@@ -15,7 +15,6 @@ Call sites supported: **8777/10098** (86%)
 | 10 | `switch_backend` | 3 |
 | 10 | `quiver` | 4 |
 | 10 | `pie` | 1 |
-| 9 | `setp` | 6 |
 | 8 | `imsave` | 1 |
 | 8 | `fignum_exists` | 2 |
 | 7 | `xticks` | 3 |
@@ -30,7 +29,6 @@ Call sites supported: **8777/10098** (86%)
 | 4 | `xkcd` | 2 |
 | 4 | `tricontour` | 2 |
 | 4 | `table` | 2 |
-| 4 | `getp` | 2 |
 | 4 | `figaspect` | 1 |
 | 4 | `box` | 1 |
 | 4 | `Line2D` | 1 |
@@ -43,7 +41,6 @@ Call sites supported: **8777/10098** (86%)
 | 2 | `specgram` | 1 |
 | 2 | `sca` | 2 |
 | 2 | `get_figlabels` | 1 |
-| 2 | `eventplot` | 1 |
 | 2 | `ecdf` | 1 |
 | 2 | `draw_all` | 1 |
 | 2 | `barbs` | 2 |
@@ -67,7 +64,7 @@ Call sites supported: **8777/10098** (86%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `title`, `rc_context`, `pause`, `show`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `fill_between`, `yscale`, `xscale`, `fill`, `axline`, `annotate`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `title`, `rc_context`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `fill_between`, `eventplot`, `yscale`, `xscale`, `fill`, `axline`, `annotate`
 
 ## Axes: unsupported (by call count)
 
@@ -83,8 +80,6 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 21 | `clabel` | 3 |
 | 18 | `quiverkey` | 1 |
 | 18 | `quiver` | 4 |
-| 17 | `eventplot` | 2 |
-| 16 | `minorticks_on` | 3 |
 | 16 | `inset_axes` | 6 |
 | 16 | `get_cursor_data` | 2 |
 | 16 | `contains` | 6 |
@@ -94,7 +89,6 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 14 | `specgram` | 2 |
 | 13 | `twiny` | 4 |
 | 12 | `format_cursor_data` | 2 |
-| 11 | `broken_barh` | 2 |
 | 10 | `secondary_xaxis` | 2 |
 | 10 | `grouped_bar` | 1 |
 | 9 | `get_gridspec` | 2 |
@@ -108,7 +102,6 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 7 | `get_autoscaley_on` | 2 |
 | 7 | `get_autoscalex_on` | 2 |
 | 6 | `violin` | 2 |
-| 6 | `minorticks_off` | 2 |
 | 6 | `hist2d` | 2 |
 | 6 | `get_legend_handles_labels` | 3 |
 | 6 | `csd` | 2 |
@@ -193,7 +186,7 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 1 | `cohere` | 1 |
 | 1 | `angle_spectrum` | 1 |
 
-Axes supported: `plot`, `imshow`, `text`, `draw`, `set_xlim`, `legend`, `set_ylim`, `scatter`, `set_title`, `get_position`, `add_patch`, `get_ylim`, `get_xlim`, `pcolormesh`, `set`, `errorbar`, `bar`, `hist`, `get_visible`, `remove`, `add_artist`, `get_window_extent`, `get_facecolor`, `set_xlabel`, `contour`, `set_yscale`, `annotate`, `tick_params`, `set_ylabel`, `set_xticks`, `set_xscale`, `set_aspect`, `update`, `set_yticks`, `get_transform`, `axis`, `add_collection`, `get_xticklabels`, `stem`, `set_axis_off`, `contourf`, `axhline`, `stairs`, `fill_between`, `set_visible`, `set_facecolor`, `get_alpha`, `set_position`, `grid`, `barh`, `pie`, `clear`, `get_tightbbox`, `bar_label`, `axline`, `hlines`, `get_figure`, `set_alpha`, `axvline`, `vlines`, `fill`, `margins`, `get_yticklabels`, `get_label`, `get_yticks`, `set_clip_path`, `pcolorfast`, `autoscale`, `set_label`, `get_zorder`, `get_title`, `step`, `stackplot`, `set_path_effects`, `loglog`, `get_ybound`, `axvspan`, `set_xticklabels`, `get_children`, `invert_yaxis`, `get_xticks`, `get_xbound`, `set_zorder`, `relim`, `pcolor`, `fill_betweenx`, `cla`, `yaxis_inverted`, `set_yticklabels`, `get_aspect`, `axhspan`, `autoscale_view`, `add_line`, `invert_xaxis`, `get_ylabel`, `semilogx`, `get_yscale`, `xaxis_inverted`, `set_in_layout`, `semilogy`, `get_xlabel`, `get_xscale`, `set_clip_on`, `get_in_layout`
+Axes supported: `plot`, `imshow`, `text`, `draw`, `set_xlim`, `legend`, `set_ylim`, `scatter`, `set_title`, `get_position`, `add_patch`, `get_ylim`, `get_xlim`, `pcolormesh`, `set`, `errorbar`, `bar`, `hist`, `get_visible`, `remove`, `add_artist`, `get_window_extent`, `get_facecolor`, `set_xlabel`, `contour`, `set_yscale`, `annotate`, `tick_params`, `set_ylabel`, `set_xticks`, `set_xscale`, `set_aspect`, `update`, `set_yticks`, `get_transform`, `axis`, `add_collection`, `get_xticklabels`, `stem`, `set_axis_off`, `contourf`, `axhline`, `stairs`, `fill_between`, `set_visible`, `set_facecolor`, `get_alpha`, `set_position`, `grid`, `barh`, `pie`, `clear`, `get_tightbbox`, `bar_label`, `axline`, `hlines`, `get_figure`, `set_alpha`, `axvline`, `vlines`, `fill`, `margins`, `get_yticklabels`, `get_label`, `eventplot`, `minorticks_on`, `get_yticks`, `set_clip_path`, `pcolorfast`, `autoscale`, `set_label`, `get_zorder`, `get_title`, `step`, `stackplot`, `set_path_effects`, `loglog`, `get_ybound`, `axvspan`, `set_xticklabels`, `get_children`, `broken_barh`, `invert_yaxis`, `get_xticks`, `get_xbound`, `set_zorder`, `relim`, `pcolor`, `fill_betweenx`, `cla`, `yaxis_inverted`, `set_yticklabels`, `get_aspect`, `axhspan`, `autoscale_view`, `add_line`, `invert_xaxis`, `get_ylabel`, `semilogx`, `minorticks_off`, `get_yscale`, `xaxis_inverted`, `set_in_layout`, `semilogy`, `get_xlabel`, `get_xscale`, `set_clip_on`, `get_in_layout`
 
 ## Figure: unsupported (by call count)
 
@@ -262,7 +255,6 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `streamplot`: `linewidth` (7), `start_points` (5), `density` (5), `color` (5), `maxlength` (3), `num_arrows` (2), `integration_max_step_scale` (2), `integration_max_error_scale` (2), `cmap` (2), `broken_streamlines` (2), `transform` (1), `integration_direction` (1), `arrowsize` (1)
 - `set_title`: `loc` (16), `fontsize` (9), `pad` (5), `fontweight` (5), `y` (1)
 - `clabel`: `fontsize` (10), `inline` (8), `manual` (6), `use_clabeltext` (2), `fmt` (2), `colors` (2), `zorder` (1), `levels` (1), `inline_spacing` (1)
-- `eventplot`: `colors` (7), `lineoffsets` (6), `linelengths` (4), `alpha` (4), `linewidths` (1), `linewidth` (1), `linestyles` (1), `linestyle` (1), `label` (1), `data` (1), `color` (1)
 - `quiver`: `angles` (5), `scale_units` (3), `scale` (3), `pivot` (3), `width` (2), `units` (2), `transform` (2), `headlength` (2), `zorder` (1), `headwidth` (1), `headaxislength` (1), `color` (1)
 - `subplot_mosaic`: `layout` (5), `subplot_kw` (4), `width_ratios` (3), `num` (3), `sharey` (2), `sharex` (2), `per_subplot_kw` (2), `height_ratios` (2), `gridspec_kw` (2), `clear` (1)
 - `set_ylabel`: `loc` (7), `y` (5), `fontsize` (5), `ha` (4), `fontweight` (2), `fontname` (1)
@@ -291,8 +283,6 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `secondary_xaxis`: `functions` (4), `xticks` (1), `transform` (1), `color` (1)
 - `add_gridspec`: `nrows` (2), `ncols` (2), `wspace` (1), `left` (1), `figure` (1)
 - `get_window_extent`: `dpi` (1)
-- `setp`: `visible` (2), `remove_overlapping_locs` (1), `path_effects` (1), `file` (1), `color` (1)
-- `broken_barh`: `align` (4), `facecolors` (2)
 - `inset_axes`: `ylim` (1), `xlim` (1), `sharey` (1), `projection` (1), `polar` (1), `axes_class` (1)
 - `ecdf`: `orientation` (2), `ls` (1), `data` (1), `compress` (1), `complementary` (1)
 - `Line2D`: `gid` (3), `zorder` (1), `transform` (1), `label` (1)

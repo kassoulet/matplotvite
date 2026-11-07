@@ -78,6 +78,12 @@ plt.savefig("contours.png")
 - `pie(x, labels=, autopct=, colors=, explode=, startangle=)` — filled wedges with
   equal aspect, returning `(wedges, texts, autotexts)`
 - `stackplot(x, *ys, colors=, alpha=)` — cumulative filled layers
+- `eventplot(positions, lineoffsets=, linelengths=, colors=)` — one short line per
+  event, one row per positions array (`linewidths` ignored)
+- `broken_barh(xranges, yrange, colors=)` — `(start, width)` pairs as bars
+- `minorticks_on()`/`minorticks_off()` — recorded, but minor ticks are not drawn
+- `setp(artist, **kwargs)` / `getp(artist, *names)` — generic `set_*`/`get_*` dispatch;
+  unknown names raise `AttributeError`, and values are not validated
 - `tight_layout`/`subplots_adjust`/`set_in_layout` — accepted as no-ops (window-fitted
   panels, so there is nothing to negotiate)
 - `grid(True|False)`, `tick_params(...)` — gridlines are drawn; tick styling is recorded
@@ -130,7 +136,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 777 / 10 098 (86%)**. CI re-runs the trace against
+accepts — currently **8 842 / 10 098 (87%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks

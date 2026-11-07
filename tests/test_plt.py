@@ -1148,3 +1148,40 @@ def test_stackplot_layers(tmp_path):
         ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
     with pytest.raises(ValueError):
         ax.stackplot(x, [1, 2])
+
+
+def test_eventplot_and_broken_barh(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.eventplot([[0.5, 1.5], [1.0]], colors=["red", "green"], linelengths=0.8)
+    ax.broken_barh([(0, 1), (2, 0.5)], (2, 0.5), colors="blue")
+    p = tmp_path / "events.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#2CA02C" in s and "#1F77B4" in s
+    assert s.count("<POLYLINE") >= 3
+    assert s.count("<RECT") >= 3  # background plus two bars
+    lo, hi = ax.get_ylim()
+    assert lo <= 0.5 and hi >= 2.5
+    with pytest.raises(ValueError):
+        ax.eventplot([[1]], orientation="diagonal")
+
+
+def test_minorticks_setp_getp():
+    plt.figure()
+    ax = plt.gca()
+    ax.minorticks_on()
+    assert ax.minor_ticks is True
+    ax.minorticks_off()
+    assert ax.minor_ticks is False
+    bars = ax.bar([1], [2])
+    assert plt.getp(bars[0], "height") == 2.0
+    assert plt.setp(bars[0], height=3.0) is None
+    assert plt.getp(bars[0], "height") == 3.0
+    plt.setp(bars[0], facecolor="red")
+    assert plt.getp(bars[0], "facecolor") == ["red"]
+    assert plt.getp(bars[0], "height", "width") == [3.0, 0.8]
+    with pytest.raises(AttributeError):
+        plt.getp(bars[0], "nonsense")
+    with pytest.raises(AttributeError):
+        plt.setp(bars[0], nonsense=1)

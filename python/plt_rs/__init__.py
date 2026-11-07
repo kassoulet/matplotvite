@@ -105,6 +105,28 @@ class _BarHandle:
     def get_width(self): return self._get("width")
     def get_height(self): return self._get("height")
 
+    def get_facecolor(self):
+        return self._axes.bars[self._group]["colors"][:1] or ["#1f77b4"]
+
+    def get_color(self):
+        return self.get_facecolor()[0]
+
+    def set_x(self, x):
+        self._axes.bars[self._group]["left"][self._index] = float(x)
+        return self
+
+    def set_y(self, y):
+        self._axes.bars[self._group]["bottom"][self._index] = float(y)
+        return self
+
+    def set_width(self, w):
+        self._axes.bars[self._group]["width"][self._index] = float(w)
+        return self
+
+    def set_height(self, h):
+        self._axes.bars[self._group]["height"][self._index] = float(h)
+        return self
+
     def set_facecolor(self, c):
         self._set("colors", [str(c)])
         return self
@@ -158,6 +180,7 @@ class Axes:
         self.facecolor, self.alpha = "white", None
         self.xscale = self.yscale = "linear"
         self.show_grid = False
+        self.minor_ticks = False
         self.tick_params_box = {}
         self._axlines = []
         self._xticks = self._yticks = None
@@ -745,6 +768,52 @@ class Axes:
     def set_xlim(self, lo, hi): self.xlim = (float(lo), float(hi))
     def set_ylim(self, lo, hi): self.ylim = (float(lo), float(hi))
     def legend(self): self.show_legend = True
+
+    def minorticks_on(self): self.minor_ticks = True
+    def minorticks_off(self): self.minor_ticks = False
+
+    def eventplot(self, positions, orientation="horizontal", lineoffsets=0.0, linelengths=1.0,
+                  colors=None, linestyles=None, linewidths=None, **kwargs):
+        """One short line per event position, one row per positions array."""
+        rows = positions
+        if not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
+            rows = [rows]
+        rows = [np.asarray(r, dtype=np.float64).ravel() for r in rows]
+        if not rows:
+            return None
+        n = len(rows)
+        if np.isscalar(lineoffsets):
+            offsets = np.full(n, float(lineoffsets)) + np.arange(n)
+        else:
+            offsets = _fill(lineoffsets, n)
+        lengths = _fill(linelengths, n)
+        cols = _line_colors(colors, n)
+        styles = _line_styles(linestyles, n)
+        for i, row in enumerate(rows):
+            half = float(lengths[i]) / 2.0
+            if orientation == "horizontal":
+                self.vlines(row, offsets[i] - half, offsets[i] + half,
+                            colors=cols[i], linestyles=styles[i])
+            elif orientation == "vertical":
+                self.hlines(row, offsets[i] - half, offsets[i] + half,
+                            colors=cols[i], linestyles=styles[i])
+            else:
+                raise ValueError(f"unsupported orientation: {orientation!r}")
+        return None
+
+    def broken_barh(self, xranges, yrange, colors=None, **kwargs):
+        """Horizontal bars from `(xstart, width)` pairs over a shared y range."""
+        pairs = [(float(a), float(b)) for a, b in xranges]
+        if not pairs:
+            return None
+        n = len(pairs)
+        self.bars.append(dict(left=np.array([a for a, _ in pairs]),
+                              bottom=np.full(n, float(yrange[0])),
+                              width=np.array([b for _, b in pairs]),
+                              height=np.full(n, float(yrange[1])),
+                              colors=_bar_colors(colors, n), edgecolor=None, alpha=None,
+                              label="", vertical=True))
+        return None
 
     def grid(self, visible=None, which="major", axis="both", **kwargs):
         """Toggle gridlines; `visible=None` flips the current state."""
@@ -1538,6 +1607,35 @@ def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
 def xlim(lo, hi): gca().set_xlim(lo, hi)
 def ylim(lo, hi): gca().set_ylim(lo, hi)
 def legend(): gca().legend()
+def eventplot(*args, **kwargs): return gca().eventplot(*args, **kwargs)
+def broken_barh(*args, **kwargs): return gca().broken_barh(*args, **kwargs)
+def minorticks_on(): return gca().minorticks_on()
+def minorticks_off(): return gca().minorticks_off()
+
+
+def getp(obj, *args):
+    """Generic getter: `getp(artist, "color")` calls `artist.get_color()`."""
+    out = []
+    for name in args:
+        getter = getattr(obj, f"get_{name}", None)
+        if getter is None:
+            raise AttributeError(f"{type(obj).__name__} has no get_{name}")
+        out.append(getter())
+    if not out:
+        return None
+    return out[0] if len(out) == 1 else out
+
+
+def setp(obj, *args, **kwargs):
+    """Generic setter: `setp(artist, color="red")` calls `artist.set_color()`."""
+    for name, value in kwargs.items():
+        setter = getattr(obj, f"set_{name}", None)
+        if setter is None:
+            raise AttributeError(f"{type(obj).__name__} has no set_{name}")
+        setter(value)
+    if args:
+        return getp(obj, *args)
+    return None
 def grid(*args, **kwargs): return gca().grid(*args, **kwargs)
 def tick_params(*args, **kwargs): return gca().tick_params(*args, **kwargs)
 def axline(*args, **kwargs): return gca().axline(*args, **kwargs)
