@@ -1514,6 +1514,25 @@ def test_subplots_squeeze_false_keeps_array():
     assert axs[0, 0].get_figure() is fig
 
 
+def test_style_presets_and_context(tmp_path):
+    plt.style.use("dark_background")
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    svg = fig.savefig(None, format="svg").decode().lower()
+    assert "#000000" in svg and "#dddddd" in svg
+    assert plt.rcParams["axes.facecolor"] == "#000000"
+    with plt.style.context("ggplot"):
+        assert plt.rcParams["axes.facecolor"] == "#e5e5e5"
+        assert plt.rcParams["text.color"] == "#555555"
+    assert plt.rcParams["axes.facecolor"] == "#000000"
+    plt.style.use(["ggplot", {"lines.linewidth": 3}])
+    assert plt.rcParams["lines.linewidth"] == 3
+    assert "seaborn-v0_8" in plt.style.available
+    with pytest.raises(ValueError):
+        plt.style.use("missing")
+    plt.rcdefaults()
+
+
 def test_suptitle_renders_above_the_grid(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])

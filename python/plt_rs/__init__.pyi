@@ -3,6 +3,7 @@ from typing import Any, BinaryIO, ContextManager, Dict, List, Optional, Tuple, U
 
 DPI: int
 rcParams: Dict[str, Any]
+style: Any
 __version__: str
 
 _Path = Union[str, PathLike[str]]

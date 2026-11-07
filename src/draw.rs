@@ -211,9 +211,10 @@ where
         }
     }
 
+    let default_tick = p.foreground.as_deref().unwrap_or("#000000");
     let xstyle = &p.ticks.xstyle;
-    let xtick_col = color(xstyle.color.as_deref().unwrap_or("#000000"));
-    let xlabel_col = color(xstyle.labelcolor.as_deref().unwrap_or("#000000"));
+    let xtick_col = color(xstyle.color.as_deref().unwrap_or(default_tick));
+    let xlabel_col = color(xstyle.labelcolor.as_deref().unwrap_or(default_tick));
     let xtick_w = xstyle.width.max(1.0).round() as u32;
     let xtick_len = xstyle.length.max(0.0);
     for (v, label) in xs.iter().zip(xlabels.iter()) {
@@ -234,8 +235,8 @@ where
         }
     }
     let ystyle = &p.ticks.ystyle;
-    let ytick_col = color(ystyle.color.as_deref().unwrap_or("#000000"));
-    let ylabel_col = color(ystyle.labelcolor.as_deref().unwrap_or("#000000"));
+    let ytick_col = color(ystyle.color.as_deref().unwrap_or(default_tick));
+    let ylabel_col = color(ystyle.labelcolor.as_deref().unwrap_or(default_tick));
     let ytick_w = ystyle.width.max(1.0).round() as u32;
     let ytick_len = ystyle.length.max(0.0);
     for (v, label) in ys.iter().zip(ylabels.iter()) {
@@ -265,6 +266,7 @@ fn draw_legend<DB: DrawingBackend>(
     rect: (i32, i32, i32, i32),
     entries: &[LegendEntry],
     opts: &Legend,
+    text: RGBAColor,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -342,7 +344,7 @@ where
     if !opts.title.is_empty() {
         let style = ("sans-serif", title_fs.round() as u32)
             .into_font()
-            .color(&BLACK);
+            .color(&text);
         area.draw(&Text::new(
             opts.title.clone(),
             ((x + box_w / 2.0) as i32, (y + title_h / 2.0) as i32),
@@ -370,7 +372,7 @@ where
                 area.draw(&Circle::new(((cx + 10.0) as i32, cy as i32), 5, c.filled()))?
             }
         }
-        let style = ("sans-serif", fs.round() as u32).into_font().color(&BLACK);
+        let style = ("sans-serif", fs.round() as u32).into_font().color(&text);
         area.draw(&Text::new(
             entry.label.clone(),
             ((cx + 28.0) as i32, cy as i32),
@@ -705,6 +707,7 @@ where
     if let Some((cmap, vmin, vmax, label)) = &p.colorbar {
         return draw_colorbar(area, cmap, *vmin, *vmax, label);
     }
+    let fg = color(p.foreground.as_deref().unwrap_or("#000000"));
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
     // Log axes are laid out in log10 space: the ranges and every mapped point are
     // transformed, and the tick labels are converted back to powers of ten.
@@ -751,7 +754,7 @@ where
                 || p.grid.linestyle.is_some()));
     let shrunk_area;
     let mut chart = ChartBuilder::on(area)
-        .caption(&p.title, ("sans-serif", title_size))
+        .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
         .margin(10)
         .x_label_area_size(40)
         .y_label_area_size(55)
@@ -770,13 +773,16 @@ where
             if dw > 0 || dh > 0 {
                 shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
                 chart = ChartBuilder::on(&shrunk_area)
-                    .caption(&p.title, ("sans-serif", title_size))
+                    .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
                     .margin(10)
                     .x_label_area_size(40)
                     .y_label_area_size(55)
                     .build_cartesian_2d(x0..x1, y0..y1)?;
             }
         }
+    }
+    if let Some(fc) = &p.facecolor {
+        chart.plotting_area().fill(&color(fc))?;
     }
     if !p.axis_off {
         let x_fmt = move |v: &f64| {
@@ -830,8 +836,9 @@ where
             // contributes the axis spines and descriptions.
             mesh.disable_mesh().set_all_tick_mark_size(0);
         }
-        mesh.label_style(("sans-serif", label_size))
-            .axis_desc_style(("sans-serif", desc_size))
+        mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
+            .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
+            .axis_style(fg.stroke_width(1))
             .x_desc(&p.xlabel)
             .y_desc(&p.ylabel)
             .x_label_formatter(&x_fmt)
@@ -1288,6 +1295,7 @@ where
             (tl.0 - base.0, tl.1 - base.1, br.0 - base.0, br.1 - base.1),
             &entries,
             &p.legend,
+            fg,
         )?;
     } else if p.legend.show {
         let loc = p.legend.loc.as_str();

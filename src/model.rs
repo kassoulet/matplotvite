@@ -332,6 +332,11 @@ pub(crate) struct Panel<'py> {
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
     #[pyo3(item)]
     pub(crate) axis_off: bool,
+    /// Axes background and the colour used for titles, labels and ticks.
+    #[pyo3(item)]
+    pub(crate) facecolor: Option<String>,
+    #[pyo3(item)]
+    pub(crate) foreground: Option<String>,
 }
 
 /// One `bar`/`barh` call: axis-aligned rectangles in data coordinates.

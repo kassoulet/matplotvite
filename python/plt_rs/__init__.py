@@ -15,7 +15,7 @@ __all__ = (
     "fill_betweenx", "gca", "gcf", "getp", "grid", "hist", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
-    "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show",
+    "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
     "ylabel", "ylim", "yscale", "yticks", "__version__",
@@ -321,7 +321,7 @@ class Axes:
         self.show_legend, self.xlim, self.ylim = False, None, None
         self.visible, self._removed, self._axis_off = True, False, False
         self.artists, self.label, self.zorder = [], "", 0
-        self.facecolor, self.alpha = "white", None
+        self.facecolor, self.alpha = None, None
         self.xscale = self.yscale = "linear"
         self.log_base = 10.0
         self.show_grid = False
@@ -499,7 +499,9 @@ class Axes:
 
     def remove(self): self._removed = True
 
-    def get_facecolor(self): return self.facecolor
+    def get_facecolor(self):
+        return self.facecolor or rcParams.get("axes.facecolor", "white")
+
     def set_facecolor(self, color): self.facecolor = str(color)
     def get_alpha(self): return self.alpha
     def set_alpha(self, alpha): self.alpha = None if alpha is None else float(alpha)
@@ -696,7 +698,7 @@ class Axes:
                     raise AttributeError(f"Axes.set() does not support {key!r}")
                 setter(value)
 
-    def text(self, x, y, s, color="black", fontsize=None, ha="left", va="baseline",
+    def text(self, x, y, s, color=None, fontsize=None, ha="left", va="baseline",
              transform=None):
         """Place text at (x, y); `transform` may be `ax.transAxes` or
         `fig.transFigure` to use axes- or figure-fraction coordinates."""
@@ -708,6 +710,7 @@ class Axes:
         if kind not in ("data", "axes", "figure"):
             raise ValueError(f"unsupported text transform: {transform!r}")
         size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
+        color = color if color is not None else rcParams.get("text.color", "black")
         self.texts.append((float(x), float(y), str(s), _norm_color(color), size, ha, va, kind))
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
@@ -930,9 +933,10 @@ class Axes:
     def pcolorfast(self, *args, **kwargs):
         return self.pcolormesh(*args, **kwargs)
 
-    def annotate(self, text, xy, xytext=None, arrowprops=None, color="black", fontsize=None):
+    def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
         """Text at `xytext` with an arrow pointing at `xy`."""
         size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
+        color = color if color is not None else rcParams.get("text.color", "black")
         self.annotations.append((str(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size))
@@ -1426,6 +1430,8 @@ class Axes:
                              for e in scatter],
                     colorbar=None,
                     axis_off=self._axis_off,
+                    facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
+                    foreground=_norm_color(rcParams.get("text.color")),
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
                             for e in self.images])
 
@@ -1814,7 +1820,8 @@ class Figure:
         self.figsize, self.grid, self.axes, self._cur = figsize, (1, 1), [], None
         self._colorbar = None
         self.dpi = float(dpi if dpi is not None else rcParams.get("figure.dpi", DPI))
-        self.facecolor = _norm_color(facecolor)
+        self.facecolor = _norm_color(
+            facecolor if facecolor is not None else rcParams.get("figure.facecolor"))
         self.edgecolor = _norm_color(edgecolor)
         self._suptitle = None
         self.transFigure = _CoordTransform("figure")
@@ -1912,7 +1919,7 @@ class Figure:
                     xlim=None, ylim=None, annotations=[], images=[],
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
                     x_log=False, y_log=False, log_base=10.0, aspect=None,
-                    axis_off=False,
+                    axis_off=False, facecolor=None, foreground=None,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
@@ -1938,6 +1945,10 @@ class Figure:
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
         if self._colorbar is not None:
             panels.append(self._colorbar_panel())
+        if transparent:
+            # A transparent save drops every patch, like matplotlib.
+            for panel in panels:
+                panel["facecolor"] = None
         data = _render(
             (w, h),
             self.grid,
@@ -1993,7 +2004,7 @@ def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
 def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
 def title(text, fontsize=None, **kwargs): gca().set_title(text, fontsize=fontsize)
-def text(x, y, s, color="black", fontsize=None, ha="left", va="baseline", transform=None):
+def text(x, y, s, color=None, fontsize=None, ha="left", va="baseline", transform=None):
     gca().text(x, y, s, color=color, fontsize=fontsize, ha=ha, va=va, transform=transform)
 def xticks(ticks=None, labels=None, **kwargs):
     return gca().xticks(ticks, labels=labels, **kwargs)
@@ -2037,7 +2048,7 @@ def pcolor(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolorfast(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 
 
-def annotate(text, xy, xytext=None, arrowprops=None, color="black", fontsize=None):
+def annotate(text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
     gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, color=color,
                    fontsize=fontsize)
 
@@ -2132,6 +2143,14 @@ rcParams = {
     "axes.titlesize": 12.0,
     "figure.titlesize": 14.0,
     "legend.fontsize": 10.0,
+    "figure.facecolor": "#ffffff",
+    "axes.facecolor": "#ffffff",
+    "axes.edgecolor": "#000000",
+    "axes.labelcolor": "#000000",
+    "xtick.color": "#000000",
+    "ytick.color": "#000000",
+    "text.color": "#000000",
+    "grid.color": "#b0b0b0",
 }
 _RC_DEFAULTS = dict(rcParams)
 
@@ -2162,6 +2181,70 @@ def rc_context(rc=None, fname=None):
 def rcdefaults():
     rcParams.clear()
     rcParams.update(_RC_DEFAULTS)
+
+
+_STYLE_PRESETS = {
+    "dark_background": {
+        "figure.facecolor": "#000000", "axes.facecolor": "#000000",
+        "axes.edgecolor": "#ffffff", "text.color": "#dddddd",
+        "axes.labelcolor": "#dddddd", "xtick.color": "#dddddd",
+        "ytick.color": "#dddddd", "grid.color": "#555555",
+        "axes.prop_cycle": ["#8dd3c7", "#ffffb3", "#bebada", "#fb8072", "#80b1d3",
+                            "#fdb462", "#b3de69", "#fccde5", "#d9d9d9", "#bc80bd"],
+    },
+    "ggplot": {
+        "figure.facecolor": "#ffffff", "axes.facecolor": "#e5e5e5",
+        "axes.edgecolor": "#ffffff", "text.color": "#555555",
+        "axes.labelcolor": "#555555", "xtick.color": "#555555",
+        "ytick.color": "#555555", "grid.color": "#ffffff",
+        "axes.prop_cycle": ["#e24a33", "#348abd", "#988ed5", "#777777", "#fbc15e",
+                            "#8eba42", "#ffb5b8"],
+    },
+    "seaborn-v0_8": {
+        "figure.facecolor": "#ffffff", "axes.facecolor": "#eaeaf2",
+        "axes.edgecolor": "#ffffff", "text.color": "#262626",
+        "axes.labelcolor": "#262626", "xtick.color": "#262626",
+        "ytick.color": "#262626", "grid.color": "#ffffff",
+        "axes.prop_cycle": ["#4c72b0", "#dd8452", "#55a868", "#c44e52", "#8172b3",
+                            "#937860", "#da8bc3", "#8c8c8c", "#ccb974", "#64b5cd"],
+    },
+}
+
+
+def _style_rc(style):
+    """Merge a preset name, a list of names or a dict into one rc mapping."""
+    if isinstance(style, dict):
+        return dict(style)
+    if isinstance(style, (list, tuple)):
+        merged = {}
+        for item in style:
+            merged.update(_style_rc(item))
+        return merged
+    name = str(style)
+    if name == "default":
+        return dict(_RC_DEFAULTS)
+    if name not in _STYLE_PRESETS:
+        raise ValueError(f"style not found: {name!r}")
+    return dict(_STYLE_PRESETS[name])
+
+
+class _StyleLibrary:
+    """The `plt.style` namespace: presets, `use`, and `context`."""
+
+    available = sorted(["default", *_STYLE_PRESETS])
+    library = _STYLE_PRESETS
+
+    def use(self, style):
+        if isinstance(style, str) and style == "default":
+            rcdefaults()
+        else:
+            rcParams.update(_style_rc(style))
+
+    def context(self, style):
+        return rc_context(_style_rc(style))
+
+
+style = _StyleLibrary()
 
 
 def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=False,
