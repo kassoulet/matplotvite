@@ -70,6 +70,22 @@ DPI = 100
 _FORMATS = ("png", "svg")
 
 
+class _Wedge:
+    """Placeholder wedge returned by `pie`."""
+
+    def __init__(self, color=None):
+        self._color = color
+
+    def set_facecolor(self, c):
+        self._color = str(c)
+        return self
+
+    def set_color(self, c):
+        return self.set_facecolor(c)
+
+    def get_facecolor(self): return self._color
+
+
 class _BarHandle:
     """One bar, mirroring the mutable part of matplotlib's `Rectangle`."""
 
@@ -773,6 +789,95 @@ class Axes:
             self.lines.append(_series([xs[i], xs[i]], [lo[i], hi[i]], label, cols[i],
                                       linestyle=styles[i]))
 
+    def stem(self, *args, linefmt=None, markerfmt=None, basefmt=None, bottom=0.0, label="",
+             orientation="vertical", **kwargs):
+        """Stem plot: one segment per point plus a marker at the tip."""
+        if len(args) == 1:
+            y = np.asarray(args[0], dtype=np.float64).ravel()
+            x = np.arange(y.size, dtype=np.float64)
+        elif len(args) == 2:
+            x = np.asarray(args[0], dtype=np.float64).ravel()
+            y = np.asarray(args[1], dtype=np.float64).ravel()
+        else:
+            raise TypeError("stem expects y or x, y")
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        if orientation != "vertical":
+            raise NotImplementedError(f"orientation={orientation!r} is not supported yet")
+        colour, style, _ = _stem_fmt(linefmt)
+        colour = kwargs.get("color") or colour or _CYCLE[len(self.lines) % len(_CYCLE)]
+        if x.size:
+            self.vlines(x, bottom, y, colors=colour, linestyles=style)
+            marker_colour, _, marker = _stem_fmt(markerfmt, "o")
+            self.scatter(x, y, s=36, c=marker_colour or colour, marker=marker)
+            if basefmt != "none":
+                self.hlines([float(bottom)], float(x.min()), float(x.max()), colors=colour)
+
+    def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
+            normalize=True, shadow=False, **kwargs):
+        """Pie chart drawn as filled wedges; returns `(wedges, texts, autotexts)`."""
+        values = np.asarray(x, dtype=np.float64).ravel()
+        if values.size == 0 or np.any(values < 0):
+            raise ValueError("pie values must be non-negative")
+        total = float(values.sum())
+        if total <= 0.0:
+            raise ValueError("pie values must sum to a positive number")
+        if not normalize and total > 1.0:
+            raise ValueError("pie values must sum to <= 1 when normalize=False")
+        fracs = values / total
+        angles = np.concatenate([[0.0], np.cumsum(fracs) * 360.0]) + float(startangle)
+        offsets = np.zeros(values.size) if explode is None else _fill(explode, values.size)
+        cols = _colors(colors) or list(_CYCLE)
+        self.set_aspect("equal")
+        self.set_xlim(-1.25, 1.25)
+        self.set_ylim(-1.25, 1.25)
+        texts, autotexts, wedges = [], [], []
+        for i in range(values.size):
+            a0, a1 = np.radians(angles[i]), np.radians(angles[i + 1])
+            mid = (a0 + a1) / 2.0
+            ex, ey = float(offsets[i]) * np.cos(mid), float(offsets[i]) * np.sin(mid)
+            arc = np.linspace(a0, a1, 48)
+            self.bands.append(_band(np.concatenate([[ex], ex + np.cos(arc)]),
+                                    np.concatenate([[ey], ey + np.sin(arc)]),
+                                    cols[i % len(cols)], None))
+            wedges.append(_Wedge(cols[i % len(cols)]))
+            if labels is not None:
+                self.text(ex + 1.1 * np.cos(mid), ey + 1.1 * np.sin(mid), labels[i],
+                          ha="center", va="center")
+                texts.append(_TextLabel(labels[i]))
+            if autopct is not None:
+                pct = float(fracs[i]) * 100.0
+                shown = autopct(pct) if callable(autopct) else str(autopct) % pct
+                self.text(ex + 0.6 * np.cos(mid), ey + 0.6 * np.sin(mid), shown,
+                          ha="center", va="center")
+                autotexts.append(_TextLabel(shown))
+        self.set_axis_off()
+        return wedges, texts, autotexts
+
+    def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
+                  **kwargs):
+        """Stacked areas: each layer fills between the running total and itself."""
+        if baseline != "zero":
+            raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
+        x = np.asarray(x, dtype=np.float64).ravel()
+        layers = []
+        for y in ys:
+            a = np.asarray(y, dtype=np.float64)
+            if a.ndim == 2 and a.shape[0] == x.size:
+                layers.extend(a[:, i] for i in range(a.shape[1]))
+            else:
+                layers.append(a.ravel())
+        if not layers:
+            raise ValueError("stackplot needs at least one y array")
+        cols = _colors(colors)
+        cum = np.zeros(x.size)
+        for i, layer in enumerate(layers):
+            if layer.size != x.size:
+                raise ValueError("x and y must have the same length")
+            colour = cols[i % len(cols)] if cols else _CYCLE[i % len(_CYCLE)]
+            self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha)
+            cum = cum + layer
+
     def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
         """Staircase line through `x`/`y`; `where` picks the corner placement."""
         if where in ("pre", "post"):
@@ -961,6 +1066,25 @@ def _log_bounds(lo, hi, scale, extent):
     if hi <= lo:
         hi = lo * 10.0
     return (lo, hi)
+
+
+_STEM_MARKERS = "os^v<>Dx+."
+
+
+def _stem_fmt(fmt, default_marker=None):
+    """Split a stem `linefmt`/`markerfmt` into (colour, style, marker)."""
+    text = str(fmt or "")
+    colour = _FMT_COLORS.get(text[:1]) if text[:1] in _FMT_COLORS else None
+    rest = text[1:] if colour else text
+    style = "-"
+    for candidate in ("--", "-.", ":", "-"):
+        if candidate in rest:
+            style = candidate
+            break
+    marker = default_marker
+    if rest and rest[-1] in _STEM_MARKERS:
+        marker = rest[-1]
+    return colour, style, marker
 
 
 def _line_colors(colors, n):

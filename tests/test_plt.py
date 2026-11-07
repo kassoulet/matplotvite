@@ -1094,3 +1094,57 @@ def test_rc_shims():
     plt.rcdefaults()
     assert plt.rcParams["lines.linewidth"] == 1.5
     assert plt.rcParams["figure.dpi"] == 100.0
+
+
+def test_stem_plot(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.stem([1, 3, 2], linefmt="r-", markerfmt="bo", basefmt="-")
+    p = tmp_path / "stem.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#1F77B4" in s
+    assert s.count("<CIRCLE") >= 3
+    with pytest.raises(ValueError):
+        ax.stem([1, 2], [1])
+    with pytest.raises(NotImplementedError):
+        ax.stem([1], orientation="horizontal")
+    with pytest.raises(TypeError):
+        ax.stem([1], [2], [3])
+
+
+def test_pie_wedges_labels(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    wedges, texts, autotexts = ax.pie([3, 1, 1], labels=["a", "b", "c"],
+                                      autopct="%1.0f%%",
+                                      colors=["red", "green", "blue"])
+    assert len(wedges) == 3 and len(texts) == 3 and len(autotexts) == 3
+    assert autotexts[0].get_text() == "60%"
+    assert texts[1].get_text() == "b"
+    p = tmp_path / "pie.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#2CA02C" in s
+    assert s.count("<POLYGON") >= 3
+    assert ax.get_xlim() == (-1.25, 1.25)
+    with pytest.raises(ValueError):
+        ax.pie([1, -1])
+    with pytest.raises(ValueError):
+        ax.pie([0, 0])
+
+
+def test_stackplot_layers(tmp_path):
+    x = np.arange(4.0)
+    plt.figure()
+    ax = plt.gca()
+    ax.stackplot(x, [1, 1, 1, 1], [1, 2, 1, 2], colors=["red", "green"])
+    p = tmp_path / "stack.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#2CA02C" in s
+    assert s.count("<POLYGON") >= 2
+    with pytest.raises(NotImplementedError):
+        ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
+    with pytest.raises(ValueError):
+        ax.stackplot(x, [1, 2])

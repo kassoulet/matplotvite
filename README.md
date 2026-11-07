@@ -74,6 +74,10 @@ plt.savefig("contours.png")
   returning `(counts, edges, handles)`
 - `step(x, y, where="pre"|"post")` and `stairs(values, edges=, baseline=, fill=)` —
   staircase lines, with optional fill to a baseline
+- `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline
+- `pie(x, labels=, autopct=, colors=, explode=, startangle=)` — filled wedges with
+  equal aspect, returning `(wedges, texts, autotexts)`
+- `stackplot(x, *ys, colors=, alpha=)` — cumulative filled layers
 - `tight_layout`/`subplots_adjust`/`set_in_layout` — accepted as no-ops (window-fitted
   panels, so there is nothing to negotiate)
 - `grid(True|False)`, `tick_params(...)` — gridlines are drawn; tick styling is recorded
@@ -126,7 +130,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 706 / 10 098 (86%)**. CI re-runs the trace against
+accepts — currently **8 777 / 10 098 (86%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks
