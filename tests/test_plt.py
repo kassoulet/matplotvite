@@ -874,3 +874,80 @@ def test_axhline_vline_spans(tmp_path):
     # Reference lines and bands never move the data limits.
     assert ax.get_xlim() == (0.0, 10.0)
     assert ax.get_ylim() == (-2.0, 2.0)
+
+
+def test_hist_counts_and_edges(tmp_path):
+    rng = np.random.default_rng(7)
+    data = rng.normal(size=200)
+    plt.figure()
+    counts, edges, handles = plt.hist(data, bins=8, color="#ff7f0e")
+    assert counts.sum() == 200
+    assert len(edges) == 9 and len(handles) == 8
+    assert np.allclose(np.diff(edges), edges[1] - edges[0])
+    p = tmp_path / "hist.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<RECT") >= 9  # background plus one per bin
+    assert "#FF7F0E" in s
+
+
+def test_hist_orientation_density_and_validation(tmp_path):
+    rng = np.random.default_rng(11)
+    data = rng.random(100)
+    plt.figure()
+    counts, edges, _ = plt.hist(data, bins=5, density=True)
+    assert np.isclose(counts.sum() * (edges[1] - edges[0]), 1.0)
+    plt.figure()
+    ax = plt.gca()
+    ax.hist(data, bins=4, orientation="horizontal", cumulative=True, color="green")
+    p = tmp_path / "histh.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    with pytest.raises(NotImplementedError):
+        plt.hist(data, histtype="step")
+
+
+def test_bar_label_places_values(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    bars = ax.bar([1, 2, 3], [3, 1, 2])
+    labels = ax.bar_label(bars, padding=3)
+    assert labels == ["3", "1", "2"]
+    p = tmp_path / "bl.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    for value in ("3", "1", "2"):
+        assert re.search(rf">\s*{value}\s*<", s)
+    with pytest.raises(ValueError):
+        ax.bar_label(bars, labels=["a"])
+    with pytest.raises(ValueError):
+        ax.bar_label(bars, label_type="middle")
+
+
+def test_bar_label_centre_and_horizontal(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    bars = ax.bar([1, 2], [4, 5], color="green")
+    assert ax.bar_label(bars, label_type="center", fmt="%.1f") == ["4.0", "5.0"]
+    plt.figure()
+    ax = plt.gca()
+    hbars = ax.barh([1, 2], [7, 8], color="red")
+    assert ax.bar_label(hbars, labels=["seven", "eight"]) == ["seven", "eight"]
+    p = tmp_path / "bl2.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_bar_handle_facecolor_and_legend(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    bars = ax.bar([1], [2], label="bars")
+    bars[0].set_facecolor("red")
+    bars[0].set_alpha(0.5)
+    ax.legend()
+    p = tmp_path / "bl3.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert "#D62728" in s.upper()
+    assert re.search(r">\s*bars\s*<", s)
+    assert bars[0].get_height() == 2.0 and bars[0].get_width() == 0.8

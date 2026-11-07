@@ -66,7 +66,12 @@ plt.savefig("contours.png")
 - `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)` — scalar, per-point or
   `(2, N)` asymmetric errors, with optional caps
 - `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` and
-  `barh(...)` — single or per-bar colours, optional edge and error bars
+  `barh(...)` — single or per-bar colours, optional edge and error bars; returns a
+  `BarContainer` whose handles support `set_facecolor`/`set_alpha`, with a legend swatch
+  when labelled
+- `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars
+- `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar`,
+  returning `(counts, edges, handles)`
 - `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
   filled polygons; `where` masks split into separate runs
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
@@ -108,7 +113,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 249 / 10 098 (81%)**. CI re-runs the trace against
+accepts — currently **8 359 / 10 098 (82%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks

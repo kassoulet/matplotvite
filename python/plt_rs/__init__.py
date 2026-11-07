@@ -67,6 +67,57 @@ DPI = 100
 _FORMATS = ("png", "svg")
 
 
+class _BarHandle:
+    """One bar, mirroring the mutable part of matplotlib's `Rectangle`."""
+
+    def __init__(self, axes, group, index):
+        self._axes = axes
+        self._group = group
+        self._index = index
+
+    def _get(self, key):
+        return float(self._axes.bars[self._group][key][self._index])
+
+    def _set(self, key, value):
+        self._axes.bars[self._group][key] = value
+
+    def get_x(self): return self._get("left")
+    def get_y(self): return self._get("bottom")
+    def get_width(self): return self._get("width")
+    def get_height(self): return self._get("height")
+
+    def set_facecolor(self, c):
+        self._set("colors", [str(c)])
+        return self
+
+    def set_color(self, c):
+        return self.set_facecolor(c)
+
+    def set_edgecolor(self, c):
+        self._set("edgecolor", str(c))
+        return self
+
+    def set_alpha(self, a):
+        self._set("alpha", float(a))
+        return self
+
+    def remove(self):
+        self._axes.bars[self._group]["height"][self._index] = 0.0
+        self._axes.bars[self._group]["width"][self._index] = 0.0
+
+
+class _BarContainer(list):
+    """List of `_BarHandle`, matching matplotlib's `BarContainer`."""
+
+    def __init__(self, handles, label=""):
+        super().__init__(handles)
+        self.label = label
+
+    @property
+    def patches(self):
+        return list(self)
+
+
 class Axes:
     def __init__(self, pos):
         self.pos, self.lines, self.texts = pos, [], []
@@ -393,6 +444,34 @@ class Axes:
         self.set_aspect("equal" if aspect is None else aspect)
         return AxesImage(entry)
 
+    def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
+             bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
+             label=None, alpha=None, edgecolor=None, stacked=False, **kwargs):
+        """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
+        if histtype != "bar":
+            raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
+        data = np.asarray(x, dtype=np.float64).ravel()
+        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
+                                     density=bool(density))
+        if cumulative:
+            counts = np.cumsum(counts)
+        widths = np.diff(edges)
+        bar_align = "edge" if align in ("left", "edge") else "center"
+        if bar_align == "edge":
+            centers = edges[:-1]
+        else:
+            centers = (edges[:-1] + edges[1:]) / 2.0
+        lab = "" if label is None else str(label)
+        if orientation == "horizontal":
+            handles = self.barh(centers, counts, height=widths, align=bar_align, color=color,
+                                edgecolor=edgecolor, alpha=alpha, label=lab)
+        elif orientation == "vertical":
+            handles = self.bar(centers, counts, width=widths, align=bar_align, color=color,
+                               edgecolor=edgecolor, alpha=alpha, label=lab)
+        else:
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        return np.asarray(counts, dtype=np.float64), edges, handles
+
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
@@ -406,13 +485,53 @@ class Axes:
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
                               colors=colors,
                               edgecolor=None if edgecolor is None else str(edgecolor),
-                              alpha=None if alpha is None else float(alpha), label=str(label)))
+                              alpha=None if alpha is None else float(alpha), label=str(label),
+                              vertical=True))
         if yerr is not None:
             lo, hi = _err_pair(yerr, n, "yerr")
             ecolor = edgecolor or (colors[0] if colors else "#1f77b4")
             self.errors.append((np.ascontiguousarray(left + w / 2.0),
                                 np.ascontiguousarray(b + h), lo, hi,
                                 np.zeros(n), np.zeros(n), str(ecolor), 0.0))
+        return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
+                             str(label))
+
+    def bar_label(self, container, labels=None, fmt="%g", label_type="edge", padding=0,
+                  **kwargs):
+        """Annotate each bar with its length, at the bar end or centred."""
+        if label_type not in ("edge", "center"):
+            raise ValueError(f"unsupported label_type: {label_type!r}")
+        handles = list(container) if isinstance(container, (list, tuple)) else [container]
+        texts = None if labels is None else [str(v) for v in np.asarray(labels, dtype=object).ravel()]
+        if texts is not None and len(texts) != len(handles):
+            raise ValueError("labels must have one entry per bar")
+        out = []
+        for i, handle in enumerate(handles):
+            group = self.bars[handle._group]
+            index = handle._index
+            if group.get("vertical", True):
+                length = float(group["height"][index])
+                x = float(group["left"][index] + group["width"][index] / 2.0)
+                anchor = float(group["bottom"][index])
+                if label_type == "edge":
+                    y, va = anchor + length + float(padding), "bottom"
+                else:
+                    y, va = anchor + length / 2.0, "center"
+                ha = "center"
+            else:
+                length = float(group["width"][index])
+                y = float(group["bottom"][index] + group["height"][index] / 2.0)
+                anchor = float(group["left"][index])
+                if label_type == "edge":
+                    x, ha = anchor + length + float(padding), "left"
+                else:
+                    x, ha = anchor + length / 2.0, "center"
+                va = "center"
+            text = texts[i] if texts is not None else fmt % length
+            self.text(x, y, text, color=kwargs.get("color", "black"),
+                      fontsize=kwargs.get("fontsize", 10), ha=ha, va=va)
+            out.append(text)
+        return out
 
     def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
              align="center", alpha=None, linewidth=None, **kwargs):
@@ -426,7 +545,10 @@ class Axes:
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
                               colors=_bar_colors(color, n),
                               edgecolor=None if edgecolor is None else str(edgecolor),
-                              alpha=None if alpha is None else float(alpha), label=str(label)))
+                              alpha=None if alpha is None else float(alpha), label=str(label),
+                              vertical=False))
+        return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
+                             str(label))
 
     def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
                      alpha=None, label="", step=None, **kwargs):
@@ -593,19 +715,20 @@ class Axes:
                                   linestyle=v["linestyle"] or "-",
                                   linewidth=1.5 if v["linewidth"] is None else float(v["linewidth"]),
                                   alpha=v["alpha"]))
-        bars = [{k: val for k, val in e.items() if k != "label"} for e in self.bars]
+        bars = list(self.bars)
         for s in self.hspans:
             lo, hi = min(s["ymin"], s["ymax"]), max(s["ymin"], s["ymax"])
             bars.append(dict(left=np.array([x0 + s["xmin"] * dx]), bottom=np.array([lo]),
                              width=np.array([(s["xmax"] - s["xmin"]) * dx]),
                              height=np.array([hi - lo]), colors=[s["color"] or "0.5"],
-                             edgecolor=None, alpha=s["alpha"]))
+                             edgecolor=None, alpha=s["alpha"], label="", vertical=True))
         for s in self.vspans:
             lo, hi = min(s["xmin"], s["xmax"]), max(s["xmin"], s["xmax"])
             bars.append(dict(left=np.array([lo]), bottom=np.array([y0 + s["ymin"] * dy]),
                              width=np.array([hi - lo]),
                              height=np.array([(s["ymax"] - s["ymin"]) * dy]),
-                             colors=[s["color"] or "0.5"], edgecolor=None, alpha=s["alpha"]))
+                             colors=[s["color"] or "0.5"], edgecolor=None, alpha=s["alpha"],
+                             label="", vertical=True))
         return dict(pos=self.pos, series=series, texts=self.texts, title=self.title,
                     xlabel=self.xlabel, ylabel=self.ylabel, legend=self.show_legend,
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
@@ -1037,6 +1160,7 @@ def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                         interpolation=interpolation, aspect=aspect, alpha=alpha)
 
 
+def hist(*args, **kwargs): return gca().hist(*args, **kwargs)
 def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
 def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
 def fill(*args, **kwargs): return gca().fill(*args, **kwargs)

@@ -521,6 +521,8 @@ struct Bar<'py> {
     edgecolor: Option<String>,
     #[pyo3(item)]
     alpha: Option<f64>,
+    #[pyo3(item)]
+    label: String,
 }
 
 /// One closed filled area (`fill_between`/`fill`) in data coordinates.
@@ -893,9 +895,11 @@ where
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
+        let mut legend_bars: Vec<(String, RGBAColor)> = Vec::new();
         for bars in &p.bars {
             let (l, b) = (bars.left.as_array(), bars.bottom.as_array());
             let (w, h) = (bars.width.as_array(), bars.height.as_array());
+            let mut swatch: Option<RGBAColor> = None;
             for i in 0..l.len().min(b.len()).min(w.len()).min(h.len()) {
                 let col = if bars.colors.is_empty() {
                     RGBColor(31, 119, 180)
@@ -906,6 +910,9 @@ where
                     Some(a) => col.mix(a.clamp(0.0, 1.0)),
                     None => col.mix(1.0),
                 };
+                if swatch.is_none() {
+                    swatch = Some(col);
+                }
                 let (x0, y0) = chart_area.map_coordinate(&(l[i], b[i]));
                 let (x1, y1) = chart_area.map_coordinate(&(l[i] + w[i], b[i] + h[i]));
                 let (xl, xr) = (x0.min(x1) - base.0, x0.max(x1) - base.0);
@@ -919,6 +926,22 @@ where
                     area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
                 }
             }
+            if !bars.label.is_empty() {
+                let cs = swatch.unwrap_or_else(|| RGBColor(31, 119, 180).mix(1.0));
+                legend_bars.push((bars.label.clone(), cs));
+            }
+        }
+        // Registered after the loop so the plotting-area borrow on `chart` has ended.
+        for (label, cs) in legend_bars {
+            // A transparent zero-size rectangle only carries the legend entry; the
+            // closure paints a filled swatch instead of a line.
+            let series = chart.draw_series(std::iter::once(Rectangle::new(
+                [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                RGBColor(0, 0, 0).mix(0.0).filled(),
+            )))?;
+            series
+                .label(label.as_str())
+                .legend(move |(x, y)| Rectangle::new([(x, y - 3), (x + 20, y + 7)], cs.filled()));
         }
     }
     for s in &p.series {
