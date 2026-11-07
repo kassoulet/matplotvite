@@ -1554,8 +1554,12 @@ class Figure:
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
         if self._colorbar is not None:
             panels.append(self._colorbar_panel())
-        save(str(filepath), (w, h), self.grid, panels,
-             format=fmt, transparent=bool(transparent), bbox_inches=bbox_inches)
+        save(str(filepath), (w, h), self.grid, panels, {
+            "format": fmt,
+            "transparent": bool(transparent),
+            "bbox_inches": bbox_inches,
+            "dpi": dpi or DPI,
+        })
 
 
 _fig = None

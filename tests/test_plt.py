@@ -55,6 +55,21 @@ def test_subplots_grid(tmp_path):
         assert (tmp_path / f"g.{ext}").stat().st_size > 0
 
 
+def test_pdf(tmp_path):
+    fig = plt.figure((4, 3)); plt.plot([1, 2, 3], [1, 4, 9]); plt.title("pdf")
+    # Extension inference and an explicit format must both produce a real PDF
+    # (not a PNG with a .pdf suffix), sized from the figure in inches.
+    for name, kw in (("inferred.pdf", {}), ("explicit.pdf", {"format": "pdf"})):
+        p = tmp_path / name
+        fig.savefig(p, **kw)
+        b = p.read_bytes()
+        assert b[:5] == b"%PDF-" and b.rstrip().endswith(b"%%EOF")
+        m = re.search(rb"MediaBox \[0 0 ([\d.]+) ([\d.]+)\]", b)
+        assert m, "missing MediaBox"
+        w, h = (float(v) for v in m.groups())
+        assert abs(w - 288) < 0.5 and abs(h - 216) < 0.5
+
+
 def test_dpi_and_format_override(tmp_path):
     plt.figure((4, 3)); plt.plot([1, 2, 3])
     hi = tmp_path / "hi.png"

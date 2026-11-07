@@ -1,12 +1,35 @@
 [build-system]
-requires = ["maturin>=1.5,<2"]
+requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
 name = "plt-rs"
 version = "0.1.0"
+description = "Matplotlib-style static plots rendered in Rust, with numpy as the only Python dependency"
+readme = "README.md"
 requires-python = ">=3.9"
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+authors = [{ name = "Gautier Portet", email = "kassoulet@gmail.com" }]
+keywords = ["matplotlib", "plotting", "charts", "svg", "pdf"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
 dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
+
+[project.urls]
+Homepage = "https://kassoulet.github.io/plt_rs/"
+Repository = "https://github.com/kassoulet/plt_rs"
 
 [tool.pytest.ini_options]
 # `pytest` inserts only the test directory on sys.path, so bare invocations (CI)

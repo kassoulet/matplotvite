@@ -2,6 +2,12 @@
 name = "plt-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Matplotlib-style static plots rendered in Rust, with numpy as the only Python dependency"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kassoulet/plt_rs"
+readme = "README.md"
+keywords = ["matplotlib", "plotting", "charts", "svg", "pyo3"]
+categories = ["visualization", "api-bindings"]
 
 [lib]
 name = "_core"
@@ -15,3 +21,4 @@ plotters = { version = "0.3", default-features = false, features = ["bitmap_back
 resvg = "0.49.0"
 usvg = "0.49.0"
 tiny-skia = "0.12.0"
+svg2pdf = "0.13"

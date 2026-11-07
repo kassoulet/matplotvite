@@ -24,6 +24,43 @@ fn register_plotters_fonts() {
     });
 }
 
+/// Options for the `usvg` bundled with `svg2pdf` (a different major version than
+/// the one used for rasterisation), loaded with the same embedded Geist faces.
+fn pdf_options() -> svg2pdf::usvg::Options<'static> {
+    let mut opts = svg2pdf::usvg::Options::default();
+    let db = opts.fontdb_mut();
+    db.load_font_data(FONT_SANS.to_vec());
+    db.load_font_data(FONT_SERIF.to_vec());
+    db.load_font_data(FONT_MONO.to_vec());
+    db.set_sans_serif_family("Geist");
+    db.set_serif_family("Geist Serif");
+    db.set_monospace_family("Geist Mono");
+    opts
+}
+
+/// Convert SVG markup into a single-page vector PDF. `dpi` sets the physical
+/// page size: the SVG's pixel dimensions are treated as `dpi` pixels per inch.
+fn render_pdf(svg: &str, dpi: f64) -> Result<Vec<u8>, String> {
+    let opts = pdf_options();
+    let tree = svg2pdf::usvg::Tree::from_str(svg, &opts).map_err(|e| e.to_string())?;
+    let page = svg2pdf::PageOptions { dpi: dpi as f32 };
+    svg2pdf::to_pdf(&tree, svg2pdf::ConversionOptions::default(), page).map_err(|e| e.to_string())
+}
+
+/// How `save` writes the figure. Passed as one object so the PyO3 boundary keeps
+/// a short signature.
+#[derive(FromPyObject)]
+struct SaveOptions {
+    #[pyo3(item)]
+    format: Option<String>,
+    #[pyo3(item)]
+    transparent: bool,
+    #[pyo3(item)]
+    bbox_inches: Option<String>,
+    #[pyo3(item)]
+    dpi: f64,
+}
+
 /// Build a fontdb loaded with our embedded Geist faces (for resvg rasterisation).
 fn build_fontdb() -> usvg::fontdb::Database {
     let mut db = usvg::fontdb::Database::new();
@@ -1458,19 +1495,23 @@ fn svg_tight(svg: &str, (bx, by, bw, bh): Bbox) -> Option<String> {
 
 /// Render series and write to `path`.
 ///
-/// `format` overrides the extension ("png" or "svg"); otherwise it is inferred
-/// from `path`. `bbox_inches="tight"` crops to the drawn content.
+/// `format` overrides the extension ("png", "svg" or "pdf"); otherwise it is
+/// inferred from `path`. `bbox_inches="tight"` crops to the drawn content.
 #[pyfunction]
-#[pyo3(signature = (path, size, grid, panels, format=None, transparent=false, bbox_inches=None))]
+#[pyo3(signature = (path, size, grid, panels, options))]
 fn save(
     path: &str,
     size: (u32, u32),
     grid: (usize, usize),
     panels: Vec<Panel>,
-    format: Option<String>,
-    transparent: bool,
-    bbox_inches: Option<String>,
+    options: SaveOptions,
 ) -> PyResult<()> {
+    let SaveOptions {
+        format,
+        transparent,
+        bbox_inches,
+        dpi,
+    } = options;
     let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
     if panels.iter().all(|p| {
@@ -1489,8 +1530,14 @@ fn save(
     }
     let fmt = match format {
         Some(f) => f.to_lowercase(),
-        None if path.to_lowercase().ends_with(".svg") => "svg".to_string(),
-        None => "png".to_string(),
+        None => match std::path::Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+        {
+            Some(ext) => ext,
+            None => "png".to_string(),
+        },
     };
     if fmt != "png" && fmt != "svg" && fmt != "pdf" {
         return Err(err(&format!("unsupported format: {fmt}")));
@@ -1503,15 +1550,22 @@ fn save(
 
     let (w, h) = size;
     let svg = render_svg(size, grid, &panels, transparent).map_err(|e| err(&e))?;
-    let bytes: Vec<u8> = if fmt == "svg" {
-        match (
-            tight,
+    let bytes: Vec<u8> = if fmt == "svg" || fmt == "pdf" {
+        let svg = match if tight {
             rasterize(&svg, w, h, transparent)
                 .ok()
-                .and_then(|p| content_bbox(&p, transparent)),
-        ) {
-            (true, Some(bbox)) => svg_tight(&svg, bbox).unwrap_or(svg).into_bytes(),
-            _ => svg.into_bytes(),
+                .and_then(|p| content_bbox(&p, transparent))
+                .and_then(|bbox| svg_tight(&svg, bbox))
+        } else {
+            None
+        } {
+            Some(svg) => svg,
+            None => svg,
+        };
+        if fmt == "pdf" {
+            render_pdf(&svg, dpi).map_err(|e| err(&e))?
+        } else {
+            svg.into_bytes()
         }
     } else {
         let pixmap = rasterize(&svg, w, h, transparent).map_err(|e| err(&e))?;

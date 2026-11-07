@@ -1,7 +1,7 @@
 # plt.rs
 
-Matplotlib-style static plots, rendered and written to PNG or SVG entirely in Rust
-(PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
+Matplotlib-style static plots, rendered and written to PNG, SVG or PDF entirely in
+Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
 🔗 **[Live Example Gallery](https://kassoulet.github.io/plt_rs/)** &bull; ⚡ **[Speed Benchmarks](https://kassoulet.github.io/plt_rs/benchmarks.html)**
 
@@ -35,7 +35,7 @@ plt.figure(figsize=(8, 5))
 plt.plot(x, np.sin(x), label="sin", color="red")
 plt.plot(x, np.cos(x), label="cos")
 plt.xlabel("x"); plt.ylabel("y"); plt.title("Demo"); plt.legend()
-plt.savefig("demo.png")  # or "demo.svg"
+plt.savefig("demo.png")  # or "demo.svg" / "demo.pdf"
 ```
 
 Gridded data, contours and a colorbar:
@@ -116,7 +116,8 @@ plt.savefig("contours.png")
 - `set_aspect("equal" | "auto" | <number>)` — shrinks the plotting box, like
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `text(x, y, s, color=, fontsize=, ha=, va=)`, `annotate(text, xy, xytext=)`
-- `savefig(path, format=, dpi=, bbox_inches="tight", transparent=)` — PNG and SVG
+- `savefig(path, format=, dpi=, bbox_inches="tight", transparent=)` — PNG, SVG and
+  vector PDF (text stays selectable; the page is sized from `figsize`)
 - `set(**kwargs)` shorthand, `axis("off" | "equal" | [limits])`, `invert_xaxis`/`invert_yaxis`
 
 **Introspection:** `get_xlim`/`get_ylim`, `get_position`, `get_window_extent`,
@@ -129,8 +130,8 @@ values but the renderer still chooses tick locations automatically.
 `autoscale`, `set_clip_on`, `set_path_effects`.
 
 ### Not supported (yet)
-- log scales, `twinx`, `tight_layout`, `GridSpec`, `suptitle`
-- `bar`, `hist`, `boxplot`, `pie`, `stem`, `quiver`, `hist2d`
+- `twinx`/`twiny`, `GridSpec`, `suptitle`
+- `boxplot`, `quiver`, `hist2d`
 - colormaps beyond `viridis`/`gray`; colorbars on multi-axes figures
 - interactive display (out of scope forever)
 
@@ -156,3 +157,8 @@ python tools/benchmark.py
 ```bash
 pip install pytest && pytest
 ```
+
+## License
+
+Dual-licensed under either of [MIT](LICENSE-MIT) or
+[Apache-2.0](LICENSE-APACHE), at your option.
