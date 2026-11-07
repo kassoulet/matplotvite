@@ -951,3 +951,34 @@ def test_bar_handle_facecolor_and_legend(tmp_path):
     assert "#D62728" in s.upper()
     assert re.search(r">\s*bars\s*<", s)
     assert bars[0].get_height() == 2.0 and bars[0].get_width() == 0.8
+
+
+def test_step_and_stairs(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="post", color="red")
+    ax.stairs([1, 2, 1], edges=[0, 1, 2, 3], fill=True, color="green")
+    p = tmp_path / "step.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#2CA02C" in s
+    assert s.count("<POLYLINE") >= 2
+    assert s.count("<POLYGON") >= 1
+    with pytest.raises(NotImplementedError):
+        ax.step([0, 1], [0, 1], where="mid")
+    with pytest.raises(ValueError):
+        ax.step([0, 1], [0, 1], where="sideways")
+    with pytest.raises(ValueError):
+        ax.stairs([1, 2], edges=[0, 1])
+
+
+def test_layout_noops_and_in_layout():
+    fig = plt.figure()
+    ax = plt.gca()
+    assert fig.tight_layout() is None
+    assert fig.subplots_adjust(left=0.1, right=0.9) is None
+    assert plt.tight_layout() is None
+    assert ax.tight_layout() is None
+    ax.set_in_layout(False)
+    assert ax.get_in_layout() is False
+    assert ax.get_layout_engine() is None

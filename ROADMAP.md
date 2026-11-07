@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **8 359 / 10 098 call sites covered (82%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 509 / 10 098 call sites covered (84%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -86,7 +86,7 @@
 - [x] `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` / `barh(...)` — rectangles drawn in pixel space, returning a `BarContainer` of mutable handles; labelled bars get a legend swatch
 - [x] `bar_label(container, labels=, fmt=, label_type=, padding=)` — values placed at the bar end or centred
 - [x] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, orientation=)` — implemented over `bar`, returns `(counts, edges, handles); `histtype="step"` raises`
-- [ ] `step(x, y, where=, color=, label=)` — equivalent to `drawstyle="steps"`
+- [x] `step(x, y, where=, color=, label=)` — delegates to `plot` with `steps-pre`/`steps-post`; `where="mid"` raises
 - [ ] `hlines(y, xmin, xmax, ...)` / `vlines(x, ymin, ymax, ...)`
 
 ### 3.2 Log / symlog scales
@@ -94,9 +94,9 @@
 - [ ] `semilogx`, `semilogy`, `loglog` convenience wrappers
 
 ### 3.3 Layout
-- [ ] `tight_layout(pad=, h_pad=, w_pad=)` — auto-shrink margins so labels don't clip
+- [x] `tight_layout(pad=, h_pad=, w_pad=)` — accepted as a no-op: panels always fill their grid cells, so nothing can clip
 - [ ] `suptitle(t, fontsize=)` — figure-level title
-- [ ] `subplots_adjust(left, right, top, bottom, wspace, hspace)`
+- [x] `subplots_adjust(left, right, top, bottom, wspace, hspace)` and `set_in_layout`/`set_layout_engine` — accepted as no-ops
 - [ ] `GridSpec` / `subplot_mosaic` — irregular grid layouts
 - [ ] `twinx()` / `twiny()` — dual axes on same panel
 - [ ] `sharex` / `sharey` in `subplots()`
@@ -138,7 +138,7 @@
 - [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`
 - [ ] `stackplot(x, *ys, labels=, colors=, alpha=)`
 - [ ] `quiver(X, Y, U, V)` — vector field arrows
-- [ ] `stairs(values, edges=)` — histogram-like step chart
+- [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline (`orientation="horizontal"` raises)
 
 ---
 

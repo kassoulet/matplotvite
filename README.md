@@ -72,6 +72,10 @@ plt.savefig("contours.png")
 - `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars
 - `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar`,
   returning `(counts, edges, handles)`
+- `step(x, y, where="pre"|"post")` and `stairs(values, edges=, baseline=, fill=)` —
+  staircase lines, with optional fill to a baseline
+- `tight_layout`/`subplots_adjust`/`set_in_layout` — accepted as no-ops (window-fitted
+  panels, so there is nothing to negotiate)
 - `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
   filled polygons; `where` masks split into separate runs
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
@@ -113,7 +117,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 359 / 10 098 (82%)**. CI re-runs the trace against
+accepts — currently **8 509 / 10 098 (84%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks

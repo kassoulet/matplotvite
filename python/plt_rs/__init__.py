@@ -696,6 +696,47 @@ class Axes:
     def set_ylim(self, lo, hi): self.ylim = (float(lo), float(hi))
     def legend(self): self.show_legend = True
 
+    def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
+        """Staircase line through `x`/`y`; `where` picks the corner placement."""
+        if where in ("pre", "post"):
+            style = "steps-pre" if where == "pre" else "steps-post"
+        elif where == "mid":
+            raise NotImplementedError("step(where='mid') is not supported yet")
+        else:
+            raise ValueError(f"unsupported where: {where!r}")
+        return self.plot(x, y, fmt, label=label, color=color, drawstyle=style, **kwargs)
+
+    def stairs(self, values, edges=None, baseline=0.0, orientation="vertical", fill=False,
+               color=None, label="", **kwargs):
+        """Step chart from bin `values` and `edges` (one longer than `values`)."""
+        v = np.asarray(values, dtype=np.float64).ravel()
+        if edges is None:
+            e = np.arange(v.size + 1.0)
+        else:
+            e = np.asarray(edges, dtype=np.float64).ravel()
+            if e.size != v.size + 1:
+                raise ValueError("edges must have len(values) + 1 entries")
+        if orientation != "vertical":
+            raise NotImplementedError(f"orientation={orientation!r} is not supported yet")
+        xs = np.empty(2 * v.size)
+        ys = np.empty(2 * v.size)
+        xs[0::2] = e[:-1]
+        xs[1::2] = e[1:]
+        ys[0::2] = v
+        ys[1::2] = v
+        if fill:
+            self.fill_between(xs, ys, baseline, color=color)
+        return self.plot(xs, ys, color=color, label=label, **kwargs)
+
+    # Layout requests are accepted but ignored: every panel is drawn at its fixed
+    # gridspec cell, so there is nothing to negotiate.
+    def tight_layout(self, **kwargs): return None
+    def subplots_adjust(self, **kwargs): return None
+    def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
+    def get_layout_engine(self): return getattr(self, "layout_engine", None)
+    def set_in_layout(self, b): self.in_layout = bool(b)
+    def get_in_layout(self): return getattr(self, "in_layout", True)
+
     def _panel(self):
         (x0, x1), (y0, y1) = self._limits()
         dx, dy = x1 - x0, y1 - y0
@@ -1078,6 +1119,13 @@ class Figure:
 
     def draw_without_rendering(self): return None
     def draw(self, *args, **kwargs): return None
+
+    # Layout requests are accepted but ignored: panels always fill their gridspec
+    # cells, so there are no margins to negotiate.
+    def tight_layout(self, **kwargs): return None
+    def subplots_adjust(self, **kwargs): return None
+    def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
+    def get_layout_engine(self): return getattr(self, "layout_engine", None)
     def get_axes(self): return list(self.axes)
     def get_dpi(self): return DPI
     def get_size_inches(self): return self.figsize
@@ -1160,6 +1208,10 @@ def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                         interpolation=interpolation, aspect=aspect, alpha=alpha)
 
 
+def step(*args, **kwargs): return gca().step(*args, **kwargs)
+def stairs(*args, **kwargs): return gca().stairs(*args, **kwargs)
+def tight_layout(*args, **kwargs): return gcf().tight_layout(*args, **kwargs)
+def subplots_adjust(*args, **kwargs): return gcf().subplots_adjust(*args, **kwargs)
 def hist(*args, **kwargs): return gca().hist(*args, **kwargs)
 def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
 def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
