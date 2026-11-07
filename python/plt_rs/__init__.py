@@ -1548,7 +1548,7 @@ class Figure:
         w, h = (round(v * (dpi or DPI)) for v in self.figsize)
         fmt = format.lower().lstrip(".") if format else None
         if fmt is not None and fmt not in _FORMATS:
-            raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg' or 'pdf')")
+            raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg')")
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
@@ -1738,40 +1738,6 @@ def rcdefaults():
     rcParams.clear()
     rcParams.update(_RC_DEFAULTS)
 
-    def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
-        """Contour plot."""
-        fig, ax = plt.subplots()
-        return ax.contour(*args, levels=levels, colors=colors, cmap=cmap,
-                          linewidths=linewidths, alpha=alpha)
-    def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
-        """Filled contour plot."""
-        fig, ax = plt.subplots()
-        return ax.contourf(*args, levels=levels, colors=colors, cmap=cmap,
-                           alpha=alpha)
 
-
-    import io
-    import os
-    import tempfile
-    # Support file-like objects (BytesIO)
-    if hasattr(filepath, "write") and not isinstance(filepath, str):
-        # Render to a temp file then read bytes into the object
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
-            tmp_path = tmp.name
-        try:
-            # Save to temp file
-            gcf().savefig(tmp_path, format="png", dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)
-            with open(tmp_path, "rb") as f:
-                data = f.read()
-            filepath.write(data)
-        finally:
-            try:
-                os.unlink(tmp_path)
-            except:
-                pass
-        return  # Done - bytes already written to filepath
-    if format == "pdf":
-        filepath = str(filepath).rsplit(".", 1)[0] + ".pdf"
-        format = "pdf"
-    gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)
+def savefig(filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
     gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)

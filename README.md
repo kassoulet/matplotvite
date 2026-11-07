@@ -1,8 +1,7 @@
 # plt.rs
 
-Matplotlib-style static plots, rendered and written to PNG, SVG, or PDF entirely in Rust.
-(PyO3 + plotters + pdf_oxide + resvg + usvg + tiny-skia). Python deps: numpy only.
-No matplotlib, no Pillow.
+Matplotlib-style static plots, rendered and written to PNG or SVG entirely in Rust
+(PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
 🔗 **[Live Example Gallery](https://kassoulet.github.io/plt_rs/)** &bull; ⚡ **[Speed Benchmarks](https://kassoulet.github.io/plt_rs/benchmarks.html)**
 

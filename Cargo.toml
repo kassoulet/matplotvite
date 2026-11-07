@@ -15,4 +15,3 @@ plotters = { version = "0.3", default-features = false, features = ["bitmap_back
 resvg = "0.49.0"
 usvg = "0.49.0"
 tiny-skia = "0.12.0"
-pdf_oxide = "0.3.78"
