@@ -1,6 +1,6 @@
 # plt.rs
 
-Matplotlib-style static plots, rendered and written to PNG, SVG or PDF entirely in
+Matplotlib-style static plots, rendered and encoded to PNG, SVG or PDF entirely in
 Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
 🔗 **[Live Example Gallery](https://kassoulet.github.io/plt_rs/)** &bull; ⚡ **[Speed Benchmarks](https://kassoulet.github.io/plt_rs/benchmarks.html)**
@@ -47,6 +47,9 @@ at runtime.
 `plt.rs` itself contains no `unsafe` code. All non-Rust code sits behind the
 `pyo3`/`numpy` and `libc` bindings; nothing on the drawing path shells out or links
 a C library directly.
+
+Type stubs (`.pyi`) and the PEP 561 `py.typed` marker ship in the wheel, so editors
+and type checkers see the public API.
 
 ## Usage
 ```python
@@ -191,8 +194,13 @@ python tools/benchmark.py
 
 ## Test
 ```bash
-pip install pytest ruff && pytest
+maturin develop --release
+pip install pytest ruff
+pytest
 ruff check python tests tools examples
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all-targets
 ```
 
 ## License

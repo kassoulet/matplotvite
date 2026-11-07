@@ -1,10 +1,25 @@
 """plt_rs: minimal matplotlib-like API, rendered entirely in Rust."""
+import os
 from contextlib import contextmanager
 
 import numpy as np
 
-from ._colors import CSS_COLORS
-from ._core import save
+from ._colors import CSS_COLORS as _CSS_COLORS
+from ._core import __version__, render as _render
+
+__all__ = (
+    "Axes", "AxesImage", "Colorbar", "ContourSet", "DPI", "Figure",
+    "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
+    "bar", "bar_label", "barh", "broken_barh", "close", "colorbar", "contour", "contourf",
+    "draw", "errorbar", "eventplot", "figure", "fill", "fill_between",
+    "fill_betweenx", "gca", "gcf", "getp", "grid", "hist", "hlines", "imshow",
+    "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
+    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
+    "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show",
+    "stackplot", "stairs", "stem", "step", "subplot", "subplots", "subplots_adjust", "text", "tick_params",
+    "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
+    "ylabel", "ylim", "yscale", "yticks", "__version__",
+)
 
 # matplotlib's tab10 cycle; also the targets of the C0-C9 shorthand.
 _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
@@ -38,28 +53,34 @@ def _norm_color(c):
     if s in ("none", "transparent"):
         return "none"
     if s in _SHORT_COLORS:
-        return CSS_COLORS[_SHORT_COLORS[s]].lower()
+        return _CSS_COLORS[_SHORT_COLORS[s]].lower()
     if s in _TAB10:
         return _TAB10[s]
-    if s in CSS_COLORS:
-        return CSS_COLORS[s].lower()
+    if s in _CSS_COLORS:
+        return _CSS_COLORS[s].lower()
     if len(s) == 2 and s[0] == "c" and s[1].isdigit():
         return _CYCLE[int(s[1]) % len(_CYCLE)]
     if s.startswith("#"):
         body = s[1:]
         if len(body) == 3:
             body = "".join(ch * 2 for ch in body)
-        if len(body) not in (6, 8):
+        if len(body) not in (6, 8) or any(ch not in "0123456789abcdef" for ch in body):
             raise ValueError(f"invalid hex colour: {c!r}")
         return "#" + body
     try:
         grey = float(s)
     except ValueError:
-        return s  # not a colour we recognise; the renderer falls back
+        raise ValueError(f"unrecognized colour: {c!r}") from None
     if 0.0 <= grey <= 1.0:
         v = f"{round(grey * 255):02x}"
         return f"#{v}{v}{v}"
     raise ValueError(f"invalid colour: {c!r}")
+
+
+def _is_rgb(c):
+    """True for a tuple/list of 3 or 4 numeric channel values."""
+    return (isinstance(c, (tuple, list)) and len(c) in (3, 4)
+            and all(isinstance(v, (int, float, np.number)) for v in c))
 
 
 class _CoordTransform:
@@ -121,6 +142,7 @@ class _TextLabel:
 def _span(values):
     """Same padding rule as the Rust renderer: a flat series gets a unit window."""
     vals = [float(v) for v in values]
+    vals = [v for v in vals if np.isfinite(v)]
     if not vals:
         return (0.0, 1.0)
     lo, hi = min(vals), max(vals)
@@ -128,6 +150,22 @@ def _span(values):
 DPI = 100
 _FORMATS = ("png", "svg", "pdf")
 _COMPRESSIONS = ("fast", "default", "best")
+
+
+def _output_format(filepath, format):
+    """Resolve the output format from an explicit value or the destination name."""
+    if format is None:
+        name = (filepath if isinstance(filepath, (str, bytes, os.PathLike))
+                else getattr(filepath, "name", None))
+        if not isinstance(name, (str, bytes, os.PathLike)):
+            name = ""
+        suffix = os.path.splitext(os.fsdecode(name))[1]
+        fmt = suffix.lower().lstrip(".") or "png"
+    else:
+        fmt = str(format).lower().lstrip(".")
+    if fmt not in _FORMATS:
+        raise ValueError(f"unsupported format: {fmt!r} (use 'png', 'svg', or 'pdf')")
+    return fmt
 
 
 class _Wedge:
@@ -188,14 +226,14 @@ class _BarHandle:
         return self
 
     def set_facecolor(self, c):
-        self._set("colors", [str(c)])
+        self._set("colors", [c if isinstance(c, str) else _norm_color(c)])
         return self
 
     def set_color(self, c):
         return self.set_facecolor(c)
 
     def set_edgecolor(self, c):
-        self._set("edgecolor", str(c))
+        self._set("edgecolor", c if isinstance(c, str) else _norm_color(c))
         return self
 
     def set_alpha(self, a):
@@ -692,8 +730,7 @@ class Axes:
         left = x - w / 2.0 if align == "center" else x
         colors = _bar_colors(color, n)
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
-                              colors=colors,
-                              edgecolor=None if edgecolor is None else str(edgecolor),
+                              colors=colors, edgecolor=_norm_color(edgecolor),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=True))
         if yerr is not None:
@@ -752,8 +789,7 @@ class Axes:
             raise ValueError(f"unsupported align: {align!r}")
         bottom = y - h / 2.0 if align == "center" else y
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
-                              colors=_bar_colors(color, n),
-                              edgecolor=None if edgecolor is None else str(edgecolor),
+                              colors=_bar_colors(color, n), edgecolor=_norm_color(edgecolor),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=False))
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
@@ -996,7 +1032,7 @@ class Axes:
                               width=np.array([b for _, b in pairs]),
                               height=np.full(n, float(yrange[1])),
                               colors=_bar_colors(colors, n),
-                              edgecolor=None if edgecolor is None else str(edgecolor),
+                              edgecolor=_norm_color(edgecolor),
                               alpha=None if alpha is None else float(alpha),
                               label="", vertical=True))
         return None
@@ -1378,10 +1414,9 @@ def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markers
             mfc=None, mec=None, mew=1.0, alpha=None, drawstyle="default"):
     return dict(x=np.ascontiguousarray(x, dtype=np.float64),
                 y=np.ascontiguousarray(y, dtype=np.float64),
-                label=str(label), color=str(color), linestyle=str(linestyle),
+                label=str(label), color=_norm_color(color), linestyle=str(linestyle),
                 linewidth=float(linewidth), marker=str(marker), markersize=float(markersize),
-                mfc=None if mfc is None else str(mfc),
-                mec=None if mec is None else str(mec), mew=float(mew),
+                mfc=_norm_color(mfc), mec=_norm_color(mec), mew=float(mew),
                 alpha=None if alpha is None else float(alpha), drawstyle=str(drawstyle))
 
 
@@ -1457,8 +1492,10 @@ def _line_colors(colors, n):
     if colors is None:
         return [_CYCLE[0]] * n
     if isinstance(colors, str):
-        return [colors] * n
-    vals = [str(c) for c in np.asarray(colors, dtype=object).ravel()]
+        return [_norm_color(colors)] * n
+    if _is_rgb(colors):
+        return [_norm_color(colors)] * n
+    vals = [_norm_color(c) for c in np.asarray(colors, dtype=object).ravel()]
     if len(vals) != n:
         raise ValueError("colors must be a single colour or one per segment")
     return vals
@@ -1480,7 +1517,7 @@ def _as_f64(v):
 
 
 def _band(xs, ys, color, alpha, label=""):
-    return dict(x=_as_f64(xs), y=_as_f64(ys), color=str(color),
+    return dict(x=_as_f64(xs), y=_as_f64(ys), color=_norm_color(color),
                 alpha=None if alpha is None else float(alpha), label=str(label))
 
 
@@ -1518,8 +1555,13 @@ def _bar_colors(color, n):
     if color is None:
         return []
     if isinstance(color, str):
-        return [color]
-    return [str(v) for v in np.asarray(color, dtype=object).ravel()]
+        return [_norm_color(color)]
+    if _is_rgb(color):
+        return [_norm_color(color)]
+    vals = [_norm_color(v) for v in np.asarray(color, dtype=object).ravel()]
+    if len(vals) not in (1, n):
+        raise ValueError("color must be a single colour or one per bar")
+    return vals
 
 
 def _sizes(s, n):
@@ -1538,8 +1580,8 @@ def _scatter_colors(c, n):
     """Split `c` into (numeric values for cmap, explicit colour strings)."""
     if c is None:
         return None, []
-    if isinstance(c, str):
-        return None, [c]
+    if isinstance(c, str) or _is_rgb(c):
+        return None, [_norm_color(c)]
     a = np.asarray(c)
     if a.dtype.kind in "fiu":
         v = np.asarray(a, dtype=np.float64).ravel()
@@ -1553,7 +1595,7 @@ def _scatter_colors(c, n):
         seq = seq * n
     if len(seq) != n:
         raise ValueError("c must be a single colour or one colour per point")
-    return None, [str(v) for v in seq]
+    return None, [_norm_color(v) for v in seq]
 
 
 def _mesh_args(args):
@@ -1617,9 +1659,9 @@ def _levels(z, levels):
 def _colors(colors):
     if colors is None:
         return []
-    if isinstance(colors, str):
-        return [colors]
-    return [str(c) for c in colors]
+    if isinstance(colors, str) or _is_rgb(colors):
+        return [_norm_color(colors)]
+    return [_norm_color(c) for c in colors]
 
 
 def _contour_args(args, levels):
@@ -1813,41 +1855,34 @@ class Figure:
                     f"unsupported compression: {compression!r} "
                     "(use 'fast', 'default', or 'best')"
                 )
-        w, h = (round(v * dpi) for v in self.figsize)
-        fmt = format.lower().lstrip(".") if format else None
-        if fmt is not None and fmt not in _FORMATS:
-            raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg' or 'pdf')")
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
+        fmt = _output_format(filepath, format)
+        w, h = (round(v * dpi) for v in self.figsize)
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
         if self._colorbar is not None:
             panels.append(self._colorbar_panel())
-        options = {
-            "format": fmt,
-            "transparent": bool(transparent),
-            "bbox_inches": bbox_inches,
-            "dpi": dpi,
-            "facecolor": _norm_color(facecolor) or self.facecolor,
-            "edgecolor": _norm_color(edgecolor) or self.edgecolor,
-            "compression": compression,
-        }
-        if filepath is None or hasattr(filepath, "write"):
-            import os
-            import tempfile
-            suffix = "." + (fmt or "png")
-            fd, tmp = tempfile.mkstemp(suffix=suffix)
-            os.close(fd)
-            try:
-                save(tmp, (w, h), self.grid, panels, options)
-                with open(tmp, "rb") as fh:
-                    data = fh.read()
-            finally:
-                os.unlink(tmp)
-            if filepath is None:
-                return data
+        data = _render(
+            (w, h),
+            self.grid,
+            panels,
+            {
+                "format": fmt,
+                "transparent": bool(transparent),
+                "tight": bbox_inches == "tight",
+                "dpi": dpi,
+                "facecolor": _norm_color(facecolor) or self.facecolor,
+                "edgecolor": _norm_color(edgecolor) or self.edgecolor,
+                "compression": compression,
+            },
+        )
+        if filepath is None:
+            return data
+        if hasattr(filepath, "write"):
             filepath.write(data)
             return None
-        save(str(filepath), (w, h), self.grid, panels, options)
+        with open(os.fspath(filepath), "wb") as fh:
+            fh.write(data)
         return None
 
 
@@ -1908,7 +1943,13 @@ def axvline(*args, **kwargs): return gca().axvline(*args, **kwargs)
 def axhspan(*args, **kwargs): return gca().axhspan(*args, **kwargs)
 def axvspan(*args, **kwargs): return gca().axvspan(*args, **kwargs)
 def bar(*args, **kwargs): return gca().bar(*args, **kwargs)
+def bar_label(container, labels=None, fmt="%g", label_type="edge", padding=0, **kwargs):
+    return gca().bar_label(container, labels=labels, fmt=fmt, label_type=label_type,
+                           padding=padding, **kwargs)
 def barh(*args, **kwargs): return gca().barh(*args, **kwargs)
+def pie(*args, **kwargs): return gca().pie(*args, **kwargs)
+def stackplot(*args, **kwargs): return gca().stackplot(*args, **kwargs)
+def stem(*args, **kwargs): return gca().stem(*args, **kwargs)
 def pcolormesh(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolor(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolorfast(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)

@@ -12,11 +12,21 @@ def _extension_path() -> Path:
     return Path(_core.__file__)
 
 
+def test_package_exposes_its_version():
+    assert plt.__version__ == "0.1.0"
+
+
 def test_compiled_extension_is_installed():
     path = _extension_path()
     assert path.is_file(), f"compiled extension missing: {path}"
     assert path.stat().st_size > 0
     assert path.suffix in {".so", ".pyd"}, f"unexpected extension: {path}"
+
+
+def test_type_marker_and_stub_are_installed():
+    package = _extension_path().parent
+    assert (package / "py.typed").is_file()
+    assert (package / "__init__.pyi").is_file()
 
 
 def test_installed_wheel_renders_every_format():

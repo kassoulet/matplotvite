@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -39,7 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         include:
           # ubuntu-latest (26.04) has no python-versions build for 3.9 yet, so the
           # oldest supported interpreter runs on 22.04 instead.
@@ -63,43 +66,41 @@ jobs:
           pytest -q
 
   wheels:
-    name: wheel (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
+    name: wheel (${{ matrix.platform.name }}, py${{ matrix.python }})
+    # Python 3.9 has no ubuntu-latest build; use the oldest supported runner.
+    runs-on: ${{ matrix.python == '3.9' && matrix.platform.os == 'ubuntu-latest' && 'ubuntu-22.04' || matrix.platform.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux-x86_64
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        platform:
+          - name: linux-x86_64
+            os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             manylinux: auto
-            interpreter: python3.13
-          - os: ubuntu-24.04-arm
-            name: linux-aarch64
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             manylinux: auto
-            interpreter: python3.13
-          - os: macos-latest
-            name: macos-arm64
+          - name: macos-arm64
+            os: macos-latest
             target: aarch64-apple-darwin
-            interpreter: python
-          - os: windows-latest
-            name: windows-x86_64
+          - name: windows-x86_64
+            os: windows-latest
             target: x86_64-pc-windows-msvc
-            interpreter: python
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python }}
       - uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
         with:
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
           # The manylinux container does not see setup-python's interpreter, so
-          # select the matching container Python explicitly. Scanning every
-          # interpreter can pick up unsupported versions on hosted runners.
-          args: --release --out dist --interpreter ${{ matrix.interpreter }}
+          # select the matching container Python explicitly. macOS and Windows
+          # use the interpreter installed by setup-python.
+          args: --release --out dist --interpreter ${{ matrix.platform.manylinux == 'auto' && format('python{0}', matrix.python) || 'python' }}
       - name: Install the built wheel
         run: |
           python -m pip install --upgrade pip

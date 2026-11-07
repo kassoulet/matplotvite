@@ -56,7 +56,7 @@ def test_empty_raises(tmp_path):
 
 def test_bad_path():
     plt.figure(); plt.plot([1, 2]);
-    with pytest.raises(RuntimeError):
+    with pytest.raises(OSError):
         plt.savefig("/nonexistent/dir/x.png")
 
 
@@ -106,6 +106,26 @@ def test_tight_bbox_crops_whitespace(tmp_path):
     svg = tmp_path / "tight.svg"
     plt.savefig(svg, bbox_inches="tight")
     assert 'viewBox="0 0 400 300"' not in svg.read_text()
+
+
+def test_tight_bbox_with_colored_background(tmp_path):
+    fig = plt.figure((4, 3), facecolor="red")
+    fig.gca().plot([1, 2, 3])
+    tight = tmp_path / "tight-red.png"
+    fig.savefig(tight, bbox_inches="tight")
+    assert int.from_bytes(tight.read_bytes()[16:20], "big") < 400
+
+
+def test_file_like_name_selects_format(tmp_path):
+    import io
+
+    class NamedBuffer(io.BytesIO):
+        name = "figure.svg"
+
+    fig = plt.figure((4, 3)); fig.gca().plot([1, 2, 3])
+    buf = NamedBuffer()
+    fig.savefig(buf)
+    assert buf.getvalue().startswith(b"<svg")
 
 
 def test_transparent_drops_background(tmp_path):
@@ -1171,6 +1191,29 @@ def test_pie_wedges_labels(tmp_path):
         ax.pie([0, 0])
 
 
+def test_pyplot_stem_pie_stackplot_and_bar_label(tmp_path):
+    plt.figure()
+    wedges, texts, autotexts = plt.pie([2, 1], labels=["a", "b"], autopct="%1.0f%%")
+    assert len(wedges) == len(texts) == len(autotexts) == 2
+    pie = tmp_path / "pyplot-pie.svg"
+    plt.savefig(pie)
+    assert pie.read_text().count("<polygon") >= 2
+
+    plt.figure()
+    plt.stem([1, 3, 2], linefmt="r-")
+
+    plt.figure()
+    plt.stackplot(np.arange(3.0), [1, 1, 1], [2, 2, 2])
+
+    plt.figure()
+    bars = plt.bar([1, 2], [3, 4])
+    assert plt.bar_label(bars) == ["3", "4"]
+
+    p = tmp_path / "pyplot-shims.svg"
+    plt.savefig(p)
+    assert p.read_text().count("<rect") >= 3
+
+
 def test_stackplot_layers(tmp_path):
     x = np.arange(4.0)
     plt.figure()
@@ -1325,11 +1368,40 @@ def test_css_colors_and_color_specs(tmp_path):
     assert _norm_color("none") == "none"
     with pytest.raises(ValueError):
         _norm_color((1, 2, 3))
+    with pytest.raises(ValueError):
+        _norm_color("#gggggg")
+    with pytest.raises(ValueError):
+        _norm_color("not-a-colour")
     plt.figure((4, 3))
     plt.plot([0, 1], [0, 1], color="rebeccapurple")
     p = tmp_path / "css.svg"
     plt.savefig(p)
     assert "#663399" in p.read_text().upper()
+
+
+def test_rgb_tuples_work_across_artists(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1], color=(1, 0, 0))
+    ax.bar([0], [1], color=(0, 0, 1))
+    ax.scatter([0], [1], c=(0, 1, 0))
+    p = tmp_path / "tuples.svg"
+    fig.savefig(p)
+    svg = p.read_text().upper()
+    assert "#FF0000" in svg and "#0000FF" in svg and "#00FF00" in svg
+
+    with pytest.raises(ValueError):
+        ax.plot([0, 1], [0, 1], color="not-a-colour")
+    with pytest.raises(ValueError):
+        plt.figure(facecolor="#gggggg")
+
+
+def test_non_finite_data_gets_finite_limits(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0.0, np.nan, 1.0], [0.0, np.inf, 1.0])
+    assert all(np.isfinite(v) for v in (*ax.get_xlim(), *ax.get_ylim()))
+    p = tmp_path / "nan.png"
+    fig.savefig(p)
+    assert p.stat().st_size > 0
 
 
 def test_xticks_labels_rotation_and_tick_params(tmp_path):
