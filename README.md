@@ -58,6 +58,9 @@ plt.savefig("contours.png")
 
 **Line & marker plots**
 - `plot(x, y, label=, color=)` — NumPy arrays, zero-copy through PyO3
+- `plot` styling: `linestyle`/`ls`, `linewidth`/`lw`, `marker`, `markersize`/`ms`,
+  `markerfacecolor`/`mfc`, `markeredgecolor`/`mec`, `markeredgewidth`/`mew`, `alpha`,
+  `drawstyle="steps-pre"|"steps-post"`, and fmt shorthand (`plot(x, y, "r--o")`)
 - `scatter(x, y, s=, c=, alpha=, cmap=, marker=)` — per-point sizes and colours,
   markers `o s ^ v < > D x + .`
 - `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)` — scalar, per-point or
@@ -68,6 +71,8 @@ plt.savefig("contours.png")
   through a colormap, or `(H, W, 3|4)` RGB(A) arrays
 - `contour(X, Y, Z, levels=, colors=, cmap=)` — marching-squares iso-lines
 - `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands
+- `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` — quad mesh through the image path
+  (also `pcolor`/`pcolorfast`; edges or cell centres accepted)
 - `colorbar(mappable, label=)` — gradient strip with min/mid/max ticks
 
 **Axes & layout**
@@ -77,11 +82,18 @@ plt.savefig("contours.png")
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `text(x, y, s, color=, fontsize=, ha=, va=)`, `annotate(text, xy, xytext=)`
 - `savefig(path, format=, dpi=, bbox_inches="tight", transparent=)` — PNG and SVG
+- `set(**kwargs)` shorthand, `axis("off" | "equal" | [limits])`, `invert_xaxis`/`invert_yaxis`
 
-**Compatibility no-ops:** `show`, `draw`, `pause`, `ion`, `ioff`.
+**Introspection:** `get_xlim`/`get_ylim`, `get_position`, `get_window_extent`,
+`get_visible`/`set_visible`, `remove`, `clear`, `add_artist`/`add_patch`,
+`get_children`, `get_transform`, `get_figure`, `get_facecolor`, `get_alpha`.
+Visibility and removal are honoured by the renderer; tick getters/setters store
+values but the renderer still chooses tick locations automatically.
+
+**Compatibility no-ops:** `show`, `draw`, `pause`, `ion`, `ioff`, `update`, `margins`,
+`autoscale`, `set_clip_on`, `set_path_effects`.
 
 ### Not supported (yet)
-- `plot()` styling keywords: `linestyle`, `marker`, `linewidth`, `alpha`
 - log scales, `twinx`, `tight_layout`, `GridSpec`, `suptitle`
 - `bar`, `hist`, `boxplot`, `pie`, `stem`, `quiver`, `hist2d`
 - colormaps beyond `viridis`/`gray`; colorbars on multi-axes figures
@@ -90,7 +102,7 @@ plt.savefig("contours.png")
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **5 688 / 10 098 (56%)**. CI re-runs the trace against
+accepts — currently **8 001 / 10 098 (79%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks

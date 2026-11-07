@@ -37,12 +37,36 @@ fn build_fontdb() -> usvg::fontdb::Database {
     db
 }
 
-type Series<'py> = (
-    PyReadonlyArray1<'py, f64>,
-    PyReadonlyArray1<'py, f64>,
-    String,
-    String,
-);
+/// One `plot` call, including its styling keywords.
+#[derive(FromPyObject)]
+struct Series<'py> {
+    #[pyo3(item)]
+    x: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    y: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    label: String,
+    #[pyo3(item)]
+    color: String,
+    #[pyo3(item)]
+    linestyle: String,
+    #[pyo3(item)]
+    linewidth: f64,
+    #[pyo3(item)]
+    marker: String,
+    #[pyo3(item)]
+    markersize: f64,
+    #[pyo3(item)]
+    mfc: Option<String>,
+    #[pyo3(item)]
+    mec: Option<String>,
+    #[pyo3(item)]
+    mew: f64,
+    #[pyo3(item)]
+    alpha: Option<f64>,
+    #[pyo3(item)]
+    drawstyle: String,
+}
 
 /// (x, y, text, color, font size, horizontal align, vertical align).
 type TextItem = (f64, f64, String, String, f64, String, String);
@@ -137,8 +161,8 @@ fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
     let mut xs: Vec<f64> = Vec::new();
     let mut ys: Vec<f64> = Vec::new();
     for s in &p.series {
-        xs.extend(s.0.as_array().iter().copied());
-        ys.extend(s.1.as_array().iter().copied());
+        xs.extend(s.x.as_array().iter().copied());
+        ys.extend(s.y.as_array().iter().copied());
     }
     for im in &p.images {
         let (l, r, b, t) = im.4;
@@ -409,6 +433,57 @@ struct Panel<'py> {
     scatter: Vec<Scatter<'py>>,
     #[pyo3(item)]
     colorbar: Option<ColorbarItem>,
+    /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
+    #[pyo3(item)]
+    axis_off: bool,
+}
+
+/// Stroke a polyline as dashes, in panel-local pixels.
+fn draw_dashed<DB: DrawingBackend, C: Color>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    pts: &[(i32, i32)],
+    col: C,
+    width: u32,
+    dash: f64,
+    gap: f64,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let mut on = true;
+    let mut left = dash;
+    for pair in pts.windows(2) {
+        let (x0, y0) = (pair[0].0 as f64, pair[0].1 as f64);
+        let (x1, y1) = (pair[1].0 as f64, pair[1].1 as f64);
+        let (dx, dy) = (x1 - x0, y1 - y0);
+        let len = (dx * dx + dy * dy).sqrt();
+        if len <= 0.0 {
+            continue;
+        }
+        let (ux, uy) = (dx / len, dy / len);
+        let mut t = 0.0;
+        while t < len {
+            let seg = left.min(len - t);
+            if on {
+                let a = (x0 + ux * t, y0 + uy * t);
+                let b = (x0 + ux * (t + seg), y0 + uy * (t + seg));
+                area.draw(&PathElement::new(
+                    vec![
+                        (a.0.round() as i32, a.1.round() as i32),
+                        (b.0.round() as i32, b.1.round() as i32),
+                    ],
+                    col.stroke_width(width),
+                ))?;
+            }
+            t += seg;
+            left -= seg;
+            if left <= f64::EPSILON {
+                on = !on;
+                left = if on { dash } else { gap };
+            }
+        }
+    }
+    Ok(())
 }
 
 /// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
@@ -418,6 +493,7 @@ fn draw_marker<DB: DrawingBackend, C: Color>(
     pos: (i32, i32),
     r: f64,
     col: C,
+    stroke: u32,
     marker: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -453,21 +529,21 @@ where
         "x" => {
             area.draw(&PathElement::new(
                 vec![(x - ri, y - ri), (x + ri, y + ri)],
-                col.stroke_width(2),
+                col.stroke_width(stroke),
             ))?;
             area.draw(&PathElement::new(
                 vec![(x - ri, y + ri), (x + ri, y - ri)],
-                col.stroke_width(2),
+                col.stroke_width(stroke),
             ))?;
         }
         "+" => {
             area.draw(&PathElement::new(
                 vec![(x - ri, y), (x + ri, y)],
-                col.stroke_width(2),
+                col.stroke_width(stroke),
             ))?;
             area.draw(&PathElement::new(
                 vec![(x, y - ri), (x, y + ri)],
-                col.stroke_width(2),
+                col.stroke_width(stroke),
             ))?;
         }
         "." => area.draw(&Circle::new((x, y), (ri / 2).max(1) as u32, col.filled()))?,
@@ -680,12 +756,14 @@ where
             }
         }
     }
-    chart
-        .configure_mesh()
-        .disable_mesh()
-        .x_desc(&p.xlabel)
-        .y_desc(&p.ylabel)
-        .draw()?;
+    if !p.axis_off {
+        chart
+            .configure_mesh()
+            .disable_mesh()
+            .x_desc(&p.xlabel)
+            .y_desc(&p.ylabel)
+            .draw()?;
+    }
     // Filled contours sit on the image layer, under the line series.
     {
         let chart_area = chart.plotting_area();
@@ -737,19 +815,81 @@ where
             }
         }
     }
-    for (x, y, label, c) in &p.series {
-        let col = color(c);
-        let pts = x
-            .as_array()
-            .iter()
-            .zip(y.as_array().iter())
-            .map(|(a, b)| (*a, *b))
-            .collect::<Vec<_>>();
-        let s = chart.draw_series(LineSeries::new(pts, col.stroke_width(2)))?;
-        if !label.is_empty() {
-            s.label(label.as_str()).legend(move |(x, y)| {
-                PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(2))
-            });
+    for s in &p.series {
+        let base = area.get_base_pixel();
+        let xs = s.x.as_array();
+        let ys = s.y.as_array();
+        let n = xs.len().min(ys.len());
+        // Step drawstyles insert the corner points instead of a diagonal.
+        let mut pts: Vec<(f64, f64)> = Vec::with_capacity(n * 2);
+        for i in 0..n {
+            pts.push((xs[i], ys[i]));
+            if i + 1 < n {
+                match s.drawstyle.as_str() {
+                    "steps-post" => pts.push((xs[i + 1], ys[i])),
+                    "steps-pre" => pts.push((xs[i], ys[i + 1])),
+                    _ => {}
+                }
+            }
+        }
+        let width = s.linewidth.max(1.0).round() as u32;
+        let col = match s.alpha {
+            Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),
+            None => color(&s.color).mix(1.0),
+        };
+        if matches!(s.linestyle.as_str(), ":" | "--" | "-.") {
+            let (dash, gap) = match s.linestyle.as_str() {
+                ":" => (2.0, 4.0),
+                "--" => (9.0, 5.0),
+                _ => (7.0, 3.0),
+            };
+            let px: Vec<(i32, i32)> = {
+                let chart_area = chart.plotting_area();
+                pts.iter()
+                    .map(|p| {
+                        let (x, y) = chart_area.map_coordinate(p);
+                        (x - base.0, y - base.1)
+                    })
+                    .collect()
+            };
+            draw_dashed(area, &px, col, width, dash, gap)?;
+            if !s.label.is_empty() {
+                chart
+                    .draw_series(LineSeries::new(
+                        Vec::<(f64, f64)>::new(),
+                        col.stroke_width(width),
+                    ))?
+                    .label(s.label.as_str())
+                    .legend(move |(x, y)| {
+                        PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
+                    });
+            }
+        } else {
+            let series = chart.draw_series(LineSeries::new(pts, col.stroke_width(width)))?;
+            if !s.label.is_empty() {
+                series.label(s.label.as_str()).legend(move |(x, y)| {
+                    PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
+                });
+            }
+        }
+        if !s.marker.is_empty() && s.markersize > 0.0 {
+            let stroked = matches!(s.marker.as_str(), "x" | "+");
+            let name = if stroked {
+                s.mec.as_deref().unwrap_or(&s.color)
+            } else {
+                s.mfc.as_deref().unwrap_or(&s.color)
+            };
+            let mc = match s.alpha {
+                Some(a) => color(name).mix(a.clamp(0.0, 1.0)),
+                None => color(name).mix(1.0),
+            };
+            let r = (s.markersize / 2.0 * 1.39).max(1.0);
+            let stroke = s.mew.max(1.0).round() as u32;
+            let chart_area = chart.plotting_area();
+            for (xv, yv) in xs.iter().zip(ys.iter()) {
+                let (px, py) = chart_area.map_coordinate(&(*xv, *yv));
+                draw_marker(area, base, (px, py), r, mc, stroke, &s.marker)?;
+            }
         }
     }
     // Error bars: one segment per point plus optional caps, in canvas pixels.
@@ -837,7 +977,7 @@ where
                 } else {
                     RGBColor(31, 119, 180)
                 };
-                draw_marker(area, base, (cx, cy), r, col.mix(alpha), &sc.marker)?;
+                draw_marker(area, base, (cx, cy), r, col.mix(alpha), 2, &sc.marker)?;
             }
         }
     }

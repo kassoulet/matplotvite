@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **5 688 / 10 098 call sites covered (56%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 001 / 10 098 call sites covered (79%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -27,12 +27,12 @@
 > TRACE priorities: `plot` kwargs (lw ×44, marker ×35, linestyle ×14, alpha ×10), `savefig` kwargs (format ×112, dpi ×8, bbox_inches ×10), `axis` ×11, `grid` ×28, `xticks/yticks`.
 
 ### 2.1 `plot()` kwargs
-- [ ] `linestyle` / `ls` — solid, dashed, dotted, dashdot, fmt string shorthand (`"r--o"`)
-- [ ] `linewidth` / `lw`
-- [ ] `marker` on `plot()` — shapes exist for `scatter` (`"o"`, `"s"`, `"^"`, `"+"`, `"x"`, `"D"`), not yet wired into line plots
-- [ ] `markersize` / `ms`, `markerfacecolor` / `mfc`, `markeredgecolor` / `mec`, `markeredgewidth`
-- [ ] `alpha` (line + marker transparency)
-- [ ] `drawstyle` — `"default"`, `"steps-pre"`, `"steps-post"`
+- [x] `linestyle` / `ls` — solid, dashed, dotted and dashdot (dashdot is approximated); fmt shorthand `"r--o"` / positional `plot(x, y, "g--")`
+- [x] `linewidth` / `lw`
+- [x] `marker` on `plot()` — `o s ^ v < > D x + .` drawn with the scatter marker primitives
+- [x] `markersize` / `ms`, `markerfacecolor` / `mfc`, `markeredgecolor` / `mec`, `markeredgewidth` / `mew`
+- [x] `alpha` (line + marker transparency)
+- [x] `drawstyle` — `"default"`, `"steps-pre"`, `"steps-post"` (other values raise)
 
 ### 2.2 Color system
 - [ ] Full CSS named colors (140+) in `color()` fn
@@ -108,6 +108,14 @@
 - [x] `plt.draw()` as a no-op (compatibility)
 - [x] `plt.axes()` / `plt.pause()` / `plt.ion()` / `plt.ioff()` compatibility shims
 
+### 3.5 Axes introspection (compatibility surface)
+- [x] State getters: `get_xlim`/`get_ylim`/`get_xbound`/`get_ybound`, `get_position`/`set_position`, `get_visible`/`set_visible`, `get_facecolor`/`set_facecolor`, `get_alpha`/`set_alpha`, `get_label`/`set_label`, `get_zorder`/`set_zorder`, `get_title`/`get_xlabel`/`get_ylabel`, `get_figure`, `get_children`
+- [x] No-ops that keep scripts running: `draw`, `update`, `margins`, `relim`, `autoscale`, `autoscale_view`, `set_clip_on`/`set_clip_path`, `set_path_effects`, `add_artist`/`add_patch`/`add_collection`/`add_line`
+- [x] Real behaviour: `remove()` and `set_visible(False)` drop the panel, `axis("off")` hides axes/ticks/labels, `axis("equal"|"auto"|[limits])`, `invert_xaxis`/`invert_yaxis`, `clear`/`cla`, `set(**kwargs)` dispatch
+- [x] Tick/label storage: `set_xticks`/`set_yticks`, `set_xticklabels`/`set_yticklabels`, `get_xticks`/`get_yticks`, `get_xticklabels`/`get_yticklabels` (stored values are not yet used by the renderer)
+- [ ] `get_window_extent` that accounts for labels/titles rather than the raw grid cell
+- [ ] Render artists registered through `add_patch`/`add_collection`
+
 ---
 
 ## V4 — Advanced plot types  *(lower frequency, high visual value)*
@@ -125,6 +133,7 @@
 - [x] `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands by clipping each grid triangle against the level pair (`alpha` accepted but ignored)
 - [x] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
 - [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks in a reserved grid cell (single-axes figures)
+- [x] `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` / `pcolor` / `pcolorfast` — cells rasterised through the image path, edges or centres accepted (`shading`/`norm` accepted but ignored)
 - [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`
 - [ ] `stackplot(x, *ys, labels=, colors=, alpha=)`
 - [ ] `quiver(X, Y, U, V)` — vector field arrows
