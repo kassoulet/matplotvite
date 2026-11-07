@@ -95,20 +95,20 @@
 
 ### 3.3 Layout
 - [x] `tight_layout(pad=, h_pad=, w_pad=)` — accepted as a no-op: panels always fill their grid cells, so nothing can clip
-- [ ] `suptitle(t, fontsize=)` — figure-level title
+- [x] `suptitle(t, fontsize=)` — figure-level title, placed above the panel grid
 - [x] `subplots_adjust(left, right, top, bottom, wspace, hspace)` and `set_in_layout`/`set_layout_engine` — accepted as no-ops
-- [ ] `GridSpec` / `subplot_mosaic` — irregular grid layouts
-- [ ] `twinx()` / `twiny()` — dual axes on same panel
-- [ ] `sharex` / `sharey` in `subplots()`
+- [x] `GridSpec` / `subplot_mosaic` — irregular grid layouts through explicit panel bounds
+- [x] `twinx()` / `twiny()` — dual axes on same panel, with the second axis on the right/top
+- [x] `sharex` / `sharey` in `subplots()` — explicit limits propagate through a shared group; inner tick labels are dropped
 
 ### 3.4 Style & theming
-- [ ] `plt.style.use("dark_background" | "ggplot" | "seaborn-v0_8")` — a small preset palette set
+- [x] `plt.style.use("dark_background" | "ggplot" | "seaborn-v0_8")` — presets change figure/axes colours, text colour and the colour cycle
 - [x] `rc`/`rc_context`/`rcParams`/`rcdefaults` — settings are recorded, `rc_context` restores them on exit, and the documented subset below changes rendered output
 - [x] `grid(True|False, which=, axis=)` — light gridlines under the data; `visible=None` flips the current state, styling is passed through
 - [x] `tick_params(...)` — label size/rotation/colour and tick length/width/colour are rendered
 - [x] `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from the data limits
 - [x] `rcParams` subset that actually changes output: `lines.linewidth`, `lines.markersize`, `lines.markerlinewidth`, `axes.labelsize`, `axes.titlesize`, `font.size`, `legend.fontsize`, `figure.dpi`
-- [ ] Color cycle customization (`set_prop_cycle`)
+- [x] Color cycle customization (`set_prop_cycle`) — lines, scatter, bars and fills consume the cycle
 - [x] `plt.show()` as a silent no-op (compatibility)
 - [x] `plt.draw()` as a no-op (compatibility)
 - [x] `plt.axes()` / `plt.pause()` / `plt.ion()` / `plt.ioff()` compatibility shims
@@ -118,9 +118,9 @@
 - [x] No-ops that keep scripts running: `draw`, `update`, `margins`, `relim`, `autoscale`, `autoscale_view`, `set_clip_on`/`set_clip_path`, `set_path_effects`, `add_artist`/`add_patch`/`add_collection`/`add_line`
 - [x] Real behaviour: `remove()` and `set_visible(False)` drop the panel, `axis("off")` hides axes/ticks/labels, `axis("equal"|"auto"|[limits])`, `invert_xaxis`/`invert_yaxis`, `clear`/`cla`, `set(**kwargs)` dispatch
 - [x] Tick/label storage: `set_xticks`/`set_yticks`, `set_xticklabels`/`set_yticklabels`, `get_xticks`/`get_yticks`, `get_xticklabels`/`get_yticklabels` — custom ticks and labels are rendered
-- [ ] `get_window_extent` that accounts for labels/titles rather than the raw grid cell
+- [x] `get_window_extent` that accounts for labels/titles rather than the raw grid cell
 - [x] `setp`/`getp` cover bar handles (`set_height`/`set_width`/`set_x`/`set_y`, `get_facecolor`) but only artists that expose matching `set_*`/`get_*` methods
-- [ ] Render artists registered through `add_patch`/`add_collection`
+- [x] Render artists registered through `add_patch`/`add_collection` — Rectangle/Circle/Polygon-like patches and offset/segment collections
 
 ---
 
