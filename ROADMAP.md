@@ -170,7 +170,7 @@
 
 ### 5.4 Packaging & distribution
 - [x] Type stubs (`.pyi`) and `py.typed` for IDE autocomplete and mypy
-- [x] Wheel CI: manylinux (x86_64, aarch64), macOS arm64, Windows x86_64 across all supported Python versions (3.9–3.14), with install smoke tests on each platform
+- [x] Wheel CI: `cp39-abi3` wheels for manylinux (x86_64, aarch64), macOS arm64 and Windows x86_64, smoke-tested on the supported Python versions
 - [ ] `maturin publish` GitHub Action on tag push
 
 ### 5.5 Performance

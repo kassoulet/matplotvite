@@ -49,7 +49,8 @@ at runtime.
 a C library directly.
 
 Type stubs (`.pyi`) and the PEP 561 `py.typed` marker ship in the wheel, so editors
-and type checkers see the public API.
+and type checkers see the public API. Wheels use CPython's stable ABI
+(`cp39-abi3`), so one build per platform supports Python 3.9 and newer.
 
 ## Usage
 ```python

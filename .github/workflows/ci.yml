@@ -66,41 +66,77 @@ jobs:
           pytest -q
 
   wheels:
-    name: wheel (${{ matrix.platform.name }}, py${{ matrix.python }})
-    # Python 3.9 has no ubuntu-latest build; use the oldest supported runner.
-    runs-on: ${{ matrix.python == '3.9' && matrix.platform.os == 'ubuntu-latest' && 'ubuntu-22.04' || matrix.platform.os }}
+    name: wheel (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        platform:
+        include:
           - name: linux-x86_64
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             manylinux: auto
+            interpreter: python3.13
           - name: linux-aarch64
             os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             manylinux: auto
+            interpreter: python3.13
           - name: macos-arm64
             os: macos-latest
             target: aarch64-apple-darwin
+            interpreter: python
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            interpreter: python
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          # The manylinux container does not see setup-python's interpreter, so
+          # select the matching container Python explicitly. The wheel is built
+          # against the stable ABI (cp39-abi3) and works on every version above 3.9.
+          args: --release --out dist --interpreter ${{ matrix.interpreter }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wheel-${{ matrix.name }}
+          path: dist/*.whl
+
+  wheel-tests:
+    name: wheel test (py${{ matrix.python }}, ${{ matrix.os }})
+    needs: wheels
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          # Python 3.9 and 3.10 are no longer available on current hosted
+          # macOS/Windows images; the stable-ABI wheel still supports them.
+          - os: macos-latest
+            python: "3.10"
+          - os: windows-latest
+            python: "3.10"
+        include:
+          - os: ubuntu-22.04
+            python: "3.9"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
-      - uses: PyO3/maturin-action@86b9d133d34bc1b40018696f782949dac11bd380 # v1.49.4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
-          target: ${{ matrix.platform.target }}
-          manylinux: ${{ matrix.platform.manylinux }}
-          # The manylinux container does not see setup-python's interpreter, so
-          # select the matching container Python explicitly. macOS and Windows
-          # use the interpreter installed by setup-python.
-          args: --release --out dist --interpreter ${{ matrix.platform.manylinux == 'auto' && format('python{0}', matrix.python) || 'python' }}
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
       - name: Install the built wheel
         run: |
           python -m pip install --upgrade pip
