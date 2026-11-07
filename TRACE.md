@@ -2,7 +2,7 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **4951/10098** (49%)
+Call sites supported: **5085/10098** (50%)
 
 ## pyplot: unsupported (by call count)
 
@@ -12,11 +12,9 @@ Call sites supported: **4951/10098** (49%)
 | 42 | `colorbar` | 10 |
 | 30 | `scatter` | 8 |
 | 26 | `draw` | 10 |
-| 26 | `contourf` | 3 |
 | 25 | `rc` | 6 |
 | 22 | `imread` | 6 |
 | 17 | `subplot_mosaic` | 4 |
-| 17 | `contour` | 3 |
 | 15 | `pcolor` | 5 |
 | 13 | `tight_layout` | 3 |
 | 13 | `streamplot` | 2 |
@@ -92,7 +90,7 @@ Call sites supported: **4951/10098** (49%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `close`, `legend`, `text`, `savefig`, `gcf`, `title`, `imshow`, `ylim`, `xlim`, `xlabel`, `ylabel`, `annotate`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `close`, `legend`, `text`, `contourf`, `savefig`, `gcf`, `contour`, `title`, `imshow`, `ylim`, `xlim`, `xlabel`, `ylabel`, `annotate`
 
 ## Axes: unsupported (by call count)
 
@@ -114,7 +112,6 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `close`, `lege
 | 66 | `add_artist` | 15 |
 | 64 | `get_window_extent` | 10 |
 | 63 | `get_facecolor` | 10 |
-| 59 | `contour` | 7 |
 | 51 | `set_yscale` | 13 |
 | 48 | `boxplot` | 4 |
 | 47 | `tick_params` | 9 |
@@ -130,7 +127,6 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `close`, `lege
 | 34 | `get_xticklabels` | 8 |
 | 33 | `stem` | 3 |
 | 32 | `set_axis_off` | 9 |
-| 32 | `contourf` | 7 |
 | 32 | `axhline` | 10 |
 | 31 | `twinx` | 7 |
 | 31 | `stairs` | 2 |
@@ -310,7 +306,7 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `close`, `lege
 | 1 | `cohere` | 1 |
 | 1 | `angle_spectrum` | 1 |
 
-Axes supported: `plot`, `imshow`, `text`, `set_xlim`, `legend`, `set_ylim`, `set_title`, `set_xlabel`, `annotate`, `set_ylabel`, `set_aspect`, `get_aspect`
+Axes supported: `plot`, `imshow`, `text`, `set_xlim`, `legend`, `set_ylim`, `set_title`, `set_xlabel`, `contour`, `annotate`, `set_ylabel`, `set_aspect`, `contourf`, `get_aspect`
 
 ## Figure: unsupported (by call count)
 
@@ -389,9 +385,9 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `gca`
 - `add_subplot`: `projection` (48), `polar` (5), `xticks` (4), `facecolor` (3), `axes_class` (3), `aspect` (3), `yticks` (2), `yscale` (2), `xticklabels` (2), `xscale` (2), `sharey` (2), `sharex` (2), `zorder` (1), `ylim` (1), `xlim` (1), `autoscale_on` (1), `anchor` (1)
 - `pcolormesh`: `shading` (23), `cmap` (12), `vmin` (8), `vmax` (8), `norm` (7), `zorder` (5), `lw` (4), `edgecolors` (4), `alpha` (4), `transform` (2), `snap` (2), `rasterized` (2), `colorizer` (2)
 - `specgram`: `Fs` (13), `NFFT` (12), `sides` (11), `pad_to` (11), `noverlap` (11), `mode` (7), `x` (6), `scale` (4), `norm` (2), `origin` (1)
-- `contourf`: `levels` (21), `extend` (11), `algorithm` (6), `hatches` (5), `corner_mask` (5), `cmap` (5), `norm` (4), `colors` (4), `locator` (3), `colorizer` (3), `transform` (2), `vmin` (1), `vmax` (1), `rasterized` (1), `clip_path` (1)
+- `contourf`: `extend` (11), `algorithm` (6), `hatches` (5), `corner_mask` (5), `norm` (4), `locator` (3), `colorizer` (3), `transform` (2), `vmin` (1), `vmax` (1), `rasterized` (1), `clip_path` (1)
 - `stairs`: `baseline` (14), `fill` (12), `ls` (8), `label` (8), `color` (8), `orientation` (7), `lw` (5), `edges` (3), `hatch` (1), `facecolor` (1)
-- `contour`: `colors` (19), `levels` (16), `linestyles` (7), `linewidths` (4), `extend` (4), `negative_linestyles` (3), `colorizer` (3), `zorder` (1), `norm` (1), `linestyle` (1), `corner_mask` (1), `color` (1), `clip_path` (1), `alpha` (1), `algorithm` (1), `Z` (1)
+- `contour`: `linestyles` (7), `extend` (4), `negative_linestyles` (3), `colorizer` (3), `zorder` (1), `norm` (1), `linestyle` (1), `corner_mask` (1), `color` (1), `clip_path` (1), `algorithm` (1), `Z` (1)
 - `table`: `loc` (16), `cellText` (15), `rowLabels` (10), `colLabels` (10), `zorder` (2), `rowColours` (2), `colColours` (2), `bbox` (2), `fontsize` (1), `edges` (1), `colWidths` (1), `cellColours` (1)
 - `subplots_adjust`: `left` (16), `bottom` (14), `top` (12), `right` (10), `hspace` (7), `wspace` (2)
 - `fill_between`: `facecolor` (11), `alpha` (8), `where` (7), `hatch` (7), `color` (7), `interpolate` (6), `label` (5), `edgecolor` (3), `step` (2), `lw` (2), `data` (2), `transform` (1)

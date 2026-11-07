@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **4 951 / 10 098 call sites covered (49%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **5 085 / 10 098 call sites covered (50%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -119,6 +119,8 @@
 - [ ] `violinplot(dataset, positions=, vert=, widths=)`
 - [x] `imshow(X, cmap=, vmin=, vmax=, origin=, extent=, aspect=)` — 2-D arrays via colormap and RGB(A) arrays, embedded as PNG data URIs; `interpolation`/`alpha` accepted but ignored
 - [x] `set_aspect('equal' | 'auto' | <number>)` — shrinks the plotting box to fix the data scale (matplotlib's `adjustable="box"`)
+- [x] `contour(X, Y, Z, levels=, colors=, cmap=)` — marching-squares iso-lines (`linewidths`/`alpha` accepted but ignored)
+- [x] `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands by clipping each grid triangle against the level pair (`alpha` accepted but ignored)
 - [ ] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
 - [ ] `colorbar(mappable, ax=, label=)` — figure-level colorbar
 - [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`

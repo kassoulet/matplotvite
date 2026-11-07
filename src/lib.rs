@@ -1,4 +1,4 @@
-use numpy::{PyReadonlyArray1, PyReadonlyArrayDyn};
+use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn};
 use plotters::prelude::*;
 use plotters::style::IntoFont;
 use pyo3::exceptions::PyRuntimeError;
@@ -60,6 +60,17 @@ type ImageItem<'py> = (
 /// (text, xy, xytext, color, font size).
 type Annotation = (String, (f64, f64), Option<(f64, f64)>, String, f64);
 
+/// (x, y, z, levels, colors, colormap, filled).
+type ContourItem<'py> = (
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray2<'py, f64>,
+    Vec<f64>,
+    Vec<String>,
+    String,
+    bool,
+);
+
 fn color(s: &str) -> RGBColor {
     let h = match s {
         "red" | "r" => "d62728",
@@ -94,6 +105,15 @@ fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
         let (l, r, b, t) = im.4;
         xs.extend([l, r]);
         ys.extend([b, t]);
+    }
+    for c in &p.contours {
+        let (x, y) = (c.0.as_array(), c.1.as_array());
+        if let (Some(a), Some(b)) = (x.first(), x.last()) {
+            xs.extend([*a, *b]);
+        }
+        if let (Some(a), Some(b)) = (y.first(), y.last()) {
+            ys.extend([*a, *b]);
+        }
     }
     if xs.is_empty() {
         xs = vec![0.0, 1.0];
@@ -326,6 +346,98 @@ struct Panel<'py> {
     /// (1.0 == "equal").
     #[pyo3(item)]
     aspect: Option<f64>,
+    #[pyo3(item)]
+    contours: Vec<ContourItem<'py>>,
+}
+
+/// One level of a marching-squares pass: iso-line segments in data coordinates.
+fn contour_segments(x: &[f64], y: &[f64], z: &[f64], level: f64) -> Vec<((f64, f64), (f64, f64))> {
+    let (rows, cols) = (y.len(), x.len());
+    let mut out = Vec::new();
+    if rows < 2 || cols < 2 || z.len() != rows * cols {
+        return out;
+    }
+    let at = |i: usize, j: usize| z[i * cols + j];
+    let lerp = |a: f64, b: f64, va: f64, vb: f64| {
+        let d = vb - va;
+        if d.abs() < f64::EPSILON {
+            a
+        } else {
+            a + (b - a) * ((level - va) / d)
+        }
+    };
+    for i in 0..rows - 1 {
+        for j in 0..cols - 1 {
+            let (z00, z01, z11, z10) = (at(i, j), at(i, j + 1), at(i + 1, j + 1), at(i + 1, j));
+            let idx = (z00 > level) as u8
+                | ((z01 > level) as u8) << 1
+                | ((z11 > level) as u8) << 2
+                | ((z10 > level) as u8) << 3;
+            if idx == 0 || idx == 15 {
+                continue;
+            }
+            let top = (lerp(x[j], x[j + 1], z00, z01), y[i]);
+            let right = (x[j + 1], lerp(y[i], y[i + 1], z01, z11));
+            let bottom = (lerp(x[j], x[j + 1], z10, z11), y[i + 1]);
+            let left = (x[j], lerp(y[i], y[i + 1], z00, z10));
+            let (a, b) = match idx {
+                1 | 14 => (left, top),
+                2 | 13 => (top, right),
+                3 | 12 => (left, right),
+                4 | 11 => (right, bottom),
+                5 => (left, top),
+                6 | 9 => (top, bottom),
+                7 | 8 => (left, bottom),
+                10 => (top, right),
+                _ => continue,
+            };
+            out.push((a, b));
+            // Saddle cells get a second leg; either diagonal split is valid.
+            if idx == 5 {
+                out.push((right, bottom));
+            } else if idx == 10 {
+                out.push((left, bottom));
+            }
+        }
+    }
+    out
+}
+
+/// Clip a triangle (x, y, value) to `lo <= value <= hi`.
+fn clip_band(tri: &[(f64, f64, f64); 3], lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
+    let poly = clip_value(tri.to_vec(), lo, true);
+    clip_value(poly, hi, false)
+}
+
+/// One Sutherland-Hodgman pass against a level plane.
+fn clip_value(poly: Vec<(f64, f64, f64)>, bound: f64, keep_above: bool) -> Vec<(f64, f64, f64)> {
+    if poly.is_empty() {
+        return poly;
+    }
+    let inside = |v: f64| if keep_above { v >= bound } else { v <= bound };
+    let mut out = Vec::with_capacity(poly.len() + 2);
+    for i in 0..poly.len() {
+        let cur = poly[i];
+        let prev = poly[(i + poly.len() - 1) % poly.len()];
+        let (cin, pin) = (inside(cur.2), inside(prev.2));
+        if cin != pin {
+            out.push(mix_at(prev, cur, bound));
+        }
+        if cin {
+            out.push(cur);
+        }
+    }
+    out
+}
+
+fn mix_at(a: (f64, f64, f64), b: (f64, f64, f64), bound: f64) -> (f64, f64, f64) {
+    let d = b.2 - a.2;
+    let t = if d.abs() < f64::EPSILON {
+        0.0
+    } else {
+        (bound - a.2) / d
+    };
+    (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, bound)
 }
 
 fn draw_panel<DB: DrawingBackend>(
@@ -374,6 +486,57 @@ where
         .x_desc(&p.xlabel)
         .y_desc(&p.ylabel)
         .draw()?;
+    // Filled contours sit on the image layer, under the line series.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for (x, y, z, levels, colors, cmap, filled) in &p.contours {
+            if !*filled || levels.len() < 2 {
+                continue;
+            }
+            let xs: Vec<f64> = x.as_array().iter().copied().collect();
+            let ys: Vec<f64> = y.as_array().iter().copied().collect();
+            let zs: Vec<f64> = z.as_array().iter().copied().collect();
+            let (rows, cols) = (ys.len(), xs.len());
+            if rows < 2 || cols < 2 || zs.len() != rows * cols {
+                continue;
+            }
+            let bands = levels.len() - 1;
+            for band in 0..bands {
+                let (lo, hi) = (levels[band], levels[band + 1]);
+                let col = if colors.is_empty() {
+                    let c = colormap(cmap, (band as f64 + 0.5) / bands as f64);
+                    RGBColor(c[0], c[1], c[2])
+                } else {
+                    color(&colors[band % colors.len()])
+                };
+                for i in 0..rows - 1 {
+                    for j in 0..cols - 1 {
+                        let p00 = (xs[j], ys[i], zs[i * cols + j]);
+                        let p01 = (xs[j + 1], ys[i], zs[i * cols + j + 1]);
+                        let p10 = (xs[j], ys[i + 1], zs[(i + 1) * cols + j]);
+                        let p11 = (xs[j + 1], ys[i + 1], zs[(i + 1) * cols + j + 1]);
+                        // Split each cell into two triangles: a band cut through a triangle
+                        // is an exact polygon for piecewise-linear interpolation.
+                        for tri in [[p00, p01, p11], [p00, p11, p10]] {
+                            let poly = clip_band(&tri, lo, hi);
+                            if poly.len() < 3 {
+                                continue;
+                            }
+                            let pts: Vec<(i32, i32)> = poly
+                                .iter()
+                                .map(|&(px, py, _)| {
+                                    let (ax, ay) = chart_area.map_coordinate(&(px, py));
+                                    (ax - base.0, ay - base.1)
+                                })
+                                .collect();
+                            area.draw(&Polygon::new(pts, col.filled()))?;
+                        }
+                    }
+                }
+            }
+        }
+    }
     for (x, y, label, c) in &p.series {
         let col = color(c);
         let pts = x
@@ -387,6 +550,41 @@ where
             s.label(label.as_str()).legend(move |(x, y)| {
                 PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(2))
             });
+        }
+    }
+    // Iso-lines are stroked above the series, one segment per marching-squares cell.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for (x, y, z, levels, colors, cmap, filled) in &p.contours {
+            if *filled || levels.is_empty() {
+                continue;
+            }
+            let xs: Vec<f64> = x.as_array().iter().copied().collect();
+            let ys: Vec<f64> = y.as_array().iter().copied().collect();
+            let zs: Vec<f64> = z.as_array().iter().copied().collect();
+            let (rows, cols) = (ys.len(), xs.len());
+            if rows < 2 || cols < 2 || zs.len() != rows * cols {
+                continue;
+            }
+            let n = levels.len() as f64;
+            for (li, level) in levels.iter().enumerate() {
+                let col = if colors.is_empty() {
+                    let t = if n > 1.0 { li as f64 / (n - 1.0) } else { 0.5 };
+                    let c = colormap(cmap, t);
+                    RGBColor(c[0], c[1], c[2])
+                } else {
+                    color(&colors[li % colors.len()])
+                };
+                for (a, b) in contour_segments(&xs, &ys, &zs, *level) {
+                    let (ax, ay) = chart_area.map_coordinate(&a);
+                    let (bx, by) = chart_area.map_coordinate(&b);
+                    area.draw(&PathElement::new(
+                        vec![(ax - base.0, ay - base.1), (bx - base.0, by - base.1)],
+                        col.stroke_width(2),
+                    ))?;
+                }
+            }
         }
     }
     {
@@ -598,7 +796,11 @@ fn save(
     let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
     if panels.iter().all(|p| {
-        p.series.is_empty() && p.texts.is_empty() && p.images.is_empty() && p.annotations.is_empty()
+        p.series.is_empty()
+            && p.texts.is_empty()
+            && p.images.is_empty()
+            && p.annotations.is_empty()
+            && p.contours.is_empty()
     }) {
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }

@@ -11,6 +11,7 @@ class Axes:
     def __init__(self, pos):
         self.pos, self.lines, self.texts = pos, [], []
         self.images, self.annotations = [], []
+        self.contours = []
         self.aspect = None
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
@@ -62,6 +63,22 @@ class Axes:
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  color, float(fontsize)))
 
+    def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
+        """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
+        followed by `levels`."""
+        return self._add_contour(args, levels, colors, cmap, False)
+
+    def contourf(self, *args, levels=None, colors=None, cmap=None, alpha=None):
+        """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
+        return self._add_contour(args, levels, colors, cmap, True)
+
+    def _add_contour(self, args, levels, colors, cmap, filled):
+        x, y, z, levels = _contour_args(args, levels)
+        entry = dict(x=x, y=y, z=z, levels=_levels(z, levels),
+                     colors=_colors(colors), cmap=cmap or "viridis", filled=filled)
+        self.contours.append(entry)
+        return ContourSet(entry)
+
     def set_title(self, t): self.title = t
     def set_xlabel(self, t): self.xlabel = t
     def set_ylabel(self, t): self.ylabel = t
@@ -74,6 +91,8 @@ class Axes:
                     xlabel=self.xlabel, ylabel=self.ylabel, legend=self.show_legend,
                     xlim=self.xlim, ylim=self.ylim, annotations=self.annotations,
                     aspect=self.aspect,
+                    contours=[(c["x"], c["y"], c["z"], c["levels"], c["colors"], c["cmap"],
+                               c["filled"]) for c in self.contours],
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
                             for e in self.images])
 
@@ -96,6 +115,78 @@ def _as_image(X):
     if a.ndim == 2:
         return a
     raise ValueError("imshow expects a 2-D array or an (H, W, 3|4) RGB(A) array")
+
+
+def _levels(z, levels):
+    lo, hi = float(np.nanmin(z)), float(np.nanmax(z))
+    if not hi > lo:
+        hi = lo + 1.0
+    if levels is None:
+        return [float(v) for v in np.linspace(lo, hi, 7)]
+    if isinstance(levels, (int, np.integer)):
+        if levels < 2:
+            raise ValueError("levels must be at least 2")
+        return [float(v) for v in np.linspace(lo, hi, int(levels))]
+    lv = np.atleast_1d(np.asarray(levels, dtype=np.float64)).ravel()
+    if lv.size < 2:
+        raise ValueError("levels needs at least two entries")
+    return [float(v) for v in np.sort(lv)]
+
+
+def _colors(colors):
+    if colors is None:
+        return []
+    if isinstance(colors, str):
+        return [colors]
+    return [str(c) for c in colors]
+
+
+def _contour_args(args, levels):
+    if len(args) == 1:
+        (z,) = args
+        x = y = None
+    elif len(args) == 2:
+        z, levels = args
+        x = y = None
+    elif len(args) == 3:
+        x, y, z = args
+    elif len(args) == 4:
+        x, y, z, levels = args
+    else:
+        raise TypeError("contour expects Z or X, Y, Z, optionally followed by levels")
+    z = np.asarray(z, dtype=np.float64)
+    if z.ndim != 2:
+        raise ValueError("contour expects a 2-D Z array")
+    rows, cols = z.shape
+    if x is None:
+        x, y = np.arange(cols, dtype=np.float64), np.arange(rows, dtype=np.float64)
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    if x.ndim == 2 or y.ndim == 2:
+        if x.shape != z.shape or y.shape != z.shape:
+            raise ValueError("2-D X and Y must match Z's shape")
+        # meshgrid output: keep the 1-D coordinates when the grid is rectilinear.
+        if not (np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1])):
+            raise NotImplementedError("only rectilinear X/Y grids are supported")
+        x, y = x[0, :], y[:, 0]
+    x, y = x.ravel(), y.ravel()
+    if x.size != cols or y.size != rows:
+        raise ValueError("expected len(X) == Z.shape[1] and len(Y) == Z.shape[0]")
+    return (np.ascontiguousarray(x), np.ascontiguousarray(y),
+            np.ascontiguousarray(z), levels)
+
+
+class ContourSet:
+    """Handle returned by `Axes.contour` / `Axes.contourf`."""
+
+    def __init__(self, entry): self._e = entry
+
+    @property
+    def levels(self): return list(self._e["levels"])
+
+    def get_cmap(self): return self._e["cmap"]
+    def set_cmap(self, cmap): self._e["cmap"] = cmap
+    def set_clim(self, vmin=None, vmax=None): pass
 
 
 class AxesImage:
@@ -184,6 +275,15 @@ def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
 def annotate(text, xy, xytext=None, arrowprops=None, color="black", fontsize=12):
     gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, color=color,
                    fontsize=fontsize)
+
+
+def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
+    return gca().contour(*args, levels=levels, colors=colors, cmap=cmap,
+                         linewidths=linewidths, alpha=alpha)
+
+
+def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
+    return gca().contourf(*args, levels=levels, colors=colors, cmap=cmap, alpha=alpha)
 
 
 def xlim(lo, hi): gca().set_xlim(lo, hi)

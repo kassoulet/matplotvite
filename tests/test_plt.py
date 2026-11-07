@@ -215,3 +215,50 @@ def test_single_subplots_returns_axes_and_pyplot_targets_current(tmp_path):
         plt.subplot(1, 2, 2)
     plt.title("via pyplot"); ax.plot([1, 2]); plt.savefig(tmp_path / "s.svg")
     assert "via pyplot" in (tmp_path / "s.svg").read_text()
+
+
+def _bump(n=30):
+    x = np.linspace(-2, 2, n)
+    y = np.linspace(-2, 2, n)
+    return x, y, np.exp(-(x[None, :] ** 2 + y[:, None] ** 2))
+
+
+def test_contour_lines(tmp_path):
+    x, y, z = _bump()
+    plt.figure((4, 3))
+    cs = plt.contour(x, y, z, levels=[0.1, 0.5, 0.9])
+    assert cs.levels == [0.1, 0.5, 0.9]
+    p = tmp_path / "c.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert s.count("<polyline") >= 30 and "</svg>" in s
+
+
+def test_contourf_fills(tmp_path):
+    z = np.add.outer(np.arange(20.0), np.arange(20.0))
+    plt.figure((4, 3))
+    cs = plt.contourf(z, levels=[0, 10, 20, 30])
+    assert cs.levels == [0.0, 10.0, 20.0, 30.0]
+    p = tmp_path / "cf.svg"
+    plt.savefig(p)
+    assert p.read_text().count("<polygon") > 10
+
+
+def test_contour_meshgrid_png(tmp_path):
+    X, Y = np.meshgrid(np.linspace(-1, 1, 12), np.linspace(-1, 1, 12))
+    plt.figure()
+    plt.contour(X, Y, X * Y, cmap="viridis")
+    p = tmp_path / "cm.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_contour_rejects_non_grids():
+    plt.figure()
+    with pytest.raises(ValueError):
+        plt.contour(np.arange(5.0))
+    with pytest.raises(ValueError):
+        plt.contour(np.arange(3.0), np.arange(3.0), np.zeros((4, 4)))
+    X, Y = np.meshgrid(np.arange(4.0), np.arange(4.0))
+    with pytest.raises(NotImplementedError):
+        plt.contour(X + Y, Y, np.zeros((4, 4)) + 1.0, levels=[0.0, 1.0])
