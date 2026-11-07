@@ -1043,3 +1043,54 @@ def test_log_scale_ignores_non_positive(tmp_path):
     p = tmp_path / "logn.png"
     plt.savefig(p)
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_grid_draws_and_toggles(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.plot([0, 1], [0, 1])
+    plain = tmp_path / "nogrid.svg"
+    plt.savefig(plain)
+    ax.grid(True)
+    with_grid = tmp_path / "grid.svg"
+    plt.savefig(with_grid)
+    assert len(with_grid.read_text()) > len(plain.read_text())
+    assert ax.show_grid is True
+    ax.grid()
+    assert ax.show_grid is False
+    plt.grid(True)
+    assert plt.gca().show_grid is True
+
+
+def test_tick_params_and_axline(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.set_xlim(0, 4)
+    ax.set_ylim(0, 4)
+    assert ax.tick_params(axis="x", labelsize=8, color="red") is None
+    assert ax.tick_params_box["labelsize"] == 8
+    ax.axline((0, 0), slope=1, color="green")
+    ax.axline((2, 0), (2, 3), color="blue")
+    p = tmp_path / "axline.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#2CA02C" in s and "#1F77B4" in s
+    # axline never moves the data limits
+    assert ax.get_xlim() == (0.0, 4.0) and ax.get_ylim() == (0.0, 4.0)
+    with pytest.raises(ValueError):
+        ax.axline((0, 0))
+    with pytest.raises(ValueError):
+        ax.axline((0, 0), (1, 1), slope=2)
+
+
+def test_rc_shims():
+    plt.rc("lines", linewidth=4)
+    assert plt.rcParams["lines.linewidth"] == 4
+    with plt.rc_context({"lines.linewidth": 9}):
+        assert plt.rcParams["lines.linewidth"] == 9
+    assert plt.rcParams["lines.linewidth"] == 4
+    assert plt.rc({"figure.dpi": 72}) is None
+    assert plt.rcParams["figure.dpi"] == 72
+    plt.rcdefaults()
+    assert plt.rcParams["lines.linewidth"] == 1.5
+    assert plt.rcParams["figure.dpi"] == 100.0

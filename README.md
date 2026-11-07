@@ -76,6 +76,11 @@ plt.savefig("contours.png")
   staircase lines, with optional fill to a baseline
 - `tight_layout`/`subplots_adjust`/`set_in_layout` — accepted as no-ops (window-fitted
   panels, so there is nothing to negotiate)
+- `grid(True|False)`, `tick_params(...)` — gridlines are drawn; tick styling is recorded
+  but not rendered
+- `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from limits
+- `rc("lines", linewidth=2)`, `rc_context`, `rcParams`, `rcdefaults` — recorded settings
+  with restore-on-exit; the renderer keeps its fixed style defaults
 - `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
   filled polygons; `where` masks split into separate runs
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
@@ -121,7 +126,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 573 / 10 098 (84%)**. CI re-runs the trace against
+accepts — currently **8 706 / 10 098 (86%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks

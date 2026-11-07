@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **8 573 / 10 098 call sites covered (84%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 706 / 10 098 call sites covered (86%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -103,7 +103,11 @@
 
 ### 3.4 Style & theming
 - [ ] `plt.style.use("dark_background" | "ggplot" | "seaborn-v0_8")` — a small preset palette set
-- [ ] `rcParams` subset: `lines.linewidth`, `axes.labelsize`, `font.size`, `figure.dpi`, `axes.prop_cycle`
+- [x] `rc`/`rc_context`/`rcParams`/`rcdefaults` — settings are recorded, `rc_context` restores them on exit; the renderer still uses its fixed defaults
+- [x] `grid(True|False, which=, axis=)` — light gridlines under the data; `visible=None` flips the current state
+- [x] `tick_params(...)` — accepted and recorded; tick styling is not rendered
+- [x] `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from the data limits
+- [ ] `rcParams` subset that actually changes output: `lines.linewidth`, `axes.labelsize`, `font.size`, `figure.dpi`, `axes.prop_cycle`
 - [ ] Color cycle customization (`set_prop_cycle`)
 - [x] `plt.show()` as a silent no-op (compatibility)
 - [x] `plt.draw()` as a no-op (compatibility)

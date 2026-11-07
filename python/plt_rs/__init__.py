@@ -1,5 +1,8 @@
 """plt_rs: minimal matplotlib-like API, rendered entirely in Rust."""
+from contextlib import contextmanager
+
 import numpy as np
+
 from ._core import save
 
 _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
@@ -138,6 +141,9 @@ class Axes:
         self.artists, self.label, self.zorder = [], "", 0
         self.facecolor, self.alpha = "white", None
         self.xscale = self.yscale = "linear"
+        self.show_grid = False
+        self.tick_params_box = {}
+        self._axlines = []
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
         self._inverted = [False, False]
@@ -344,6 +350,8 @@ class Axes:
         self.show_legend, self.xlim, self.ylim = False, None, None
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
+        self.show_grid = False
+        self._axlines.clear()
 
     cla = clear
 
@@ -722,6 +730,31 @@ class Axes:
     def set_ylim(self, lo, hi): self.ylim = (float(lo), float(hi))
     def legend(self): self.show_legend = True
 
+    def grid(self, visible=None, which="major", axis="both", **kwargs):
+        """Toggle gridlines; `visible=None` flips the current state."""
+        self.show_grid = (not self.show_grid) if visible is None else bool(visible)
+        return None
+
+    def tick_params(self, axis="both", **kwargs):
+        """Tick styling is recorded but not rendered."""
+        self.tick_params_box.update(kwargs)
+        return None
+
+    def axline(self, xy1, xy2=None, slope=None, **kwargs):
+        """Infinite line through `xy1`/`xy2` (or `xy1` with `slope`), clipped to
+        the axes. It never contributes to the data limits."""
+        if (xy2 is None) == (slope is None):
+            raise ValueError("axline needs exactly one of xy2 or slope")
+        self._axlines.append(dict(
+            p=(float(xy1[0]), float(xy1[1])),
+            xy2=None if xy2 is None else (float(xy2[0]), float(xy2[1])),
+            slope=None if slope is None else float(slope),
+            color=kwargs.get("color") or kwargs.get("c"),
+            linestyle=kwargs.get("linestyle") or kwargs.get("ls") or "-",
+            linewidth=float(kwargs.get("linewidth") or kwargs.get("lw") or 1.5),
+            alpha=kwargs.get("alpha"), label=str(kwargs.get("label", ""))))
+        return None
+
     def hlines(self, y, xmin, xmax, colors=None, linestyles=None, label="", **kwargs):
         """Horizontal segments from `xmin` to `xmax` at every `y`."""
         ys = np.asarray(y, dtype=np.float64).ravel()
@@ -793,6 +826,21 @@ class Axes:
                                   linestyle=h["linestyle"] or "-",
                                   linewidth=1.5 if h["linewidth"] is None else float(h["linewidth"]),
                                   alpha=h["alpha"]))
+        for a in self._axlines:
+            (px, py) = a["p"]
+            if a["slope"] is None:
+                (qx, qy) = a["xy2"]
+                m = np.inf if qx == px else (qy - py) / (qx - px)
+            else:
+                m = a["slope"]
+            if not np.isfinite(m):
+                xs, ys = [px, px], [y0, y1]
+            else:
+                xs = [x0, x1]
+                ys = [py + m * (x0 - px), py + m * (x1 - px)]
+            series.append(_series(xs, ys, a["label"], a["color"] or "black",
+                                  linestyle=a["linestyle"], linewidth=a["linewidth"],
+                                  alpha=a["alpha"]))
         for v in self._vline_refs:
             series.append(_series([v["x"], v["x"]],
                                   [y0 + v["ymin"] * dy, y0 + v["ymax"] * dy],
@@ -824,6 +872,7 @@ class Axes:
                     bars=bars,
                     bands=self.bands,
                     x_log=self.xscale == "log", y_log=self.yscale == "log",
+                    grid=self.show_grid,
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"])
@@ -1238,7 +1287,7 @@ class Figure:
         return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
                     legend=False, xlim=None, ylim=None, annotations=[], images=[],
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
-                    x_log=False, y_log=False, aspect=None, axis_off=False,
+                    x_log=False, y_log=False, grid=False, aspect=None, axis_off=False,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
@@ -1365,5 +1414,49 @@ def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
 def xlim(lo, hi): gca().set_xlim(lo, hi)
 def ylim(lo, hi): gca().set_ylim(lo, hi)
 def legend(): gca().legend()
+def grid(*args, **kwargs): return gca().grid(*args, **kwargs)
+def tick_params(*args, **kwargs): return gca().tick_params(*args, **kwargs)
+def axline(*args, **kwargs): return gca().axline(*args, **kwargs)
+rcParams = {
+    "figure.figsize": (6.4, 4.8),
+    "figure.dpi": 100.0,
+    "lines.linewidth": 1.5,
+    "lines.markersize": 6.0,
+    "font.size": 10.0,
+    "axes.labelsize": 10.0,
+    "axes.titlesize": 12.0,
+    "legend.fontsize": 10.0,
+}
+_RC_DEFAULTS = dict(rcParams)
+
+
+def rc(group=None, **kwargs):
+    """Record rc settings. `rc("lines", linewidth=2)` maps to `lines.linewidth`."""
+    if group is None or isinstance(group, dict):
+        rcParams.update(group or kwargs)
+        return None
+    for key, value in kwargs.items():
+        rcParams[f"{group}.{key}"] = value
+    return None
+
+
+@contextmanager
+def rc_context(rc=None, fname=None):
+    """Apply rc overrides for the duration of the block, then restore them."""
+    saved = dict(rcParams)
+    if rc is not None:
+        rcParams.update(rc)
+    try:
+        yield rcParams
+    finally:
+        rcParams.clear()
+        rcParams.update(saved)
+
+
+def rcdefaults():
+    rcParams.clear()
+    rcParams.update(_RC_DEFAULTS)
+
+
 def savefig(filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
     gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)

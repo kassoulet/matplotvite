@@ -450,6 +450,8 @@ struct Panel<'py> {
     #[pyo3(item)]
     bands: Vec<Band<'py>>,
     #[pyo3(item)]
+    grid: bool,
+    #[pyo3(item)]
     x_log: bool,
     #[pyo3(item)]
     y_log: bool,
@@ -759,6 +761,22 @@ fn clip_value(poly: Vec<(f64, f64, f64)>, bound: f64, keep_above: bool) -> Vec<(
     out
 }
 
+/// Tick label for a linear axis: short, without float noise.
+fn tick_label(v: f64) -> String {
+    if v == 0.0 {
+        return "0".to_string();
+    }
+    let a = v.abs();
+    if a >= 1e5 || a < 1e-3 {
+        format!("{v:.2e}")
+    } else {
+        format!("{v:.4}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
 /// Tick label for a log10-space coordinate: 10^v written as a plain number.
 fn log_label(v: f64) -> String {
     let value = 10f64.powf(v);
@@ -854,44 +872,29 @@ where
         }
     }
     if !p.axis_off {
-        match (p.x_log, p.y_log) {
-            (false, false) => {
-                chart
-                    .configure_mesh()
-                    .disable_mesh()
-                    .x_desc(&p.xlabel)
-                    .y_desc(&p.ylabel)
-                    .draw()?;
+        let x_fmt = move |v: &f64| {
+            if p.x_log {
+                log_label(*v)
+            } else {
+                tick_label(*v)
             }
-            (true, false) => {
-                chart
-                    .configure_mesh()
-                    .disable_mesh()
-                    .x_desc(&p.xlabel)
-                    .y_desc(&p.ylabel)
-                    .x_label_formatter(&|v: &f64| log_label(*v))
-                    .draw()?;
+        };
+        let y_fmt = move |v: &f64| {
+            if p.y_log {
+                log_label(*v)
+            } else {
+                tick_label(*v)
             }
-            (false, true) => {
-                chart
-                    .configure_mesh()
-                    .disable_mesh()
-                    .x_desc(&p.xlabel)
-                    .y_desc(&p.ylabel)
-                    .y_label_formatter(&|v: &f64| log_label(*v))
-                    .draw()?;
-            }
-            (true, true) => {
-                chart
-                    .configure_mesh()
-                    .disable_mesh()
-                    .x_desc(&p.xlabel)
-                    .y_desc(&p.ylabel)
-                    .x_label_formatter(&|v: &f64| log_label(*v))
-                    .y_label_formatter(&|v: &f64| log_label(*v))
-                    .draw()?;
-            }
+        };
+        let mut mesh = chart.configure_mesh();
+        if !p.grid {
+            mesh.disable_mesh();
         }
+        mesh.x_desc(&p.xlabel)
+            .y_desc(&p.ylabel)
+            .x_label_formatter(&x_fmt)
+            .y_label_formatter(&y_fmt)
+            .draw()?;
     }
     // Filled contours sit on the image layer, under the line series.
     {
