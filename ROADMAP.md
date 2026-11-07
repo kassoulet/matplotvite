@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **4 612 / 10 098 call sites covered (45%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **4 951 / 10 098 call sites covered (49%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -52,7 +52,7 @@
 ### 2.4 Text & annotations
 - [x] `text(x, y, s, color=, fontsize=, ha=, va=)`
 - [ ] `text(..., transform=)` — axes / figure coordinate transforms
-- [ ] `annotate(text, xy, xytext, arrowprops)` — basic arrow + text box
+- [x] `annotate(text, xy, xytext=)` — label plus straight arrow; `arrowprops` styling is accepted but ignored
 
 ### 2.5 Fill
 - [ ] `fill_between(x, y1, y2, alpha, color, label)`
@@ -117,7 +117,8 @@
 - [ ] `pie(x, labels=, autopct=, colors=, explode=, startangle=)`
 - [ ] `boxplot(x, notch=, vert=, patch_artist=, labels=)`
 - [ ] `violinplot(dataset, positions=, vert=, widths=)`
-- [ ] `imshow(X, cmap=, aspect=, origin=, extent=)` — 2-D array rendered as image
+- [x] `imshow(X, cmap=, vmin=, vmax=, origin=, extent=, aspect=)` — 2-D arrays via colormap and RGB(A) arrays, embedded as PNG data URIs; `interpolation`/`alpha` accepted but ignored
+- [x] `set_aspect('equal' | 'auto' | <number>)` — shrinks the plotting box to fix the data scale (matplotlib's `adjustable="box"`)
 - [ ] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
 - [ ] `colorbar(mappable, ax=, label=)` — figure-level colorbar
 - [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`
@@ -161,7 +162,7 @@
 - [ ] `Axes3D`: `plot_surface`, `scatter3D`, `plot3D`, `contourf3d`
 - [ ] Polar axes (`polar=True`, `plt.polar()`)
 - [ ] `subplot_mosaic` with mixed 2-D / 3-D panels
-- [ ] `imshow` with colormaps (viridis, plasma, inferno, magma, cividis)
+- [ ] `imshow` colormaps beyond viridis/gray (plasma, inferno, magma, cividis)
 
 ---
 

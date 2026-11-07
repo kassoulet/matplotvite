@@ -110,6 +110,85 @@ def test_text_annotations(tmp_path):
         ax.text(0, 0, "x", va="middle")
 
 
+def test_imshow_renders(tmp_path):
+    plt.figure((4, 3))
+    plt.imshow(np.linspace(0, 1, 100).reshape(10, 10))
+    svg = tmp_path / "im.svg"
+    plt.savefig(svg)
+    s = svg.read_text()
+    assert "<image" in s and "data:image/png;base64," in s
+    plt.savefig(tmp_path / "im.png")
+    assert (tmp_path / "im.png").stat().st_size > 0
+
+
+def test_imshow_rgb_handle_and_errors(tmp_path):
+    plt.figure((4, 3))
+    ax = plt.gca()
+    ax.imshow(np.random.rand(8, 8, 3), extent=(-1, 1, -1, 1))
+    im = ax.imshow(np.zeros((4, 4)))
+    assert im.get_array().shape == (4, 4)
+    im.set_clim(0, 1)
+    im.set_data(np.ones((4, 4)))
+    im.set_cmap("gray")
+    with pytest.raises(ValueError):
+        ax.imshow(np.zeros((2, 2, 2)))
+    with pytest.raises(ValueError):
+        ax.imshow(np.zeros((2, 2)), origin="middle")
+    plt.savefig(tmp_path / "rgb.png")
+    assert (tmp_path / "rgb.png").stat().st_size > 0
+
+
+def _image_box(svg_path):
+    m = re.search(r'<image x="[-\d]+" y="[-\d]+" width="(\d+)" height="(\d+)"',
+                  svg_path.read_text())
+    return int(m.group(1)), int(m.group(2))
+
+
+def test_imshow_equal_aspect_squares_pixels(tmp_path):
+    plt.figure((4, 3))
+    plt.imshow(np.zeros((10, 20)))  # 20 wide x 10 tall data
+    p = tmp_path / "eq.svg"
+    plt.savefig(p)
+    w, h = _image_box(p)
+    assert abs(w / h - 2.0) < 0.15
+
+
+def test_imshow_aspect_auto_and_set_aspect(tmp_path):
+    plt.figure((4, 3))
+    plt.imshow(np.zeros((10, 20)), aspect="auto")
+    p = tmp_path / "auto.svg"
+    plt.savefig(p)
+    w, h = _image_box(p)
+    assert w / h < 1.8  # fills the panel instead of squaring the data
+
+    plt.figure((4, 3))
+    ax = plt.gca()
+    ax.imshow(np.zeros((10, 20)), aspect="auto")
+    assert ax.get_aspect() is None
+    ax.set_aspect("equal")
+    p2 = tmp_path / "set.svg"
+    plt.savefig(p2)
+    w2, h2 = _image_box(p2)
+    assert abs(w2 / h2 - 2.0) < 0.15
+
+    with pytest.raises(ValueError):
+        ax.set_aspect("square")
+    with pytest.raises(ValueError):
+        ax.set_aspect(-1)
+
+
+def test_annotate_arrow(tmp_path):
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.annotate("peak", xy=(0.5, 0.5), xytext=(0.2, 0.8))
+    plt.annotate("plain", xy=(0.1, 0.1))
+    p = tmp_path / "ann.svg"
+    fig.savefig(p)
+    s = p.read_text()
+    assert "peak" in s and "plain" in s
+    assert "<polygon" in s  # arrow head
+
+
 def test_text_stays_in_its_panel(tmp_path):
     fig, axs = plt.subplots(1, 2, figsize=(8, 3))
     axs[0].plot([0, 1], [0, 1]); axs[1].plot([0, 1], [0, 1])

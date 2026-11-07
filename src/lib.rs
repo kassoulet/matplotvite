@@ -1,5 +1,6 @@
-use numpy::PyReadonlyArray1;
+use numpy::{PyReadonlyArray1, PyReadonlyArrayDyn};
 use plotters::prelude::*;
+use plotters::style::IntoFont;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 
@@ -46,6 +47,19 @@ type Series<'py> = (
 /// (x, y, text, color, font size, horizontal align, vertical align).
 type TextItem = (f64, f64, String, String, f64, String, String);
 
+/// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper).
+type ImageItem<'py> = (
+    PyReadonlyArrayDyn<'py, f64>,
+    String,
+    Option<f64>,
+    Option<f64>,
+    (f64, f64, f64, f64),
+    bool,
+);
+
+/// (text, xy, xytext, color, font size).
+type Annotation = (String, (f64, f64), Option<(f64, f64)>, String, f64);
+
 fn color(s: &str) -> RGBColor {
     let h = match s {
         "red" | "r" => "d62728",
@@ -68,6 +82,222 @@ fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
     }
 }
 
+/// Data ranges for a panel: series values plus image extents, unless pinned.
+fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+    for s in &p.series {
+        xs.extend(s.0.as_array().iter().copied());
+        ys.extend(s.1.as_array().iter().copied());
+    }
+    for im in &p.images {
+        let (l, r, b, t) = im.4;
+        xs.extend([l, r]);
+        ys.extend([b, t]);
+    }
+    if xs.is_empty() {
+        xs = vec![0.0, 1.0];
+    }
+    if ys.is_empty() {
+        ys = vec![0.0, 1.0];
+    }
+    let (x0, x1) = p.xlim.unwrap_or_else(|| range(xs.into_iter()));
+    let (y0, y1) = p.ylim.unwrap_or_else(|| range(ys.into_iter()));
+    (x0, x1, y0, y1)
+}
+
+/// Draw one label. Alignment is approximated: the backend only has a top-left
+/// anchor, so the text width is estimated from the glyph count.
+#[allow(clippy::too_many_arguments)]
+fn draw_label<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    base: (i32, i32),
+    pos: (i32, i32),
+    s: &str,
+    col: RGBColor,
+    size: f64,
+    ha: &str,
+    va: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let fs = size.max(1.0);
+    let w = s.chars().count() as f64 * fs * 0.55;
+    let dx = match ha {
+        "center" => -w / 2.0,
+        "right" => -w,
+        _ => 0.0,
+    };
+    let dy = match va {
+        "top" => 0.0,
+        "center" => -fs / 2.0,
+        "bottom" => -fs,
+        _ => -fs * 0.8, // baseline
+    };
+    let style = ("sans-serif", fs.round() as u32).into_font().color(&col);
+    area.draw(&Text::new(
+        s,
+        (pos.0 - base.0 + dx as i32, pos.1 - base.1 + dy as i32),
+        style,
+    ))?;
+    Ok(())
+}
+
+/// Straight arrow with a triangular head, in canvas pixels.
+fn draw_arrow<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    base: (i32, i32),
+    from: (i32, i32),
+    to: (i32, i32),
+    col: RGBColor,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let (sx, sy) = (from.0 - base.0, from.1 - base.1);
+    let (ax, ay) = (to.0 - base.0, to.1 - base.1);
+    area.draw(&PathElement::new(
+        vec![(sx, sy), (ax, ay)],
+        col.stroke_width(2),
+    ))?;
+    let (dx, dy) = ((ax - sx) as f64, (ay - sy) as f64);
+    let len = (dx * dx + dy * dy).sqrt().max(1.0);
+    let (ux, uy) = (dx / len, dy / len);
+    let (hl, hw) = (10.0, 4.5);
+    let (px, py) = (ax as f64 - ux * hl, ay as f64 - uy * hl);
+    area.draw(&Polygon::new(
+        vec![
+            (ax, ay),
+            ((px - uy * hw) as i32, (py + ux * hw) as i32),
+            ((px + uy * hw) as i32, (py - ux * hw) as i32),
+        ],
+        col.filled(),
+    ))?;
+    Ok(())
+}
+
+/// Minimal colormaps; unknown names fall back to viridis.
+fn colormap(name: &str, t: f64) -> [u8; 4] {
+    let t = if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    if name.eq_ignore_ascii_case("gray") || name.eq_ignore_ascii_case("grey") {
+        let v = (t * 255.0).round() as u8;
+        return [v, v, v, 255];
+    }
+    const VIRIDIS: [[u8; 3]; 9] = [
+        [68, 1, 84],
+        [72, 40, 120],
+        [62, 74, 137],
+        [49, 104, 142],
+        [38, 130, 142],
+        [31, 158, 137],
+        [53, 183, 121],
+        [109, 205, 89],
+        [253, 231, 37],
+    ];
+    let pos = t * (VIRIDIS.len() - 1) as f64;
+    let i = (pos.floor() as usize).min(VIRIDIS.len() - 2);
+    let f = pos - i as f64;
+    let (a, b) = (VIRIDIS[i], VIRIDIS[i + 1]);
+    let mix = |k: usize| (a[k] as f64 + (b[k] as f64 - a[k] as f64) * f).round() as u8;
+    [mix(0), mix(1), mix(2), 255]
+}
+
+fn base64(data: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(T[(n >> 18) as usize & 63] as char);
+        out.push(T[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 {
+            T[(n >> 6) as usize & 63] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            T[n as usize & 63] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
+fn image_png(item: &ImageItem<'_>) -> Result<Vec<u8>, String> {
+    let (arr, cmap, vmin, vmax, _, _) = item;
+    let a = arr.as_array();
+    let shape = a.shape();
+    let (h, w) = match shape {
+        [h, w] => (*h, *w),
+        [h, w, c] if *c == 3 || *c == 4 => (*h, *w),
+        _ => return Err("imshow expects a 2-D array or an (H, W, 3|4) RGB(A) array".into()),
+    };
+    if h == 0 || w == 0 {
+        return Err("imshow got an empty array".into());
+    }
+    let rgb = shape.len() == 3;
+    let (lo, hi) = if rgb {
+        (0.0, 1.0)
+    } else {
+        let mut lo = f64::MAX;
+        let mut hi = f64::MIN;
+        for v in a.iter().copied().filter(|v| v.is_finite()) {
+            lo = lo.min(v);
+            hi = hi.max(v);
+        }
+        if lo > hi {
+            (0.0, 1.0)
+        } else {
+            (vmin.unwrap_or(lo), vmax.unwrap_or(hi))
+        }
+    };
+    let span = if hi > lo { hi - lo } else { 1.0 };
+    let mut pm = tiny_skia::Pixmap::new(w as u32, h as u32).ok_or("failed to allocate image")?;
+    for y in 0..h {
+        for x in 0..w {
+            let c = if rgb {
+                let ch = |i: usize| (a[[y, x, i]].clamp(0.0, 1.0) * 255.0).round() as u8;
+                let alpha = if shape[2] == 4 { ch(3) } else { 255 };
+                [ch(0), ch(1), ch(2), alpha]
+            } else {
+                colormap(cmap, (a[[y, x]] - lo) / span)
+            };
+            pm.pixels_mut()[y * w + x] =
+                tiny_skia::ColorU8::from_rgba(c[0], c[1], c[2], c[3]).premultiply();
+        }
+    }
+    pm.encode_png().map_err(|e| e.to_string())
+}
+
+/// Insert an element right after the SVG's background rect (or the root tag),
+/// so embedded images sit behind the axes and series.
+fn insert_overlay(svg: &str, tag: &str) -> String {
+    let Some(start) = svg.find("<svg") else {
+        return svg.to_string();
+    };
+    let Some(mut at) = svg[start..].find('>').map(|i| start + i + 1) else {
+        return svg.to_string();
+    };
+    let rest = svg[at..].trim_start();
+    if rest.starts_with("<rect") {
+        if let Some(i) = rest.find("/>") {
+            at += (svg[at..].len() - rest.len()) + i + 2;
+        }
+    }
+    format!("{}\n{}{}", &svg[..at], tag, &svg[at..])
+}
+
 #[derive(FromPyObject)]
 struct Panel<'py> {
     #[pyo3(item)]
@@ -88,30 +318,56 @@ struct Panel<'py> {
     ylim: Option<(f64, f64)>,
     #[pyo3(item)]
     texts: Vec<TextItem>,
+    #[pyo3(item)]
+    images: Vec<ImageItem<'py>>,
+    #[pyo3(item)]
+    annotations: Vec<Annotation>,
+    /// `None` is matplotlib's "auto"; a number is the y-unit/x-unit scale
+    /// (1.0 == "equal").
+    #[pyo3(item)]
+    aspect: Option<f64>,
 }
 
 fn draw_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     p: &Panel,
+    overlays: &mut Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
 {
-    let auto = |f: fn(&Series) -> Vec<f64>| {
-        if p.series.is_empty() {
-            (0.0, 1.0)
-        } else {
-            range(p.series.iter().flat_map(f))
-        }
-    };
-    let (x0, x1) = p.xlim.unwrap_or_else(|| auto(|s| s.0.as_array().to_vec()));
-    let (y0, y1) = p.ylim.unwrap_or_else(|| auto(|s| s.1.as_array().to_vec()));
+    let (x0, x1, y0, y1) = panel_ranges(p);
+    // A fixed aspect shrinks the plotting box instead of bending the data limits,
+    // like matplotlib's adjustable="box".
+    let shrunk_area;
     let mut chart = ChartBuilder::on(area)
         .caption(&p.title, ("sans-serif", 24))
         .margin(10)
         .x_label_area_size(40)
         .y_label_area_size(55)
         .build_cartesian_2d(x0..x1, y0..y1)?;
+    if let Some(scale) = p.aspect {
+        let (pw, ph) = chart.plotting_area().dim_in_pixel();
+        let ratio = (x1 - x0) / (y1 - y0) / scale;
+        if pw > 8 && ph > 8 && ratio.is_finite() && ratio > 0.0 {
+            let mut dw = 0i32;
+            let mut dh = 0i32;
+            if pw as f64 / ph as f64 > ratio {
+                dw = (pw as f64 - ratio * ph as f64).round() as i32;
+            } else {
+                dh = (ph as f64 - pw as f64 / ratio).round() as i32;
+            }
+            if dw > 0 || dh > 0 {
+                shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
+                chart = ChartBuilder::on(&shrunk_area)
+                    .caption(&p.title, ("sans-serif", 24))
+                    .margin(10)
+                    .x_label_area_size(40)
+                    .y_label_area_size(55)
+                    .build_cartesian_2d(x0..x1, y0..y1)?;
+            }
+        }
+    }
     chart
         .configure_mesh()
         .disable_mesh()
@@ -134,36 +390,52 @@ where
         }
     }
     {
-        use plotters::style::IntoFont;
         let chart_area = chart.plotting_area();
-        // map_coordinate yields canvas-absolute pixels, but drawing on the panel's own
-        // area re-applies that panel's origin, so shift back to cell-local pixels.
-        let (bx, by) = area.get_base_pixel();
+        // map_coordinate yields canvas-absolute pixels; the panel's own area re-applies
+        // its origin, so anything drawn on it shifts back to cell-local pixels.
+        let base = area.get_base_pixel();
         for (x, y, s, c, size, ha, va) in &p.texts {
-            let (px, py) = chart_area.map_coordinate(&(*x, *y));
-            let fs = size.max(1.0);
-            // Text width has to be estimated to honour alignment: the backend only
-            // exposes the top-left anchor.
-            let w = s.chars().count() as f64 * fs * 0.55;
-            let dx = match ha.as_str() {
-                "center" => -w / 2.0,
-                "right" => -w,
-                _ => 0.0,
+            let pos = chart_area.map_coordinate(&(*x, *y));
+            draw_label(area, base, pos, s, color(c), *size, ha, va)?;
+        }
+        for (text, xy, xytext, c, size) in &p.annotations {
+            let target = chart_area.map_coordinate(xy);
+            let anchor = match xytext {
+                Some(t) => chart_area.map_coordinate(t),
+                None => target,
             };
-            let dy = match va.as_str() {
-                "top" => 0.0,
-                "center" => -fs / 2.0,
-                "bottom" => -fs,
-                _ => -fs * 0.8, // baseline
-            };
-            let style = ("sans-serif", fs.round() as u32)
-                .into_font()
-                .color(&color(c));
-            area.draw(&Text::new(
-                s.as_str(),
-                (px - bx + dx as i32, py - by + dy as i32),
-                style,
-            ))?;
+            if xytext.is_some() {
+                draw_arrow(area, base, anchor, target, color(c))?;
+            }
+            draw_label(
+                area,
+                base,
+                anchor,
+                text,
+                color(c),
+                *size,
+                "left",
+                "baseline",
+            )?;
+        }
+        for item in &p.images {
+            let (l, r, b, t) = item.4;
+            let (ax, ay) = chart_area.map_coordinate(&(l, t));
+            let (zx, zy) = chart_area.map_coordinate(&(r, b));
+            let (iw, ih) = ((ax - zx).abs(), (ay - zy).abs());
+            if iw == 0 || ih == 0 {
+                continue;
+            }
+            // Embedded into the root SVG, so this stays in canvas pixels.
+            overlays.push(format!(
+                "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+                 preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
+                ax.min(zx),
+                ay.min(zy),
+                iw,
+                ih,
+                base64(&image_png(item)?)
+            ));
         }
     }
     if p.legend {
@@ -185,6 +457,7 @@ fn render_svg(
 ) -> Result<String, String> {
     let (w, h) = size;
     let mut svg = String::new();
+    let mut overlays: Vec<String> = Vec::new();
     {
         let root = SVGBackend::with_string(&mut svg, (w, h)).into_drawing_area();
         // A transparent figure gets no background rect at all, so the SVG (and the
@@ -194,10 +467,17 @@ fn render_svg(
         }
         let cells = root.split_evenly(grid);
         for p in panels {
-            draw_panel(cells.get(p.pos).ok_or("subplot index out of range")?, p)
-                .map_err(|e| e.to_string())?;
+            draw_panel(
+                cells.get(p.pos).ok_or("subplot index out of range")?,
+                p,
+                &mut overlays,
+            )
+            .map_err(|e| e.to_string())?;
         }
         root.present().map_err(|e| e.to_string())?;
+    }
+    for tag in &overlays {
+        svg = insert_overlay(&svg, tag);
     }
     Ok(svg)
 }
@@ -317,10 +597,9 @@ fn save(
 ) -> PyResult<()> {
     let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
-    if panels
-        .iter()
-        .all(|p| p.series.is_empty() && p.texts.is_empty())
-    {
+    if panels.iter().all(|p| {
+        p.series.is_empty() && p.texts.is_empty() && p.images.is_empty() && p.annotations.is_empty()
+    }) {
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }
     let fmt = match format {

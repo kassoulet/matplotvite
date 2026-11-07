@@ -10,6 +10,8 @@ _FORMATS = ("png", "svg")
 class Axes:
     def __init__(self, pos):
         self.pos, self.lines, self.texts = pos, [], []
+        self.images, self.annotations = [], []
+        self.aspect = None
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
 
@@ -20,6 +22,11 @@ class Axes:
         self.lines.append((np.ascontiguousarray(x, dtype=np.float64),
                            np.ascontiguousarray(y, dtype=np.float64), label, c))
 
+    def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
+        self.aspect = _norm_aspect(aspect)
+
+    def get_aspect(self): return self.aspect
+
     def text(self, x, y, s, color="black", fontsize=12, ha="left", va="baseline"):
         """Place text at data coordinates (x, y)."""
         if ha not in ("left", "center", "right"):
@@ -27,6 +34,33 @@ class Axes:
         if va not in ("baseline", "bottom", "center", "top"):
             raise ValueError(f"unsupported va: {va!r}")
         self.texts.append((float(x), float(y), str(s), color, float(fontsize), ha, va))
+
+    def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
+               interpolation=None, aspect=None, alpha=None):
+        """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
+        (H, W, 3|4) RGB(A) floats in 0-1."""
+        a = _as_image(X)
+        h, w = a.shape[:2]
+        if origin == "lower":
+            a = a[::-1]
+        elif origin != "upper":
+            raise ValueError(f"unsupported origin: {origin!r}")
+        if extent is None:
+            extent = (0.0, float(w), 0.0, float(h))
+        elif len(extent) != 4:
+            raise ValueError("extent must be (left, right, bottom, top)")
+        entry = dict(data=a, cmap=cmap or "viridis", vmin=vmin, vmax=vmax,
+                     extent=tuple(float(v) for v in extent))
+        self.images.append(entry)
+        # matplotlib's image.aspect default is "equal".
+        self.set_aspect("equal" if aspect is None else aspect)
+        return AxesImage(entry)
+
+    def annotate(self, text, xy, xytext=None, arrowprops=None, color="black", fontsize=12):
+        """Text at `xytext` with an arrow pointing at `xy`."""
+        self.annotations.append((str(text), (float(xy[0]), float(xy[1])),
+                                 None if xytext is None else (float(xytext[0]), float(xytext[1])),
+                                 color, float(fontsize)))
 
     def set_title(self, t): self.title = t
     def set_xlabel(self, t): self.xlabel = t
@@ -38,7 +72,45 @@ class Axes:
     def _panel(self):
         return dict(pos=self.pos, series=self.lines, texts=self.texts, title=self.title,
                     xlabel=self.xlabel, ylabel=self.ylabel, legend=self.show_legend,
-                    xlim=self.xlim, ylim=self.ylim)
+                    xlim=self.xlim, ylim=self.ylim, annotations=self.annotations,
+                    aspect=self.aspect,
+                    images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
+                            for e in self.images])
+
+
+def _norm_aspect(a):
+    if isinstance(a, str):
+        if a == "auto": return None
+        if a == "equal": return 1.0
+        raise ValueError(f"unsupported aspect: {a!r} (use 'auto', 'equal' or a number)")
+    a = float(a)
+    if not a > 0:
+        raise ValueError(f"aspect must be positive, got {a!r}")
+    return a
+
+
+def _as_image(X):
+    a = np.asarray(X, dtype=np.float64)
+    if a.ndim == 3 and a.shape[2] in (3, 4):
+        return a
+    if a.ndim == 2:
+        return a
+    raise ValueError("imshow expects a 2-D array or an (H, W, 3|4) RGB(A) array")
+
+
+class AxesImage:
+    """Handle returned by `Axes.imshow`, for later tweaks."""
+
+    def __init__(self, entry): self._e = entry
+
+    def get_array(self): return self._e["data"]
+    def set_data(self, X): self._e["data"] = _as_image(X)
+    def get_cmap(self): return self._e["cmap"]
+    def set_cmap(self, cmap): self._e["cmap"] = cmap
+    def set_extent(self, extent): self._e["extent"] = tuple(float(v) for v in extent)
+
+    def set_clim(self, vmin=None, vmax=None):
+        self._e["vmin"], self._e["vmax"] = vmin, vmax
 
 
 class Figure:
@@ -103,6 +175,17 @@ def ylabel(text): gca().set_ylabel(text)
 def title(text): gca().set_title(text)
 def text(x, y, s, color="black", fontsize=12, ha="left", va="baseline"):
     gca().text(x, y, s, color=color, fontsize=fontsize, ha=ha, va=va)
+def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
+           interpolation=None, aspect=None, alpha=None):
+    return gca().imshow(X, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin=origin,
+                        interpolation=interpolation, aspect=aspect, alpha=alpha)
+
+
+def annotate(text, xy, xytext=None, arrowprops=None, color="black", fontsize=12):
+    gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, color=color,
+                   fontsize=fontsize)
+
+
 def xlim(lo, hi): gca().set_xlim(lo, hi)
 def ylim(lo, hi): gca().set_ylim(lo, hi)
 def legend(): gca().legend()
