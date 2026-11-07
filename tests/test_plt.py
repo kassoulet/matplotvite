@@ -638,6 +638,19 @@ def test_axis_off_hides_ticks_but_keeps_plot(tmp_path):
     assert ax.get_xlim() == (0.0, 2.0) and ax.get_ylim() == (-1.0, 1.0)
 
 
+def test_pyplot_axis_dispatches_to_current_axes(tmp_path):
+    plt.figure()
+    plt.plot([0, 1], [0, 1])
+    plt.axis("off")
+    assert plt.gca()._axis_off is True
+    plt.axis([0, 2, -1, 1])
+    assert plt.gca().get_xlim() == (0.0, 2.0)
+    assert plt.gca().get_ylim() == (-1.0, 1.0)
+    p = tmp_path / "pyplot-axis.svg"
+    plt.savefig(p)
+    assert p.read_text().startswith("<svg")
+
+
 def test_axes_inversion_and_rendering(tmp_path):
     plt.figure((4, 3))
     ax = plt.gca()

@@ -9,7 +9,7 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "ContourSet", "DPI", "Figure",
-    "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
+    "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "fill", "fill_between",
     "fill_betweenx", "gca", "gcf", "getp", "grid", "hist", "hlines", "imshow",
@@ -1970,6 +1970,9 @@ def axes(*args, **kwargs):
     """Compatibility shim: plt_rs lays out subplots on a grid, so this returns the
     current axes (creating one if needed)."""
     return gca()
+
+
+def axis(*args, **kwargs): return gca().axis(*args, **kwargs)
 
 
 def show(*args, **kwargs): pass

@@ -2,7 +2,7 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **8908/10098** (88%)
+Call sites supported: **8919/10098** (88%)
 
 ## pyplot: unsupported (by call count)
 
@@ -11,7 +11,6 @@ Call sites supported: **8908/10098** (88%)
 | 22 | `imread` | 6 |
 | 17 | `subplot_mosaic` | 4 |
 | 13 | `streamplot` | 2 |
-| 11 | `axis` | 2 |
 | 10 | `switch_backend` | 3 |
 | 10 | `quiver` | 4 |
 | 8 | `imsave` | 1 |
@@ -59,7 +58,7 @@ Call sites supported: **8908/10098** (88%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `title`, `rc_context`, `pie`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xticks`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `yticks`, `fill_between`, `eventplot`, `yscale`, `xscale`, `stem`, `stackplot`, `fill`, `axline`, `annotate`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `axis`, `title`, `rc_context`, `pie`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xticks`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `yticks`, `fill_between`, `eventplot`, `yscale`, `xscale`, `stem`, `stackplot`, `fill`, `axline`, `annotate`
 
 ## Axes: unsupported (by call count)
 

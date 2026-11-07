@@ -2,7 +2,7 @@
   "matplotlib": "3.11.2",
   "files": 91,
   "total": 10098,
-  "supported": 8908,
+  "supported": 8919,
   "supported_names": [
     "Axes.add_artist",
     "Axes.add_collection",
@@ -146,6 +146,7 @@
     "pyplot.axes",
     "pyplot.axhline",
     "pyplot.axhspan",
+    "pyplot.axis",
     "pyplot.axline",
     "pyplot.axvline",
     "pyplot.axvspan",
