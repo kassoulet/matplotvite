@@ -1,7 +1,10 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **738 / 10 098 call sites covered (7%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **4 612 / 10 098 call sites covered (45%)** across 91 real-world matplotlib test files.
+> CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
+> Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
+> `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
 
 ---
 
@@ -47,7 +50,8 @@
 - [ ] `axhspan` / `axvspan` (shaded band)
 
 ### 2.4 Text & annotations
-- [ ] `text(x, y, s, fontsize, color, ha, va, transform)`
+- [x] `text(x, y, s, color=, fontsize=, ha=, va=)`
+- [ ] `text(..., transform=)` — axes / figure coordinate transforms
 - [ ] `annotate(text, xy, xytext, arrowprops)` — basic arrow + text box
 
 ### 2.5 Fill
@@ -60,7 +64,9 @@
 - [ ] `bbox_to_anchor`
 
 ### 2.7 savefig / figure kwargs
-- [ ] `savefig(dpi=, bbox_inches="tight", transparent=, facecolor=, format=)`
+- [x] `savefig(format=, dpi=)` — `format` overrides the file extension
+- [x] `savefig(bbox_inches="tight", transparent=)` — tight crops PNG pixels / rewrites the SVG viewBox
+- [ ] `savefig(facecolor=)`
 - [ ] `figure(dpi=, facecolor=, edgecolor=)`
 - [ ] `savefig()` returning bytes (no path — for streaming / in-memory use)
 

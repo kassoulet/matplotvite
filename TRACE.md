@@ -2,25 +2,19 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **738/10098** (7%)
+Call sites supported: **4612/10098** (45%)
 
 ## pyplot: unsupported (by call count)
 
 | calls | name | files |
 |--:|---|--:|
-| 1196 | `subplots` | 61 |
-| 102 | `subplot` | 13 |
-| 77 | `gca` | 16 |
 | 77 | `axes` | 13 |
-| 66 | `close` | 18 |
 | 42 | `colorbar` | 10 |
 | 30 | `scatter` | 8 |
-| 28 | `text` | 3 |
 | 26 | `draw` | 10 |
 | 26 | `contourf` | 3 |
 | 25 | `rc` | 6 |
 | 22 | `imread` | 6 |
-| 18 | `gcf` | 10 |
 | 17 | `subplot_mosaic` | 4 |
 | 17 | `contour` | 3 |
 | 15 | `pcolor` | 5 |
@@ -42,9 +36,7 @@ Call sites supported: **738/10098** (7%)
 | 8 | `imsave` | 1 |
 | 8 | `fignum_exists` | 2 |
 | 8 | `errorbar` | 4 |
-| 7 | `ylim` | 4 |
 | 7 | `xticks` | 3 |
-| 7 | `xlim` | 5 |
 | 7 | `tricontourf` | 2 |
 | 7 | `subplot2grid` | 2 |
 | 7 | `polar` | 2 |
@@ -102,21 +94,15 @@ Call sites supported: **738/10098** (7%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `figure`, `plot`, `legend`, `savefig`, `title`, `xlabel`, `ylabel`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `close`, `legend`, `text`, `savefig`, `gcf`, `title`, `ylim`, `xlim`, `xlabel`, `ylabel`
 
 ## Axes: unsupported (by call count)
 
 | calls | name | files |
 |--:|---|--:|
-| 633 | `plot` | 45 |
 | 235 | `imshow` | 20 |
-| 208 | `text` | 18 |
 | 208 | `draw` | 37 |
-| 205 | `set_xlim` | 43 |
-| 203 | `legend` | 13 |
-| 190 | `set_ylim` | 39 |
 | 176 | `scatter` | 21 |
-| 137 | `set_title` | 21 |
 | 130 | `get_position` | 10 |
 | 108 | `add_patch` | 16 |
 | 103 | `get_ylim` | 12 |
@@ -131,13 +117,11 @@ pyplot supported: `figure`, `plot`, `legend`, `savefig`, `title`, `xlabel`, `yla
 | 66 | `add_artist` | 15 |
 | 64 | `get_window_extent` | 10 |
 | 63 | `get_facecolor` | 10 |
-| 61 | `set_xlabel` | 10 |
 | 59 | `contour` | 7 |
 | 51 | `set_yscale` | 13 |
 | 48 | `boxplot` | 4 |
 | 48 | `annotate` | 10 |
 | 47 | `tick_params` | 9 |
-| 47 | `set_ylabel` | 9 |
 | 42 | `set_xticks` | 11 |
 | 41 | `violinplot` | 2 |
 | 40 | `set_xscale` | 8 |
@@ -332,14 +316,12 @@ pyplot supported: `figure`, `plot`, `legend`, `savefig`, `title`, `xlabel`, `yla
 | 1 | `cohere` | 1 |
 | 1 | `angle_spectrum` | 1 |
 
-Axes supported: none
+Axes supported: `plot`, `text`, `set_xlim`, `legend`, `set_ylim`, `set_title`, `set_xlabel`, `set_ylabel`
 
 ## Figure: unsupported (by call count)
 
 | calls | name | files |
 |--:|---|--:|
-| 341 | `add_subplot` | 42 |
-| 329 | `subplots` | 33 |
 | 121 | `colorbar` | 11 |
 | 102 | `draw_without_rendering` | 19 |
 | 66 | `add_axes` | 19 |
@@ -351,7 +333,6 @@ Axes supported: none
 | 20 | `add_gridspec` | 4 |
 | 19 | `subplot_mosaic` | 2 |
 | 19 | `set_size_inches` | 8 |
-| 19 | `gca` | 3 |
 | 18 | `get_layout_engine` | 3 |
 | 15 | `set_layout_engine` | 3 |
 | 14 | `get_linewidth` | 6 |
@@ -389,10 +370,161 @@ Axes supported: none
 | 1 | `align_titles` | 1 |
 | 1 | `align_labels` | 1 |
 
-Figure supported: `savefig`
+Figure supported: `add_subplot`, `subplots`, `savefig`, `gca`
 
 ## Unsupported kwargs on supported calls
 
 - `plot`: `lw` (44), `marker` (35), `c` (33), `rasterized` (22), `ms` (17), `markevery` (17), `markersize` (17), `mfc` (16), `zorder` (14), `linestyle` (14), `markerfacecolor` (13), `transform` (12), `mec` (12), `data` (12), `markeredgecolor` (10), `ls` (10), `alpha` (10), `drawstyle` (9), `linewidth` (8), `markeredgewidth` (7)
+- `subplots`: `layout` (65), `sharex` (50), `sharey` (42), `subplot_kw` (23), `constrained_layout` (19), `dpi` (16), `gridspec_kw` (6), `squeeze` (5), `width_ratios` (4), `tight_layout` (4), `num` (4), `clear` (2), `height_ratios` (1)
+- `scatter`: `c` (84), `s` (69), `marker` (48), `label` (38), `color` (16), `edgecolor` (11), `cmap` (10), `facecolor` (8), `transform` (6), `linewidths` (6), `edgecolors` (6), `ec` (6), `alpha` (5), `fc` (4), `y` (3), `x` (3), `colorizer` (3), `plotnonfinite` (2), `picker` (2), `norm` (2)
+- `text`: `horizontalalignment` (31), `verticalalignment` (30), `size` (17), `wrap` (15), `usetex` (15), `rotation` (15), `math_fontfamily` (9), `font` (9), `family` (9), `transform` (8), `bbox` (7), `antialiased` (6), `alpha` (6), `fontproperties` (5), `clip_on` (5), `url` (4), `style` (3), `rotation_mode` (3), `linespacing` (3), `language` (3)
+- `imshow`: `interpolation` (73), `cmap` (55), `norm` (39), `extent` (39), `interpolation_stage` (20), `alpha` (20), `origin` (18), `vmin` (14), `vmax` (13), `transform` (10), `aspect` (10), `colorizer` (3), `clip_path` (3), `clip_on` (2), `rasterized` (1), `data` (1), `clim` (1), `animated` (1)
+- `colorbar`: `ax` (78), `orientation` (33), `shrink` (27), `extend` (25), `location` (22), `cax` (17), `use_gridspec` (15), `pad` (12), `aspect` (10), `panchor` (6), `anchor` (6), `label` (5), `spacing` (4), `ticks` (3), `fraction` (2), `format` (2), `extendfrac` (2), `boundaries` (2), `ticklocation` (1), `extendrect` (1)
+- `errorbar`: `yerr` (62), `xerr` (37), `fmt` (30), `y` (14), `x` (14), `capsize` (12), `color` (10), `c` (10), `marker` (9), `ls` (9), `label` (8), `errorevery` (8), `uplims` (4), `lolims` (4), `ecolor` (4), `mfc` (3), `markevery` (3), `xuplims` (2), `xlolims` (2), `ms` (2)
+- `legend`: `loc` (76), `labelcolor` (39), `labels` (35), `title` (13), `shadow` (8), `bbox_to_anchor` (8), `handles` (6), `title_fontproperties` (5), `numpoints` (5), `ncols` (5), `mode` (4), `title_fontsize` (2), `reverse` (2), `linewidth` (2), `handler_map` (2), `handlelength` (2), `draggable` (2), `ncol` (1), `markerfirst` (1), `handleheight` (1)
+- `savefig`: `metadata` (12), `pil_kwargs` (6), `backend` (5), `facecolor` (4), `papertype` (3), `pad_inches` (3), `orientation` (2), `edgecolor` (2), `non_existent_kwarg` (1)
+- `set`: `ylim` (41), `xlim` (41), `xlabel` (12), `ylabel` (9), `xscale` (9), `yscale` (6), `yticks` (5), `path_effects` (5), `h_pad` (5), `xticks` (4), `w_pad` (4), `aspect` (3), `yticklabels` (2), `xticklabels` (2), `wspace` (2), `rect` (2), `lw` (2), `linewidth` (2), `hspace` (2), `adjustable` (2)
+- `annotate`: `xytext` (33), `xy` (33), `xycoords` (26), `textcoords` (22), `fontsize` (13), `arrowprops` (12), `va` (7), `fontproperties` (5), `text` (4), `clip_on` (3), `verticalalignment` (2), `size` (2), `horizontalalignment` (2), `ha` (2), `path_effects` (1), `clip_path` (1), `bbox` (1), `annotation_clip` (1)
+- `hist`: `histtype` (39), `label` (23), `bins` (23), `stacked` (13), `color` (11), `ec` (9), `weights` (7), `bottom` (6), `fc` (5), `density` (5), `range` (4), `log` (3), `alpha` (3), `zorder` (1), `orientation` (1), `fill` (1), `data` (1), `align` (1)
 - `figure`: `layout` (23), `dpi` (16), `constrained_layout` (5), `num` (3), `frameon` (2), `clear` (2)
-- `savefig`: `format` (112), `metadata` (12), `bbox_inches` (10), `dpi` (8), `pil_kwargs` (6), `transparent` (5), `backend` (5), `facecolor` (4), `papertype` (3), `pad_inches` (3), `orientation` (2), `edgecolor` (2), `non_existent_kwarg` (1)
+- `psd`: `noverlap` (22), `NFFT` (22), `Fs` (22), `sides` (21), `x` (19), `window` (15), `pad_to` (11), `detrend` (6), `scale_by_freq` (5)
+- `pie`: `labels` (18), `explode` (18), `startangle` (17), `autopct` (17), `shadow` (16), `colors` (16), `wedgeprops` (12), `center` (4), `textprops` (3), `frame` (3), `x` (2), `rotatelabels` (2), `radius` (2), `normalize` (2), `labeldistance` (2), `hatch` (2), `data` (2), `counterclock` (1)
+- `tick_params`: `axis` (18), `direction` (12), `which` (11), `labelleft` (10), `labelbottom` (9), `bottom` (6), `length` (5), `left` (5), `labeltop` (5), `top` (4), `labelsize` (4), `width` (3), `rotation` (3), `right` (3), `labelrotation` (3), `labelright` (3), `labelcolor` (3), `colors` (3), `tick2On` (2), `tick1On` (2)
+- `violinplot`: `positions` (22), `showmedians` (17), `showmeans` (17), `showextrema` (17), `orientation` (11), `quantiles` (7), `points` (4), `facecolor` (4), `linecolor` (3), `side` (2), `widths` (1), `vert` (1), `data` (1)
+- `bar`: `align` (15), `width` (12), `bottom` (11), `color` (9), `label` (8), `height` (7), `edgecolor` (7), `x` (6), `yerr` (5), `tick_label` (4), `antialiased` (4), `hatch` (2), `facecolor` (2), `alpha` (2), `zorder` (1), `xerr` (1), `data` (1), `capsize` (1)
+- `add_subplot`: `projection` (48), `polar` (5), `xticks` (4), `facecolor` (3), `axes_class` (3), `aspect` (3), `yticks` (2), `yscale` (2), `xticklabels` (2), `xscale` (2), `sharey` (2), `sharex` (2), `zorder` (1), `ylim` (1), `xlim` (1), `autoscale_on` (1), `anchor` (1)
+- `pcolormesh`: `shading` (23), `cmap` (12), `vmin` (8), `vmax` (8), `norm` (7), `zorder` (5), `lw` (4), `edgecolors` (4), `alpha` (4), `transform` (2), `snap` (2), `rasterized` (2), `colorizer` (2)
+- `specgram`: `Fs` (13), `NFFT` (12), `sides` (11), `pad_to` (11), `noverlap` (11), `mode` (7), `x` (6), `scale` (4), `norm` (2), `origin` (1)
+- `contourf`: `levels` (21), `extend` (11), `algorithm` (6), `hatches` (5), `corner_mask` (5), `cmap` (5), `norm` (4), `colors` (4), `locator` (3), `colorizer` (3), `transform` (2), `vmin` (1), `vmax` (1), `rasterized` (1), `clip_path` (1)
+- `stairs`: `baseline` (14), `fill` (12), `ls` (8), `label` (8), `color` (8), `orientation` (7), `lw` (5), `edges` (3), `hatch` (1), `facecolor` (1)
+- `contour`: `colors` (19), `levels` (16), `linestyles` (7), `linewidths` (4), `extend` (4), `negative_linestyles` (3), `colorizer` (3), `zorder` (1), `norm` (1), `linestyle` (1), `corner_mask` (1), `color` (1), `clip_path` (1), `alpha` (1), `algorithm` (1), `Z` (1)
+- `table`: `loc` (16), `cellText` (15), `rowLabels` (10), `colLabels` (10), `zorder` (2), `rowColours` (2), `colColours` (2), `bbox` (2), `fontsize` (1), `edges` (1), `colWidths` (1), `cellColours` (1)
+- `subplots_adjust`: `left` (16), `bottom` (14), `top` (12), `right` (10), `hspace` (7), `wspace` (2)
+- `fill_between`: `facecolor` (11), `alpha` (8), `where` (7), `hatch` (7), `color` (7), `interpolate` (6), `label` (5), `edgecolor` (3), `step` (2), `lw` (2), `data` (2), `transform` (1)
+- `boxplot`: `positions` (7), `capwidths` (7), `bootstrap` (7), `widths` (6), `notch` (6), `sym` (4), `label` (4), `usermedians` (3), `conf_intervals` (3), `orientation` (2), `medianprops` (2), `zorder` (1), `tick_labels` (1), `showmeans` (1), `showbox` (1), `patch_artist` (1), `manage_ticks` (1), `data` (1), `autorange` (1)
+- `axhline`: `color` (17), `lw` (7), `linewidth` (6), `xmin` (5), `xmax` (5), `zorder` (4), `y` (4), `alpha` (2), `c` (1)
+- `hlines`: `xmin` (9), `xmax` (9), `colors` (8), `linewidth` (7), `lw` (4), `color` (4), `y` (3), `ls` (2), `transform` (1), `linestyle` (1)
+- `quiverkey`: `labelpos` (8), `label` (8), `coordinates` (7), `color` (7), `angle` (5), `fontproperties` (3), `zorder` (2), `Y` (2), `X` (2), `U` (2)
+- `hexbin`: `gridsize` (8), `extent` (7), `reduce_C_function` (4), `bins` (4), `yscale` (2), `vmin` (2), `vmax` (2), `mincnt` (2), `marginals` (2), `edgecolors` (2), `colorizer` (2), `C` (2), `xscale` (1), `picker` (1), `norm` (1), `data` (1)
+- `vlines`: `linewidth` (8), `colors` (8), `ymin` (4), `ymax` (4), `lw` (4), `color` (4), `x` (3), `ls` (2), `linestyle` (2), `transform` (1), `gapcolor` (1), `alpha` (1)
+- `barh`: `left` (11), `height` (11), `width` (6), `align` (5), `y` (4), `yerr` (1), `tick_label` (1), `label` (1)
+- `subplot`: `projection` (22), `polar` (5), `theta_offset` (3), `sharey` (2), `anchor` (2), `sharex` (1), `aspect` (1)
+- `streamplot`: `linewidth` (7), `start_points` (5), `density` (5), `color` (5), `maxlength` (3), `num_arrows` (2), `integration_max_step_scale` (2), `integration_max_error_scale` (2), `cmap` (2), `broken_streamlines` (2), `transform` (1), `integration_direction` (1), `arrowsize` (1)
+- `set_title`: `loc` (16), `fontsize` (9), `pad` (5), `fontweight` (5), `y` (1)
+- `stem`: `markerfmt` (11), `linefmt` (8), `bottom` (7), `orientation` (4), `basefmt` (3), `label` (1)
+- `clabel`: `fontsize` (10), `inline` (8), `manual` (6), `use_clabeltext` (2), `fmt` (2), `colors` (2), `zorder` (1), `levels` (1), `inline_spacing` (1)
+- `rc`: `size` (12), `fonttype` (10), `family` (7), `prop_cycle` (1), `linewidth` (1), `id` (1)
+- `axline`: `slope` (14), `color` (10), `transform` (7), `c` (1)
+- `eventplot`: `colors` (7), `lineoffsets` (6), `linelengths` (4), `alpha` (4), `linewidths` (1), `linewidth` (1), `linestyles` (1), `linestyle` (1), `label` (1), `data` (1), `color` (1)
+- `axvline`: `color` (8), `ymin` (3), `ymax` (3), `lw` (3), `zorder` (2), `x` (2), `linewidth` (2), `linestyle` (1), `gapcolor` (1), `c` (1), `alpha` (1)
+- `quiver`: `angles` (5), `scale_units` (3), `scale` (3), `pivot` (3), `width` (2), `units` (2), `transform` (2), `headlength` (2), `zorder` (1), `headwidth` (1), `headaxislength` (1), `color` (1)
+- `subplot_mosaic`: `layout` (5), `subplot_kw` (4), `width_ratios` (3), `num` (3), `sharey` (2), `sharex` (2), `per_subplot_kw` (2), `height_ratios` (2), `gridspec_kw` (2), `clear` (1)
+- `set_ylabel`: `loc` (7), `y` (5), `fontsize` (5), `ha` (4), `fontweight` (2), `fontname` (1)
+- `add_axes`: `polar` (8), `projection` (3), `rect` (2), `label` (2), `yticks` (1), `ylim` (1), `xticks` (1), `sharex` (1), `frameon` (1), `autoscaley_on` (1), `autoscalex_on` (1), `autoscale_on` (1)
+- `step`: `where` (6), `lw` (6), `linestyle` (6), `data` (3), `c` (2)
+- `set_xlabel`: `loc` (7), `fontsize` (6), `x` (4), `ha` (3), `fontname` (1)
+- `set_xlim`: `right` (9), `left` (9), `xmin` (1), `xmax` (1), `auto` (1)
+- `axhspan`: `alpha` (7), `facecolor` (5), `ymin` (3), `ymax` (3), `fc` (2)
+- `csd`: `NFFT` (5), `pad_to` (3), `noverlap` (3), `Fs` (3), `y` (2), `x` (2), `sides` (2)
+- `Circle`: `gid` (6), `transform` (5), `zorder` (3), `facecolor` (3), `clip_on` (2), `alpha` (1)
+- `axvspan`: `facecolor` (5), `alpha` (5), `xmin` (3), `xmax` (3), `fc` (2)
+- `grouped_bar`: `tick_labels` (8), `labels` (5), `positions` (1), `hatch` (1), `group_spacing` (1), `colors` (1), `bar_spacing` (1)
+- `barbs`: `transform` (3), `sizes` (3), `rounding` (3), `fill_empty` (3), `pivot` (2), `length` (2), `flip_barb` (1), `cmap` (1)
+- `Rectangle`: `hatch` (5), `label` (4), `fill` (3), `edgecolor` (2), `color` (1), `alpha` (1)
+- `fill`: `facecolor` (3), `zorder` (2), `lw` (2), `hatch` (2), `edgecolor` (2), `alpha` (2), `linewidth` (1), `ec` (1), `color` (1)
+- `grid`: `color` (4), `which` (3), `linewidth` (3), `visible` (2), `linestyle` (2), `path_effects` (1), `alpha` (1)
+- `set_prop_cycle`: `linewidth` (3), `color` (3), `lw` (2), `ls` (2), `c` (2), `marker` (1), `label` (1), `foobar` (1), `facecolor` (1)
+- `suptitle`: `y` (3), `fontsize` (3), `color` (2), `x` (1), `wrap` (1), `weight` (1), `url` (1), `size` (1), `rotation` (1), `in_layout` (1), `fontproperties` (1)
+- `set_ylim`: `bottom` (6), `top` (5), `ymin` (2), `ymax` (2)
+- `figimage`: `yo` (4), `xo` (4), `origin` (4), `colorizer` (2), `resize` (1)
+- `stackplot`: `colors` (4), `baseline` (4), `labels` (2), `hatch` (1), `facecolors` (1), `facecolor` (1), `data` (1)
+- `get_position`: `original` (14)
+- `subfigures`: `wspace` (3), `nrows` (2), `ncols` (2), `height_ratios` (2), `width_ratios` (1), `squeeze` (1), `label` (1), `hspace` (1)
+- `bar_label`: `label_type` (4), `padding` (3), `fmt` (3), `labels` (2), `color` (1)
+- `imsave`: `format` (8), `pil_kwargs` (2), `dpi` (2), `origin` (1)
+- `tripcolor`: `facecolors` (6), `shading` (3), `edgecolors` (2), `clim` (1), `C` (1)
+- `fill_betweenx`: `where` (2), `step` (2), `lw` (2), `interpolate` (2), `facecolor` (2), `alpha` (2)
+- `get_figure`: `root` (11)
+- `violin`: `widths` (5), `positions` (5), `orientation` (1)
+- `arrow`: `head_length` (3), `width` (2), `head_width` (2), `shape` (1), `length_includes_head` (1), `head_starts_at_zero` (1)
+- `autoscale`: `tight` (4), `enable` (3), `axis` (2)
+- `tricontour`: `levels` (4), `colorizer` (2), `linewidths` (1), `colors` (1), `cmap` (1)
+- `set_label`: `ha` (3), `x` (2), `loc` (2), `y` (1)
+- `hist2d`: `rasterized` (3), `bins` (3), `density` (1), `data` (1)
+- `axes`: `projection` (6), `position` (2)
+- `set_yscale`: `nonpositive` (3), `base` (3), `subs` (1), `foo` (1)
+- `set_aspect`: `adjustable` (5), `share` (3)
+- `subplot2grid`: `colspan` (4), `rowspan` (3), `fig` (1)
+- `tight_layout`: `rect` (5), `h_pad` (2), `w_pad` (1)
+- `secondary_xaxis`: `functions` (4), `xticks` (1), `transform` (1), `color` (1)
+- `add_gridspec`: `nrows` (2), `ncols` (2), `wspace` (1), `left` (1), `figure` (1)
+- `get_window_extent`: `renderer` (6), `dpi` (1)
+- `setp`: `visible` (2), `remove_overlapping_locs` (1), `path_effects` (1), `file` (1), `color` (1)
+- `set_xscale`: `base` (3), `nonpositive` (1), `linthresh` (1), `functions` (1)
+- `loglog`: `lw` (4), `nonpositive` (1), `c` (1)
+- `broken_barh`: `align` (4), `facecolors` (2)
+- `inset_axes`: `ylim` (1), `xlim` (1), `sharey` (1), `projection` (1), `polar` (1), `axes_class` (1)
+- `pcolorfast`: `colorizer` (6)
+- `ecdf`: `orientation` (2), `ls` (1), `data` (1), `compress` (1), `complementary` (1)
+- `Line2D`: `gid` (3), `zorder` (1), `transform` (1), `label` (1)
+- `triplot`: `color` (2), `lw` (1), `ls` (1), `linestyle` (1), `label` (1)
+- `locator_params`: `nbins` (5)
+- `tricontourf`: `levels` (3), `colorizer` (2)
+- `xticks`: `labels` (2), `rotation` (1), `minor` (1)
+- `set_yticks`: `rotation_mode` (2), `minor` (2)
+- `get_xticklabels`: `which` (4)
+- `twinx`: `delta_zorder` (2), `foo` (1), `axes_class` (1)
+- `axis`: `ymin` (1), `ymax` (1), `xmin` (1), `xmax` (1)
+- `pcolor`: `colorizer` (3), `transform` (1)
+- `get_title`: `loc` (4)
+- `ylabel`: `size` (1), `fontproperties` (1), `family` (1), `color` (1)
+- `show`: `block` (4)
+- `pie_label`: `rotate` (1), `distance` (1), `alignment` (1)
+- `set_xticks`: `rotation_mode` (2), `fontweight` (1)
+- `get_yticklabels`: `which` (2), `minor` (1)
+- `get_tightbbox`: `for_layout_only` (2), `bbox_extra_artists` (1)
+- `set_position`: `which` (3)
+- `rc_context`: `rc` (3)
+- `magnitude_spectrum`: `sides` (2), `scale` (1)
+- `xlabel`: `usetex` (1), `size` (1), `fontproperties` (1)
+- `set_sketch_params`: `scale` (1), `randomness` (1), `length` (1)
+- `figtext`: `usetex` (2), `c` (1)
+- `supxlabel`: `x` (1), `weight` (1), `size` (1)
+- `supylabel`: `y` (1), `weight` (1), `size` (1)
+- `update`: `left` (2), `bottom` (1)
+- `cohere`: `noverlap` (1), `NFFT` (1), `Fs` (1)
+- `yticks`: `ticks` (1), `minor` (1), `labels` (1)
+- `acorr`: `maxlags` (2)
+- `spy`: `origin` (1), `marker` (1)
+- `relim`: `visible_only` (2)
+- `add_collection`: `autolim` (2)
+- `margins`: `y` (1), `x` (1)
+- `set_xbound`: `upper` (1), `lower` (1)
+- `set_ybound`: `upper` (1), `lower` (1)
+- `twiny`: `foo` (1), `axes_class` (1)
+- `MaxNLocator`: `symmetric` (1), `nbins` (1)
+- `matshow`: `fignum` (1), `extent` (1)
+- `imread`: `format` (2)
+- `semilogy`: `markeredgecolor` (1), `lw` (1)
+- `polar`: `thetaunits` (1), `runits` (1)
+- `set_layout_engine`: `pad` (1), `layout` (1)
+- `draw`: `extra` (1)
+- `set_xticklabels`: `fontweight` (1)
+- `set_yticklabels`: `minor` (1)
+- `indicate_inset`: `bounds` (1)
+- `secondary_yaxis`: `yticks` (1)
+- `add_artist`: `clip` (1)
+- `ticklabel_format`: `scilimits` (1)
+- `angle_spectrum`: `sides` (1)
+- `phase_spectrum`: `sides` (1)
+- `findobj`: `include_self` (1)
+- `add_callback`: `flush` (1)
+- `set_clip_path`: `transform` (1)
+- `align_ylabels`: `axs` (1)
+- `bxp`: `orientation` (1)
+- `add_subfigure`: `facecolor` (1)
+- `waitforbuttonpress`: `timeout` (1)
+- `title`: `path_effects` (1)
+- `get_yticks`: `minor` (1)
+- `indicate_inset_zoom`: `ec` (1)
+- `label_outer`: `remove_inner_ticks` (1)
