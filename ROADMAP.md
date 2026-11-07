@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **8 001 / 10 098 call sites covered (79%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 249 / 10 098 call sites covered (81%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -46,8 +46,8 @@
 - [ ] `tick_params(axis, labelsize, length, width, color, rotation)`
 - [ ] `axis("off" | "equal" | "scaled" | [xmin,xmax,ymin,ymax])`
 - [x] `set_aspect("equal" | float)` — box shrink, see V4
-- [ ] `axhline(y, color, linestyle, linewidth, alpha)` / `axvline(x, ...)`
-- [ ] `axhspan` / `axvspan` (shaded band)
+- [x] `axhline(y, color=, linestyle=, linewidth=, xmin=, xmax=)` / `axvline(x, ...)` — axes-fraction ends resolved against the final limits at draw time; `zorder` ignored
+- [x] `axhspan(ymin, ymax, xmin=, xmax=)` / `axvspan` (shaded band) — drawn as an unedged bar rectangle over an axes-fraction span
 
 ### 2.4 Text & annotations
 - [x] `text(x, y, s, color=, fontsize=, ha=, va=)`
@@ -55,7 +55,7 @@
 - [x] `annotate(text, xy, xytext=)` — label plus straight arrow; `arrowprops` styling is accepted but ignored
 
 ### 2.5 Fill
-- [ ] `fill_between(x, y1, y2, alpha, color, label)`
+- [x] `fill_between(x, y1, y2, where=, color=, alpha=)` / `fill_betweenx` / `fill(...)` — polygons in data space, `where` runs emitted separately (`interpolate`/`step`/`hatch` ignored)
 - [ ] `fill(x, y, color, alpha)`
 
 ### 2.6 Legend kwargs
@@ -83,7 +83,7 @@
 ### 3.1 New plot types
 - [x] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)` — per-point sizes, explicit colours or cmap-mapped values, markers `o s ^ v < > D x + .` (no legend handle yet)
 - [x] `errorbar(...)` — includes scalar / per-point / `(2, N)` errors, caps, `ecolor`
-- [ ] `bar(x, height, width=, bottom=, color=, label=, align=)` / `barh(...)`
+- [x] `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` / `barh(...)` — rectangles drawn in pixel space; no legend handle and `bar_label` yet
 - [ ] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, histtype=)`
 - [ ] `step(x, y, where=, color=, label=)` — equivalent to `drawstyle="steps"`
 - [ ] `hlines(y, xmin, xmax, ...)` / `vlines(x, ymin, ymax, ...)`

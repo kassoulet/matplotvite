@@ -2,7 +2,7 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **8001/10098** (79%)
+Call sites supported: **8249/10098** (81%)
 
 ## pyplot: unsupported (by call count)
 
@@ -32,7 +32,6 @@ Call sites supported: **8001/10098** (79%)
 | 6 | `Rectangle` | 3 |
 | 5 | `subplots_adjust` | 4 |
 | 5 | `get_fignums` | 2 |
-| 5 | `bar` | 4 |
 | 4 | `xkcd` | 2 |
 | 4 | `tricontour` | 2 |
 | 4 | `table` | 2 |
@@ -50,7 +49,6 @@ Call sites supported: **8001/10098** (79%)
 | 2 | `specgram` | 1 |
 | 2 | `sca` | 2 |
 | 2 | `get_figlabels` | 1 |
-| 2 | `fill_between` | 2 |
 | 2 | `eventplot` | 1 |
 | 2 | `ecdf` | 1 |
 | 2 | `draw_all` | 1 |
@@ -69,7 +67,6 @@ Call sites supported: **8001/10098** (79%)
 | 1 | `set_cmap` | 1 |
 | 1 | `matshow` | 1 |
 | 1 | `get_backend` | 1 |
-| 1 | `fill` | 1 |
 | 1 | `figimage` | 1 |
 | 1 | `draw_if_interactive` | 1 |
 | 1 | `boxplot` | 1 |
@@ -79,25 +76,21 @@ Call sites supported: **8001/10098** (79%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `savefig`, `gcf`, `contour`, `pcolor`, `ion`, `ioff`, `title`, `pause`, `show`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xlim`, `xlabel`, `ylabel`, `annotate`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `savefig`, `gcf`, `contour`, `pcolor`, `ion`, `ioff`, `title`, `pause`, `show`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xlim`, `xlabel`, `bar`, `ylabel`, `fill_between`, `fill`, `annotate`
 
 ## Axes: unsupported (by call count)
 
 | calls | name | files |
 |--:|---|--:|
-| 81 | `bar` | 13 |
 | 74 | `hist` | 8 |
 | 48 | `boxplot` | 4 |
 | 47 | `tick_params` | 9 |
 | 41 | `violinplot` | 2 |
 | 34 | `set_prop_cycle` | 3 |
 | 33 | `stem` | 3 |
-| 32 | `axhline` | 10 |
 | 31 | `twinx` | 7 |
 | 31 | `stairs` | 2 |
-| 31 | `fill_between` | 6 |
 | 28 | `grid` | 11 |
-| 28 | `barh` | 4 |
 | 26 | `pie` | 2 |
 | 24 | `bar_label` | 3 |
 | 23 | `psd` | 2 |
@@ -106,9 +99,7 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 22 | `axline` | 3 |
 | 21 | `hlines` | 3 |
 | 21 | `clabel` | 3 |
-| 20 | `axvline` | 11 |
 | 19 | `vlines` | 4 |
-| 19 | `fill` | 4 |
 | 18 | `quiverkey` | 1 |
 | 18 | `quiver` | 4 |
 | 17 | `eventplot` | 2 |
@@ -125,16 +116,13 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 12 | `stackplot` | 3 |
 | 12 | `loglog` | 2 |
 | 12 | `format_cursor_data` | 2 |
-| 12 | `axvspan` | 5 |
 | 11 | `broken_barh` | 2 |
 | 10 | `secondary_xaxis` | 2 |
 | 10 | `grouped_bar` | 1 |
 | 9 | `get_gridspec` | 2 |
-| 9 | `fill_betweenx` | 2 |
 | 9 | `barbs` | 4 |
 | 8 | `set_box_aspect` | 4 |
 | 8 | `get_navigate_mode` | 1 |
-| 8 | `axhspan` | 3 |
 | 7 | `tricontourf` | 3 |
 | 7 | `tricontour` | 3 |
 | 7 | `streamplot` | 3 |
@@ -231,7 +219,7 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 1 | `cohere` | 1 |
 | 1 | `angle_spectrum` | 1 |
 
-Axes supported: `plot`, `imshow`, `text`, `draw`, `set_xlim`, `legend`, `set_ylim`, `scatter`, `set_title`, `get_position`, `add_patch`, `get_ylim`, `get_xlim`, `pcolormesh`, `set`, `errorbar`, `get_visible`, `remove`, `add_artist`, `get_window_extent`, `get_facecolor`, `set_xlabel`, `contour`, `set_yscale`, `annotate`, `set_ylabel`, `set_xticks`, `set_xscale`, `set_aspect`, `update`, `set_yticks`, `get_transform`, `axis`, `add_collection`, `get_xticklabels`, `set_axis_off`, `contourf`, `set_visible`, `set_facecolor`, `get_alpha`, `set_position`, `clear`, `get_tightbbox`, `get_figure`, `set_alpha`, `margins`, `get_yticklabels`, `get_label`, `get_yticks`, `set_clip_path`, `pcolorfast`, `autoscale`, `set_label`, `get_zorder`, `get_title`, `set_path_effects`, `get_ybound`, `set_xticklabels`, `get_children`, `invert_yaxis`, `get_xticks`, `get_xbound`, `set_zorder`, `relim`, `pcolor`, `cla`, `yaxis_inverted`, `set_yticklabels`, `get_aspect`, `autoscale_view`, `add_line`, `invert_xaxis`, `get_ylabel`, `get_yscale`, `xaxis_inverted`, `get_xlabel`, `get_xscale`, `set_clip_on`
+Axes supported: `plot`, `imshow`, `text`, `draw`, `set_xlim`, `legend`, `set_ylim`, `scatter`, `set_title`, `get_position`, `add_patch`, `get_ylim`, `get_xlim`, `pcolormesh`, `set`, `errorbar`, `bar`, `get_visible`, `remove`, `add_artist`, `get_window_extent`, `get_facecolor`, `set_xlabel`, `contour`, `set_yscale`, `annotate`, `set_ylabel`, `set_xticks`, `set_xscale`, `set_aspect`, `update`, `set_yticks`, `get_transform`, `axis`, `add_collection`, `get_xticklabels`, `set_axis_off`, `contourf`, `axhline`, `fill_between`, `set_visible`, `set_facecolor`, `get_alpha`, `set_position`, `barh`, `clear`, `get_tightbbox`, `get_figure`, `set_alpha`, `axvline`, `fill`, `margins`, `get_yticklabels`, `get_label`, `get_yticks`, `set_clip_path`, `pcolorfast`, `autoscale`, `set_label`, `get_zorder`, `get_title`, `set_path_effects`, `get_ybound`, `axvspan`, `set_xticklabels`, `get_children`, `invert_yaxis`, `get_xticks`, `get_xbound`, `set_zorder`, `relim`, `pcolor`, `fill_betweenx`, `cla`, `yaxis_inverted`, `set_yticklabels`, `get_aspect`, `axhspan`, `autoscale_view`, `add_line`, `invert_xaxis`, `get_ylabel`, `get_yscale`, `xaxis_inverted`, `get_xlabel`, `get_xscale`, `set_clip_on`
 
 ## Figure: unsupported (by call count)
 
@@ -295,7 +283,6 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `pie`: `labels` (18), `explode` (18), `startangle` (17), `autopct` (17), `shadow` (16), `colors` (16), `wedgeprops` (12), `center` (4), `textprops` (3), `frame` (3), `x` (2), `rotatelabels` (2), `radius` (2), `normalize` (2), `labeldistance` (2), `hatch` (2), `data` (2), `counterclock` (1)
 - `tick_params`: `axis` (18), `direction` (12), `which` (11), `labelleft` (10), `labelbottom` (9), `bottom` (6), `length` (5), `left` (5), `labeltop` (5), `top` (4), `labelsize` (4), `width` (3), `rotation` (3), `right` (3), `labelrotation` (3), `labelright` (3), `labelcolor` (3), `colors` (3), `tick2On` (2), `tick1On` (2)
 - `violinplot`: `positions` (22), `showmedians` (17), `showmeans` (17), `showextrema` (17), `orientation` (11), `quantiles` (7), `points` (4), `facecolor` (4), `linecolor` (3), `side` (2), `widths` (1), `vert` (1), `data` (1)
-- `bar`: `align` (15), `width` (12), `bottom` (11), `color` (9), `label` (8), `height` (7), `edgecolor` (7), `x` (6), `yerr` (5), `tick_label` (4), `antialiased` (4), `hatch` (2), `facecolor` (2), `alpha` (2), `zorder` (1), `xerr` (1), `data` (1), `capsize` (1)
 - `add_subplot`: `projection` (48), `polar` (5), `xticks` (4), `facecolor` (3), `axes_class` (3), `aspect` (3), `yticks` (2), `yscale` (2), `xticklabels` (2), `xscale` (2), `sharey` (2), `sharex` (2), `zorder` (1), `ylim` (1), `xlim` (1), `autoscale_on` (1), `anchor` (1)
 - `specgram`: `Fs` (13), `NFFT` (12), `sides` (11), `pad_to` (11), `noverlap` (11), `mode` (7), `x` (6), `scale` (4), `norm` (2), `origin` (1)
 - `contourf`: `extend` (11), `algorithm` (6), `hatches` (5), `corner_mask` (5), `norm` (4), `locator` (3), `colorizer` (3), `transform` (2), `vmin` (1), `vmax` (1), `rasterized` (1), `clip_path` (1)
@@ -303,14 +290,11 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `contour`: `linestyles` (7), `extend` (4), `negative_linestyles` (3), `colorizer` (3), `zorder` (1), `norm` (1), `linestyle` (1), `corner_mask` (1), `color` (1), `clip_path` (1), `algorithm` (1), `Z` (1)
 - `table`: `loc` (16), `cellText` (15), `rowLabels` (10), `colLabels` (10), `zorder` (2), `rowColours` (2), `colColours` (2), `bbox` (2), `fontsize` (1), `edges` (1), `colWidths` (1), `cellColours` (1)
 - `subplots_adjust`: `left` (16), `bottom` (14), `top` (12), `right` (10), `hspace` (7), `wspace` (2)
-- `fill_between`: `facecolor` (11), `alpha` (8), `where` (7), `hatch` (7), `color` (7), `interpolate` (6), `label` (5), `edgecolor` (3), `step` (2), `lw` (2), `data` (2), `transform` (1)
 - `boxplot`: `positions` (7), `capwidths` (7), `bootstrap` (7), `widths` (6), `notch` (6), `sym` (4), `label` (4), `usermedians` (3), `conf_intervals` (3), `orientation` (2), `medianprops` (2), `zorder` (1), `tick_labels` (1), `showmeans` (1), `showbox` (1), `patch_artist` (1), `manage_ticks` (1), `data` (1), `autorange` (1)
-- `axhline`: `color` (17), `lw` (7), `linewidth` (6), `xmin` (5), `xmax` (5), `zorder` (4), `y` (4), `alpha` (2), `c` (1)
 - `hlines`: `xmin` (9), `xmax` (9), `colors` (8), `linewidth` (7), `lw` (4), `color` (4), `y` (3), `ls` (2), `transform` (1), `linestyle` (1)
 - `quiverkey`: `labelpos` (8), `label` (8), `coordinates` (7), `color` (7), `angle` (5), `fontproperties` (3), `zorder` (2), `Y` (2), `X` (2), `U` (2)
 - `hexbin`: `gridsize` (8), `extent` (7), `reduce_C_function` (4), `bins` (4), `yscale` (2), `vmin` (2), `vmax` (2), `mincnt` (2), `marginals` (2), `edgecolors` (2), `colorizer` (2), `C` (2), `xscale` (1), `picker` (1), `norm` (1), `data` (1)
 - `vlines`: `linewidth` (8), `colors` (8), `ymin` (4), `ymax` (4), `lw` (4), `color` (4), `x` (3), `ls` (2), `linestyle` (2), `transform` (1), `gapcolor` (1), `alpha` (1)
-- `barh`: `left` (11), `height` (11), `width` (6), `align` (5), `y` (4), `yerr` (1), `tick_label` (1), `label` (1)
 - `subplot`: `projection` (22), `polar` (5), `theta_offset` (3), `sharey` (2), `anchor` (2), `sharex` (1), `aspect` (1)
 - `streamplot`: `linewidth` (7), `start_points` (5), `density` (5), `color` (5), `maxlength` (3), `num_arrows` (2), `integration_max_step_scale` (2), `integration_max_error_scale` (2), `cmap` (2), `broken_streamlines` (2), `transform` (1), `integration_direction` (1), `arrowsize` (1)
 - `set_title`: `loc` (16), `fontsize` (9), `pad` (5), `fontweight` (5), `y` (1)
@@ -319,21 +303,17 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `rc`: `size` (12), `fonttype` (10), `family` (7), `prop_cycle` (1), `linewidth` (1), `id` (1)
 - `axline`: `slope` (14), `color` (10), `transform` (7), `c` (1)
 - `eventplot`: `colors` (7), `lineoffsets` (6), `linelengths` (4), `alpha` (4), `linewidths` (1), `linewidth` (1), `linestyles` (1), `linestyle` (1), `label` (1), `data` (1), `color` (1)
-- `axvline`: `color` (8), `ymin` (3), `ymax` (3), `lw` (3), `zorder` (2), `x` (2), `linewidth` (2), `linestyle` (1), `gapcolor` (1), `c` (1), `alpha` (1)
 - `quiver`: `angles` (5), `scale_units` (3), `scale` (3), `pivot` (3), `width` (2), `units` (2), `transform` (2), `headlength` (2), `zorder` (1), `headwidth` (1), `headaxislength` (1), `color` (1)
 - `subplot_mosaic`: `layout` (5), `subplot_kw` (4), `width_ratios` (3), `num` (3), `sharey` (2), `sharex` (2), `per_subplot_kw` (2), `height_ratios` (2), `gridspec_kw` (2), `clear` (1)
 - `set_ylabel`: `loc` (7), `y` (5), `fontsize` (5), `ha` (4), `fontweight` (2), `fontname` (1)
 - `step`: `where` (6), `lw` (6), `linestyle` (6), `data` (3), `c` (2)
 - `set_xlabel`: `loc` (7), `fontsize` (6), `x` (4), `ha` (3), `fontname` (1)
 - `set_xlim`: `right` (9), `left` (9), `xmin` (1), `xmax` (1), `auto` (1)
-- `axhspan`: `alpha` (7), `facecolor` (5), `ymin` (3), `ymax` (3), `fc` (2)
 - `csd`: `NFFT` (5), `pad_to` (3), `noverlap` (3), `Fs` (3), `y` (2), `x` (2), `sides` (2)
 - `Circle`: `gid` (6), `transform` (5), `zorder` (3), `facecolor` (3), `clip_on` (2), `alpha` (1)
-- `axvspan`: `facecolor` (5), `alpha` (5), `xmin` (3), `xmax` (3), `fc` (2)
 - `grouped_bar`: `tick_labels` (8), `labels` (5), `positions` (1), `hatch` (1), `group_spacing` (1), `colors` (1), `bar_spacing` (1)
 - `barbs`: `transform` (3), `sizes` (3), `rounding` (3), `fill_empty` (3), `pivot` (2), `length` (2), `flip_barb` (1), `cmap` (1)
 - `Rectangle`: `hatch` (5), `label` (4), `fill` (3), `edgecolor` (2), `color` (1), `alpha` (1)
-- `fill`: `facecolor` (3), `zorder` (2), `lw` (2), `hatch` (2), `edgecolor` (2), `alpha` (2), `linewidth` (1), `ec` (1), `color` (1)
 - `grid`: `color` (4), `which` (3), `linewidth` (3), `visible` (2), `linestyle` (2), `path_effects` (1), `alpha` (1)
 - `set_prop_cycle`: `linewidth` (3), `color` (3), `lw` (2), `ls` (2), `c` (2), `marker` (1), `label` (1), `foobar` (1), `facecolor` (1)
 - `suptitle`: `y` (3), `fontsize` (3), `color` (2), `x` (1), `wrap` (1), `weight` (1), `url` (1), `size` (1), `rotation` (1), `in_layout` (1), `fontproperties` (1)
@@ -345,7 +325,6 @@ Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_withou
 - `bar_label`: `label_type` (4), `padding` (3), `fmt` (3), `labels` (2), `color` (1)
 - `imsave`: `format` (8), `pil_kwargs` (2), `dpi` (2), `origin` (1)
 - `tripcolor`: `facecolors` (6), `shading` (3), `edgecolors` (2), `clim` (1), `C` (1)
-- `fill_betweenx`: `where` (2), `step` (2), `lw` (2), `interpolate` (2), `facecolor` (2), `alpha` (2)
 - `get_figure`: `root` (11)
 - `violin`: `widths` (5), `positions` (5), `orientation` (1)
 - `arrow`: `head_length` (3), `width` (2), `head_width` (2), `shape` (1), `length_includes_head` (1), `head_starts_at_zero` (1)

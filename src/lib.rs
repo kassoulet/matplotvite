@@ -173,6 +173,20 @@ fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
         xs.extend(sc.x.as_array().iter().copied());
         ys.extend(sc.y.as_array().iter().copied());
     }
+    for bars in &p.bars {
+        let (l, w) = (bars.left.as_array(), bars.width.as_array());
+        let (b, h) = (bars.bottom.as_array(), bars.height.as_array());
+        for i in 0..l.len().min(w.len()) {
+            xs.extend([l[i], l[i] + w[i]]);
+        }
+        for i in 0..b.len().min(h.len()) {
+            ys.extend([b[i], b[i] + h[i]]);
+        }
+    }
+    for band in &p.bands {
+        xs.extend(band.x.as_array().iter().copied());
+        ys.extend(band.y.as_array().iter().copied());
+    }
     for (x, y, ylo, yhi, xlo, xhi, _, _) in &p.errors {
         let (ya, yb) = (ylo.as_array(), yhi.as_array());
         let (xa, xb) = (xlo.as_array(), xhi.as_array());
@@ -432,6 +446,10 @@ struct Panel<'py> {
     #[pyo3(item)]
     scatter: Vec<Scatter<'py>>,
     #[pyo3(item)]
+    bars: Vec<Bar<'py>>,
+    #[pyo3(item)]
+    bands: Vec<Band<'py>>,
+    #[pyo3(item)]
     colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
     #[pyo3(item)]
@@ -484,6 +502,38 @@ where
         }
     }
     Ok(())
+}
+
+/// One `bar`/`barh` call: axis-aligned rectangles in data coordinates.
+#[derive(FromPyObject)]
+struct Bar<'py> {
+    #[pyo3(item)]
+    left: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    bottom: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    width: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    height: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    colors: Vec<String>,
+    #[pyo3(item)]
+    edgecolor: Option<String>,
+    #[pyo3(item)]
+    alpha: Option<f64>,
+}
+
+/// One closed filled area (`fill_between`/`fill`) in data coordinates.
+#[derive(FromPyObject)]
+struct Band<'py> {
+    #[pyo3(item)]
+    x: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    y: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    color: String,
+    #[pyo3(item)]
+    alpha: Option<f64>,
 }
 
 /// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
@@ -811,6 +861,62 @@ where
                             area.draw(&Polygon::new(pts, col.filled()))?;
                         }
                     }
+                }
+            }
+        }
+    }
+    // Filled areas (`fill_between`/`fill`): closed data-space polygons.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for band in &p.bands {
+            let (xs, ys) = (band.x.as_array(), band.y.as_array());
+            if xs.len() < 3 || xs.len() != ys.len() {
+                continue;
+            }
+            let pts: Vec<(i32, i32)> = xs
+                .iter()
+                .zip(ys.iter())
+                .map(|(x, y)| {
+                    let (px, py) = chart_area.map_coordinate(&(*x, *y));
+                    (px - base.0, py - base.1)
+                })
+                .collect();
+            let col = match band.alpha {
+                Some(a) => color(&band.color).mix(a.clamp(0.0, 1.0)),
+                None => color(&band.color).mix(1.0),
+            };
+            area.draw(&Polygon::new(pts, col.filled()))?;
+        }
+    }
+    // Bars: axis-aligned rectangles, above the filled contours and below lines.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for bars in &p.bars {
+            let (l, b) = (bars.left.as_array(), bars.bottom.as_array());
+            let (w, h) = (bars.width.as_array(), bars.height.as_array());
+            for i in 0..l.len().min(b.len()).min(w.len()).min(h.len()) {
+                let col = if bars.colors.is_empty() {
+                    RGBColor(31, 119, 180)
+                } else {
+                    color(&bars.colors[i % bars.colors.len()])
+                };
+                let col = match bars.alpha {
+                    Some(a) => col.mix(a.clamp(0.0, 1.0)),
+                    None => col.mix(1.0),
+                };
+                let (x0, y0) = chart_area.map_coordinate(&(l[i], b[i]));
+                let (x1, y1) = chart_area.map_coordinate(&(l[i] + w[i], b[i] + h[i]));
+                let (xl, xr) = (x0.min(x1) - base.0, x0.max(x1) - base.0);
+                let (yt, yb) = (y0.min(y1) - base.1, y0.max(y1) - base.1);
+                if xr <= xl || yb <= yt {
+                    continue;
+                }
+                area.draw(&Rectangle::new([(xl, yt), (xr, yb)], col.filled()))?;
+                if let Some(ec) = &bars.edgecolor {
+                    let ecol = color(ec).stroke_width(1);
+                    area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
                 }
             }
         }
@@ -1232,6 +1338,8 @@ fn save(
             && p.contours.is_empty()
             && p.errors.is_empty()
             && p.scatter.is_empty()
+            && p.bars.is_empty()
+            && p.bands.is_empty()
             && p.colorbar.is_none()
     }) {
         return Err(PyRuntimeError::new_err("nothing to plot"));

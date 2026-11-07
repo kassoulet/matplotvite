@@ -74,6 +74,12 @@ class Axes:
         self.contours = []
         self.errors = []
         self.scatter_pts = []
+        self.bars = []
+        self.bands = []
+        self.hlines = []
+        self.vlines = []
+        self.hspans = []
+        self.vspans = []
         self.aspect = None
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
@@ -148,6 +154,11 @@ class Axes:
             xs.extend([float(c["x"][0]), float(c["x"][-1])])
         for sc in self.scatter_pts:
             xs.extend(sc["x"])
+        for bars in self.bars:
+            xs.extend(bars["left"])
+            xs.extend(bars["left"] + bars["width"])
+        for band in self.bands:
+            xs.extend(band["x"])
         for e in self.errors:
             xs.extend(e[0] - e[4])
             xs.extend(e[0] + e[5])
@@ -163,6 +174,11 @@ class Axes:
             ys.extend([float(c["y"][0]), float(c["y"][-1])])
         for sc in self.scatter_pts:
             ys.extend(sc["y"])
+        for bars in self.bars:
+            ys.extend(bars["bottom"])
+            ys.extend(bars["bottom"] + bars["height"])
+        for band in self.bands:
+            ys.extend(band["y"])
         for e in self.errors:
             ys.extend(e[1] - e[2])
             ys.extend(e[1] + e[3])
@@ -261,6 +277,12 @@ class Axes:
         self.contours.clear()
         self.errors.clear()
         self.scatter_pts.clear()
+        self.bars.clear()
+        self.bands.clear()
+        self.hlines.clear()
+        self.vlines.clear()
+        self.hspans.clear()
+        self.vspans.clear()
         self.artists.clear()
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
@@ -371,6 +393,98 @@ class Axes:
         self.set_aspect("equal" if aspect is None else aspect)
         return AxesImage(entry)
 
+    def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
+            align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
+        """Vertical bars; `color` may be a single colour or one per bar."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        n = x.size
+        h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
+        if align not in ("center", "edge"):
+            raise ValueError(f"unsupported align: {align!r}")
+        left = x - w / 2.0 if align == "center" else x
+        colors = _bar_colors(color, n)
+        self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
+                              colors=colors,
+                              edgecolor=None if edgecolor is None else str(edgecolor),
+                              alpha=None if alpha is None else float(alpha), label=str(label)))
+        if yerr is not None:
+            lo, hi = _err_pair(yerr, n, "yerr")
+            ecolor = edgecolor or (colors[0] if colors else "#1f77b4")
+            self.errors.append((np.ascontiguousarray(left + w / 2.0),
+                                np.ascontiguousarray(b + h), lo, hi,
+                                np.zeros(n), np.zeros(n), str(ecolor), 0.0))
+
+    def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
+             align="center", alpha=None, linewidth=None, **kwargs):
+        """Horizontal bars, stored as the same rectangles as `bar`."""
+        y = np.asarray(y, dtype=np.float64).ravel()
+        n = y.size
+        w, h, l = _fill(width, n), _fill(height, n), _fill(left, n)
+        if align not in ("center", "edge"):
+            raise ValueError(f"unsupported align: {align!r}")
+        bottom = y - h / 2.0 if align == "center" else y
+        self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
+                              colors=_bar_colors(color, n),
+                              edgecolor=None if edgecolor is None else str(edgecolor),
+                              alpha=None if alpha is None else float(alpha), label=str(label)))
+
+    def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
+                     alpha=None, label="", step=None, **kwargs):
+        """Fill between two curves; `where` masks split the area into runs."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        a, b = _fill(y1, x.size), _fill(y2, x.size)
+        c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
+        for xs, ya, yb in _runs(x, a, b, where):
+            self.bands.append(_band(np.concatenate([xs, xs[::-1]]),
+                                    np.concatenate([ya, yb[::-1]]), c, alpha))
+
+    def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
+                      **kwargs):
+        y = np.asarray(y, dtype=np.float64).ravel()
+        a, b = _fill(x1, y.size), _fill(x2, y.size)
+        c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
+        for ys, xa, xb in _runs(y, a, b, where):
+            self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
+                                    np.concatenate([ys, ys[::-1]]), c, alpha))
+
+    def fill(self, *args, color=None, alpha=None, label="", **kwargs):
+        """Closed polygon: `fill(x, y)` or `fill(x1, y1, x2, y2)`."""
+        c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
+        if len(args) == 2:
+            self.bands.append(_band(_as_f64(args[0]), _as_f64(args[1]), c, alpha))
+        elif len(args) == 4:
+            x1, y1, x2, y2 = (_as_f64(a) for a in args)
+            self.bands.append(_band(np.concatenate([x1, x2[::-1]]),
+                                    np.concatenate([y1, y2[::-1]]), c, alpha))
+        else:
+            raise TypeError("fill expects (x, y) or (x1, y1, x2, y2)")
+
+    def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
+                alpha=None, label="", **kwargs):
+        """Horizontal line at data `y`, spanning an axes-fraction x range."""
+        self.hlines.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
+                                linestyle=linestyle, linewidth=linewidth, alpha=alpha,
+                                label=str(label)))
+
+    def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
+                alpha=None, label="", **kwargs):
+        """Vertical line at data `x`, spanning an axes-fraction y range."""
+        self.vlines.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
+                                linestyle=linestyle, linewidth=linewidth, alpha=alpha,
+                                label=str(label)))
+
+    def axhspan(self, ymin, ymax, xmin=0.0, xmax=1.0, color=None, alpha=None, label="",
+                **kwargs):
+        """Horizontal band between two data y values, over an axes-fraction x range."""
+        self.hspans.append(dict(ymin=float(ymin), ymax=float(ymax), xmin=float(xmin),
+                                xmax=float(xmax), color=color, alpha=alpha, label=str(label)))
+
+    def axvspan(self, xmin, xmax, ymin=0.0, ymax=1.0, color=None, alpha=None, label="",
+                **kwargs):
+        """Vertical band between two data x values, over an axes-fraction y range."""
+        self.vspans.append(dict(xmin=float(xmin), xmax=float(xmax), ymin=float(ymin),
+                                ymax=float(ymax), color=color, alpha=alpha, label=str(label)))
+
     def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading="auto",
                    alpha=None, norm=None, **kwargs):
         """Quad mesh: each Z cell is filled through `cmap` via the image path.
@@ -462,13 +576,45 @@ class Axes:
 
     def _panel(self):
         (x0, x1), (y0, y1) = self._limits()
-        return dict(pos=self.pos, series=self.lines, texts=self.texts, title=self.title,
+        dx, dy = x1 - x0, y1 - y0
+        # Reference lines and bands are axes-fraction based, so they are resolved
+        # here, once the drawing limits are known.
+        series = list(self.lines)
+        for h in self.hlines:
+            series.append(_series([x0 + h["xmin"] * dx, x0 + h["xmax"] * dx],
+                                  [h["y"], h["y"]], h["label"], h["color"] or "black",
+                                  linestyle=h["linestyle"] or "-",
+                                  linewidth=1.5 if h["linewidth"] is None else float(h["linewidth"]),
+                                  alpha=h["alpha"]))
+        for v in self.vlines:
+            series.append(_series([v["x"], v["x"]],
+                                  [y0 + v["ymin"] * dy, y0 + v["ymax"] * dy],
+                                  v["label"], v["color"] or "black",
+                                  linestyle=v["linestyle"] or "-",
+                                  linewidth=1.5 if v["linewidth"] is None else float(v["linewidth"]),
+                                  alpha=v["alpha"]))
+        bars = [{k: val for k, val in e.items() if k != "label"} for e in self.bars]
+        for s in self.hspans:
+            lo, hi = min(s["ymin"], s["ymax"]), max(s["ymin"], s["ymax"])
+            bars.append(dict(left=np.array([x0 + s["xmin"] * dx]), bottom=np.array([lo]),
+                             width=np.array([(s["xmax"] - s["xmin"]) * dx]),
+                             height=np.array([hi - lo]), colors=[s["color"] or "0.5"],
+                             edgecolor=None, alpha=s["alpha"]))
+        for s in self.vspans:
+            lo, hi = min(s["xmin"], s["xmax"]), max(s["xmin"], s["xmax"])
+            bars.append(dict(left=np.array([lo]), bottom=np.array([y0 + s["ymin"] * dy]),
+                             width=np.array([hi - lo]),
+                             height=np.array([(s["ymax"] - s["ymin"]) * dy]),
+                             colors=[s["color"] or "0.5"], edgecolor=None, alpha=s["alpha"]))
+        return dict(pos=self.pos, series=series, texts=self.texts, title=self.title,
                     xlabel=self.xlabel, ylabel=self.ylabel, legend=self.show_legend,
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
                     contours=[(c["x"], c["y"], c["z"], c["levels"], c["colors"], c["cmap"],
                                c["filled"]) for c in self.contours],
                     errors=self.errors,
+                    bars=bars,
+                    bands=self.bands,
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"])
@@ -544,6 +690,53 @@ def _parse_fmt(fmt):
         else:
             i += 1
     return color, style, mark
+
+
+def _as_f64(v):
+    return np.ascontiguousarray(np.asarray(v, dtype=np.float64).ravel())
+
+
+def _band(xs, ys, color, alpha):
+    return dict(x=_as_f64(xs), y=_as_f64(ys), color=str(color),
+                alpha=None if alpha is None else float(alpha))
+
+
+def _runs(x, y1, y2, where):
+    """Split the curve into contiguous runs where `where` is true."""
+    if where is None:
+        mask = np.ones(x.size, dtype=bool)
+    else:
+        mask = np.asarray(where, dtype=bool).ravel()
+        if mask.size != x.size:
+            raise ValueError("where must have one entry per point")
+    runs = []
+    start = None
+    for i, on in enumerate(mask):
+        if on and start is None:
+            start = i
+        elif not on and start is not None:
+            runs.append((x[start:i], y1[start:i], y2[start:i]))
+            start = None
+    if start is not None:
+        runs.append((x[start:], y1[start:], y2[start:]))
+    return runs
+
+
+def _fill(values, n):
+    a = np.asarray(values, dtype=np.float64).ravel()
+    if a.size == 1:
+        return np.full(n, float(a[0]))
+    if a.size != n:
+        raise ValueError(f"expected a scalar or {n} values, got {a.size}")
+    return np.ascontiguousarray(a)
+
+
+def _bar_colors(color, n):
+    if color is None:
+        return []
+    if isinstance(color, str):
+        return [color]
+    return [str(v) for v in np.asarray(color, dtype=object).ravel()]
 
 
 def _sizes(s, n):
@@ -793,7 +986,7 @@ class Figure:
         cb = self._colorbar
         return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
                     legend=False, xlim=None, ylim=None, annotations=[], images=[],
-                    contours=[], errors=[], scatter=[], aspect=None, axis_off=False,
+                    contours=[], errors=[], scatter=[], bars=[], bands=[], aspect=None, axis_off=False,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
@@ -844,6 +1037,15 @@ def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                         interpolation=interpolation, aspect=aspect, alpha=alpha)
 
 
+def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
+def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
+def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
+def axhline(*args, **kwargs): return gca().axhline(*args, **kwargs)
+def axvline(*args, **kwargs): return gca().axvline(*args, **kwargs)
+def axhspan(*args, **kwargs): return gca().axhspan(*args, **kwargs)
+def axvspan(*args, **kwargs): return gca().axvspan(*args, **kwargs)
+def bar(*args, **kwargs): return gca().bar(*args, **kwargs)
+def barh(*args, **kwargs): return gca().barh(*args, **kwargs)
 def pcolormesh(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolor(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolorfast(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)

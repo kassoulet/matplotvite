@@ -777,3 +777,100 @@ def test_pcolormesh_vmin_changes_cells(tmp_path):
         plt.savefig(p)
         uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text()).group(1))
     assert uris[0] != uris[1]
+
+
+def test_bar_renders_rectangles(tmp_path):
+    plt.figure((4, 3))
+    plt.bar([1, 2, 3], [3, 1, 2], width=0.5, color="red", edgecolor="black")
+    p = tmp_path / "bar.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<RECT") >= 4  # background plus one per bar
+    assert "#D62728" in s
+
+
+def test_barh_and_per_bar_colors(tmp_path):
+    plt.figure()
+    plt.barh([1, 2], [3, 4], height=0.4, color=["red", "green"])
+    p = tmp_path / "barh.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_bar_yerr_and_validation(tmp_path):
+    plt.figure()
+    plt.bar([1, 2], [3, 4], yerr=0.5, capsize=0)
+    p = tmp_path / "bar_err.svg"
+    plt.savefig(p)
+    assert p.read_text().count("<polyline") >= 2
+    with pytest.raises(ValueError):
+        plt.bar([1, 2], [1, 2], align="middle")
+    with pytest.raises(ValueError):
+        plt.bar([1, 2], [1, 2, 3])
+
+
+def test_bar_updates_limits():
+    plt.figure()
+    ax = plt.gca()
+    ax.bar([2], [5], width=2, bottom=1)
+    assert ax.get_xlim() == (1.0, 3.0)
+    assert ax.get_ylim() == (1.0, 6.0)
+
+
+def test_fill_between_polygon(tmp_path):
+    x = np.linspace(0, 2 * np.pi, 25)
+    plt.figure()
+    plt.fill_between(x, np.sin(x), 0.5, color="tab:blue", alpha=0.35)
+    p = tmp_path / "fb.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<POLYGON") >= 1
+    assert "#1F77B4" in s
+    lo, hi = plt.gca().get_ylim()
+    assert lo <= 0.5 and hi >= 1.0
+    assert len(re.findall(r'<polygon[^>]*points="', p.read_text())) == 1
+
+
+def test_fill_between_where_splits_runs(tmp_path):
+    x = np.arange(10.0)
+    plt.figure()
+    plt.fill_between(x, x, 0, where=(x > 2) & (x < 6), color="red")
+    p = tmp_path / "fbw.svg"
+    plt.savefig(p)
+    pts = re.findall(r'<polygon[^>]*points="([^"]+)"', p.read_text())
+    assert len(pts) == 1
+    assert len(pts[0].split()) == 6  # x = 3, 4, 5 forward, then the three back
+    with pytest.raises(ValueError):
+        plt.fill_between(x, x, 0, where=np.ones(3, dtype=bool))
+
+
+def test_fill_and_fill_betweenx(tmp_path):
+    plt.figure()
+    plt.fill([0, 1, 1, 0], [0, 0, 1, 1], color="green")
+    plt.figure()
+    plt.fill_betweenx([1, 2, 3], [0, 0.5, 0], 1.5, color="red")
+    p = tmp_path / "fills.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    with pytest.raises(TypeError):
+        plt.fill([0, 1], [0, 1], 3)
+
+
+def test_axhline_vline_spans(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.set_xlim(0, 10)
+    ax.set_ylim(-2, 2)
+    ax.axhline(1, color="red", linestyle="--")
+    ax.axvline(5, color="blue")
+    ax.axhspan(-1, 0, color="grey", alpha=0.5)
+    ax.axvspan(2, 3, color="pink", alpha=0.4)
+    p = tmp_path / "refs.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#1F77B4" in s
+    assert s.count("<POLYLINE") >= 2
+    assert s.count("<RECT") >= 3  # background plus two bands
+    # Reference lines and bands never move the data limits.
+    assert ax.get_xlim() == (0.0, 10.0)
+    assert ax.get_ylim() == (-2.0, 2.0)

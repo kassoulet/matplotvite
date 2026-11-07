@@ -65,6 +65,12 @@ plt.savefig("contours.png")
   markers `o s ^ v < > D x + .`
 - `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)` — scalar, per-point or
   `(2, N)` asymmetric errors, with optional caps
+- `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` and
+  `barh(...)` — single or per-bar colours, optional edge and error bars
+- `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
+  filled polygons; `where` masks split into separate runs
+- `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
+  ranges, resolved against the final limits
 
 **Gridded data**
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=)` — 2-D arrays mapped
@@ -102,7 +108,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 001 / 10 098 (79%)**. CI re-runs the trace against
+accepts — currently **8 249 / 10 098 (81%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks
