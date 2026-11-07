@@ -23,4 +23,5 @@ hooks = [
   { id = "cargo-fmt", name = "cargo fmt --check", entry = "cargo fmt --all -- --check", language = "system", pass_filenames = false },
   { id = "cargo-clippy", name = "cargo clippy", entry = "cargo clippy --all-targets -- -D warnings", language = "system", pass_filenames = false },
   { id = "cargo-test", name = "cargo test", entry = "cargo test --all-targets", language = "system", pass_filenames = false },
+  { id = "security-audit", name = "security audit", entry = "python tools/security_audit.py", language = "python", additional_dependencies = ["bandit>=1.9", "pip-audit>=2.9", "numpy"], pass_filenames = false, stages = ["pre-push"] },
 ]

@@ -200,4 +200,5 @@ Interactive display windows, `plt.show()` opening a GUI, animation (`FuncAnimati
 - Benchmarks page vs matplotlib — built from the checked-in results; refresh with `tools/benchmark.py`
 - Gallery page of sample outputs — deployed to GitHub Pages (`tools/build_pages.py`)
 - prek pre-commit hooks: `cargo fmt`, `cargo clippy --deny warnings`, `cargo test`, whitespace/EOF checks
+- Mandatory security scan on pre-push and CI: `cargo audit`, Bandit on runtime Python, `pip-audit`, and secret-key detection
 - Python test matrix: 3.9 → 3.14 on every PR (`maturin develop --release`, then `pytest`)

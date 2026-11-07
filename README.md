@@ -1,5 +1,9 @@
 # plt.rs
 
+> **Experimental and incomplete.** `plt.rs` is under active development, its API
+> may change between releases, and it does not yet cover the full matplotlib
+> surface. Do not rely on it for production-critical output without validation.
+
 Matplotlib-style static plots, rendered and encoded to PNG, SVG or PDF entirely in
 Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
 
@@ -202,6 +206,18 @@ ruff check python tests tools examples
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
+```
+
+## Security
+
+The same mandatory scan runs on pre-push through `prek` and in the CI security
+job. It checks Cargo.lock with `cargo audit`, scans the shipped Python package
+with Bandit, and audits installed Python packages with `pip-audit`:
+
+```bash
+cargo install cargo-audit --locked
+pip install "bandit>=1.9" "pip-audit>=2.9" numpy
+python tools/security_audit.py
 ```
 
 ## License
