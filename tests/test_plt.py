@@ -1492,6 +1492,28 @@ def test_title_fontsize(tmp_path):
     assert any(10.5 < v < 12 for v in sizes)  # xlabel at 14pt
 
 
+def test_subplots_share_limits_and_hide_inner_labels(tmp_path):
+    fig, axs = plt.subplots(2, 2, figsize=(4, 4), sharex=True, sharey=True)
+    axs[0, 0].plot([0, 10], [0, 10])
+    axs[1, 1].plot([5, 6], [50, 60])
+    assert axs[0, 1].get_xlim() == axs[1, 1].get_xlim()
+    assert axs[0, 0].get_ylim() == axs[1, 1].get_ylim()
+    axs[1, 0].set_xlim(0, 20)
+    assert axs[0, 1].get_xlim() == (0.0, 20.0)
+    assert axs[0, 0].hide_xticklabels and axs[0, 1].hide_xticklabels
+    assert axs[0, 1].hide_yticklabels and axs[1, 1].hide_yticklabels
+    assert not axs[1, 1].hide_xticklabels and not axs[0, 0].hide_yticklabels
+    p = tmp_path / "shared.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_subplots_squeeze_false_keeps_array():
+    fig, axs = plt.subplots(1, 1, squeeze=False)
+    assert axs.shape == (1, 1)
+    assert axs[0, 0].get_figure() is fig
+
+
 def test_suptitle_renders_above_the_grid(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])

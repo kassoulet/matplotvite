@@ -83,6 +83,52 @@ def _is_rgb(c):
             and all(isinstance(v, (int, float, np.number)) for v in c))
 
 
+class _Share:
+    """Limit group behind `sharex`/`sharey`: explicit limits win, otherwise the
+    union of every member's data extent."""
+
+    def __init__(self):
+        self.limits = None
+        self.axes = []
+
+    def union(self, axis):
+        spans = [(a._extent_x() if axis == "x" else a._extent_y()) for a in self.axes]
+        return (min(s[0] for s in spans), max(s[1] for s in spans))
+
+
+def _share_axes(axs, shape, sharex, sharey):
+    """Join axes into limit groups and hide duplicate inner tick labels."""
+    rows, cols = shape
+    grid = np.array(axs, dtype=object).reshape(rows, cols)
+
+    def attach(kind, attr, key):
+        if not kind:
+            return
+        if kind in (True, "all"):
+            def key(_a):
+                return 0
+        groups = {}
+        for ax in axs:
+            group = groups.setdefault(key(ax), _Share())
+            group.axes.append(ax)
+            setattr(ax, attr, group)
+
+    if sharex:
+        attach(sharex, "_share_x",
+               (lambda a: a.pos % cols) if sharex == "col" else (lambda a: a.pos // cols))
+        for c in range(cols):
+            column = [grid[r][c] for r in range(rows) if not grid[r][c]._removed]
+            for ax in column[:-1]:
+                ax.hide_xticklabels = True
+    if sharey:
+        attach(sharey, "_share_y",
+               (lambda a: a.pos // cols) if sharey == "row" else (lambda a: a.pos % cols))
+        for r in range(rows):
+            row = [grid[r][c] for c in range(cols) if not grid[r][c]._removed]
+            for ax in row[1:]:
+                ax.hide_yticklabels = True
+
+
 class _CoordTransform:
     """Marker for `text(transform=...)`: data, axes or figure coordinates."""
 
@@ -300,6 +346,8 @@ class Axes:
         self._xticklabels = self._yticklabels = None
         self._inverted = [False, False]
         self._pos_override = None
+        self._share_x = self._share_y = None
+        self.hide_xticklabels = self.hide_yticklabels = False
         self._fig = None
 
     def plot(self, *args, label="", color=None, c=None, linestyle=None, ls=None,
@@ -394,11 +442,17 @@ class Axes:
         return _span(ys)
 
     def get_xlim(self):
-        lo, hi = self.xlim or self._extent_x()
+        if self._share_x is not None:
+            lo, hi = self._share_x.limits or self._share_x.union("x")
+        else:
+            lo, hi = self.xlim or self._extent_x()
         return _log_bounds(lo, hi, self.xscale, self._extent_x())
 
     def get_ylim(self):
-        lo, hi = self.ylim or self._extent_y()
+        if self._share_y is not None:
+            lo, hi = self._share_y.limits or self._share_y.union("y")
+        else:
+            lo, hi = self.ylim or self._extent_y()
         return _log_bounds(lo, hi, self.yscale, self._extent_y())
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
@@ -956,8 +1010,15 @@ class Axes:
     def _size_or(value, key):
         return float(value) if value is not None else float(rcParams.get(key, rcParams.get("font.size", 10.0)))
 
-    def set_xlim(self, lo, hi): self.xlim = (float(lo), float(hi))
-    def set_ylim(self, lo, hi): self.ylim = (float(lo), float(hi))
+    def set_xlim(self, lo, hi):
+        limits = self.xlim = (float(lo), float(hi))
+        if self._share_x is not None:
+            self._share_x.limits = limits
+
+    def set_ylim(self, lo, hi):
+        limits = self.ylim = (float(lo), float(hi))
+        if self._share_y is not None:
+            self._share_y.limits = limits
 
     def legend(self, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
                title=None, title_fontsize=None, bbox_to_anchor=None, **kwargs):
@@ -1356,7 +1417,9 @@ class Axes:
                     ticks=dict(xticks=self._xticks, xticklabels=self._xticklabels,
                                yticks=self._yticks, yticklabels=self._yticklabels,
                                xstyle=self._tick_style_dict("x"),
-                               ystyle=self._tick_style_dict("y")),
+                               ystyle=self._tick_style_dict("y"),
+                               hide_xlabels=self.hide_xticklabels,
+                               hide_ylabels=self.hide_yticklabels),
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
@@ -1776,9 +1839,13 @@ class Figure:
         self._cur = ax
         return ax
 
-    def subplots(self, nrows=1, ncols=1):
+    def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True):
         axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
-        return axs[0] if len(axs) == 1 else np.array(axs, dtype=object).reshape(nrows, ncols).squeeze()
+        _share_axes(axs, (nrows, ncols), sharex, sharey)
+        if len(axs) == 1 and squeeze:
+            return axs[0]
+        out = np.array(axs, dtype=object).reshape(nrows, ncols)
+        return out.squeeze() if squeeze else out
 
     def gca(self):
         return self._cur or self.add_subplot()
@@ -1840,7 +1907,8 @@ class Figure:
                     grid=dict(show=False, color=None, linewidth=None, alpha=None,
                               linestyle=None, axis="both"),
                     ticks=dict(xticks=None, xticklabels=None, yticks=None,
-                               yticklabels=None, xstyle=dict(tick), ystyle=dict(tick)),
+                               yticklabels=None, xstyle=dict(tick), ystyle=dict(tick),
+                               hide_xlabels=False, hide_ylabels=False),
                     xlim=None, ylim=None, annotations=[], images=[],
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
                     x_log=False, y_log=False, log_base=10.0, aspect=None,
@@ -1913,9 +1981,9 @@ def close(*_): global _fig; _fig = None
 
 
 def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
-             edgecolor=None, **kwargs):
+             edgecolor=None, sharex=False, sharey=False, squeeze=True, **kwargs):
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
-    return fig, fig.subplots(nrows, ncols)
+    return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey, squeeze=squeeze)
 
 
 def subplot(nrows, ncols, index): return gcf().add_subplot(nrows, ncols, index)

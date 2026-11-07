@@ -205,6 +205,11 @@ pub(crate) struct Ticks {
     pub(crate) xstyle: TickStyle,
     #[pyo3(item)]
     pub(crate) ystyle: TickStyle,
+    /// Shared axes hide the inner tick labels, matching matplotlib.
+    #[pyo3(item)]
+    pub(crate) hide_xlabels: bool,
+    #[pyo3(item)]
+    pub(crate) hide_ylabels: bool,
 }
 
 /// One collected legend row; icons match the artist that registered it.

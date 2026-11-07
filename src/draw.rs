@@ -223,7 +223,7 @@ where
             vec![(px, bottom), (px, bottom + xtick_len as i32)],
             xtick_col.stroke_width(xtick_w),
         ))?;
-        if !label.is_empty() {
+        if !label.is_empty() && !p.ticks.hide_xlabels {
             let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation)
                 .pos(Pos::new(HPos::Center, VPos::Top));
             area.draw(&Text::new(
@@ -245,7 +245,7 @@ where
             vec![(left - ytick_len as i32, py), (left, py)],
             ytick_col.stroke_width(ytick_w),
         ))?;
-        if !label.is_empty() {
+        if !label.is_empty() && !p.ticks.hide_ylabels {
             let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation)
                 .pos(Pos::new(HPos::Right, VPos::Center));
             area.draw(&Text::new(
@@ -780,7 +780,7 @@ where
     }
     if !p.axis_off {
         let x_fmt = move |v: &f64| {
-            if manual {
+            if manual || p.ticks.hide_xlabels {
                 String::new()
             } else if p.x_log {
                 log_label(*v, base)
@@ -789,7 +789,7 @@ where
             }
         };
         let y_fmt = move |v: &f64| {
-            if manual {
+            if manual || p.ticks.hide_ylabels {
                 String::new()
             } else if p.y_log {
                 log_label(*v, base)
