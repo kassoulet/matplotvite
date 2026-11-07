@@ -179,6 +179,7 @@ class Axes:
         self.artists, self.label, self.zorder = [], "", 0
         self.facecolor, self.alpha = "white", None
         self.xscale = self.yscale = "linear"
+        self.log_base = 10.0
         self.show_grid = False
         self.minor_ticks = False
         self.tick_params_box = {}
@@ -521,7 +522,7 @@ class Axes:
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
              label=None, alpha=None, edgecolor=None, stacked=False, **kwargs):
         """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
-        if histtype != "bar":
+        if histtype not in ("bar", "step", "stepfilled"):
             raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
         data = np.asarray(x, dtype=np.float64).ravel()
         counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
@@ -529,20 +530,34 @@ class Axes:
         if cumulative:
             counts = np.cumsum(counts)
         widths = np.diff(edges)
+        base = np.zeros(counts.size) if bottom is None else _fill(bottom, counts.size)
         bar_align = "edge" if align in ("left", "edge") else "center"
         if bar_align == "edge":
             centers = edges[:-1]
         else:
             centers = (edges[:-1] + edges[1:]) / 2.0
         lab = "" if label is None else str(label)
-        if orientation == "horizontal":
-            handles = self.barh(centers, counts, height=widths, align=bar_align, color=color,
-                                edgecolor=edgecolor, alpha=alpha, label=lab)
-        elif orientation == "vertical":
-            handles = self.bar(centers, counts, width=widths, align=bar_align, color=color,
-                               edgecolor=edgecolor, alpha=alpha, label=lab)
-        else:
-            raise ValueError(f"unsupported orientation: {orientation!r}")
+        if histtype == "bar":
+            if orientation == "horizontal":
+                handles = self.barh(centers, counts, height=widths, left=base,
+                                    align=bar_align, color=color, edgecolor=edgecolor,
+                                    alpha=alpha, label=lab)
+            elif orientation == "vertical":
+                handles = self.bar(centers, counts, width=widths, bottom=base,
+                                   align=bar_align, color=color, edgecolor=edgecolor,
+                                   alpha=alpha, label=lab)
+            else:
+                raise ValueError(f"unsupported orientation: {orientation!r}")
+            return np.asarray(counts, dtype=np.float64), edges, handles
+        if orientation != "vertical":
+            raise NotImplementedError("histtype step needs orientation='vertical'")
+        sx = np.empty(2 * counts.size)
+        sy = np.empty(2 * counts.size)
+        sx[0::2], sx[1::2] = edges[:-1], edges[1:]
+        sy[0::2], sy[1::2] = counts, counts
+        if histtype == "stepfilled":
+            self.fill_between(sx, sy, np.repeat(base, 2), color=color, alpha=alpha)
+        handles = self.plot(sx, sy, color=color, label=lab)
         return np.asarray(counts, dtype=np.float64), edges, handles
 
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
@@ -631,7 +646,7 @@ class Axes:
         c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
         for xs, ya, yb in _runs(x, a, b, where):
             self.bands.append(_band(np.concatenate([xs, xs[::-1]]),
-                                    np.concatenate([ya, yb[::-1]]), c, alpha))
+                                    np.concatenate([ya, yb[::-1]]), c, alpha, label))
 
     def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
                       **kwargs):
@@ -640,17 +655,17 @@ class Axes:
         c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
         for ys, xa, xb in _runs(y, a, b, where):
             self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
-                                    np.concatenate([ys, ys[::-1]]), c, alpha))
+                                    np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
     def fill(self, *args, color=None, alpha=None, label="", **kwargs):
         """Closed polygon: `fill(x, y)` or `fill(x1, y1, x2, y2)`."""
         c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
         if len(args) == 2:
-            self.bands.append(_band(_as_f64(args[0]), _as_f64(args[1]), c, alpha))
+            self.bands.append(_band(_as_f64(args[0]), _as_f64(args[1]), c, alpha, label))
         elif len(args) == 4:
             x1, y1, x2, y2 = (_as_f64(a) for a in args)
             self.bands.append(_band(np.concatenate([x1, x2[::-1]]),
-                                    np.concatenate([y1, y2[::-1]]), c, alpha))
+                                    np.concatenate([y1, y2[::-1]]), c, alpha, label))
         else:
             raise TypeError("fill expects (x, y) or (x1, y1, x2, y2)")
 
@@ -724,7 +739,8 @@ class Axes:
             x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
             values=values, cmap=cmap or "viridis",
             clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
-            marker=str(marker), alpha=1.0 if alpha is None else float(alpha)))
+            marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
+            label=str(label)))
 
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
                  capsize=None, label="", color=None, **kwargs):
@@ -745,6 +761,9 @@ class Axes:
             self.lines.append(_series(x, y, label, c))
         self.errors.append((np.ascontiguousarray(x), np.ascontiguousarray(y), ylo, yhi,
                             xlo, xhi, c, float(capsize or 0.0) * 1.4))
+        _, _, marker = _stem_fmt(fmt, "")
+        if marker:
+            self.scatter(x, y, s=36, c=c, marker=marker)
 
     def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
         """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
@@ -793,15 +812,16 @@ class Axes:
             half = float(lengths[i]) / 2.0
             if orientation == "horizontal":
                 self.vlines(row, offsets[i] - half, offsets[i] + half,
-                            colors=cols[i], linestyles=styles[i])
+                            colors=cols[i], linestyles=styles[i], linewidths=linewidths)
             elif orientation == "vertical":
                 self.hlines(row, offsets[i] - half, offsets[i] + half,
-                            colors=cols[i], linestyles=styles[i])
+                            colors=cols[i], linestyles=styles[i], linewidths=linewidths)
             else:
                 raise ValueError(f"unsupported orientation: {orientation!r}")
         return None
 
-    def broken_barh(self, xranges, yrange, colors=None, **kwargs):
+    def broken_barh(self, xranges, yrange, colors=None, edgecolor=None, alpha=None,
+                    linewidth=None, **kwargs):
         """Horizontal bars from `(xstart, width)` pairs over a shared y range."""
         pairs = [(float(a), float(b)) for a, b in xranges]
         if not pairs:
@@ -811,7 +831,9 @@ class Axes:
                               bottom=np.full(n, float(yrange[0])),
                               width=np.array([b for _, b in pairs]),
                               height=np.full(n, float(yrange[1])),
-                              colors=_bar_colors(colors, n), edgecolor=None, alpha=None,
+                              colors=_bar_colors(colors, n),
+                              edgecolor=None if edgecolor is None else str(edgecolor),
+                              alpha=None if alpha is None else float(alpha),
                               label="", vertical=True))
         return None
 
@@ -840,23 +862,29 @@ class Axes:
             alpha=kwargs.get("alpha"), label=str(kwargs.get("label", ""))))
         return None
 
-    def hlines(self, y, xmin, xmax, colors=None, linestyles=None, label="", **kwargs):
+    def hlines(self, y, xmin, xmax, colors=None, linestyles=None, linewidths=None,
+               label="", **kwargs):
         """Horizontal segments from `xmin` to `xmax` at every `y`."""
         ys = np.asarray(y, dtype=np.float64).ravel()
         lo, hi = _fill(xmin, ys.size), _fill(xmax, ys.size)
         cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
+        widths = _fill(linewidths, ys.size) if linewidths is not None else None
         for i in range(ys.size):
-            self.lines.append(_series([lo[i], hi[i]], [ys[i], ys[i]], label, cols[i],
-                                      linestyle=styles[i]))
+            self.lines.append(_series(
+                [lo[i], hi[i]], [ys[i], ys[i]], label, cols[i], linestyle=styles[i],
+                linewidth=2.0 if widths is None else float(widths[i])))
 
-    def vlines(self, x, ymin, ymax, colors=None, linestyles=None, label="", **kwargs):
+    def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
+               label="", **kwargs):
         """Vertical segments from `ymin` to `ymax` at every `x`."""
         xs = np.asarray(x, dtype=np.float64).ravel()
         lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
         cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
+        widths = _fill(linewidths, xs.size) if linewidths is not None else None
         for i in range(xs.size):
-            self.lines.append(_series([xs[i], xs[i]], [lo[i], hi[i]], label, cols[i],
-                                      linestyle=styles[i]))
+            self.lines.append(_series(
+                [xs[i], xs[i]], [lo[i], hi[i]], label, cols[i], linestyle=styles[i],
+                linewidth=2.0 if widths is None else float(widths[i])))
 
     def stem(self, *args, linefmt=None, markerfmt=None, basefmt=None, bottom=0.0, label="",
              orientation="vertical", **kwargs):
@@ -871,16 +899,24 @@ class Axes:
             raise TypeError("stem expects y or x, y")
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
-        if orientation != "vertical":
-            raise NotImplementedError(f"orientation={orientation!r} is not supported yet")
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
         colour, style, _ = _stem_fmt(linefmt)
         colour = kwargs.get("color") or colour or _CYCLE[len(self.lines) % len(_CYCLE)]
         if x.size:
-            self.vlines(x, bottom, y, colors=colour, linestyles=style)
+            if orientation == "vertical":
+                self.vlines(x, bottom, y, colors=colour, linestyles=style)
+            else:
+                self.hlines(y, bottom, x, colors=colour, linestyles=style)
             marker_colour, _, marker = _stem_fmt(markerfmt, "o")
             self.scatter(x, y, s=36, c=marker_colour or colour, marker=marker)
             if basefmt != "none":
-                self.hlines([float(bottom)], float(x.min()), float(x.max()), colors=colour)
+                if orientation == "vertical":
+                    self.hlines([float(bottom)], float(x.min()), float(x.max()),
+                                colors=colour)
+                else:
+                    self.vlines([float(bottom)], float(y.min()), float(y.max()),
+                                colors=colour)
 
     def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
             normalize=True, shadow=False, **kwargs):
@@ -926,7 +962,7 @@ class Axes:
     def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
                   **kwargs):
         """Stacked areas: each layer fills between the running total and itself."""
-        if baseline != "zero":
+        if baseline not in ("zero", "sym"):
             raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
         x = np.asarray(x, dtype=np.float64).ravel()
         layers = []
@@ -939,12 +975,16 @@ class Axes:
         if not layers:
             raise ValueError("stackplot needs at least one y array")
         cols = _colors(colors)
-        cum = np.zeros(x.size)
+        if baseline == "sym":
+            cum = -np.sum(np.stack(layers), axis=0) / 2.0
+        else:
+            cum = np.zeros(x.size)
         for i, layer in enumerate(layers):
             if layer.size != x.size:
                 raise ValueError("x and y must have the same length")
             colour = cols[i % len(cols)] if cols else _CYCLE[i % len(_CYCLE)]
-            self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha)
+            lab = str(labels[i]) if i < len(labels) else ""
+            self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha, label=lab)
             cum = cum + layer
 
     def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
@@ -1046,10 +1086,11 @@ class Axes:
                     bars=bars,
                     bands=self.bands,
                     x_log=self.xscale == "log", y_log=self.yscale == "log",
+                    log_base=float(getattr(self, "log_base", 10.0)),
                     grid=self.show_grid,
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
-                                  marker=e["marker"], alpha=e["alpha"])
+                                  marker=e["marker"], alpha=e["alpha"], label=e["label"])
                              for e in self.scatter_pts],
                     colorbar=None,
                     axis_off=self._axis_off,
@@ -1182,9 +1223,9 @@ def _as_f64(v):
     return np.ascontiguousarray(np.asarray(v, dtype=np.float64).ravel())
 
 
-def _band(xs, ys, color, alpha):
+def _band(xs, ys, color, alpha, label=""):
     return dict(x=_as_f64(xs), y=_as_f64(ys), color=str(color),
-                alpha=None if alpha is None else float(alpha))
+                alpha=None if alpha is None else float(alpha), label=str(label))
 
 
 def _runs(x, y1, y2, where):
@@ -1480,7 +1521,8 @@ class Figure:
         return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
                     legend=False, xlim=None, ylim=None, annotations=[], images=[],
                     contours=[], errors=[], scatter=[], bars=[], bands=[],
-                    x_log=False, y_log=False, grid=False, aspect=None, axis_off=False,
+                    x_log=False, y_log=False, log_base=10.0, grid=False, aspect=None,
+                    axis_off=False,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath, format=None, dpi=None, bbox_inches=None, transparent=False):

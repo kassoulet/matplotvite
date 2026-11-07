@@ -907,7 +907,7 @@ def test_hist_orientation_density_and_validation(tmp_path):
     plt.savefig(p)
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     with pytest.raises(NotImplementedError):
-        plt.hist(data, histtype="step")
+        plt.hist(data, histtype="barstacked")
 
 
 def test_bar_label_places_values(tmp_path):
@@ -1107,8 +1107,9 @@ def test_stem_plot(tmp_path):
     assert s.count("<CIRCLE") >= 3
     with pytest.raises(ValueError):
         ax.stem([1, 2], [1])
-    with pytest.raises(NotImplementedError):
-        ax.stem([1], orientation="horizontal")
+    ax.stem([1], [2], orientation="horizontal")
+    with pytest.raises(ValueError):
+        ax.stem([1], orientation="sideways")
     with pytest.raises(TypeError):
         ax.stem([1], [2], [3])
 
@@ -1144,8 +1145,9 @@ def test_stackplot_layers(tmp_path):
     s = p.read_text().upper()
     assert "#D62728" in s and "#2CA02C" in s
     assert s.count("<POLYGON") >= 2
+    ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
     with pytest.raises(NotImplementedError):
-        ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
+        ax.stackplot(x, [1, 1, 1, 1], baseline="wiggle")
     with pytest.raises(ValueError):
         ax.stackplot(x, [1, 2])
 
@@ -1185,3 +1187,91 @@ def test_minorticks_setp_getp():
         plt.getp(bars[0], "nonsense")
     with pytest.raises(AttributeError):
         plt.setp(bars[0], nonsense=1)
+
+
+def test_log_base_two(tmp_path):
+    x = np.array([1.0, 2.0, 4.0, 8.0])
+    plt.figure()
+    ax = plt.gca()
+    ax.set_xscale("log", base=2)
+    ax.plot(x, [2, 4, 8, 16])
+    p = tmp_path / "logbase.svg"
+    plt.savefig(p)
+    assert re.search(r">\s*(2|4|8)\s*<", p.read_text())
+
+
+def test_scatter_and_fill_legend(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.scatter([1, 2], [2, 1], label="dots")
+    ax.fill_between([1, 2, 3], [1, 1, 1], 0, label="band")
+    ax.legend()
+    p = tmp_path / "legend.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert re.search(r">\s*dots\s*<", s) and re.search(r">\s*band\s*<", s)
+
+
+def test_errorbar_markers_and_stem_horizontal(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.errorbar([1, 2], [1, 2], yerr=0.2, fmt="ro")
+    ax.stem([1, 2], [3, 4], orientation="horizontal")
+    p = tmp_path / "em.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<CIRCLE") >= 4  # two errorbar markers plus two stem markers
+    with pytest.raises(ValueError):
+        ax.stem([1], orientation="diagonal")
+
+
+def test_line_widths_and_broken_barh_style(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.hlines([1], 0, 2, linewidths=4, colors="red")
+    ax.eventplot([[1]], linewidths=5, colors="green")
+    ax.broken_barh([(0, 1)], (2, 1), colors="blue", edgecolor="red", alpha=0.5)
+    p = tmp_path / "lw.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert 'stroke-width="4"' in s and 'stroke-width="5"' in s
+
+
+def test_hist_step_and_bottom(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    counts, edges, _ = ax.hist(np.arange(20.0), bins=5, histtype="stepfilled",
+                               color="red")
+    assert counts.sum() == 20 and len(edges) == 6
+    filled = tmp_path / "hfilled.svg"
+    plt.savefig(filled)
+    assert "<POLYGON" in filled.read_text().upper()
+    plt.figure()
+    ax = plt.gca()
+    ax.hist(np.arange(20.0), bins=5, histtype="step", color="green", bottom=2)
+    stepped = tmp_path / "hstep.svg"
+    plt.savefig(stepped)
+    assert "<POLYLINE" in stepped.read_text().upper()
+    assert "#2CA02C" in stepped.read_text().upper()
+    plt.figure()
+    ax = plt.gca()
+    ax.hist(np.arange(5.0), bins=5, bottom=1.0)
+    bottomed = tmp_path / "hbottom.svg"
+    plt.savefig(bottomed)
+    assert "<RECT" in bottomed.read_text().upper()  # bars are rectangles
+    lo, _ = ax.get_ylim()
+    assert 0.5 < lo < 1.5  # bars offset by bottom=1.0
+
+
+def test_stackplot_sym_baseline(tmp_path):
+    x = np.arange(3.0)
+    plt.figure()
+    ax = plt.gca()
+    ax.stackplot(x, [1, 1, 1], [2, 2, 2], colors=["red", "green"], baseline="sym")
+    lo, hi = ax.get_ylim()
+    assert lo < 0 < hi
+    p = tmp_path / "sym.svg"
+    plt.savefig(p)
+    assert "<POLYGON" in p.read_text().upper()
+    with pytest.raises(NotImplementedError):
+        ax.stackplot(x, [1, 1, 1], baseline="wiggle")

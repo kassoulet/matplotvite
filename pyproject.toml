@@ -8,6 +8,11 @@ version = "0.1.0"
 requires-python = ">=3.9"
 dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
 
+[tool.pytest.ini_options]
+# `pytest` inserts only the test directory on sys.path, so bare invocations (CI)
+# could not import the repo-local `tools` and `examples` packages.
+pythonpath = ["."]
+
 [tool.maturin]
 python-source = "python"
 module-name = "plt_rs._core"

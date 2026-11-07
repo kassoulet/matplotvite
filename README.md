@@ -62,25 +62,25 @@ plt.savefig("contours.png")
   `markerfacecolor`/`mfc`, `markeredgecolor`/`mec`, `markeredgewidth`/`mew`, `alpha`,
   `drawstyle="steps-pre"|"steps-post"`, and fmt shorthand (`plot(x, y, "r--o")`)
 - `scatter(x, y, s=, c=, alpha=, cmap=, marker=)` — per-point sizes and colours,
-  markers `o s ^ v < > D x + .`
+  markers `o s ^ v < > D x + .`, with a legend handle when labelled
 - `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)` — scalar, per-point or
-  `(2, N)` asymmetric errors, with optional caps
+  `(2, N)` asymmetric errors, optional caps, and `fmt` markers
 - `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` and
   `barh(...)` — single or per-bar colours, optional edge and error bars; returns a
   `BarContainer` whose handles support `set_facecolor`/`set_alpha`, with a legend swatch
   when labelled
 - `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars
-- `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar`,
+- `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar` (or as a `step`/`stepfilled` outline),
   returning `(counts, edges, handles)`
 - `step(x, y, where="pre"|"post")` and `stairs(values, edges=, baseline=, fill=)` —
   staircase lines, with optional fill to a baseline
-- `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline
+- `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline (`orientation="horizontal"` works)
 - `pie(x, labels=, autopct=, colors=, explode=, startangle=)` — filled wedges with
   equal aspect, returning `(wedges, texts, autotexts)`
-- `stackplot(x, *ys, colors=, alpha=)` — cumulative filled layers
+- `stackplot(x, *ys, colors=, alpha=)` — cumulative filled layers (`baseline="zero"` or `"sym"`)
 - `eventplot(positions, lineoffsets=, linelengths=, colors=)` — one short line per
-  event, one row per positions array (`linewidths` ignored)
-- `broken_barh(xranges, yrange, colors=)` — `(start, width)` pairs as bars
+  event, one row per positions array
+- `broken_barh(xranges, yrange, colors=)` — `(start, width)` pairs as bars, edge colour and alpha honoured
 - `minorticks_on()`/`minorticks_off()` — recorded, but minor ticks are not drawn
 - `setp(artist, **kwargs)` / `getp(artist, *names)` — generic `set_*`/`get_*` dispatch;
   unknown names raise `AttributeError`, and values are not validated
@@ -92,13 +92,13 @@ plt.savefig("contours.png")
 - `rc("lines", linewidth=2)`, `rc_context`, `rcParams`, `rcdefaults` — recorded settings
   with restore-on-exit; the renderer keeps its fixed style defaults
 - `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
-  filled polygons; `where` masks split into separate runs
+  filled polygons; `where` masks split into separate runs, `label=` gives a legend swatch
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
   ranges, resolved against the final limits
-- `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(...)` — segment collections
+- `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(...)` — segment collections with optional `linewidths`
 - `set_xscale("log")`/`set_yscale("log")`, `semilogx`, `semilogy`, `loglog` and the
-  `xscale`/`yscale` pyplot shims — artists and limits map through log10, with decade
-  tick labels (`symlog` raises)
+  `xscale`/`yscale` pyplot shims — artists and limits map through log10, with base-aware
+  tick labels (`base=` honoured, `symlog` raises)
 
 **Gridded data**
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=)` — 2-D arrays mapped

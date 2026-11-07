@@ -55,7 +55,7 @@
 - [x] `annotate(text, xy, xytext=)` — label plus straight arrow; `arrowprops` styling is accepted but ignored
 
 ### 2.5 Fill
-- [x] `fill_between(x, y1, y2, where=, color=, alpha=)` / `fill_betweenx` / `fill(...)` — polygons in data space, `where` runs emitted separately (`interpolate`/`step`/`hatch` ignored)
+- [x] `fill_between(x, y1, y2, where=, color=, alpha=)` / `fill_betweenx` / `fill(...)` — polygons in data space, `where` runs emitted separately (`interpolate`/`step`/`hatch` ignored); `label=` adds a legend swatch
 - [ ] `fill(x, y, color, alpha)`
 
 ### 2.6 Legend kwargs
@@ -81,16 +81,16 @@
 > TRACE priorities: `scatter` ×176 Axes / ×30 pyplot, `bar` ×81, `hist` ×74, `twinx` ×31, `tight_layout` ×20.
 
 ### 3.1 New plot types
-- [x] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)` — per-point sizes, explicit colours or cmap-mapped values, markers `o s ^ v < > D x + .` (no legend handle yet)
-- [x] `errorbar(...)` — includes scalar / per-point / `(2, N)` errors, caps, `ecolor`
+- [x] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)` — per-point sizes, explicit colours or cmap-mapped values, markers `o s ^ v < > D x + .`, legend handle for labelled series
+- [x] `errorbar(...)` — includes scalar / per-point / `(2, N)` errors, caps, `ecolor`, and `fmt` colours/markers
 - [x] `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` / `barh(...)` — rectangles drawn in pixel space, returning a `BarContainer` of mutable handles; labelled bars get a legend swatch
 - [x] `bar_label(container, labels=, fmt=, label_type=, padding=)` — values placed at the bar end or centred
-- [x] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, orientation=)` — implemented over `bar`, returns `(counts, edges, handles); `histtype="step"` raises`
+- [x] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, orientation=)` — implemented over `bar`, returns `(counts, edges, handles)`; `histtype` covers `bar`/`step`/`stepfilled` and `bottom` offsets
 - [x] `step(x, y, where=, color=, label=)` — delegates to `plot` with `steps-pre`/`steps-post`; `where="mid"` raises
 - [x] `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(x, ymin, ymax, ...)` — one segment per entry, per-segment colour and style
 
 ### 3.2 Log / symlog scales
-- [x] `xscale("log" | "linear")` / `yscale(...)` (pyplot + Axes) — layout and every artist map through log10, tick labels are converted back; `symlog` raises
+- [x] `xscale("log" | "linear")` / `yscale(...)` (pyplot + Axes) — layout and every artist map through log10/base, tick labels are converted back; any positive `base` works, `symlog` raises
 - [x] `semilogx`, `semilogy`, `loglog` convenience wrappers
 
 ### 3.3 Layout
@@ -129,7 +129,7 @@
 > TRACE: `imshow` ×235, `errorbar` ×82, `boxplot` ×48, `contourf` ×32, `pie` ×26, `stem` ×33.
 
 - [x] `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)`
-- [x] `stem(x, y, linefmt=, markerfmt=, basefmt=, bottom=)` — segments over `vlines`, tips via `scatter`, baseline via `hlines`; `orientation="horizontal"` raises
+- [x] `stem(x, y, linefmt=, markerfmt=, basefmt=, bottom=)` — segments over `vlines`, tips via `scatter`, baseline via `hlines`; `orientation="horizontal"` draws sideways stems
 - [x] `pie(x, labels=, autopct=, colors=, explode=, startangle=, normalize=)` — wedges as filled polygons with equal aspect, axis off, returns `(wedges, texts, autotexts)`; `shadow` ignored
 - [ ] `boxplot(x, notch=, vert=, patch_artist=, labels=)`
 - [ ] `violinplot(dataset, positions=, vert=, widths=)`
@@ -141,11 +141,11 @@
 - [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks in a reserved grid cell (single-axes figures)
 - [x] `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` / `pcolor` / `pcolorfast` — cells rasterised through the image path, edges or centres accepted (`shading`/`norm` accepted but ignored)
 - [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`
-- [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` (`baseline="zero"` only)
+- [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` (`baseline="zero"` and `"sym"`)
 - [ ] `quiver(X, Y, U, V)` — vector field arrows
 - [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline (`orientation="horizontal"` raises)
-- [x] `eventplot(positions, orientation=, lineoffsets=, linelengths=, colors=, linestyles=)` — one short line per event, one row per positions array; `linewidths` accepted but ignored
-- [x] `broken_barh(xranges, yrange, colors=)` — `(start, width)` pairs drawn as bars over a shared y range (no edge/alpha control)
+- [x] `eventplot(positions, orientation=, lineoffsets=, linelengths=, colors=, linestyles=)` — one short line per event, one row per positions array; `linewidths` honoured
+- [x] `broken_barh(xranges, yrange, colors=, edgecolor=, alpha=)` — `(start, width)` pairs drawn as bars over a shared y range, edge colour and alpha honoured
 - [x] `minorticks_on()` / `minorticks_off()` — recorded only; minor ticks are not rendered
 - [x] `setp(artist, **kwargs)` / `getp(artist, *names)` — generic `set_*`/`get_*` dispatch, raising `AttributeError` for unknown names (no validation of values)
 

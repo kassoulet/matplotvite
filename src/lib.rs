@@ -121,6 +121,8 @@ struct Scatter<'py> {
     marker: String,
     #[pyo3(item)]
     alpha: f64,
+    #[pyo3(item)]
+    label: String,
 }
 
 /// (x, y, z, levels, colors, colormap, filled).
@@ -456,6 +458,8 @@ struct Panel<'py> {
     #[pyo3(item)]
     y_log: bool,
     #[pyo3(item)]
+    log_base: f64,
+    #[pyo3(item)]
     colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
     #[pyo3(item)]
@@ -542,6 +546,8 @@ struct Band<'py> {
     color: String,
     #[pyo3(item)]
     alpha: Option<f64>,
+    #[pyo3(item)]
+    label: String,
 }
 
 /// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
@@ -777,9 +783,9 @@ fn tick_label(v: f64) -> String {
     }
 }
 
-/// Tick label for a log10-space coordinate: 10^v written as a plain number.
-fn log_label(v: f64) -> String {
-    let value = 10f64.powf(v);
+/// Tick label for a log coordinate: base^v written as a plain number.
+fn log_label(v: f64, base: f64) -> String {
+    let value = base.powf(v);
     if value >= 1e5 || value < 1e-4 {
         format!("{value:.0e}")
     } else {
@@ -814,16 +820,17 @@ where
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
     // Log axes are laid out in log10 space: the ranges and every mapped point are
     // transformed, and the tick labels are converted back to powers of ten.
+    let base = if p.log_base > 1.0 { p.log_base } else { 10.0 };
     let tx = |v: f64| {
         if p.x_log {
-            v.max(f64::MIN_POSITIVE).log10()
+            v.max(f64::MIN_POSITIVE).log(base)
         } else {
             v
         }
     };
     let ty = |v: f64| {
         if p.y_log {
-            v.max(f64::MIN_POSITIVE).log10()
+            v.max(f64::MIN_POSITIVE).log(base)
         } else {
             v
         }
@@ -874,14 +881,14 @@ where
     if !p.axis_off {
         let x_fmt = move |v: &f64| {
             if p.x_log {
-                log_label(*v)
+                log_label(*v, base)
             } else {
                 tick_label(*v)
             }
         };
         let y_fmt = move |v: &f64| {
             if p.y_log {
-                log_label(*v)
+                log_label(*v, base)
             } else {
                 tick_label(*v)
             }
@@ -951,6 +958,7 @@ where
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
+        let mut legend_bands: Vec<(String, RGBAColor)> = Vec::new();
         for band in &p.bands {
             let (xs, ys) = (band.x.as_array(), band.y.as_array());
             if xs.len() < 3 || xs.len() != ys.len() {
@@ -969,6 +977,19 @@ where
                 None => color(&band.color).mix(1.0),
             };
             area.draw(&Polygon::new(pts, col.filled()))?;
+            if !band.label.is_empty() {
+                legend_bands.push((band.label.clone(), col));
+            }
+        }
+        // Registered once the plotting-area borrow is released.
+        for (label, col) in legend_bands {
+            let series = chart.draw_series(std::iter::once(Rectangle::new(
+                [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                RGBColor(0, 0, 0).mix(0.0).filled(),
+            )))?;
+            series
+                .label(label.as_str())
+                .legend(move |(x, y)| Rectangle::new([(x, y - 3), (x + 20, y + 7)], col.filled()));
         }
     }
     // Bars: axis-aligned rectangles, above the filled contours and below lines.
@@ -1158,6 +1179,7 @@ where
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
+        let mut legend_scatter: Vec<(String, RGBAColor)> = Vec::new();
         for sc in &p.scatter {
             let xs = sc.x.as_array();
             let ys = sc.y.as_array();
@@ -1188,6 +1210,24 @@ where
                 };
                 draw_marker(area, base, (cx, cy), r, col.mix(alpha), 2, &sc.marker)?;
             }
+            if !sc.label.is_empty() {
+                let icon = if sc.colors.is_empty() {
+                    RGBColor(31, 119, 180)
+                } else {
+                    color(&sc.colors[0])
+                };
+                legend_scatter.push((sc.label.clone(), icon.mix(alpha)));
+            }
+        }
+        // Registered once the plotting-area borrow is released.
+        for (label, col) in legend_scatter {
+            let series = chart.draw_series(std::iter::once(Rectangle::new(
+                [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                RGBColor(0, 0, 0).mix(0.0).filled(),
+            )))?;
+            series
+                .label(label.as_str())
+                .legend(move |(x, y)| Circle::new((x + 10, y + 4), 4, col.filled()));
         }
     }
     // Iso-lines are stroked above the series, one segment per marching-squares cell.
