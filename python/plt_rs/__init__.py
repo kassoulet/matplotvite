@@ -1750,7 +1750,26 @@ def rcdefaults():
                            alpha=alpha)
 
 
-def savefig(filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
+    import io
+    import os
+    import tempfile
+    # Support file-like objects (BytesIO)
+    if hasattr(filepath, "write") and not isinstance(filepath, str):
+        # Render to a temp file then read bytes into the object
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            # Save to temp file
+            gcf().savefig(tmp_path, format="png", dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)
+            with open(tmp_path, "rb") as f:
+                data = f.read()
+            filepath.write(data)
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+        return  # Done - bytes already written to filepath
     if format == "pdf":
         filepath = str(filepath).rsplit(".", 1)[0] + ".pdf"
         format = "pdf"
