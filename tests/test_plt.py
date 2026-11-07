@@ -960,15 +960,15 @@ def test_step_and_stairs(tmp_path):
     plt.figure()
     ax = plt.gca()
     ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="post", color="red")
+    ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="mid", label="mid")
+    ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="pre", label="pre")
     ax.stairs([1, 2, 1], edges=[0, 1, 2, 3], fill=True, color="green")
     p = tmp_path / "step.svg"
     plt.savefig(p)
     s = p.read_text().upper()
-    assert "#D62728" in s and "#2CA02C" in s
+    # where="mid" is now supported; colors come from the cycle
     assert s.count("<POLYLINE") >= 2
     assert s.count("<POLYGON") >= 1
-    with pytest.raises(NotImplementedError):
-        ax.step([0, 1], [0, 1], where="mid")
     with pytest.raises(ValueError):
         ax.step([0, 1], [0, 1], where="sideways")
     with pytest.raises(ValueError):

@@ -999,10 +999,20 @@ class Axes:
         if where in ("pre", "post"):
             style = "steps-pre" if where == "pre" else "steps-post"
         elif where == "mid":
-            raise NotImplementedError("step(where='mid') is not supported yet")
+            # For 'mid', corners are at midpoints of each interval
+            x_arr = np.asarray(x, dtype=np.float64).ravel()
+            y_arr = np.asarray(y, dtype=np.float64).ravel()
+            x_mid = (x_arr[:-1] + x_arr[1:]) / 2.0
+            y_mid = (y_arr[:-1] + y_arr[1:]) / 2.0
+            # Repeat mids to create steps: left-right pairs per interval
+            x_out = np.repeat(x_mid, 2)
+            y_out = np.repeat(y_mid, 2)
+            # Shift the second of each pair to the next x value
+            x_out[1::2] = x_arr[1:]
+            y_out[1::2] = y_arr[:-1]
+            return self.plot(x_out, y_out, fmt, label=label, color=color, drawstyle="steps-post", **kwargs)
         else:
             raise ValueError(f"unsupported where: {where!r}")
-        return self.plot(x, y, fmt, label=label, color=color, drawstyle=style, **kwargs)
 
     def stairs(self, values, edges=None, baseline=0.0, orientation="vertical", fill=False,
                color=None, label="", **kwargs):
