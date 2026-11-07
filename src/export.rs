@@ -1,9 +1,11 @@
 use plotters::prelude::*;
+use plotters::style::text_anchor::{HPos, Pos, VPos};
+use plotters::style::IntoFont;
 
 use crate::color::color;
 use crate::draw::draw_panel;
 use crate::fonts::{fontdb, pdf_options};
-use crate::model::{Panel, PngCompression};
+use crate::model::{Panel, PngCompression, Suptitle};
 
 /// Convert SVG markup into a single-page vector PDF. `dpi` sets the physical
 /// page size: the SVG's pixel dimensions are treated as `dpi` pixels per inch.
@@ -57,6 +59,7 @@ pub(crate) fn render_svg(
     panels: &[Panel],
     background: Option<RGBAColor>,
     edgecolor: Option<&str>,
+    suptitle: Option<Suptitle>,
 ) -> Result<String, String> {
     let (w, h) = size;
     let mut svg = String::new();
@@ -68,13 +71,31 @@ pub(crate) fn render_svg(
         if let Some(bg) = background {
             root.fill(&bg).map_err(|e| e.to_string())?;
         }
-        let cells = root.split_evenly(grid);
+        // A figure title reserves a band at the top so it never overlaps the
+        // first row of panels.
+        let top_pad = suptitle
+            .as_ref()
+            .map(|s| (s.size * 1.6).round() as i32 + 8)
+            .unwrap_or(0);
+        let content = root.margin(top_pad, 0, 0, 0);
+        let cells = content.split_evenly(grid);
         for p in panels {
             draw_panel(
                 cells.get(p.pos).ok_or("subplot index out of range")?,
                 p,
                 &mut overlays,
             )
+            .map_err(|e| e.to_string())?;
+        }
+        if let Some(s) = suptitle {
+            let style = ("sans-serif", s.size.max(6.0).round() as u32)
+                .into_font()
+                .color(&BLACK);
+            root.draw(&Text::new(
+                s.text.to_string(),
+                ((s.x * w as f64) as i32, ((1.0 - s.y) * h as f64) as i32),
+                style.pos(Pos::new(HPos::Center, VPos::Center)),
+            ))
             .map_err(|e| e.to_string())?;
         }
         if let Some(ec) = edgecolor {

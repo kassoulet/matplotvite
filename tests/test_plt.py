@@ -1492,6 +1492,18 @@ def test_title_fontsize(tmp_path):
     assert any(10.5 < v < 12 for v in sizes)  # xlabel at 14pt
 
 
+def test_suptitle_renders_above_the_grid(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    fig.suptitle("Figure title", fontsize=16)
+    p = tmp_path / "suptitle.svg"
+    fig.savefig(p)
+    assert re.search(r">\s*Figure title\s*<", p.read_text())
+    assert fig.savefig(None, format="png")[:8] == b"\x89PNG\r\n\x1a\n"
+    plt.suptitle("pyplot title")
+    assert plt.gcf()._suptitle["text"] == "pyplot title"
+
+
 def test_figure_and_savefig_colors_and_bytes(tmp_path):
     import io
 

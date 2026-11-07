@@ -20,6 +20,22 @@ pub(crate) struct RenderOptions {
     pub(crate) edgecolor: Option<String>,
     #[pyo3(item)]
     pub(crate) compression: Option<String>,
+    #[pyo3(item)]
+    pub(crate) suptitle: String,
+    #[pyo3(item)]
+    pub(crate) suptitle_size: f64,
+    #[pyo3(item)]
+    pub(crate) suptitle_x: f64,
+    #[pyo3(item)]
+    pub(crate) suptitle_y: f64,
+}
+
+/// Figure-level title drawn above the panel grid.
+pub(crate) struct Suptitle<'a> {
+    pub(crate) text: &'a str,
+    pub(crate) size: f64,
+    pub(crate) x: f64,
+    pub(crate) y: f64,
 }
 
 /// PNG compression level selectable through `savefig(compression=...)`.

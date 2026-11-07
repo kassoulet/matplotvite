@@ -16,7 +16,7 @@ __all__ = (
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show",
-    "stackplot", "stairs", "stem", "step", "subplot", "subplots", "subplots_adjust", "text", "tick_params",
+    "stackplot", "stairs", "stem", "step", "subplot", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
     "ylabel", "ylim", "yscale", "yticks", "__version__",
 )
@@ -1753,7 +1753,15 @@ class Figure:
         self.dpi = float(dpi if dpi is not None else rcParams.get("figure.dpi", DPI))
         self.facecolor = _norm_color(facecolor)
         self.edgecolor = _norm_color(edgecolor)
+        self._suptitle = None
         self.transFigure = _CoordTransform("figure")
+
+    def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
+        """Draw a figure-level title above the panel grid."""
+        size = (float(fontsize) if fontsize is not None
+                else float(rcParams.get("figure.titlesize", 14.0)))
+        self._suptitle = dict(text=str(t), size=size, x=float(x), y=float(y))
+        return None
 
     def add_subplot(self, nrows=1, ncols=1, index=1):
         """index is 1-based, row-major (matplotlib convention)."""
@@ -1874,6 +1882,10 @@ class Figure:
                 "facecolor": _norm_color(facecolor) or self.facecolor,
                 "edgecolor": _norm_color(edgecolor) or self.edgecolor,
                 "compression": compression,
+                "suptitle": self._suptitle["text"] if self._suptitle else "",
+                "suptitle_size": self._suptitle["size"] if self._suptitle else 14.0,
+                "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
+                "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
             },
         )
         if filepath is None:
@@ -1907,6 +1919,8 @@ def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
 
 
 def subplot(nrows, ncols, index): return gcf().add_subplot(nrows, ncols, index)
+def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
+    return gcf().suptitle(t, x=x, y=y, fontsize=fontsize, **kwargs)
 def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
 def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
@@ -2048,6 +2062,7 @@ rcParams = {
     "font.size": 10.0,
     "axes.labelsize": 10.0,
     "axes.titlesize": 12.0,
+    "figure.titlesize": 14.0,
     "legend.fontsize": 10.0,
 }
 _RC_DEFAULTS = dict(rcParams)

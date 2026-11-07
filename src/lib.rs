@@ -14,7 +14,7 @@ use crate::export::{
     render_pdf, render_svg, svg_tight,
 };
 use crate::fonts::register_plotters_fonts;
-use crate::model::{Panel, PngCompression, RenderOptions};
+use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
 
 /// Render a figure and return its encoded bytes.
 ///
@@ -36,21 +36,27 @@ fn render(
         facecolor,
         edgecolor,
         compression,
+        suptitle,
+        suptitle_size,
+        suptitle_x,
+        suptitle_y,
     } = options;
     let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
-    if panels.iter().all(|p| {
-        p.series.is_empty()
-            && p.texts.is_empty()
-            && p.images.is_empty()
-            && p.annotations.is_empty()
-            && p.contours.is_empty()
-            && p.errors.is_empty()
-            && p.scatter.is_empty()
-            && p.bars.is_empty()
-            && p.bands.is_empty()
-            && p.colorbar.is_none()
-    }) {
+    if suptitle.is_empty()
+        && panels.iter().all(|p| {
+            p.series.is_empty()
+                && p.texts.is_empty()
+                && p.images.is_empty()
+                && p.annotations.is_empty()
+                && p.contours.is_empty()
+                && p.errors.is_empty()
+                && p.scatter.is_empty()
+                && p.bars.is_empty()
+                && p.bands.is_empty()
+                && p.colorbar.is_none()
+        })
+    {
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }
     let fmt = format.to_ascii_lowercase();
@@ -75,8 +81,14 @@ fn render(
 
     let (w, h) = size;
     let background = figure_background(transparent, facecolor.as_deref());
-    let svg =
-        render_svg(size, grid, &panels, background, edgecolor.as_deref()).map_err(|e| err(&e))?;
+    let title = (!suptitle.is_empty()).then_some(Suptitle {
+        text: &suptitle,
+        size: suptitle_size,
+        x: suptitle_x,
+        y: suptitle_y,
+    });
+    let svg = render_svg(size, grid, &panels, background, edgecolor.as_deref(), title)
+        .map_err(|e| err(&e))?;
     if fmt == "svg" || fmt == "pdf" {
         let svg = match if tight {
             rasterize(&svg, w, h, transparent)
