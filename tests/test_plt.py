@@ -1514,6 +1514,28 @@ def test_subplots_squeeze_false_keeps_array():
     assert axs[0, 0].get_figure() is fig
 
 
+def test_set_prop_cycle_controls_default_colors(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.set_prop_cycle(color=["red", "green"])
+    ax.plot([0, 1], [0, 1])
+    ax.plot([0, 1], [1, 0])
+    assert ax.lines[0]["color"] == "#ff0000"
+    assert ax.lines[1]["color"] == "#008000"
+    ax.scatter([0.5], [0.5])
+    assert ax.scatter_pts[0]["colors"] == ["#ff0000"]  # the cycle wraps
+    assert ax.get_prop_cycle().by_key()["color"] == ["#ff0000", "#008000"]
+    ax.set_prop_cycle(["blue"])
+    assert ax.get_prop_cycle().by_key() == {"color": ["#0000ff"]}
+    ax.bar([0], [1])
+    assert ax.bars[-1]["colors"] == ["#0000ff"]
+    p = tmp_path / "cycle.svg"
+    fig.savefig(p)
+    assert "#FF0000" in p.read_text().upper()
+    assert "#008000" in p.read_text().upper()
+    with pytest.raises(ValueError):
+        ax.set_prop_cycle()
+
+
 def test_style_presets_and_context(tmp_path):
     plt.style.use("dark_background")
     fig, ax = plt.subplots(figsize=(4, 3))

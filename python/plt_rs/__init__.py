@@ -129,6 +129,25 @@ def _share_axes(axs, shape, sharex, sharey):
                 ax.hide_yticklabels = True
 
 
+class _PropCycler:
+    """Small stand-in for matplotlib's Cycler, enough for `get_prop_cycle`."""
+
+    def __init__(self, colors):
+        self._colors = list(colors)
+
+    def by_key(self):
+        return {"color": list(self._colors)}
+
+    def __iter__(self):
+        return iter(self._colors)
+
+    def __len__(self):
+        return len(self._colors)
+
+    def __repr__(self):
+        return f"Cycler(color={self._colors!r})"
+
+
 class _CoordTransform:
     """Marker for `text(transform=...)`: data, axes or figure coordinates."""
 
@@ -348,7 +367,41 @@ class Axes:
         self._pos_override = None
         self._share_x = self._share_y = None
         self.hide_xticklabels = self.hide_yticklabels = False
+        self._prop_cycle = list(rcParams.get("axes.prop_cycle", _CYCLE))
+        self._cycle_pos = 0
         self._fig = None
+
+    def _next_color(self):
+        cycle = self._prop_cycle or _CYCLE
+        color = cycle[self._cycle_pos % len(cycle)]
+        self._cycle_pos += 1
+        return color
+
+    def set_prop_cycle(self, *args, **kwargs):
+        """Replace the colour cycle used by artists without an explicit colour."""
+        colors = kwargs.get("color", kwargs.get("colors"))
+        if colors is None and args:
+            arg = args[0]
+            if arg is None:
+                colors = list(rcParams.get("axes.prop_cycle", _CYCLE))
+            elif hasattr(arg, "by_key"):
+                colors = arg.by_key().get("color")
+            elif isinstance(arg, dict):
+                colors = arg.get("color")
+            elif isinstance(arg, str):
+                colors = [arg]
+            else:
+                colors = arg
+        if colors is None:
+            raise ValueError("set_prop_cycle needs a color sequence")
+        if isinstance(colors, str) or _is_rgb(colors):
+            colors = [colors]
+        self._prop_cycle = [_norm_color(c) for c in colors]
+        self._cycle_pos = 0
+        return self
+
+    def get_prop_cycle(self):
+        return _PropCycler(self._prop_cycle)
 
     def plot(self, *args, label="", color=None, c=None, linestyle=None, ls=None,
              linewidth=None, lw=None, marker=None, markersize=None, ms=None,
@@ -368,7 +421,7 @@ class Axes:
                 style = f_style or style
             if not marker:
                 marker = f_marker
-        line_color = color or c or _CYCLE[len(self.lines) % len(_CYCLE)]
+        line_color = color or c or self._next_color()
         if drawstyle not in ("default", "steps-pre", "steps-post"):
             raise ValueError(f"unsupported drawstyle: {drawstyle!r}")
         edge = markeredgecolor or mec
@@ -785,7 +838,7 @@ class Axes:
         if align not in ("center", "edge"):
             raise ValueError(f"unsupported align: {align!r}")
         left = x - w / 2.0 if align == "center" else x
-        colors = _bar_colors(color, n)
+        colors = _bar_colors(color if color is not None else self._next_color(), n)
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
                               colors=colors, edgecolor=_norm_color(edgecolor),
                               alpha=None if alpha is None else float(alpha), label=str(label),
@@ -846,7 +899,8 @@ class Axes:
             raise ValueError(f"unsupported align: {align!r}")
         bottom = y - h / 2.0 if align == "center" else y
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
-                              colors=_bar_colors(color, n), edgecolor=_norm_color(edgecolor),
+                              colors=_bar_colors(color if color is not None else self._next_color(), n),
+                              edgecolor=_norm_color(edgecolor),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=False))
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
@@ -857,7 +911,7 @@ class Axes:
         """Fill between two curves; `where` masks split the area into runs."""
         x = np.asarray(x, dtype=np.float64).ravel()
         a, b = _fill(y1, x.size), _fill(y2, x.size)
-        c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
+        c = color or self._next_color()
         for xs, ya, yb in _runs(x, a, b, where):
             self.bands.append(_band(np.concatenate([xs, xs[::-1]]),
                                     np.concatenate([ya, yb[::-1]]), c, alpha, label))
@@ -866,14 +920,14 @@ class Axes:
                       **kwargs):
         y = np.asarray(y, dtype=np.float64).ravel()
         a, b = _fill(x1, y.size), _fill(x2, y.size)
-        c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
+        c = color or self._next_color()
         for ys, xa, xb in _runs(y, a, b, where):
             self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
                                     np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
     def fill(self, *args, color=None, alpha=None, label="", **kwargs):
         """Closed polygon: `fill(x, y)` or `fill(x1, y1, x2, y2)`."""
-        c = color or _CYCLE[len(self.bands) % len(_CYCLE)]
+        c = color or self._next_color()
         if len(args) == 2:
             self.bands.append(_band(_as_f64(args[0]), _as_f64(args[1]), c, alpha, label))
         elif len(args) == 4:
@@ -950,7 +1004,7 @@ class Axes:
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
         n = y.size
-        values, colors = _scatter_colors(c, n)
+        values, colors = _scatter_colors(c if c is not None else self._next_color(), n)
         self.scatter_pts.append(dict(
             x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
             values=values, cmap=cmap or "viridis",
@@ -970,7 +1024,7 @@ class Axes:
         ylo, yhi = _err_pair(yerr, n, "yerr")
         xlo, xhi = _err_pair(xerr, n, "xerr")
         c = (color or ecolor or _FMT_COLORS.get(fmt[:1])
-             or _CYCLE[len(self.errors) % len(_CYCLE)])
+             or self._next_color())
         # matplotlib's default fmt='' still draws a solid line; marker-only formats
         # ('o', 's', ...) get bars only since markers are not rendered yet.
         elw = elinewidth if elinewidth is not None else rcParams.get("lines.linewidth", 1.5)
@@ -2143,6 +2197,7 @@ rcParams = {
     "axes.titlesize": 12.0,
     "figure.titlesize": 14.0,
     "legend.fontsize": 10.0,
+    "axes.prop_cycle": list(_CYCLE),
     "figure.facecolor": "#ffffff",
     "axes.facecolor": "#ffffff",
     "axes.edgecolor": "#000000",
