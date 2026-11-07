@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **5 085 / 10 098 call sites covered (50%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **5 688 / 10 098 call sites covered (56%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -81,7 +81,7 @@
 > TRACE priorities: `scatter` ×176 Axes / ×30 pyplot, `bar` ×81, `hist` ×74, `twinx` ×31, `tight_layout` ×20.
 
 ### 3.1 New plot types
-- [ ] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)`
+- [x] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)` — per-point sizes, explicit colours or cmap-mapped values, markers `o s ^ v < > D x + .` (no legend handle yet)
 - [ ] `bar(x, height, width=, bottom=, color=, label=, align=)` / `barh(...)`
 - [ ] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, histtype=)`
 - [ ] `step(x, y, where=, color=, label=)` — equivalent to `drawstyle="steps"`
@@ -103,8 +103,9 @@
 - [ ] `plt.style.use("dark_background" | "ggplot" | "seaborn-v0_8")` — a small preset palette set
 - [ ] `rcParams` subset: `lines.linewidth`, `axes.labelsize`, `font.size`, `figure.dpi`, `axes.prop_cycle`
 - [ ] Color cycle customization (`set_prop_cycle`)
-- [ ] `plt.show()` as a silent no-op (compatibility)
-- [ ] `plt.draw()` as a no-op (compatibility)
+- [x] `plt.show()` as a silent no-op (compatibility)
+- [x] `plt.draw()` as a no-op (compatibility)
+- [x] `plt.axes()` / `plt.pause()` / `plt.ion()` / `plt.ioff()` compatibility shims
 
 ---
 
@@ -112,7 +113,7 @@
 
 > TRACE: `imshow` ×235, `errorbar` ×82, `boxplot` ×48, `contourf` ×32, `pie` ×26, `stem` ×33.
 
-- [ ] `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)`
+- [x] `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)`
 - [ ] `stem(x, y, linefmt=, markerfmt=, basefmt=)`
 - [ ] `pie(x, labels=, autopct=, colors=, explode=, startangle=)`
 - [ ] `boxplot(x, notch=, vert=, patch_artist=, labels=)`
@@ -121,8 +122,8 @@
 - [x] `set_aspect('equal' | 'auto' | <number>)` — shrinks the plotting box to fix the data scale (matplotlib's `adjustable="box"`)
 - [x] `contour(X, Y, Z, levels=, colors=, cmap=)` — marching-squares iso-lines (`linewidths`/`alpha` accepted but ignored)
 - [x] `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands by clipping each grid triangle against the level pair (`alpha` accepted but ignored)
-- [ ] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
-- [ ] `colorbar(mappable, ax=, label=)` — figure-level colorbar
+- [x] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
+- [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks in a reserved grid cell (single-axes figures)
 - [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`
 - [ ] `stackplot(x, *ys, labels=, colors=, alpha=)`
 - [ ] `quiver(X, Y, U, V)` — vector field arrows

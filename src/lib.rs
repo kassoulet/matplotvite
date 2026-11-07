@@ -60,6 +60,45 @@ type ImageItem<'py> = (
 /// (text, xy, xytext, color, font size).
 type Annotation = (String, (f64, f64), Option<(f64, f64)>, String, f64);
 
+/// (x, y, yerr-lo, yerr-hi, xerr-lo, xerr-hi, color, cap half-width in px).
+type ErrorItem<'py> = (
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    PyReadonlyArray1<'py, f64>,
+    String,
+    f64,
+);
+
+/// (colormap, vmin, vmax, label): a stand-alone gradient strip panel.
+type ColorbarItem = (String, f64, f64, String);
+
+/// One `scatter` call: per-point sizes and either per-point colours or values
+/// mapped through `cmap`.
+#[derive(FromPyObject)]
+struct Scatter<'py> {
+    #[pyo3(item)]
+    x: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    y: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    sizes: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    values: Option<PyReadonlyArray1<'py, f64>>,
+    #[pyo3(item)]
+    cmap: String,
+    #[pyo3(item)]
+    clim: Option<(f64, f64)>,
+    #[pyo3(item)]
+    colors: Vec<String>,
+    #[pyo3(item)]
+    marker: String,
+    #[pyo3(item)]
+    alpha: f64,
+}
+
 /// (x, y, z, levels, colors, colormap, filled).
 type ContourItem<'py> = (
     PyReadonlyArray1<'py, f64>,
@@ -105,6 +144,22 @@ fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
         let (l, r, b, t) = im.4;
         xs.extend([l, r]);
         ys.extend([b, t]);
+    }
+    for sc in &p.scatter {
+        xs.extend(sc.x.as_array().iter().copied());
+        ys.extend(sc.y.as_array().iter().copied());
+    }
+    for (x, y, ylo, yhi, xlo, xhi, _, _) in &p.errors {
+        let (ya, yb) = (ylo.as_array(), yhi.as_array());
+        let (xa, xb) = (xlo.as_array(), xhi.as_array());
+        let (xs_v, ys_v) = (x.as_array(), y.as_array());
+        let yz = ya.iter().zip(yb.iter());
+        let xz = xa.iter().zip(xb.iter());
+        let it = xs_v.iter().zip(ys_v.iter());
+        for ((xv, yv), ((lo, hi), (xl, xh))) in it.zip(yz.zip(xz)) {
+            xs.extend([*xv - *xl, *xv + *xh]);
+            ys.extend([*yv - *lo, *yv + *hi]);
+        }
     }
     for c in &p.contours {
         let (x, y) = (c.0.as_array(), c.1.as_array());
@@ -348,6 +403,148 @@ struct Panel<'py> {
     aspect: Option<f64>,
     #[pyo3(item)]
     contours: Vec<ContourItem<'py>>,
+    #[pyo3(item)]
+    errors: Vec<ErrorItem<'py>>,
+    #[pyo3(item)]
+    scatter: Vec<Scatter<'py>>,
+    #[pyo3(item)]
+    colorbar: Option<ColorbarItem>,
+}
+
+/// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
+fn draw_marker<DB: DrawingBackend, C: Color>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    base: (i32, i32),
+    pos: (i32, i32),
+    r: f64,
+    col: C,
+    marker: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let (x, y) = (pos.0 - base.0, pos.1 - base.1);
+    let ri = r.round().max(1.0) as i32;
+    match marker {
+        "s" => area.draw(&Rectangle::new(
+            [(x - ri, y - ri), (x + ri, y + ri)],
+            col.filled(),
+        ))?,
+        "^" => area.draw(&Polygon::new(
+            vec![(x, y - ri), (x + ri, y + ri), (x - ri, y + ri)],
+            col.filled(),
+        ))?,
+        "v" => area.draw(&Polygon::new(
+            vec![(x, y + ri), (x + ri, y - ri), (x - ri, y - ri)],
+            col.filled(),
+        ))?,
+        "<" => area.draw(&Polygon::new(
+            vec![(x - ri, y), (x + ri, y + ri), (x + ri, y - ri)],
+            col.filled(),
+        ))?,
+        ">" => area.draw(&Polygon::new(
+            vec![(x + ri, y), (x - ri, y + ri), (x - ri, y - ri)],
+            col.filled(),
+        ))?,
+        "D" => area.draw(&Polygon::new(
+            vec![(x, y - ri), (x + ri, y), (x, y + ri), (x - ri, y)],
+            col.filled(),
+        ))?,
+        "x" => {
+            area.draw(&PathElement::new(
+                vec![(x - ri, y - ri), (x + ri, y + ri)],
+                col.stroke_width(2),
+            ))?;
+            area.draw(&PathElement::new(
+                vec![(x - ri, y + ri), (x + ri, y - ri)],
+                col.stroke_width(2),
+            ))?;
+        }
+        "+" => {
+            area.draw(&PathElement::new(
+                vec![(x - ri, y), (x + ri, y)],
+                col.stroke_width(2),
+            ))?;
+            area.draw(&PathElement::new(
+                vec![(x, y - ri), (x, y + ri)],
+                col.stroke_width(2),
+            ))?;
+        }
+        "." => area.draw(&Circle::new((x, y), (ri / 2).max(1) as u32, col.filled()))?,
+        _ => area.draw(&Circle::new((x, y), ri as u32, col.filled()))?,
+    }
+    Ok(())
+}
+
+fn num(v: f64) -> String {
+    let s = format!("{v:.4}");
+    let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
+    if s.is_empty() || s == "-0" {
+        "0".to_string()
+    } else {
+        s
+    }
+}
+
+/// A vertical gradient strip with min/mid/max ticks and an optional axis label.
+fn draw_colorbar<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    cmap: &str,
+    vmin: f64,
+    vmax: f64,
+    label: &str,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let (w, h) = area.dim_in_pixel();
+    let (x0, x1) = (14i32, 44i32);
+    let (y0, y1) = (12i32, h as i32 - 26);
+    if x1 >= w as i32 || y1 - y0 < 4 {
+        return Ok(());
+    }
+    let steps = y1 - y0;
+    for i in 0..steps {
+        let t = 1.0 - (i as f64 + 0.5) / steps as f64;
+        let c = colormap(cmap, t);
+        area.draw(&Rectangle::new(
+            [(x0, y0 + i), (x1, y0 + i + 1)],
+            RGBColor(c[0], c[1], c[2]).filled(),
+        ))?;
+    }
+    let frame = RGBColor(90, 90, 90);
+    area.draw(&Rectangle::new([(x0, y0), (x1, y1)], frame.stroke_width(1)))?;
+    let mid = (vmin + vmax) / 2.0;
+    for (t, v) in [(0.0, vmin), (0.5, mid), (1.0, vmax)] {
+        let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
+        area.draw(&PathElement::new(
+            vec![(x0 - 4, y), (x0, y)],
+            frame.stroke_width(1),
+        ))?;
+        draw_label(
+            area,
+            (0, 0),
+            (x1 + 6, y),
+            &num(v),
+            RGBColor(0, 0, 0),
+            13.0,
+            "left",
+            "center",
+        )?;
+    }
+    if !label.is_empty() {
+        draw_label(
+            area,
+            (0, 0),
+            (x1 + 6, h as i32 - 6),
+            label,
+            RGBColor(0, 0, 0),
+            14.0,
+            "left",
+            "bottom",
+        )?;
+    }
+    Ok(())
 }
 
 /// One level of a marching-squares pass: iso-line segments in data coordinates.
@@ -448,6 +645,9 @@ fn draw_panel<DB: DrawingBackend>(
 where
     DB::ErrorType: 'static,
 {
+    if let Some((cmap, vmin, vmax, label)) = &p.colorbar {
+        return draw_colorbar(area, cmap, *vmin, *vmax, label);
+    }
     let (x0, x1, y0, y1) = panel_ranges(p);
     // A fixed aspect shrinks the plotting box instead of bending the data limits,
     // like matplotlib's adjustable="box".
@@ -550,6 +750,95 @@ where
             s.label(label.as_str()).legend(move |(x, y)| {
                 PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(2))
             });
+        }
+    }
+    // Error bars: one segment per point plus optional caps, in canvas pixels.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for (x, y, ylo, yhi, xlo, xhi, c, cap) in &p.errors {
+            let col = color(c);
+            let cap = cap.round().max(0.0) as i32;
+            let (ya, yb) = (ylo.as_array(), yhi.as_array());
+            let (xa, xb) = (xlo.as_array(), xhi.as_array());
+            let (xs_v, ys_v) = (x.as_array(), y.as_array());
+            let yz = ya.iter().zip(yb.iter());
+            let xz = xa.iter().zip(xb.iter());
+            let it = xs_v.iter().zip(ys_v.iter());
+            for ((xv, yv), ((lo, hi), (xl, xh))) in it.zip(yz.zip(xz)) {
+                let (cx, cy) = chart_area.map_coordinate(&(*xv, *yv));
+                let (cx, cy) = (cx - base.0, cy - base.1);
+                if *lo > 0.0 || *hi > 0.0 {
+                    let (_, yt) = chart_area.map_coordinate(&(*xv, *yv + *hi));
+                    let (_, yb) = chart_area.map_coordinate(&(*xv, *yv - *lo));
+                    let (yt, yb) = (yt - base.1, yb - base.1);
+                    area.draw(&PathElement::new(
+                        vec![(cx, yt), (cx, yb)],
+                        col.stroke_width(1),
+                    ))?;
+                    if cap > 0 {
+                        for yc in [yt, yb] {
+                            area.draw(&PathElement::new(
+                                vec![(cx - cap, yc), (cx + cap, yc)],
+                                col.stroke_width(1),
+                            ))?;
+                        }
+                    }
+                }
+                if *xl > 0.0 || *xh > 0.0 {
+                    let (xl_px, _) = chart_area.map_coordinate(&(*xv - *xl, *yv));
+                    let (xr_px, _) = chart_area.map_coordinate(&(*xv + *xh, *yv));
+                    let (xl_px, xr_px) = (xl_px - base.0, xr_px - base.0);
+                    area.draw(&PathElement::new(
+                        vec![(xl_px, cy), (xr_px, cy)],
+                        col.stroke_width(1),
+                    ))?;
+                    if cap > 0 {
+                        for xc in [xl_px, xr_px] {
+                            area.draw(&PathElement::new(
+                                vec![(xc, cy - cap), (xc, cy + cap)],
+                                col.stroke_width(1),
+                            ))?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Scatter markers: per-point size and colour, so they bypass PointSeries.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for sc in &p.scatter {
+            let xs = sc.x.as_array();
+            let ys = sc.y.as_array();
+            let sizes = sc.sizes.as_array();
+            let values = sc.values.as_ref().map(|v| v.as_array());
+            let (cmin, cmax) = sc.clim.unwrap_or_else(|| match &values {
+                Some(v) => range(v.iter().copied()),
+                None => (0.0, 1.0),
+            });
+            let alpha = sc.alpha.clamp(0.0, 1.0);
+            for i in 0..xs.len().min(ys.len()) {
+                let (cx, cy) = chart_area.map_coordinate(&(xs[i], ys[i]));
+                // matplotlib's `s` is an area in points^2; ~1.39 px/pt at 100 dpi.
+                let sz = sizes.get(i).copied().unwrap_or(36.0).max(0.0);
+                let r = (sz.sqrt() / 2.0 * 1.39).max(1.0);
+                let col = if !sc.colors.is_empty() {
+                    color(&sc.colors[i % sc.colors.len()])
+                } else if let Some(v) = &values {
+                    let t = if cmax > cmin {
+                        ((v[i] - cmin) / (cmax - cmin)).clamp(0.0, 1.0)
+                    } else {
+                        0.5
+                    };
+                    let c = colormap(&sc.cmap, t);
+                    RGBColor(c[0], c[1], c[2])
+                } else {
+                    RGBColor(31, 119, 180)
+                };
+                draw_marker(area, base, (cx, cy), r, col.mix(alpha), &sc.marker)?;
+            }
         }
     }
     // Iso-lines are stroked above the series, one segment per marching-squares cell.
@@ -801,6 +1090,9 @@ fn save(
             && p.images.is_empty()
             && p.annotations.is_empty()
             && p.contours.is_empty()
+            && p.errors.is_empty()
+            && p.scatter.is_empty()
+            && p.colorbar.is_none()
     }) {
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }

@@ -3,6 +3,8 @@ import numpy as np
 from ._core import save
 
 _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+# Only the one-letter colors plt_rs can render are honoured in fmt strings.
+_FMT_COLORS = {"b": "blue", "g": "green", "r": "red", "k": "black"}
 DPI = 100
 _FORMATS = ("png", "svg")
 
@@ -12,6 +14,8 @@ class Axes:
         self.pos, self.lines, self.texts = pos, [], []
         self.images, self.annotations = [], []
         self.contours = []
+        self.errors = []
+        self.scatter_pts = []
         self.aspect = None
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
@@ -63,6 +67,42 @@ class Axes:
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  color, float(fontsize)))
 
+    def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
+                vmin=None, vmax=None, **kwargs):
+        """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
+        colours, or numeric values mapped through `cmap`."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        n = y.size
+        values, colors = _scatter_colors(c, n)
+        self.scatter_pts.append(dict(
+            x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
+            values=values, cmap=cmap or "viridis",
+            clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
+            marker=str(marker), alpha=1.0 if alpha is None else float(alpha)))
+
+    def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
+                 capsize=None, label="", color=None, **kwargs):
+        """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
+        error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        n = y.size
+        ylo, yhi = _err_pair(yerr, n, "yerr")
+        xlo, xhi = _err_pair(xerr, n, "xerr")
+        c = (color or ecolor or _FMT_COLORS.get(fmt[:1])
+             or _CYCLE[len(self.errors) % len(_CYCLE)])
+        # matplotlib's default fmt='' still draws a solid line; marker-only formats
+        # ('o', 's', ...) get bars only since markers are not rendered yet.
+        if fmt != "none" and (fmt == "" or "-" in fmt):
+            self.lines.append((np.ascontiguousarray(x), np.ascontiguousarray(y), label, c))
+        self.errors.append((np.ascontiguousarray(x), np.ascontiguousarray(y), ylo, yhi,
+                            xlo, xhi, c, float(capsize or 0.0) * 1.4))
+
     def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
         """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
         followed by `levels`."""
@@ -93,6 +133,12 @@ class Axes:
                     aspect=self.aspect,
                     contours=[(c["x"], c["y"], c["z"], c["levels"], c["colors"], c["cmap"],
                                c["filled"]) for c in self.contours],
+                    errors=self.errors,
+                    scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
+                                  cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
+                                  marker=e["marker"], alpha=e["alpha"])
+                             for e in self.scatter_pts],
+                    colorbar=None,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
                             for e in self.images])
 
@@ -115,6 +161,57 @@ def _as_image(X):
     if a.ndim == 2:
         return a
     raise ValueError("imshow expects a 2-D array or an (H, W, 3|4) RGB(A) array")
+
+
+def _sizes(s, n):
+    if s is None:
+        return np.full(n, 36.0)
+    a = np.asarray(s, dtype=np.float64)
+    if a.ndim == 0:
+        return np.full(n, max(float(a), 0.0))
+    a = a.ravel()
+    if a.size != n:
+        raise ValueError("s must be a scalar or have one value per point")
+    return np.ascontiguousarray(np.clip(a, 0.0, None))
+
+
+def _scatter_colors(c, n):
+    """Split `c` into (numeric values for cmap, explicit colour strings)."""
+    if c is None:
+        return None, []
+    if isinstance(c, str):
+        return None, [c]
+    a = np.asarray(c)
+    if a.dtype.kind in "fiu":
+        v = np.asarray(a, dtype=np.float64).ravel()
+        if v.size == 1:
+            v = np.full(n, float(v[0]))
+        if v.size != n:
+            raise ValueError("c must be a single value or have one value per point")
+        return np.ascontiguousarray(v), []
+    seq = list(a.ravel())
+    if len(seq) == 1:
+        seq = seq * n
+    if len(seq) != n:
+        raise ValueError("c must be a single colour or one colour per point")
+    return None, [str(v) for v in seq]
+
+
+def _err_pair(err, n, name):
+    if err is None:
+        z = np.zeros(n)
+        return z, z.copy()
+    a = np.asarray(err, dtype=np.float64)
+    if a.ndim == 0:
+        v = np.full(n, abs(float(a)))
+        return v, v.copy()
+    if a.shape == (n,):
+        v = np.ascontiguousarray(np.abs(a))
+        return v, v.copy()
+    if a.shape == (2, n):
+        return (np.ascontiguousarray(np.abs(a[0])),
+                np.ascontiguousarray(np.abs(a[1])))
+    raise ValueError(f"{name} must be a scalar, a length-{n} array, or shape (2, {n})")
 
 
 def _levels(z, levels):
@@ -188,6 +285,10 @@ class ContourSet:
     def set_cmap(self, cmap): self._e["cmap"] = cmap
     def set_clim(self, vmin=None, vmax=None): pass
 
+    def _colorbar_spec(self):
+        lv = self._e["levels"]
+        return dict(cmap=self._e["cmap"], vmin=lv[0], vmax=lv[-1])
+
 
 class AxesImage:
     """Handle returned by `Axes.imshow`, for later tweaks."""
@@ -203,10 +304,26 @@ class AxesImage:
     def set_clim(self, vmin=None, vmax=None):
         self._e["vmin"], self._e["vmax"] = vmin, vmax
 
+    def _colorbar_spec(self):
+        data = self._e["data"]
+        lo = self._e["vmin"] if self._e["vmin"] is not None else float(np.nanmin(data))
+        hi = self._e["vmax"] if self._e["vmax"] is not None else float(np.nanmax(data))
+        return dict(cmap=self._e["cmap"], vmin=lo, vmax=hi)
+
+
+class Colorbar:
+    """Handle returned by `Figure.colorbar`."""
+
+    def __init__(self, entry): self._e = entry
+
+    def set_label(self, label): self._e["label"] = str(label)
+    def get_label(self): return self._e["label"]
+
 
 class Figure:
     def __init__(self, figsize=(6.4, 4.8)):
         self.figsize, self.grid, self.axes, self._cur = figsize, (1, 1), [], None
+        self._colorbar = None
 
     def add_subplot(self, nrows=1, ncols=1, index=1):
         """index is 1-based, row-major (matplotlib convention)."""
@@ -227,6 +344,31 @@ class Figure:
     def gca(self):
         return self._cur or self.add_subplot()
 
+    def colorbar(self, mappable=None, ax=None, label=""):
+        """Reserve a strip beside the single axes showing `mappable`'s scale."""
+        if self.grid != (1, 1) or len(self.axes) != 1:
+            raise NotImplementedError("colorbar needs a figure with a single axes")
+        axes = ax or self.axes[0]
+        if mappable is not None:
+            spec = mappable._colorbar_spec()
+        elif axes.contours:
+            spec = ContourSet(axes.contours[-1])._colorbar_spec()
+        elif axes.images:
+            spec = AxesImage(axes.images[-1])._colorbar_spec()
+        else:
+            raise ValueError("colorbar needs an image or contour to describe")
+        self.grid = (1, 2)
+        self._colorbar = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
+                              vmax=float(spec["vmax"]), label=str(label))
+        return Colorbar(self._colorbar)
+
+    def _colorbar_panel(self):
+        cb = self._colorbar
+        return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
+                    legend=False, xlim=None, ylim=None, annotations=[], images=[],
+                    contours=[], errors=[], scatter=[], aspect=None,
+                    colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
+
     def savefig(self, filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
         """Write this figure. `format` overrides the file extension; `dpi` scales
         the pixel size; `bbox_inches="tight"` crops to the drawn content."""
@@ -236,7 +378,10 @@ class Figure:
             raise ValueError(f"unsupported format: {format!r} (use 'png' or 'svg')")
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
-        save(str(filepath), (w, h), self.grid, [a._panel() for a in self.axes],
+        panels = [a._panel() for a in self.axes]
+        if self._colorbar is not None:
+            panels.append(self._colorbar_panel())
+        save(str(filepath), (w, h), self.grid, panels,
              format=fmt, transparent=bool(transparent), bbox_inches=bbox_inches)
 
 
@@ -275,6 +420,39 @@ def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
 def annotate(text, xy, xytext=None, arrowprops=None, color="black", fontsize=12):
     gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, color=color,
                    fontsize=fontsize)
+
+
+def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", vmin=None,
+            vmax=None, **kwargs):
+    return gca().scatter(x, y, s=s, c=c, alpha=alpha, cmap=cmap, label=label, marker=marker,
+                         vmin=vmin, vmax=vmax)
+
+
+def axes(*args, **kwargs):
+    """Compatibility shim: plt_rs lays out subplots on a grid, so this returns the
+    current axes (creating one if needed)."""
+    return gca()
+
+
+def show(*args, **kwargs): pass
+
+def draw(*args, **kwargs): pass
+
+def pause(*args, **kwargs): pass
+
+def ion(*args, **kwargs): pass
+
+def ioff(*args, **kwargs): pass
+
+
+def errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
+             label="", color=None, **kwargs):
+    return gca().errorbar(x, y, yerr=yerr, xerr=xerr, fmt=fmt, ecolor=ecolor,
+                          elinewidth=elinewidth, capsize=capsize, label=label, color=color)
+
+
+def colorbar(mappable=None, ax=None, label=""):
+    return gcf().colorbar(mappable, ax=ax, label=label)
 
 
 def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):

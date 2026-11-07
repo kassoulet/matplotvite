@@ -262,3 +262,79 @@ def test_contour_rejects_non_grids():
     X, Y = np.meshgrid(np.arange(4.0), np.arange(4.0))
     with pytest.raises(NotImplementedError):
         plt.contour(X + Y, Y, np.zeros((4, 4)) + 1.0, levels=[0.0, 1.0])
+
+
+def test_errorbar_bars_and_caps(tmp_path):
+    plt.figure((4, 3))
+    plt.errorbar([1, 2, 3], [1, 4, 9], yerr=[0.5, 1.0, 1.5], capsize=3, label="err")
+    plt.legend()
+    p = tmp_path / "eb.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert "err" in s
+    assert s.count("<polyline") >= 9
+
+
+def test_errorbar_asymmetric_xerr_png(tmp_path):
+    plt.figure()
+    plt.errorbar([1, 2], [3, 4], yerr=[[0.1, 0.2], [0.3, 0.4]], xerr=0.2, ecolor="red", fmt="o")
+    p = tmp_path / "eb2.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_errorbar_rejects_bad_yerr():
+    plt.figure()
+    with pytest.raises(ValueError):
+        plt.errorbar([1, 2], [3, 4], yerr=[1, 2, 3])
+
+
+def test_colorbar_strip(tmp_path):
+    plt.figure((6, 3))
+    plt.contourf(np.add.outer(np.arange(20.0), np.arange(20.0)), levels=[0, 10, 20, 30])
+    cb = plt.colorbar(label="z")
+    cb.set_label("height")
+    p = tmp_path / "cb.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert "height" in s
+    assert s.count("<rect") + s.count("<polygon") > 60
+
+
+def test_scatter_sizes_and_cmap(tmp_path):
+    plt.figure((4, 3))
+    plt.scatter([1, 2, 3], [1, 4, 9], s=[20, 60, 120], c=[0.0, 0.5, 1.0], marker="s")
+    p = tmp_path / "sc.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert s.count("<rect") >= 4 and "</svg>" in s
+
+
+def test_scatter_colors_and_markers(tmp_path):
+    plt.figure()
+    plt.scatter([0, 1, 2], [0, 1, 4], c=["red", "green", "blue"], marker="^", alpha=0.6)
+    p = tmp_path / "sc2.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_scatter_rejects_bad_sizes():
+    plt.figure()
+    with pytest.raises(ValueError):
+        plt.scatter([1, 2], [1, 2], s=[1, 2, 3])
+
+
+def test_compat_noops():
+    plt.figure()
+    plt.plot([1, 2], [2, 1])
+    assert plt.show() is None and plt.draw() is None and plt.pause(0.01) is None
+    plt.ion()
+    plt.ioff()
+    assert plt.axes() is plt.gca()
+
+
+def test_colorbar_needs_mappable():
+    plt.figure()
+    plt.plot([1, 2], [3, 4])
+    with pytest.raises(ValueError):
+        plt.colorbar()
