@@ -127,8 +127,8 @@ class Axes:
         self.scatter_pts = []
         self.bars = []
         self.bands = []
-        self.hlines = []
-        self.vlines = []
+        self._hline_refs = []
+        self._vline_refs = []
         self.hspans = []
         self.vspans = []
         self.aspect = None
@@ -235,8 +235,13 @@ class Axes:
             ys.extend(e[1] + e[3])
         return _span(ys)
 
-    def get_xlim(self): return self.xlim or self._extent_x()
-    def get_ylim(self): return self.ylim or self._extent_y()
+    def get_xlim(self):
+        lo, hi = self.xlim or self._extent_x()
+        return _log_bounds(lo, hi, self.xscale, self._extent_x())
+
+    def get_ylim(self):
+        lo, hi = self.ylim or self._extent_y()
+        return _log_bounds(lo, hi, self.yscale, self._extent_y())
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
 
@@ -330,8 +335,8 @@ class Axes:
         self.scatter_pts.clear()
         self.bars.clear()
         self.bands.clear()
-        self.hlines.clear()
-        self.vlines.clear()
+        self._hline_refs.clear()
+        self._vline_refs.clear()
         self.hspans.clear()
         self.vspans.clear()
         self.artists.clear()
@@ -380,15 +385,36 @@ class Axes:
             labels = [f"{v:g}" for v in self.get_yticks()]
         return [_TextLabel(t) for t in labels]
 
-    def set_xscale(self, value, **kwargs):
-        if str(value) != "linear":
-            raise NotImplementedError(f"only linear scales are supported, got {value!r}")
-        self.xscale = "linear"
+    def set_xscale(self, value, base=10, **kwargs):
+        name = str(value)
+        if name == "linear":
+            self.xscale = "linear"
+        elif name == "log":
+            self.xscale, self.log_base = "log", float(base)
+        else:
+            raise NotImplementedError(f"unsupported x scale: {value!r}")
 
-    def set_yscale(self, value, **kwargs):
-        if str(value) != "linear":
-            raise NotImplementedError(f"only linear scales are supported, got {value!r}")
-        self.yscale = "linear"
+    def set_yscale(self, value, base=10, **kwargs):
+        name = str(value)
+        if name == "linear":
+            self.yscale = "linear"
+        elif name == "log":
+            self.yscale, self.log_base = "log", float(base)
+        else:
+            raise NotImplementedError(f"unsupported y scale: {value!r}")
+
+    def semilogx(self, *args, **kwargs):
+        self.set_xscale("log")
+        return self.plot(*args, **kwargs)
+
+    def semilogy(self, *args, **kwargs):
+        self.set_yscale("log")
+        return self.plot(*args, **kwargs)
+
+    def loglog(self, *args, **kwargs):
+        self.set_xscale("log")
+        self.set_yscale("log")
+        return self.plot(*args, **kwargs)
 
     def get_xscale(self): return self.xscale
     def get_yscale(self): return self.yscale
@@ -584,14 +610,14 @@ class Axes:
     def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
         """Horizontal line at data `y`, spanning an axes-fraction x range."""
-        self.hlines.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
+        self._hline_refs.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
 
     def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
         """Vertical line at data `x`, spanning an axes-fraction y range."""
-        self.vlines.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
+        self._vline_refs.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
 
@@ -696,6 +722,24 @@ class Axes:
     def set_ylim(self, lo, hi): self.ylim = (float(lo), float(hi))
     def legend(self): self.show_legend = True
 
+    def hlines(self, y, xmin, xmax, colors=None, linestyles=None, label="", **kwargs):
+        """Horizontal segments from `xmin` to `xmax` at every `y`."""
+        ys = np.asarray(y, dtype=np.float64).ravel()
+        lo, hi = _fill(xmin, ys.size), _fill(xmax, ys.size)
+        cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
+        for i in range(ys.size):
+            self.lines.append(_series([lo[i], hi[i]], [ys[i], ys[i]], label, cols[i],
+                                      linestyle=styles[i]))
+
+    def vlines(self, x, ymin, ymax, colors=None, linestyles=None, label="", **kwargs):
+        """Vertical segments from `ymin` to `ymax` at every `x`."""
+        xs = np.asarray(x, dtype=np.float64).ravel()
+        lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
+        cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
+        for i in range(xs.size):
+            self.lines.append(_series([xs[i], xs[i]], [lo[i], hi[i]], label, cols[i],
+                                      linestyle=styles[i]))
+
     def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
         """Staircase line through `x`/`y`; `where` picks the corner placement."""
         if where in ("pre", "post"):
@@ -743,13 +787,13 @@ class Axes:
         # Reference lines and bands are axes-fraction based, so they are resolved
         # here, once the drawing limits are known.
         series = list(self.lines)
-        for h in self.hlines:
+        for h in self._hline_refs:
             series.append(_series([x0 + h["xmin"] * dx, x0 + h["xmax"] * dx],
                                   [h["y"], h["y"]], h["label"], h["color"] or "black",
                                   linestyle=h["linestyle"] or "-",
                                   linewidth=1.5 if h["linewidth"] is None else float(h["linewidth"]),
                                   alpha=h["alpha"]))
-        for v in self.vlines:
+        for v in self._vline_refs:
             series.append(_series([v["x"], v["x"]],
                                   [y0 + v["ymin"] * dy, y0 + v["ymax"] * dy],
                                   v["label"], v["color"] or "black",
@@ -779,6 +823,7 @@ class Axes:
                     errors=self.errors,
                     bars=bars,
                     bands=self.bands,
+                    x_log=self.xscale == "log", y_log=self.yscale == "log",
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"])
@@ -854,6 +899,41 @@ def _parse_fmt(fmt):
         else:
             i += 1
     return color, style, mark
+
+
+def _log_bounds(lo, hi, scale, extent):
+    """Log axes can only cover positive data; the lower bound climbs to the
+    smallest positive sample when the data crosses zero."""
+    lo, hi = float(lo), float(hi)
+    if scale != "log":
+        return (lo, hi)
+    positive = [float(v) for v in extent if v > 0]
+    lo = max(lo, min(positive)) if positive else 1e-10
+    if hi <= lo:
+        hi = lo * 10.0
+    return (lo, hi)
+
+
+def _line_colors(colors, n):
+    if colors is None:
+        return [_CYCLE[0]] * n
+    if isinstance(colors, str):
+        return [colors] * n
+    vals = [str(c) for c in np.asarray(colors, dtype=object).ravel()]
+    if len(vals) != n:
+        raise ValueError("colors must be a single colour or one per segment")
+    return vals
+
+
+def _line_styles(styles, n):
+    if styles is None:
+        return ["-"] * n
+    if isinstance(styles, str):
+        return [styles] * n
+    vals = [str(s) for s in np.asarray(styles, dtype=object).ravel()]
+    if len(vals) != n:
+        raise ValueError("linestyles must be a single style or one per segment")
+    return vals
 
 
 def _as_f64(v):
@@ -1157,7 +1237,8 @@ class Figure:
         cb = self._colorbar
         return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
                     legend=False, xlim=None, ylim=None, annotations=[], images=[],
-                    contours=[], errors=[], scatter=[], bars=[], bands=[], aspect=None, axis_off=False,
+                    contours=[], errors=[], scatter=[], bars=[], bands=[],
+                    x_log=False, y_log=False, aspect=None, axis_off=False,
                     colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
@@ -1208,6 +1289,13 @@ def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                         interpolation=interpolation, aspect=aspect, alpha=alpha)
 
 
+def xscale(*args, **kwargs): return gca().set_xscale(*args, **kwargs)
+def yscale(*args, **kwargs): return gca().set_yscale(*args, **kwargs)
+def semilogx(*args, **kwargs): return gca().semilogx(*args, **kwargs)
+def semilogy(*args, **kwargs): return gca().semilogy(*args, **kwargs)
+def loglog(*args, **kwargs): return gca().loglog(*args, **kwargs)
+def hlines(*args, **kwargs): return gca().hlines(*args, **kwargs)
+def vlines(*args, **kwargs): return gca().vlines(*args, **kwargs)
 def step(*args, **kwargs): return gca().step(*args, **kwargs)
 def stairs(*args, **kwargs): return gca().stairs(*args, **kwargs)
 def tight_layout(*args, **kwargs): return gcf().tight_layout(*args, **kwargs)

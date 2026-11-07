@@ -450,6 +450,10 @@ struct Panel<'py> {
     #[pyo3(item)]
     bands: Vec<Band<'py>>,
     #[pyo3(item)]
+    x_log: bool,
+    #[pyo3(item)]
+    y_log: bool,
+    #[pyo3(item)]
     colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
     #[pyo3(item)]
@@ -755,6 +759,19 @@ fn clip_value(poly: Vec<(f64, f64, f64)>, bound: f64, keep_above: bool) -> Vec<(
     out
 }
 
+/// Tick label for a log10-space coordinate: 10^v written as a plain number.
+fn log_label(v: f64) -> String {
+    let value = 10f64.powf(v);
+    if value >= 1e5 || value < 1e-4 {
+        format!("{value:.0e}")
+    } else {
+        format!("{value:.4}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
 fn mix_at(a: (f64, f64, f64), b: (f64, f64, f64), bound: f64) -> (f64, f64, f64) {
     let d = b.2 - a.2;
     let t = if d.abs() < f64::EPSILON {
@@ -776,7 +793,35 @@ where
     if let Some((cmap, vmin, vmax, label)) = &p.colorbar {
         return draw_colorbar(area, cmap, *vmin, *vmax, label);
     }
-    let (x0, x1, y0, y1) = panel_ranges(p);
+    let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
+    // Log axes are laid out in log10 space: the ranges and every mapped point are
+    // transformed, and the tick labels are converted back to powers of ten.
+    let tx = |v: f64| {
+        if p.x_log {
+            v.max(f64::MIN_POSITIVE).log10()
+        } else {
+            v
+        }
+    };
+    let ty = |v: f64| {
+        if p.y_log {
+            v.max(f64::MIN_POSITIVE).log10()
+        } else {
+            v
+        }
+    };
+    if p.x_log {
+        (x0, x1) = (tx(x0), tx(x1));
+        if x1 <= x0 {
+            x1 = x0 + 1.0;
+        }
+    }
+    if p.y_log {
+        (y0, y1) = (ty(y0), ty(y1));
+        if y1 <= y0 {
+            y1 = y0 + 1.0;
+        }
+    }
     // A fixed aspect shrinks the plotting box instead of bending the data limits,
     // like matplotlib's adjustable="box".
     let shrunk_area;
@@ -809,12 +854,44 @@ where
         }
     }
     if !p.axis_off {
-        chart
-            .configure_mesh()
-            .disable_mesh()
-            .x_desc(&p.xlabel)
-            .y_desc(&p.ylabel)
-            .draw()?;
+        match (p.x_log, p.y_log) {
+            (false, false) => {
+                chart
+                    .configure_mesh()
+                    .disable_mesh()
+                    .x_desc(&p.xlabel)
+                    .y_desc(&p.ylabel)
+                    .draw()?;
+            }
+            (true, false) => {
+                chart
+                    .configure_mesh()
+                    .disable_mesh()
+                    .x_desc(&p.xlabel)
+                    .y_desc(&p.ylabel)
+                    .x_label_formatter(&|v: &f64| log_label(*v))
+                    .draw()?;
+            }
+            (false, true) => {
+                chart
+                    .configure_mesh()
+                    .disable_mesh()
+                    .x_desc(&p.xlabel)
+                    .y_desc(&p.ylabel)
+                    .y_label_formatter(&|v: &f64| log_label(*v))
+                    .draw()?;
+            }
+            (true, true) => {
+                chart
+                    .configure_mesh()
+                    .disable_mesh()
+                    .x_desc(&p.xlabel)
+                    .y_desc(&p.ylabel)
+                    .x_label_formatter(&|v: &f64| log_label(*v))
+                    .y_label_formatter(&|v: &f64| log_label(*v))
+                    .draw()?;
+            }
+        }
     }
     // Filled contours sit on the image layer, under the line series.
     {
@@ -856,7 +933,7 @@ where
                             let pts: Vec<(i32, i32)> = poly
                                 .iter()
                                 .map(|&(px, py, _)| {
-                                    let (ax, ay) = chart_area.map_coordinate(&(px, py));
+                                    let (ax, ay) = chart_area.map_coordinate(&(tx(px), ty(py)));
                                     (ax - base.0, ay - base.1)
                                 })
                                 .collect();
@@ -880,7 +957,7 @@ where
                 .iter()
                 .zip(ys.iter())
                 .map(|(x, y)| {
-                    let (px, py) = chart_area.map_coordinate(&(*x, *y));
+                    let (px, py) = chart_area.map_coordinate(&(tx(*x), ty(*y)));
                     (px - base.0, py - base.1)
                 })
                 .collect();
@@ -913,8 +990,8 @@ where
                 if swatch.is_none() {
                     swatch = Some(col);
                 }
-                let (x0, y0) = chart_area.map_coordinate(&(l[i], b[i]));
-                let (x1, y1) = chart_area.map_coordinate(&(l[i] + w[i], b[i] + h[i]));
+                let (x0, y0) = chart_area.map_coordinate(&(tx(l[i]), ty(b[i])));
+                let (x1, y1) = chart_area.map_coordinate(&(tx(l[i] + w[i]), ty(b[i] + h[i])));
                 let (xl, xr) = (x0.min(x1) - base.0, x0.max(x1) - base.0);
                 let (yt, yb) = (y0.min(y1) - base.1, y0.max(y1) - base.1);
                 if xr <= xl || yb <= yt {
@@ -952,11 +1029,11 @@ where
         // Step drawstyles insert the corner points instead of a diagonal.
         let mut pts: Vec<(f64, f64)> = Vec::with_capacity(n * 2);
         for i in 0..n {
-            pts.push((xs[i], ys[i]));
+            pts.push((tx(xs[i]), ty(ys[i])));
             if i + 1 < n {
                 match s.drawstyle.as_str() {
-                    "steps-post" => pts.push((xs[i + 1], ys[i])),
-                    "steps-pre" => pts.push((xs[i], ys[i + 1])),
+                    "steps-post" => pts.push((tx(xs[i + 1]), ty(ys[i]))),
+                    "steps-pre" => pts.push((tx(xs[i]), ty(ys[i + 1]))),
                     _ => {}
                 }
             }
@@ -1016,7 +1093,7 @@ where
             let stroke = s.mew.max(1.0).round() as u32;
             let chart_area = chart.plotting_area();
             for (xv, yv) in xs.iter().zip(ys.iter()) {
-                let (px, py) = chart_area.map_coordinate(&(*xv, *yv));
+                let (px, py) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
                 draw_marker(area, base, (px, py), r, mc, stroke, &s.marker)?;
             }
         }
@@ -1035,11 +1112,11 @@ where
             let xz = xa.iter().zip(xb.iter());
             let it = xs_v.iter().zip(ys_v.iter());
             for ((xv, yv), ((lo, hi), (xl, xh))) in it.zip(yz.zip(xz)) {
-                let (cx, cy) = chart_area.map_coordinate(&(*xv, *yv));
+                let (cx, cy) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
                 let (cx, cy) = (cx - base.0, cy - base.1);
                 if *lo > 0.0 || *hi > 0.0 {
-                    let (_, yt) = chart_area.map_coordinate(&(*xv, *yv + *hi));
-                    let (_, yb) = chart_area.map_coordinate(&(*xv, *yv - *lo));
+                    let (_, yt) = chart_area.map_coordinate(&(tx(*xv), ty(*yv + *hi)));
+                    let (_, yb) = chart_area.map_coordinate(&(tx(*xv), ty(*yv - *lo)));
                     let (yt, yb) = (yt - base.1, yb - base.1);
                     area.draw(&PathElement::new(
                         vec![(cx, yt), (cx, yb)],
@@ -1055,8 +1132,8 @@ where
                     }
                 }
                 if *xl > 0.0 || *xh > 0.0 {
-                    let (xl_px, _) = chart_area.map_coordinate(&(*xv - *xl, *yv));
-                    let (xr_px, _) = chart_area.map_coordinate(&(*xv + *xh, *yv));
+                    let (xl_px, _) = chart_area.map_coordinate(&(tx(*xv - *xl), ty(*yv)));
+                    let (xr_px, _) = chart_area.map_coordinate(&(tx(*xv + *xh), ty(*yv)));
                     let (xl_px, xr_px) = (xl_px - base.0, xr_px - base.0);
                     area.draw(&PathElement::new(
                         vec![(xl_px, cy), (xr_px, cy)],
@@ -1089,7 +1166,7 @@ where
             });
             let alpha = sc.alpha.clamp(0.0, 1.0);
             for i in 0..xs.len().min(ys.len()) {
-                let (cx, cy) = chart_area.map_coordinate(&(xs[i], ys[i]));
+                let (cx, cy) = chart_area.map_coordinate(&(tx(xs[i]), ty(ys[i])));
                 // matplotlib's `s` is an area in points^2; ~1.39 px/pt at 100 dpi.
                 let sz = sizes.get(i).copied().unwrap_or(36.0).max(0.0);
                 let r = (sz.sqrt() / 2.0 * 1.39).max(1.0);
@@ -1135,8 +1212,8 @@ where
                     color(&colors[li % colors.len()])
                 };
                 for (a, b) in contour_segments(&xs, &ys, &zs, *level) {
-                    let (ax, ay) = chart_area.map_coordinate(&a);
-                    let (bx, by) = chart_area.map_coordinate(&b);
+                    let (ax, ay) = chart_area.map_coordinate(&(tx(a.0), ty(a.1)));
+                    let (bx, by) = chart_area.map_coordinate(&(tx(b.0), ty(b.1)));
                     area.draw(&PathElement::new(
                         vec![(ax - base.0, ay - base.1), (bx - base.0, by - base.1)],
                         col.stroke_width(2),
@@ -1151,13 +1228,13 @@ where
         // its origin, so anything drawn on it shifts back to cell-local pixels.
         let base = area.get_base_pixel();
         for (x, y, s, c, size, ha, va) in &p.texts {
-            let pos = chart_area.map_coordinate(&(*x, *y));
+            let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
             draw_label(area, base, pos, s, color(c), *size, ha, va)?;
         }
         for (text, xy, xytext, c, size) in &p.annotations {
-            let target = chart_area.map_coordinate(xy);
+            let target = chart_area.map_coordinate(&(tx(xy.0), ty(xy.1)));
             let anchor = match xytext {
-                Some(t) => chart_area.map_coordinate(t),
+                Some(t) => chart_area.map_coordinate(&(tx(t.0), ty(t.1))),
                 None => target,
             };
             if xytext.is_some() {
@@ -1176,8 +1253,8 @@ where
         }
         for item in &p.images {
             let (l, r, b, t) = item.4;
-            let (ax, ay) = chart_area.map_coordinate(&(l, t));
-            let (zx, zy) = chart_area.map_coordinate(&(r, b));
+            let (ax, ay) = chart_area.map_coordinate(&(tx(l), ty(t)));
+            let (zx, zy) = chart_area.map_coordinate(&(tx(r), ty(b)));
             let (iw, ih) = ((ax - zx).abs(), (ay - zy).abs());
             if iw == 0 || ih == 0 {
                 continue;

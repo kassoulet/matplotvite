@@ -80,6 +80,10 @@ plt.savefig("contours.png")
   filled polygons; `where` masks split into separate runs
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
   ranges, resolved against the final limits
+- `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(...)` — segment collections
+- `set_xscale("log")`/`set_yscale("log")`, `semilogx`, `semilogy`, `loglog` and the
+  `xscale`/`yscale` pyplot shims — artists and limits map through log10, with decade
+  tick labels (`symlog` raises)
 
 **Gridded data**
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=)` — 2-D arrays mapped
@@ -117,7 +121,7 @@ values but the renderer still chooses tick locations automatically.
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 509 / 10 098 (84%)**. CI re-runs the trace against
+accepts — currently **8 573 / 10 098 (84%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks

@@ -634,11 +634,14 @@ def test_axes_facecolor_alpha_label_zorder():
     ax.set_zorder(3)
     assert ax.get_zorder() == 3
     assert ax.get_xscale() == "linear" and ax.get_yscale() == "linear"
+    ax.set_xscale("log")
+    assert ax.get_xscale() == "log"
+    ax.set_yscale("log")
+    assert ax.get_yscale() == "log"
     ax.set_xscale("linear")
+    ax.set_yscale("linear")
     with pytest.raises(NotImplementedError):
-        ax.set_xscale("log")
-    with pytest.raises(NotImplementedError):
-        ax.set_yscale("log")
+        ax.set_xscale("symlog")
 
 
 def test_axes_clear_empties_the_figure(tmp_path):
@@ -982,3 +985,61 @@ def test_layout_noops_and_in_layout():
     ax.set_in_layout(False)
     assert ax.get_in_layout() is False
     assert ax.get_layout_engine() is None
+
+
+def test_hlines_vlines(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.hlines([1, 2], 0, 3, colors=["red", "blue"], linestyles=["--", ":"])
+    ax.vlines([0.5, 1.5], 0, 3, colors="green")
+    p = tmp_path / "hl.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert "#D62728" in s and "#1F77B4" in s and "#2CA02C" in s
+    assert s.count("<POLYLINE") >= 3
+    lo, hi = ax.get_xlim()
+    assert lo <= 0.0 and hi >= 3.0
+    with pytest.raises(ValueError):
+        ax.hlines([1, 2], 0, 3, colors=["red"])
+    with pytest.raises(ValueError):
+        ax.vlines([1], 0, 1, linestyles=["-", "--"])
+
+
+def test_log_scales(tmp_path):
+    x = np.logspace(0, 3, 20)
+    plt.figure()
+    ax = plt.gca()
+    ax.semilogy(x, x ** 2, color="red")
+    assert ax.get_yscale() == "log" and ax.get_xscale() == "linear"
+    p = tmp_path / "log.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert "#D62728" in s.upper()
+    assert re.search(r">\s*10\s*<", s), "decade tick label missing"
+    plt.figure()
+    ax = plt.gca()
+    ax.loglog(x, 1.0 / x, base=10)
+    assert ax.get_xscale() == "log" and ax.get_yscale() == "log"
+    q = tmp_path / "log2.svg"
+    plt.savefig(q)
+    assert re.search(r">\s*0\.1\s*<", q.read_text())
+    plt.figure()
+    plt.semilogx(x, x)
+    plt.xscale("log")
+    assert plt.gca().get_xscale() == "log"
+    with pytest.raises(NotImplementedError):
+        ax.set_xscale("symlog")
+    ax.set_yscale("linear")
+    assert ax.get_yscale() == "linear"
+
+
+def test_log_scale_ignores_non_positive(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.set_yscale("log")
+    ax.plot([0, 1, 2, 3], [0, 1, 10, 100])
+    lo, hi = ax.get_ylim()
+    assert lo > 0 and hi >= 100
+    p = tmp_path / "logn.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"

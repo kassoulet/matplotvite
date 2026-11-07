@@ -1,7 +1,7 @@
 # plt.rs — Roadmap
 
 > Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **8 509 / 10 098 call sites covered (84%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **8 573 / 10 098 call sites covered (84%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
@@ -87,11 +87,11 @@
 - [x] `bar_label(container, labels=, fmt=, label_type=, padding=)` — values placed at the bar end or centred
 - [x] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, orientation=)` — implemented over `bar`, returns `(counts, edges, handles); `histtype="step"` raises`
 - [x] `step(x, y, where=, color=, label=)` — delegates to `plot` with `steps-pre`/`steps-post`; `where="mid"` raises
-- [ ] `hlines(y, xmin, xmax, ...)` / `vlines(x, ymin, ymax, ...)`
+- [x] `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(x, ymin, ymax, ...)` — one segment per entry, per-segment colour and style
 
 ### 3.2 Log / symlog scales
-- [ ] `xscale("log" | "symlog" | "linear")` / `yscale(...)` (pyplot + Axes)
-- [ ] `semilogx`, `semilogy`, `loglog` convenience wrappers
+- [x] `xscale("log" | "linear")` / `yscale(...)` (pyplot + Axes) — layout and every artist map through log10, tick labels are converted back; `symlog` raises
+- [x] `semilogx`, `semilogy`, `loglog` convenience wrappers
 
 ### 3.3 Layout
 - [x] `tight_layout(pad=, h_pad=, w_pad=)` — accepted as a no-op: panels always fill their grid cells, so nothing can clip
