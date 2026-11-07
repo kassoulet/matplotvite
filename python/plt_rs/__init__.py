@@ -1738,6 +1738,17 @@ def rcdefaults():
     rcParams.clear()
     rcParams.update(_RC_DEFAULTS)
 
+    def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
+        """Contour plot."""
+        fig, ax = plt.subplots()
+        return ax.contour(*args, levels=levels, colors=colors, cmap=cmap,
+                          linewidths=linewidths, alpha=alpha)
+    def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
+        """Filled contour plot."""
+        fig, ax = plt.subplots()
+        return ax.contourf(*args, levels=levels, colors=colors, cmap=cmap,
+                           alpha=alpha)
+
 
 def savefig(filepath, format=None, dpi=None, bbox_inches=None, transparent=False):
     gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches, transparent=transparent)
