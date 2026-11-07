@@ -214,11 +214,11 @@ class Axes:
         edge = markeredgecolor or mec
         self.lines.append(_series(
             x, y, label, line_color, linestyle=style,
-            linewidth=linewidth if linewidth is not None else (lw if lw is not None else 2.0),
+            linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
             marker=marker or "",
-            markersize=markersize if markersize is not None else (ms if ms is not None else 6.0),
+            markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
             mfc=markerfacecolor or mfc, mec=edge,
-            mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else 1.0),
+            mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
             alpha=alpha, drawstyle=drawstyle))
 
     def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
@@ -757,8 +757,9 @@ class Axes:
              or _CYCLE[len(self.errors) % len(_CYCLE)])
         # matplotlib's default fmt='' still draws a solid line; marker-only formats
         # ('o', 's', ...) get bars only since markers are not rendered yet.
+        elw = elinewidth if elinewidth is not None else rcParams.get("lines.linewidth", 1.5)
         if fmt != "none" and (fmt == "" or "-" in fmt):
-            self.lines.append(_series(x, y, label, c))
+            self.lines.append(_series(x, y, label, c, linewidth=elw))
         self.errors.append((np.ascontiguousarray(x), np.ascontiguousarray(y), ylo, yhi,
                             xlo, xhi, c, float(capsize or 0.0) * 1.4))
         _, _, marker = _stem_fmt(fmt, "")
@@ -905,18 +906,24 @@ class Axes:
         colour = kwargs.get("color") or colour or _CYCLE[len(self.lines) % len(_CYCLE)]
         if x.size:
             if orientation == "vertical":
-                self.vlines(x, bottom, y, colors=colour, linestyles=style)
+                self.vlines(x, bottom, y, colors=colour, linestyles=style,
+                            linewidths=rcParams.get("lines.linewidth", 1.5))
             else:
-                self.hlines(y, bottom, x, colors=colour, linestyles=style)
+                self.hlines(y, bottom, x, colors=colour, linestyles=style,
+                            linewidths=rcParams.get("lines.linewidth", 1.5))
             marker_colour, _, marker = _stem_fmt(markerfmt, "o")
-            self.scatter(x, y, s=36, c=marker_colour or colour, marker=marker)
+            self.scatter(x, y, s=36, c=marker_colour or colour,
+                         marker=marker,
+                         markersize=rcParams.get("lines.markersize", 6.0))
             if basefmt != "none":
                 if orientation == "vertical":
                     self.hlines([float(bottom)], float(x.min()), float(x.max()),
-                                colors=colour)
+                                colors=colour,
+                                linewidths=rcParams.get("lines.linewidth", 1.5))
                 else:
                     self.vlines([float(bottom)], float(y.min()), float(y.max()),
-                                colors=colour)
+                                colors=colour,
+                                linewidths=rcParams.get("lines.linewidth", 1.5))
 
     def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
             normalize=True, shadow=False, **kwargs):
@@ -1038,7 +1045,7 @@ class Axes:
             series.append(_series([x0 + h["xmin"] * dx, x0 + h["xmax"] * dx],
                                   [h["y"], h["y"]], h["label"], h["color"] or "black",
                                   linestyle=h["linestyle"] or "-",
-                                  linewidth=1.5 if h["linewidth"] is None else float(h["linewidth"]),
+                                  linewidth=h["linewidth"] if h["linewidth"] is not None else rcParams.get("lines.linewidth", 1.5),
                                   alpha=h["alpha"]))
         for a in self._axlines:
             (px, py) = a["p"]
@@ -1060,7 +1067,7 @@ class Axes:
                                   [y0 + v["ymin"] * dy, y0 + v["ymax"] * dy],
                                   v["label"], v["color"] or "black",
                                   linestyle=v["linestyle"] or "-",
-                                  linewidth=1.5 if v["linewidth"] is None else float(v["linewidth"]),
+                                  linewidth=v["linewidth"] if v["linewidth"] is not None else rcParams.get("lines.linewidth", 1.5),
                                   alpha=v["alpha"]))
         bars = list(self.bars)
         for s in self.hspans:
