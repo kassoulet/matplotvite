@@ -29,7 +29,7 @@
 ### 2.1 `plot()` kwargs
 - [ ] `linestyle` / `ls` — solid, dashed, dotted, dashdot, fmt string shorthand (`"r--o"`)
 - [ ] `linewidth` / `lw`
-- [ ] `marker` — point, circle, square, triangle, cross, plus, diamond (`"o"`, `"s"`, `"^"`, `"+"`, `"x"`, `"D"`)
+- [ ] `marker` on `plot()` — shapes exist for `scatter` (`"o"`, `"s"`, `"^"`, `"+"`, `"x"`, `"D"`), not yet wired into line plots
 - [ ] `markersize` / `ms`, `markerfacecolor` / `mfc`, `markeredgecolor` / `mec`, `markeredgewidth`
 - [ ] `alpha` (line + marker transparency)
 - [ ] `drawstyle` — `"default"`, `"steps-pre"`, `"steps-post"`
@@ -45,7 +45,7 @@
 - [ ] `xticks(ticks, labels, rotation)` / `yticks(ticks, labels, rotation)`
 - [ ] `tick_params(axis, labelsize, length, width, color, rotation)`
 - [ ] `axis("off" | "equal" | "scaled" | [xmin,xmax,ymin,ymax])`
-- [ ] `set_aspect("equal" | float)`
+- [x] `set_aspect("equal" | float)` — box shrink, see V4
 - [ ] `axhline(y, color, linestyle, linewidth, alpha)` / `axvline(x, ...)`
 - [ ] `axhspan` / `axvspan` (shaded band)
 
@@ -82,6 +82,7 @@
 
 ### 3.1 New plot types
 - [x] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)` — per-point sizes, explicit colours or cmap-mapped values, markers `o s ^ v < > D x + .` (no legend handle yet)
+- [x] `errorbar(...)` — includes scalar / per-point / `(2, N)` errors, caps, `ecolor`
 - [ ] `bar(x, height, width=, bottom=, color=, label=, align=)` / `barh(...)`
 - [ ] `hist(x, bins=, density=, cumulative=, color=, alpha=, label=, histtype=)`
 - [ ] `step(x, y, where=, color=, label=)` — equivalent to `drawstyle="steps"`

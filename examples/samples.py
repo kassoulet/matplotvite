@@ -133,6 +133,44 @@ def run_svg_export(out_path: str) -> None:
     plt.savefig(out_path)
 
 
+def run_contours_colorbar(out_path: str) -> None:
+    x = np.linspace(-3, 3, 120)
+    y = np.linspace(-3, 3, 120)
+    z = np.exp(-(x[None, :] ** 2 + y[:, None] ** 2))
+    plt.figure(figsize=(7.0, 4.5))
+    plt.contourf(x, y, z, levels=8)
+    plt.colorbar(label="density")
+    plt.title("Filled Contours with Colorbar")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.savefig(out_path)
+
+
+def run_scatter_errorbar(out_path: str) -> None:
+    rng = np.random.default_rng(7)
+    x = np.linspace(1, 10, 24)
+    y = np.log(x) + rng.normal(0, 0.08, x.size)
+    err = rng.uniform(0.05, 0.2, x.size)
+    plt.figure(figsize=(7.5, 4.5))
+    plt.errorbar(x, y, yerr=err, fmt="", capsize=3, ecolor="#9467bd")
+    plt.scatter(x, y, s=48, c=y, cmap="viridis", marker="o")
+    plt.title("Scatter with Error Bars")
+    plt.xlabel("x")
+    plt.ylabel("log(x) + noise")
+    plt.savefig(out_path)
+
+
+def run_imshow_heatmap(out_path: str) -> None:
+    x = np.linspace(-2, 2, 200)
+    y = np.linspace(-2, 2, 120)
+    z = np.sin(3 * x[None, :]) * np.cos(2 * y[:, None])
+    plt.figure(figsize=(6.0, 4.0))
+    plt.imshow(z, cmap="viridis", extent=(-2, 2, -2, 2))
+    plt.colorbar(label="amplitude")
+    plt.title("Heatmap (imshow) with Colorbar")
+    plt.savefig(out_path)
+
+
 SAMPLES: list[dict[str, object]] = [
     {
         "id": "trigonometric_waves",
@@ -340,6 +378,77 @@ plt.xlabel("x (arbitrary units)")
 plt.ylabel("y")
 plt.legend()
 plt.savefig("svg_export.svg")
+""",
+    },
+    {
+        "id": "contours_colorbar",
+        "title": "Filled Contours with Colorbar",
+        "category": "Gridded Data",
+        "description": "contourf() renders filled iso-bands and colorbar() adds a gradient scale with ticks.",
+        "filename": "contours_colorbar.png",
+        "format": "png",
+        "runner": run_contours_colorbar,
+        "code": """import numpy as np
+import plt_rs as plt
+
+x = np.linspace(-3, 3, 120)
+y = np.linspace(-3, 3, 120)
+z = np.exp(-(x[None, :] ** 2 + y[:, None] ** 2))
+
+plt.figure(figsize=(7.0, 4.5))
+plt.contourf(x, y, z, levels=8)
+plt.colorbar(label="density")
+plt.title("Filled Contours with Colorbar")
+plt.xlabel("x")
+plt.ylabel("y")
+plt.savefig("contours_colorbar.png")
+""",
+    },
+    {
+        "id": "scatter_errorbar",
+        "title": "Scatter with Error Bars",
+        "category": "Statistics & Uncertainty",
+        "description": "Per-point marker sizes and colours from a colormap, over error bars with caps.",
+        "filename": "scatter_errorbar.png",
+        "format": "png",
+        "runner": run_scatter_errorbar,
+        "code": """import numpy as np
+import plt_rs as plt
+
+rng = np.random.default_rng(7)
+x = np.linspace(1, 10, 24)
+y = np.log(x) + rng.normal(0, 0.08, x.size)
+err = rng.uniform(0.05, 0.2, x.size)
+
+plt.figure(figsize=(7.5, 4.5))
+plt.errorbar(x, y, yerr=err, fmt="", capsize=3, ecolor="#9467bd")
+plt.scatter(x, y, s=48, c=y, cmap="viridis", marker="o")
+plt.title("Scatter with Error Bars")
+plt.xlabel("x")
+plt.ylabel("log(x) + noise")
+plt.savefig("scatter_errorbar.png")
+""",
+    },
+    {
+        "id": "imshow_heatmap",
+        "title": "Heatmap with Colorbar (imshow)",
+        "category": "Gridded Data",
+        "description": "A 2-D array rendered through viridis, with equal aspect and a colorbar scale.",
+        "filename": "imshow_heatmap.png",
+        "format": "png",
+        "runner": run_imshow_heatmap,
+        "code": """import numpy as np
+import plt_rs as plt
+
+x = np.linspace(-2, 2, 200)
+y = np.linspace(-2, 2, 120)
+z = np.sin(3 * x[None, :]) * np.cos(2 * y[:, None])
+
+plt.figure(figsize=(6.0, 4.0))
+plt.imshow(z, cmap="viridis", extent=(-2, 2, -2, 2))
+plt.colorbar(label="amplitude")
+plt.title("Heatmap (imshow) with Colorbar")
+plt.savefig("imshow_heatmap.png")
 """,
     },
 ]
