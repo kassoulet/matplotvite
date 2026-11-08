@@ -3383,7 +3383,7 @@ class Figure:
         # the panel payload and every render option, so any edit invalidates it.
         try:
             hasher = _hashlib.blake2b(digest_size=16)
-            _hash_value(hasher, (panels, options))
+            _hash_value(hasher, ((w, h), self.grid, panels, options))
             key = hasher.digest()
         except (TypeError, ValueError):
             key = None
