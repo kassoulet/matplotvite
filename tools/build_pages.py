@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import html
 import importlib.util
 import json
 from pathlib import Path
 import shutil
+import statistics
 import sys
+import time
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -41,6 +44,23 @@ def speedup_label(ratio: float) -> str:
     if ratio >= 1.0:
         return f"{ratio:.1f}× faster"
     return f"{1.0 / ratio:.1f}× slower"
+
+
+def format_ms(milliseconds: float) -> str:
+    """Format a wall-clock duration with a readable number of digits."""
+    if milliseconds < 10.0:
+        return f"{milliseconds:.2f} ms"
+    return f"{milliseconds:.1f} ms"
+
+
+def measure_render_ms(render: Callable[[], None], repeats: int = 3) -> float:
+    """Return the fastest of `repeats` wall-clock renders, in milliseconds."""
+    best = float("inf")
+    for _ in range(repeats):
+        start = time.perf_counter()
+        render()
+        best = min(best, (time.perf_counter() - start) * 1000.0)
+    return best
 
 
 def shared_navbar(current_page: str) -> str:
@@ -749,6 +769,18 @@ def comparison_css() -> str:
       padding: 1rem 1.1rem 0.5rem;
     }
     .comparison-title { font-size: 1rem; font-weight: 650; line-height: 1.35; }
+    .comparison-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.3rem;
+    }
+    .comparison-speedup {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      white-space: nowrap;
+    }
     .comparison-category {
       display: block;
       color: var(--muted);
@@ -779,6 +811,7 @@ def comparison_css() -> str:
       font-family: var(--mono);
       font-size: 0.64rem;
     }
+    .comparison-pane a { display: block; cursor: zoom-in; }
     .comparison-pane img { display: block; width: 100%; height: auto; }
     .comparison-missing {
       color: var(--muted);
@@ -812,14 +845,33 @@ def comparison_css() -> str:
 
 def generate_comparison_html(samples_info: list[dict[str, object]], mpl_available: bool) -> str:
     """Generate comparison.html from the Matplotvite and matplotlib renders."""
+    timed = [
+        sample
+        for sample in samples_info
+        if sample.get("mpl_filename") and sample.get("rs_ms") and sample.get("mpl_ms")
+    ]
+
     cards = []
     for sample in samples_info:
         filename = str(sample["filename"])
         mpl_filename = sample.get("mpl_filename")
+        title = html.escape(str(sample["title"]))
         code_escaped = html.escape(str(sample["code"]))
+        rs_ms = float(sample.get("rs_ms") or 0.0)
+        mpl_ms = float(sample.get("mpl_ms") or 0.0)
+        left_label = "Matplotvite" + (f" · {format_ms(rs_ms)}" if rs_ms else "")
+        speedup_html = ""
         if mpl_filename:
-            right_pane = f'<img src="comparison/{html.escape(str(mpl_filename))}" alt="matplotlib render of {html.escape(str(sample["title"]))}" loading="lazy">'
-            right_label = "matplotlib · Agg"
+            mpl_src = f"comparison/{html.escape(str(mpl_filename))}"
+            right_pane = (
+                f'<a href="{mpl_src}" target="_blank" rel="noopener">'
+                f'<img src="{mpl_src}" alt="matplotlib render of {title}" loading="lazy"></a>'
+            )
+            right_label = "matplotlib · Agg" + (f" · {format_ms(mpl_ms)}" if mpl_ms else "")
+            if rs_ms and mpl_ms:
+                speedup_html = (
+                    f'<span class="comparison-speedup">{speedup_label(mpl_ms / rs_ms)}</span>'
+                )
         elif not mpl_available:
             right_pane = '<p class="comparison-missing">matplotlib is not installed in this build.</p>'
             right_label = "matplotlib · unavailable"
@@ -832,14 +884,17 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
         <div class="comparison-head">
           <div>
             <span class="comparison-category">{html.escape(str(sample['category']))}</span>
-            <h3 class="comparison-title">{html.escape(str(sample['title']))}</h3>
+            <h3 class="comparison-title">{title}</h3>
           </div>
-          <span class="badge badge-fmt">{str(sample['format']).upper()}</span>
+          <div class="comparison-meta">
+            <span class="badge badge-fmt">{str(sample['format']).upper()}</span>
+            {speedup_html}
+          </div>
         </div>
         <div class="comparison-pair">
           <div class="comparison-pane">
-            <div class="comparison-label"><span>Matplotvite</span><span>{html.escape(str(sample['file_size']))}</span></div>
-            <a href="{filename}" target="_blank" rel="noopener"><img src="{filename}" alt="Matplotvite render of {html.escape(str(sample['title']))}" loading="lazy"></a>
+            <div class="comparison-label"><span>{left_label}</span><span>{html.escape(str(sample['file_size']))}</span></div>
+            <a href="{filename}" target="_blank" rel="noopener"><img src="{filename}" alt="Matplotvite render of {title}" loading="lazy"></a>
           </div>
           <div class="comparison-pane">
             <div class="comparison-label"><span>{right_label}</span></div>
@@ -854,6 +909,18 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
         )
     cards_html = "\n".join(cards)
 
+    timing_note = ""
+    if timed:
+        median_ratio = statistics.median(
+            float(sample["mpl_ms"]) / float(sample["rs_ms"]) for sample in timed
+        )
+        timing_note = (
+            f" Timings are the best of three wall-clock runs per backend, covering figure "
+            f"construction through writing the file in the same process; across the "
+            f"{len(timed)} snippets both backends completed, the median Matplotvite render is "
+            f"{speedup_label(median_ratio)} than matplotlib."
+        )
+
     mpl_note = (
         "Matplotlib renders in this gallery use the Agg backend and its default DejaVu fonts. "
         "Matplotvite renders use its embedded Geist faces, so typography and spacing differ even "
@@ -861,6 +928,7 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
         if mpl_available
         else "matplotlib is not installed in this build; the comparison column is unavailable."
     )
+    mpl_note += timing_note
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -868,7 +936,7 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Matplotvite — Backend comparison</title>
-  <meta name="description" content="The same Python plotting snippets rendered by Matplotvite and by matplotlib's Agg backend.">
+  <meta name="description" content="The same Python plotting snippets rendered by Matplotvite and by matplotlib's Agg backend, with measured render times.">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <style>
     {shared_css()}
@@ -889,6 +957,7 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
     <ul class="hero-meta">
       <li>Identical call sequence</li>
       <li>Matplotlib default fonts vs embedded Geist</li>
+      <li>Per-snippet timings, best of three runs</li>
       <li>Differences in antialiasing and layout are expected</li>
     </ul>
   </header>
@@ -904,6 +973,7 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
 
   <footer>
     <p>Both columns execute the same Plot API calls; only the imported pyplot module differs.</p>
+    <p>Timings include data setup, layout, encoding, and writing the output file. Click either image to open it full size.</p>
     <p>Source: <code>examples/samples.py</code>. Matplotvite variant runs in-process; matplotlib uses Agg.</p>
   </footer>
 
@@ -1355,10 +1425,14 @@ def build_pages(out_dir: Path) -> None:
         print(f"  Rendering [{sample['id']}] -> {filename} ...", end=" ", flush=True)
         sample["runner"](str(target_path))
         size = target_path.stat().st_size
-        print(f"done ({format_bytes(size)})")
+        rs_ms = measure_render_ms(
+            lambda: (sample["runner"](str(target_path)), matplotvite.close())
+        )
+        print(f"done ({format_bytes(size)}, {format_ms(rs_ms)})")
 
         info = dict(sample)
         info["file_size"] = format_bytes(size)
+        info["rs_ms"] = rs_ms
         samples_info.append(info)
 
     (out_dir / ".nojekyll").touch()
@@ -1383,9 +1457,13 @@ def build_pages(out_dir: Path) -> None:
         print(f"  Rendering matplotlib comparison [{sample['id']}] ...", end=" ", flush=True)
         try:
             render_matplotlib_sample(sample, target)
+            sample["mpl_ms"] = measure_render_ms(
+                lambda: render_matplotlib_sample(sample, target)
+            )
             sample["mpl_filename"] = mpl_filename
-            print("done")
+            print(f"done ({format_ms(float(sample['mpl_ms']))})")
         except Exception as exc:  # pragma: no cover - backend-specific fallback
+            sample.pop("mpl_ms", None)
             print(f"skipped ({exc})")
 
     comparison_html = generate_comparison_html(samples_info, mpl_available)
