@@ -1581,6 +1581,241 @@ def test_css_colors_and_color_specs(tmp_path):
     assert "#663399" in p.read_text().upper()
 
 
+def test_colormap_registry_and_get_cmap():
+    names = plt.colormaps()
+    assert len(names) == 182 and len(set(names)) == 182
+    for name in ("viridis", "viridis_r", "plasma", "inferno", "magma", "cividis",
+                 "coolwarm", "jet", "tab10", "Blues", "twilight_shifted_r"):
+        assert name in names
+    cmap = plt.get_cmap("viridis")
+    assert cmap.N == 256 and len(cmap.colors) == 256
+    rgba = cmap(0.5)
+    assert len(rgba) == 4
+    assert np.allclose(rgba, (0.129, 0.569, 0.549, 1.0), atol=0.01)
+    assert cmap([[0.0, 0.5], [1.0, 0.25]]).shape == (2, 2, 4)
+    assert all(isinstance(v, int) for v in cmap(0.5, bytes=True))
+    assert np.allclose(plt.get_cmap("viridis_r")(0.0), cmap(1.0))
+    assert plt.cm.viridis(0.25) == cmap(0.25)
+    assert plt.cm.get_cmap("Blues").name == "Blues"
+    assert plt.get_cmap("viridis", 8).N == 8
+    assert np.allclose(plt.get_cmap("viridis", 8)(1.0), cmap(1.0), atol=0.01)
+    with pytest.raises(ValueError):
+        plt.get_cmap("not-a-colormap")
+    with pytest.raises(AttributeError):
+        plt.cm.not_a_colormap
+
+
+def test_all_colormaps_map_and_render():
+    for name in plt.colormaps():
+        rgba = plt.get_cmap(name)(np.linspace(0.0, 1.0, 5))
+        assert rgba.shape == (5, 4)
+        assert np.all(rgba >= 0.0) and np.all(rgba <= 1.0)
+        plt.figure((1.5, 1.5))
+        plt.imshow(np.linspace(0.0, 1.0, 4).reshape(2, 2), cmap=name)
+        assert plt.savefig(format="png")[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_colormaps_across_artists_and_rc_default(tmp_path):
+    plt.rcdefaults()
+    plt.set_cmap("plasma")
+    assert plt.rcParams["image.cmap"] == "plasma"
+    plt.figure((3, 2))
+    image = plt.imshow(np.zeros((2, 2)))
+    assert image.get_cmap() == "plasma"
+    plt.set_cmap(plt.get_cmap("magma"))
+    plt.figure((3, 2))
+    assert plt.imshow(np.zeros((2, 2))).get_cmap() == "magma"
+    plt.figure((3, 2))
+    ax = plt.gca()
+    ax.scatter([0, 1], [0, 1], c=[0.0, 1.0], cmap="coolwarm")
+    ax.contour([0, 1], [0, 1], [[0.0, 1.0], [1.0, 0.0]], cmap="jet")
+    ax.contourf([0, 1], [0, 1], [[0.0, 1.0], [1.0, 0.0]], cmap="Blues")
+    ax.pcolormesh(np.arange(3.0), np.arange(3.0), np.zeros((2, 2)), cmap="tab10")
+    ax.hexbin([0.1, 0.2], [0.1, 0.2], gridsize=2, cmap="inferno", mincnt=0)
+    ax.hist2d([0.1, 0.2], [0.1, 0.2], bins=2, cmap="viridis_r")
+    p = tmp_path / "all-cmaps.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    with pytest.raises(ValueError):
+        plt.imshow(np.zeros((2, 2)), cmap="not-a-colormap")
+    with pytest.raises(ValueError):
+        ax.scatter([0], [0], c=[0.0], cmap="not-a-colormap")
+    with pytest.raises(ValueError):
+        ax.contour([0, 1], [0, 1], [[0.0, 1.0], [1.0, 0.0]], cmap="not-a-colormap")
+    plt.rcdefaults()
+
+
+def test_datetime_x_axis_plot(tmp_path):
+    from datetime import date, datetime, timedelta
+
+    dates = [datetime(2020, 1, 1) + timedelta(days=30 * i) for i in range(10)]
+    plt.figure((5, 3))
+    plt.plot(dates, np.arange(10))
+    ax = plt.gca()
+    assert ax._x_date
+    assert ax.get_xlim() == (date(2020, 1, 1).toordinal(), 737695.0)
+    panel = ax._panel()
+    labels = panel["ticks"]["xticklabels"]
+    assert labels and labels[0].startswith("2020-")
+    p = tmp_path / "dates.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_datetime64_and_date_inputs_across_artists(tmp_path):
+    from datetime import date, datetime
+
+    dates = np.array(["2021-03-01", "2021-04-01", "2021-05-01"], dtype="datetime64[D]")
+    plt.figure((4, 3))
+    ax = plt.gca()
+    ax.scatter(dates, [1, 4, 9])
+    ax.bar(dates, [1, 2, 3], alpha=0.5)
+    ax.axvline(datetime(2021, 3, 15))
+    ax.axvspan(datetime(2021, 3, 20), datetime(2021, 4, 10), alpha=0.2)
+    ax.fill_between(dates, [1, 2, 3], 0, alpha=0.2)
+    ax.pcolormesh([datetime(2021, 3, 1), datetime(2021, 4, 1), datetime(2021, 5, 1)],
+                  [0, 1, 2], np.zeros((2, 2)))
+    ax.text(datetime(2021, 3, 1), 1, "start")
+    assert ax._x_date
+    labels = ax._panel()["ticks"]["xticklabels"]
+    assert labels and labels[0].startswith("2021-")
+    p = tmp_path / "date-artists.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    lo, hi = plt.gca().get_xlim()
+    assert lo <= date(2021, 3, 1).toordinal() <= hi
+    assert lo <= date(2021, 5, 1).toordinal() <= hi
+
+
+def test_datetime_limits_ticks_and_time_labels():
+    from datetime import datetime
+
+    plt.figure((4, 3))
+    ax = plt.gca()
+    ax.set_xlim(datetime(2020, 1, 1), datetime(2020, 12, 31))
+    assert ax._x_date
+    labels = ax._panel()["ticks"]["xticklabels"]
+    assert labels[0] == "2020-01-01" and all("2020-" in v for v in labels)
+
+    plt.figure((4, 3))
+    ax = plt.gca()
+    ax.set_xticks([datetime(2020, 1, 1), datetime(2020, 7, 1)])
+    panel = ax._panel()["ticks"]
+    assert panel["xticks"] == [737425.0, 737607.0]
+    assert panel["xticklabels"] == ["2020-01-01", "2020-07-01"]
+
+    plt.figure((4, 3))
+    plt.plot([datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 6),
+              datetime(2024, 1, 1, 12)], [0, 1, 0])
+    labels = plt.gca()._panel()["ticks"]["xticklabels"]
+    assert any("04:00" in v for v in labels)
+    assert not any("03:59" in v for v in labels)
+
+
+def test_categorical_x_axis(tmp_path):
+    plt.figure((4, 3))
+    plt.plot(["alpha", "beta", "gamma"], [1, 3, 2])
+    panel = plt.gca()._panel()["ticks"]
+    assert panel["xticks"] == [0.0, 1.0, 2.0]
+    assert panel["xticklabels"] == ["alpha", "beta", "gamma"]
+    p = tmp_path / "categories.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+    plt.figure((4, 3))
+    ax = plt.gca()
+    ax.bar(["Mon", "Tue", "Wed"], [3, 5, 2])
+    ax.scatter(["Mon", "Wed"], [1, 4])
+    labels = ax._panel()["ticks"]["xticklabels"]
+    assert labels == ["Mon", "Tue", "Wed"]
+    p = tmp_path / "bar-categories.svg"
+    plt.savefig(p)
+    assert "Mon" in p.read_text() and "Wed" in p.read_text()
+
+
+def test_pandas_dataframe_and_series_input():
+    pd = pytest.importorskip("pandas")
+
+    df = pd.DataFrame({"x": [1, 2, 3], "y": [3, 1, 2]})
+    plt.figure()
+    plt.plot(x="x", y="y", data=df)
+    assert plt.gca().lines[0]["label"] == "y"
+    plt.figure()
+    plt.plot("x", "y", data=df)
+    assert plt.gca().lines[0]["label"] == "y"
+    plt.figure()
+    plt.scatter("x", "y", data=df)
+    assert plt.gca().scatter_pts[0]["label"] == "y"
+
+    series = pd.Series([2, 4, 3], name="temp")
+    plt.figure()
+    plt.plot(series)
+    assert plt.gca().lines[0]["label"] == "temp"
+
+    indexed = pd.DataFrame({"y": [3, 1, 2]},
+                           index=pd.date_range("2023-01-01", periods=3, freq="D"))
+    plt.figure()
+    plt.plot("y", data=indexed)
+    ax = plt.gca()
+    assert ax._x_date
+    assert ax._panel()["ticks"]["xticklabels"][0].startswith("2023-")
+
+
+def test_mathtext_titles_labels_and_text(tmp_path):
+    from plt_rs import _mathtext
+
+    assert _mathtext("$x^2$") == "x²"
+    assert _mathtext("$x^{10}$") == "x¹⁰"
+    assert _mathtext("$\\alpha$ and $\\beta_1$") == "α and β₁"
+    assert _mathtext("$\\sqrt{x}$") == "√x"
+    assert _mathtext("plain text") == "plain text"
+    assert _mathtext("price $5") == "price $5"
+
+    plt.figure((4, 3))
+    plt.plot([0, 1], [0, 1])
+    plt.title("$x^2$")
+    plt.xlabel("$\\alpha$")
+    plt.ylabel("$\\beta_{0}$")
+    plt.text(0.1, 0.5, "$\\infty$")
+    ax = plt.gca()
+    assert ax.title == "x²" and ax.xlabel == "α" and ax.ylabel == "β₀"
+    p = tmp_path / "mathtext.svg"
+    plt.savefig(p)
+    svg = p.read_text()
+    assert "x²" in svg and "β₀" in svg
+
+
+def test_unchanged_figure_reuses_encoded_bytes(monkeypatch):
+    calls = []
+    original = plt._render
+
+    def counting(*args):
+        calls.append(1)
+        return original(*args)
+
+    monkeypatch.setattr(plt, "_render", counting)
+    fig = plt.figure((3, 2))
+    plt.plot([0, 1], [1, 0])
+    first = fig.savefig(format="png")
+    second = fig.savefig(format="png")
+    assert first == second and len(calls) == 1
+    plt.title("changed")
+    fig.savefig(format="png")
+    assert len(calls) == 2
+
+
+def test_webp_output(tmp_path):
+    plt.figure((3, 2))
+    plt.plot([0, 1], [1, 0])
+    data = plt.savefig(format="webp")
+    assert data[:4] == b"RIFF" and data[8:12] == b"WEBP"
+    p = tmp_path / "plot.webp"
+    plt.savefig(p)
+    assert p.read_bytes()[:4] == b"RIFF"
+    with pytest.raises(ValueError):
+        plt.savefig(format="gif")
+
+
 def test_rgb_tuples_work_across_artists(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1], color=(1, 0, 0))
