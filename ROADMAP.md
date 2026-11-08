@@ -157,26 +157,26 @@
 - [x] PDF output via `svg2pdf` (real vector text, page size from `dpi`)
 - [x] `savefig()` to `io.BytesIO` / file-like object
 - [x] `savefig()` → `bytes` return (no path argument)
-- [ ] WebP output option
+- [x] WebP output option (lossless, alpha-aware)
 
 ### 5.2 Data integration
-- [ ] Pandas `DataFrame` / `Series` input (`data=` kwarg, label from Series name)
-- [ ] `plot(x="col_x", y="col_y", data=df)` sugar
-- [ ] `datetime64` / `Timestamp` x-axis (date ticks + formatting)
-- [ ] Categorical x-axis (string ticks, bar alignment)
+- [x] Pandas `DataFrame` / `Series` input (`data=` kwarg, label from Series name)
+- [x] `plot(x="col_x", y="col_y", data=df)` sugar
+- [x] `datetime64` / `Timestamp` x-axis (date ticks + formatting)
+- [x] Categorical x-axis (string ticks, bar alignment)
 
 ### 5.3 Math text
-- [ ] LaTeX-ish math subset in titles/labels — `$x^2$`, Greek letters via Unicode fallback
+- [x] LaTeX-ish math subset in titles/labels — `$x^2$`, Greek letters via Unicode fallback
 
 ### 5.4 Packaging & distribution
 - [x] Type stubs (`.pyi`) and `py.typed` for IDE autocomplete and mypy
 - [x] Wheel CI: `cp39-abi3` wheels for manylinux (x86_64, aarch64), macOS arm64 and Windows x86_64, smoke-tested on the supported Python versions
-- [ ] `maturin publish` GitHub Action on tag push
+- [x] `maturin publish` GitHub Action on tag push
 
 ### 5.5 Performance
-- [ ] Parallel subplot rendering with **Rayon** (independent panels rendered concurrently)
-- [ ] Incremental re-render: cache unchanged panels, only redraw dirty ones
-- [ ] Benchmark suite in CI with regression guard (fail if >20% slower than baseline)
+- [x] Parallel subplot rendering with **Rayon** (independent panels rendered concurrently)
+- [x] Incremental re-render: cache unchanged panels, only redraw dirty ones
+- [x] Benchmark suite in CI with regression guard (fail if >20% slower than baseline)
 
 ---
 
@@ -185,7 +185,7 @@
 - [ ] `Axes3D`: `plot_surface`, `scatter3D`, `plot3D`, `contourf3d`
 - [ ] Polar axes (`polar=True`, `plt.polar()`)
 - [ ] `subplot_mosaic` with mixed 2-D / 3-D panels
-- [ ] `imshow` colormaps beyond viridis/gray (plasma, inferno, magma, cividis)
+- [x] `imshow` colormaps beyond viridis/gray (all 182 matplotlib names, including reversals)
 
 ---
 

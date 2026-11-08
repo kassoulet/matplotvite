@@ -66,7 +66,7 @@ plt.figure(figsize=(8, 5))
 plt.plot(x, np.sin(x), label="sin", color="red")
 plt.plot(x, np.cos(x), label="cos")
 plt.xlabel("x"); plt.ylabel("y"); plt.title("Demo"); plt.legend()
-plt.savefig("demo.png")  # or "demo.svg" / "demo.pdf"
+plt.savefig("demo.png")  # or "demo.svg" / "demo.pdf" / "demo.webp"
 ```
 
 Gridded data, contours and a colorbar:
@@ -89,9 +89,16 @@ plt.savefig("contours.png")
 
 **Line & marker plots**
 - `plot(x, y, label=, color=)` — NumPy arrays, zero-copy through PyO3
+- `plot(data=df, x="col_x", y="col_y")` — pandas DataFrame/Series input, with
+  the Series name used as the default label and its index used when `x` is omitted
+- `datetime`/`datetime64`/pandas `Timestamp` x values — matplotlib date numbers,
+  calendar-aligned date ticks, explicit date limits/ticks, and time-of-day labels
+- string x values — categorical positions with tick labels and normal bar alignment
 - `plot` styling: `linestyle`/`ls`, `linewidth`/`lw`, `marker`, `markersize`/`ms`,
   `markerfacecolor`/`mfc`, `markeredgecolor`/`mec`, `markeredgewidth`/`mew`, `alpha`,
   `drawstyle="steps-pre"|"steps-post"`, and fmt shorthand (`plot(x, y, "r--o")`)
+- Titles, labels, legends and text accept a small `$...$` math subset: `x^2`,
+  subscripts, fractions, roots and Greek/symbol commands such as `\alpha`
 - Colors: all 148 CSS4 names (plus `tab:*` aliases), hex strings, RGB/RGBA tuples,
   `C0`–`C9` and `0`–`9` cycle references, and `"none"`/`"transparent"`
 - `scatter(x, y, s=, c=, alpha=, cmap=, marker=)` — per-point sizes and colours,
@@ -144,6 +151,9 @@ plt.savefig("contours.png")
 **Gridded data**
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=)` — 2-D arrays mapped
   through a colormap, or `(H, W, 3|4)` RGB(A) arrays
+- `colormaps`, `get_cmap(name)`, `cm` and `set_cmap` — all 182 matplotlib colormap
+  names (including every `_r` reversal), with per-colormap lookup tables embedded
+  in the wheel so matplotlib is not a runtime dependency
 - `contour(X, Y, Z, levels=, colors=, cmap=)` — marching-squares iso-lines
 - `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands
 - `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` — quad mesh through the image path
@@ -170,9 +180,9 @@ plt.savefig("contours.png")
 - `set_aspect("equal" | "auto" | <number>)` — shrinks the plotting box, like
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `savefig(path | file-like | None, format=, dpi=, bbox_inches="tight", transparent=,
-  facecolor=, edgecolor=, compression=)` — PNG, SVG and vector PDF (text stays selectable;
-  the page is sized from `figsize`); no path returns `bytes`. PNG compression is
-  `"fast"` (default), `"default"`, or `"best"`
+  facecolor=, edgecolor=, compression=)` — PNG, SVG, vector PDF (text stays selectable;
+  the page is sized from `figsize`) and lossless WebP; no path returns `bytes`. PNG
+  compression is `"fast"` (default), `"default"`, or `"best"`
 - `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
   `invert_xaxis`/`invert_yaxis`
 
@@ -185,14 +195,14 @@ Visibility, removal, and custom tick positions/labels are honoured by the render
 `autoscale`, `set_clip_on`, `set_path_effects`.
 
 ### Not supported (yet)
-- `twinx`/`twiny`, `GridSpec`, `suptitle`
-- colormaps beyond `viridis`/`gray`; colorbars on multi-axes figures
+- `twinx`/`twiny`, `GridSpec`
+- colorbars on multi-axes figures
 - interactive display (out of scope forever)
 
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **9 250 / 10 098 (91%)**. CI re-runs the trace against
+accepts — currently **9 254 / 10 098 (91%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks
@@ -206,6 +216,11 @@ To run the live benchmark suite:
 ```bash
 python tools/benchmark.py
 ```
+
+Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
+unchanged figure reuse the previously encoded bytes. CI runs a quick benchmark
+suite against `tools/benchmark_baseline.json` and fails when relative performance
+drops by more than 20% (`tools/benchmark_guard.py`).
 
 ## Test
 ```bash

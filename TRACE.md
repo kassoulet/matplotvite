@@ -2,7 +2,7 @@
 
 91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **9250/10098** (91%)
+Call sites supported: **9254/10098** (91%)
 
 ## pyplot: unsupported (by call count)
 
@@ -27,7 +27,6 @@ Call sites supported: **9250/10098** (91%)
 | 4 | `figaspect` | 1 |
 | 4 | `box` | 1 |
 | 4 | `Line2D` | 1 |
-| 3 | `get_cmap` | 3 |
 | 3 | `FixedLocator` | 1 |
 | 2 | `triplot` | 1 |
 | 2 | `tripcolor` | 1 |
@@ -43,7 +42,6 @@ Call sites supported: **9250/10098** (91%)
 | 2 | `FormatStrFormatter` | 1 |
 | 2 | `FixedFormatter` | 1 |
 | 1 | `twinx` | 1 |
-| 1 | `set_cmap` | 1 |
 | 1 | `matshow` | 1 |
 | 1 | `get_backend` | 1 |
 | 1 | `figimage` | 1 |
@@ -53,7 +51,7 @@ Call sites supported: **9250/10098** (91%)
 | 1 | `LinearLocator` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `subplot_mosaic`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `axis`, `title`, `rc_context`, `quiver`, `pie`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xticks`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `suptitle`, `yticks`, `fill_between`, `eventplot`, `yscale`, `xscale`, `violinplot`, `stem`, `stackplot`, `fill`, `boxplot`, `axline`, `annotate`
+pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `gcf`, `subplot_mosaic`, `contour`, `pcolor`, `tight_layout`, `hist`, `ion`, `ioff`, `axis`, `title`, `rc_context`, `quiver`, `pie`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xticks`, `xlim`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `stairs`, `getp`, `suptitle`, `get_cmap`, `yticks`, `fill_between`, `eventplot`, `yscale`, `xscale`, `violinplot`, `stem`, `stackplot`, `set_cmap`, `fill`, `boxplot`, `axline`, `annotate`
 
 ## Axes: unsupported (by call count)
 
