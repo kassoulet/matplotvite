@@ -146,6 +146,10 @@ plt.savefig("contours.png")
 - `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands
 - `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` — quad mesh through the image path
   (also `pcolor`/`pcolorfast`; edges or cell centres accepted)
+- `hist2d(x, y, bins=, cmap=, cmin=, cmax=)` — 2-D histogram rasterised through
+  the image path; returns `(counts, xedges, yedges, image)`
+- `hexbin(x, y, gridsize=, C=, cmap=, mincnt=)` — hexagonal binning with
+  colormap-mapped cells; returns a collection of counts and cell centres
 - `colorbar(mappable, label=)` — gradient strip with min/mid/max ticks
 
 **Axes & layout**
@@ -180,7 +184,7 @@ Visibility, removal, and custom tick positions/labels are honoured by the render
 
 ### Not supported (yet)
 - `twinx`/`twiny`, `GridSpec`, `suptitle`
-- `quiver`, `hist2d`
+- `quiver`
 - colormaps beyond `viridis`/`gray`; colorbars on multi-axes figures
 - interactive display (out of scope forever)
 

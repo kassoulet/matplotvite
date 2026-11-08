@@ -140,7 +140,7 @@
 - [x] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
 - [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks in a reserved grid cell (single-axes figures)
 - [x] `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` / `pcolor` / `pcolorfast` — cells rasterised through the image path, edges or centres accepted (`shading`/`norm` accepted but ignored)
-- [ ] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)`
+- [x] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)` — 2-D histograms through the image path and hexagonal binning with colormap-mapped cells, including `C=`, `mincnt=` and per-axis `bins`
 - [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` (`baseline="zero"` and `"sym"`)
 - [ ] `quiver(X, Y, U, V)` — vector field arrows
 - [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline (`orientation="horizontal"` raises)

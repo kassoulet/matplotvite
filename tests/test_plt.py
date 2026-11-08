@@ -1067,6 +1067,58 @@ def test_pyplot_violinplot_shim(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_hist2d_counts_edges_and_image(tmp_path):
+    rng = np.random.default_rng(5)
+    x, y = rng.random(200), rng.random(200)
+    plt.figure()
+    ax = plt.gca()
+    counts, xedges, yedges, image = ax.hist2d(x, y, bins=[4, 3], cmap="gray")
+    assert counts.shape == (4, 3)
+    assert len(xedges) == 5 and len(yedges) == 4
+    assert counts.sum() == 200
+    assert image.get_array().shape == (3, 4)
+    assert ax.get_aspect() is None
+    p = tmp_path / "hist2d.svg"
+    plt.savefig(p)
+    assert '<image' in p.read_text() and "data:image/png;base64," in p.read_text()
+    plt.savefig(tmp_path / "hist2d.png")
+    assert (tmp_path / "hist2d.png").stat().st_size > 0
+    with pytest.raises(ValueError):
+        ax.hist2d([1, 2], [1])
+
+
+def test_hexbin_cells_and_mincnt(tmp_path):
+    rng = np.random.default_rng(6)
+    x, y = rng.random(60), rng.random(60)
+    plt.figure()
+    ax = plt.gca()
+    coll = ax.hexbin(x, y, gridsize=5, cmap="gray", mincnt=0)
+    assert coll.get_array().size == coll.get_offsets().shape[0] > 0
+    assert np.all(coll.get_array() > 0)
+    assert len(coll.get_facecolor()) == coll.get_array().size
+    p = tmp_path / "hexbin.svg"
+    plt.savefig(p)
+    assert p.read_text().upper().count("<POLYGON") >= coll.get_array().size
+    with pytest.raises(ValueError):
+        ax.hexbin([1, 2], [1])
+    with pytest.raises(ValueError):
+        ax.hexbin([1, 2], [1, 2], C=[1])
+
+
+def test_hexbin_default_keeps_empty_cells_and_pyplot_shims(tmp_path):
+    rng = np.random.default_rng(7)
+    x, y = rng.random(30), rng.random(30)
+    plt.figure()
+    coll = plt.hexbin(x, y, gridsize=6)
+    assert np.any(coll.get_array() == 0)
+    plt.figure()
+    counts, *_ = plt.hist2d(x, y, bins=3)
+    assert counts.sum() == 30
+    p = tmp_path / "hex_shims.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_bar_label_places_values(tmp_path):
     plt.figure()
     ax = plt.gca()

@@ -13,7 +13,7 @@ __all__ = (
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "fill", "fill_between", "violinplot",
-    "fill_betweenx", "gca", "gcf", "getp", "grid", "hist", "hlines", "imshow",
+    "fill_betweenx", "gca", "gcf", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show", "style",
@@ -321,6 +321,24 @@ class _BarContainer(list):
     @property
     def patches(self):
         return list(self)
+
+
+class _HexbinHandle:
+    """Handle for the hexagonal cells drawn by `hexbin`."""
+
+    def __init__(self, values, offsets, colors, cmap):
+        self._values = np.asarray(values, dtype=np.float64)
+        self._offsets = np.asarray(offsets, dtype=np.float64).reshape(-1, 2)
+        self._colors = list(colors)
+        self._cmap = cmap
+
+    def get_array(self): return self._values
+    def get_offsets(self): return self._offsets
+    def get_facecolor(self): return list(self._colors)
+    def get_cmap(self): return self._cmap
+
+    def set_clim(self, vmin=None, vmax=None):
+        return None
 
 
 class _ViolinBody:
@@ -1535,6 +1553,82 @@ class Axes:
     def pcolorfast(self, *args, **kwargs):
         return self.pcolormesh(*args, **kwargs)
 
+    def hist2d(self, x, y, bins=10, range=None, density=False, weights=None,
+               cmin=None, cmax=None, cmap=None, **kwargs):
+        """2-D histogram rasterised through `imshow`; returns
+        `(counts, xedges, yedges, image)`."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        counts, xedges, yedges = np.histogram2d(
+            x, y, bins=bins, range=range, density=bool(density), weights=weights)
+        image = self.imshow(counts.T, cmap=cmap or "viridis", vmin=cmin, vmax=cmax,
+                            extent=(float(xedges[0]), float(xedges[-1]),
+                                    float(yedges[0]), float(yedges[-1])),
+                            origin="lower")
+        self.set_aspect("auto")
+        return counts, xedges, yedges, image
+
+    def hexbin(self, x, y, C=None, gridsize=100, bins=None, xscale="linear",
+               yscale="linear", extent=None, cmap=None, norm=None, vmin=None,
+               vmax=None, alpha=None, linewidths=None, edgecolors="face",
+               reduce_C_function=None, mincnt=None, marginals=False, **kwargs):
+        """Hexagonal binning: one coloured hexagon per occupied grid cell."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        if x.size == 0:
+            raise ValueError("hexbin needs at least one point")
+        if isinstance(gridsize, (tuple, list, np.ndarray)):
+            nx, ny = (max(int(v), 1) for v in np.asarray(gridsize).ravel()[:2])
+        else:
+            nx = max(int(gridsize), 1)
+            ny = None
+        if extent is None:
+            extent = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
+        ex0, ex1, ey0, ey1 = (float(v) for v in extent)
+        if ex1 <= ex0:
+            ex0, ex1 = ex0 - 0.5, ex1 + 0.5
+        if ey1 <= ey0:
+            ey0, ey1 = ey0 - 0.5, ey1 + 0.5
+        width = (ex1 - ex0) / nx
+        height = width * np.sqrt(3.0) / 2.0
+        rows = ny or max(int(np.ceil((ey1 - ey0) / height)), 1)
+        rows = max(rows, 1) + 1  # odd columns are offset by half a row
+        centers, cell = _hexbin_cells(x, y, nx, rows, width, height, ex0, ey0)
+        total = nx * rows
+        counts = np.bincount(cell, minlength=total).astype(np.float64)
+        if C is None:
+            values = counts.copy()
+        else:
+            weights = np.asarray(C, dtype=np.float64).ravel()
+            if weights.size != x.size:
+                raise ValueError("C must have one value per point")
+            sums = np.bincount(cell, weights=weights, minlength=total)
+            values = np.divide(sums, counts, out=np.zeros(total), where=counts > 0)
+        keep = np.ones(total, dtype=bool) if mincnt is None else counts > float(mincnt)
+        if not keep.any():
+            keep = counts > 0
+        shown = np.flatnonzero(keep)
+        if vmin is None:
+            vmin = float(values[shown].min())
+        if vmax is None:
+            vmax = float(values[shown].max())
+        if not vmax > vmin:
+            vmax = vmin + 1.0
+        t = np.clip((values[shown] - float(vmin)) / (float(vmax) - float(vmin)), 0.0, 1.0)
+        cmap = cmap or "viridis"
+        colors = _cmap_colors(cmap, t)
+        radius = width / np.sqrt(3.0)
+        angles = np.deg2rad(90.0 + 60.0 * np.arange(6))
+        for k, color in zip(shown, colors):
+            cx, cy = centers[k]
+            self.bands.append(_band(cx + radius * np.cos(angles),
+                                    cy + radius * np.sin(angles), color, alpha))
+        return _HexbinHandle(values[shown], centers[shown], colors, cmap)
+
     def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
         """Text at `xytext` with an arrow pointing at `xy`."""
         size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
@@ -2270,6 +2364,51 @@ def _kde(values, points=100, bw_method=None):
     return grid, density
 
 
+_VIRIDIS_STOPS = np.array([
+    [68, 1, 84], [72, 40, 120], [62, 74, 137], [49, 104, 142],
+    [38, 130, 142], [31, 158, 137], [53, 183, 121], [109, 205, 89],
+    [253, 231, 37],
+], dtype=np.float64) / 255.0
+
+
+def _cmap_colors(cmap, values):
+    """Map normalised values through the viridis/gray colormaps to hex colours."""
+    t = np.clip(np.asarray(values, dtype=np.float64).ravel(), 0.0, 1.0)
+    if str(cmap).lower() in ("gray", "grey"):
+        vals = np.round(t * 255.0).astype(int)
+        return [f"#{v:02x}{v:02x}{v:02x}" for v in vals]
+    table = _VIRIDIS_STOPS
+    pos = t * (len(table) - 1)
+    index = np.floor(pos).astype(int).clip(0, len(table) - 2)
+    frac = (pos - index)[:, None]
+    rgb = np.round((table[index] * (1.0 - frac) + table[index + 1] * frac) * 255.0)
+    return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb.astype(int)]
+
+
+def _hexbin_cells(x, y, nx, rows, width, height, x0, y0):
+    """Nearest hexagonal cell for every point, plus the cell centres."""
+    cols = np.clip(np.floor((x - x0) / width).astype(int), 0, nx - 1)
+    best = np.zeros(x.size, dtype=int)
+    best_d = np.full(x.size, np.inf)
+    for di in (-1, 0, 1):
+        ci = np.clip(cols + di, 0, nx - 1)
+        offset = 0.5 * (ci % 2)
+        base_row = np.floor((y - y0) / height - 0.5 - offset).astype(int)
+        for dj in (-1, 0, 1):
+            cj = np.clip(base_row + dj, 0, rows - 1)
+            cx = x0 + (ci + 0.5) * width
+            cy = y0 + (cj + 0.5 + offset) * height
+            distance = (x - cx) ** 2 + (y - cy) ** 2
+            better = distance < best_d
+            best_d[better] = distance[better]
+            best[better] = ci[better] * rows + cj[better]
+    ci = np.repeat(np.arange(nx), rows)
+    cj = np.tile(np.arange(rows), nx)
+    centers = np.column_stack([x0 + (ci + 0.5) * width,
+                               y0 + (cj + 0.5 + 0.5 * (ci % 2)) * height])
+    return centers, best
+
+
 def _bar_colors(color, n):
     if color is None:
         return []
@@ -2830,6 +2969,8 @@ def stem(*args, **kwargs): return gca().stem(*args, **kwargs)
 def pcolormesh(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolor(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
 def pcolorfast(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
+def hist2d(*args, **kwargs): return gca().hist2d(*args, **kwargs)
+def hexbin(*args, **kwargs): return gca().hexbin(*args, **kwargs)
 
 
 def annotate(text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
