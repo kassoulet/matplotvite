@@ -57,7 +57,6 @@ plt.plot(x, np.cos(x), label="cos(x)", color="#d62728")
 plt.title("Trigonometric functions")
 plt.xlabel("x (radians)")
 plt.ylabel("Amplitude")
-plt.legend()
 plt.savefig("trigonometric_waves.png")
 """,
     ),
@@ -82,7 +81,6 @@ plt.plot(x, np.sin(2 * x), "^:", color="#2ca02c", linewidth=1.2,
 plt.title("Line styles and markers")
 plt.xlabel("x (radians)")
 plt.ylabel("Value")
-plt.legend(frameon=False)
 plt.savefig("line_styles_markers.png")
 """,
     ),
@@ -106,7 +104,6 @@ plt.stairs(y, edges=edges, baseline=0, fill=True, alpha=0.18,
 plt.title("Step and staircase plots")
 plt.xlabel("Sample")
 plt.ylabel("Value")
-plt.legend(frameon=False)
 plt.savefig("step_stairs.png")
 """,
     ),
@@ -135,7 +132,6 @@ plt.axvspan(4.4, 5.2, alpha=0.10, color="#9467bd")
 plt.title("Fills and reference annotations")
 plt.xlabel("x (radians)")
 plt.ylabel("Value")
-plt.legend(frameon=False, loc="upper right")
 plt.savefig("fill_regions.png")
 """,
     ),
@@ -155,7 +151,7 @@ plt.plot(samples, label="measurement", color="black", marker="o",
 plt.title("Discrete measurements")
 plt.xlabel("Sample index")
 plt.ylabel("Measured value")
-plt.legend(frameon=False)
+plt.legend(frameon=False, loc="upper left")
 plt.savefig("discrete_signal.png")
 """,
     ),
@@ -177,7 +173,7 @@ plt.ylim(-0.35, 1.1)
 plt.title("Cardinal sine with explicit bounds")
 plt.xlabel("x")
 plt.ylabel("sinc(x)")
-plt.legend(frameon=False)
+plt.legend(frameon=False, loc="upper right")
 plt.savefig("custom_limits.png")
 """,
     ),
@@ -225,7 +221,6 @@ axs[0].hist(data, bins=30, histtype="step", density=True,
 axs[0].set_title("Probability density")
 axs[0].set_xlabel("Value")
 axs[0].set_ylabel("Density")
-axs[0].legend(frameon=False)
 axs[1].hist(data, bins=30, cumulative=True, density=True,
             color="#dd8452", alpha=0.75)
 axs[1].set_title("Cumulative distribution")
@@ -333,7 +328,6 @@ plt.stackplot(x, *components, labels=["early", "middle", "late", "baseline"],
 plt.title("Cumulative component contributions")
 plt.xlabel("Time")
 plt.ylabel("Signal")
-plt.legend(frameon=False, loc="upper right")
 plt.savefig("stackplot.png")
 """,
     ),
@@ -578,8 +572,7 @@ plt.xticks(x, ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8"],
            rotation=35, fontsize=9)
 plt.tick_params(axis="y", labelsize=9, color="#666666")
 plt.grid(True, axis="y", linestyle="--", linewidth=0.7, alpha=0.35)
-plt.legend(ncol=2, title="trend", loc="upper left", frameon=False,
-           fontsize=8.5)
+plt.legend(title="trend", loc="upper left", frameon=False, fontsize=8.5)
 plt.title("Quarterly trend comparison")
 plt.xlabel("Quarter")
 plt.ylabel("Index")
@@ -655,13 +648,11 @@ plt.plot(x, np.exp(x / 2), color="#1f77b4", label="exp(x/2)")
 plt.title("Exponential growth")
 plt.xlabel("x")
 plt.ylabel("exp(x/2)")
-plt.legend(frameon=False)
 plt.subplot(1, 2, 2)
 plt.plot(x, np.log(x), color="#dd8452", label="ln(x)")
 plt.title("Logarithmic growth")
 plt.xlabel("x")
 plt.ylabel("ln(x)")
-plt.legend(frameon=False)
 plt.savefig("side_by_side.png")
 """,
     ),
@@ -734,8 +725,6 @@ ax_left.set_ylabel("Temperature (C)", color="#c44e52")
 ax_right = ax_left.twinx()
 ax_right.plot(x, pressure, color="#4c72b0", label="pressure")
 ax_right.set_ylabel("Pressure (kPa)", color="#4c72b0")
-ax_left.legend(loc="upper left", frameon=False)
-ax_right.legend(loc="upper right", frameon=False)
 fig.savefig("twin_axes.png")
 """,
     ),
@@ -808,7 +797,7 @@ plt.plot("signal", data=frame, label="signal", color="#1f77b4")
 plt.title("Cumulative signal from a DataFrame")
 plt.xlabel("Date")
 plt.ylabel("Value")
-plt.legend(frameon=False)
+plt.legend(frameon=False, loc="upper left")
 plt.savefig("pandas_frame.png")
 """,
     ),
@@ -853,7 +842,6 @@ with plt.style.context("ggplot"):
     ax.set_title("ggplot style context")
     ax.set_xlabel("x")
     ax.set_ylabel("Value")
-    ax.legend(frameon=False)
     fig.savefig("style_context.png")
 """,
     ),
@@ -874,7 +862,7 @@ plt.plot(x, y, label="sin(x)/(0.5x+1)", color="#9467bd")
 plt.title("Vector output")
 plt.xlabel("x")
 plt.ylabel("y")
-plt.legend(frameon=False)
+plt.legend(frameon=False, loc="upper right")
 plt.savefig("svg_export.svg")
 """,
     ),

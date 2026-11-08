@@ -1078,7 +1078,7 @@ def render_scaling_chart(out_path: Path) -> None:
     matplotvite.xlabel("log10(points)")
     matplotvite.ylabel("Time to disk (ms)")
     matplotvite.grid(True, linestyle=":", alpha=0.4)
-    matplotvite.legend(frameon=False)
+    matplotvite.legend(frameon=False, loc="upper left")
     matplotvite.savefig(str(out_path))
     matplotvite.close()
 
