@@ -7,6 +7,9 @@ mod image;
 mod layout;
 mod model;
 
+#[doc(hidden)]
+pub mod bench;
+
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
