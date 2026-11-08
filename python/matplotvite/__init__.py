@@ -1,4 +1,4 @@
-"""plt_rs: minimal matplotlib-like API, rendered entirely in Rust."""
+"""matplotvite: minimal matplotlib-like API, rendered entirely in Rust."""
 import datetime as _datetime
 import hashlib as _hashlib
 import math as _math
@@ -30,7 +30,7 @@ __all__ = (
 # matplotlib's tab10 cycle; also the targets of the C0-C9 shorthand.
 _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
           "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-# Only the one-letter colors plt_rs can render are honoured in fmt strings.
+# Only the one-letter colors matplotvite can render are honoured in fmt strings.
 _FMT_COLORS = {"b": "blue", "g": "green", "r": "red", "k": "black"}
 _SHORT_COLORS = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
@@ -3498,7 +3498,7 @@ def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", v
 
 
 def axes(*args, **kwargs):
-    """Compatibility shim: plt_rs lays out subplots on a grid, so this returns the
+    """Compatibility shim: matplotvite lays out subplots on a grid, so this returns the
     current axes (creating one if needed)."""
     return gca()
 

@@ -2,7 +2,7 @@ import re
 
 import numpy as np
 import pytest
-import plt_rs as plt
+import matplotvite as plt
 
 
 def _fig():
@@ -1559,7 +1559,7 @@ def test_stackplot_sym_baseline(tmp_path):
 
 
 def test_css_colors_and_color_specs(tmp_path):
-    from plt_rs import _norm_color
+    from matplotvite import _norm_color
 
     assert _norm_color("rebeccapurple") == "#663399"
     assert _norm_color("r") == "#ff0000"
@@ -1762,7 +1762,7 @@ def test_pandas_dataframe_and_series_input():
 
 
 def test_mathtext_titles_labels_and_text(tmp_path):
-    from plt_rs import _mathtext
+    from matplotvite import _mathtext
 
     assert _mathtext("$x^2$") == "x²"
     assert _mathtext("$x^{10}$") == "x¹⁰"

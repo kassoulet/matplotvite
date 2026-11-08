@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark suite comparing plt_rs against matplotlib."""
+"""Benchmark suite comparing matplotvite against matplotlib."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ if str(ROOT / "python") not in sys.path:
     sys.path.insert(0, str(ROOT / "python"))
 
 import numpy as np
-import plt_rs as rs_plt
+import matplotvite as rs_plt
 
 try:
     import matplotlib
@@ -200,7 +200,7 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "bench_cold.png"
         save = f"plt.savefig({str(out)!r})"
-        code_rs = f"import numpy as np, plt_rs as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); {save}"
+        code_rs = f"import numpy as np, matplotvite as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); {save}"
         code_mpl = f"import numpy as np, matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt; x = np.linspace(0, 10, 1000); plt.plot(x, np.sin(x)); {save}"
 
         def run_cold(code: str) -> float:
@@ -227,7 +227,7 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         "arch": platform.machine(),
         "python_version": platform.python_version(),
         "matplotlib_version": matplotlib.__version__,
-        "plt_rs_version": "0.1.0",
+        "matplotvite_version": "0.1.0",
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
     }
 
@@ -238,17 +238,17 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Benchmark plt_rs against matplotlib")
+    parser = argparse.ArgumentParser(description="Benchmark matplotvite against matplotlib")
     parser.add_argument("--out", type=Path, default=ROOT / "dist" / "benchmarks.json", help="Output JSON path")
     parser.add_argument("--quick", action="store_true", help="Run with fewer iterations for fast testing")
     args = parser.parse_args()
 
-    print("Running plt.rs vs matplotlib benchmarks...")
+    print("Running Matplotvite vs matplotlib benchmarks...")
     data = run_benchmarks(quick=args.quick)
 
     print("\nBenchmark Results:")
     print("-" * 78)
-    print(f"{'Benchmark Name':<42} | {'plt.rs':>9} | {'matplotlib':>10} | {'Speedup':>8}")
+    print(f"{'Benchmark Name':<42} | {'Matplotvite':>9} | {'matplotlib':>10} | {'Speedup':>8}")
     print("-" * 78)
     for r in data["results"]:
         print(f"{r['name']:<42} | {r['rs_ms']:>6.2f} ms | {r['mpl_ms']:>7.2f} ms | {r['speedup']:>7.1f}x")

@@ -31,11 +31,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
-      - name: Build plt_rs and generate example gallery
+      - name: Build matplotvite and generate example gallery
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install maturin numpy
+          pip install maturin numpy pandas
           maturin develop --release
           python tools/build_pages.py --out dist
 

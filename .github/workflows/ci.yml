@@ -81,7 +81,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install maturin numpy pytest
+          pip install maturin numpy pandas pytest
           maturin develop --release
           pytest -q
 
@@ -161,7 +161,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install numpy pytest
-          python -m pip install --no-index --find-links dist plt-rs
+          python -m pip install --no-index --find-links dist matplotvite
       - name: Verify the installed wheel
         run: python -m pytest -q tests/test_wheel.py
 

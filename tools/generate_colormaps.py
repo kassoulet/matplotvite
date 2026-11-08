@@ -52,7 +52,7 @@ def write_python(registry):
         lines.append("    ),")
     lines.append("}")
     lines.append("")
-    path = ROOT / "python" / "plt_rs" / "_cmaps.py"
+    path = ROOT / "python" / "matplotvite" / "_cmaps.py"
     path.write_text("\n".join(lines))
 
 

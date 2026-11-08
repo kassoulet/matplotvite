@@ -33,7 +33,7 @@ def test_benchmark_data_structure():
     sys_info = data["system"]
     assert "os" in sys_info
     assert "python_version" in sys_info
-    assert "plt_rs_version" in sys_info
+    assert "matplotvite_version" in sys_info
 
     results = data["results"]
     assert len(results) >= 5
@@ -57,7 +57,13 @@ def test_build_pages_generation(tmp_path):
     assert (tmp_path / "benchmark_scaling.png").exists()
     assert (tmp_path / ".nojekyll").exists()
 
+    gallery_html = (tmp_path / "index.html").read_text(encoding="utf-8")
+    assert "Examples" in gallery_html
+    assert "Matplotlib-compatible" in gallery_html
+    assert "histogram_density.png" in gallery_html
+
     bench_html = (tmp_path / "benchmarks.html").read_text(encoding="utf-8")
-    assert "Engineered for Extreme Speed" in bench_html
-    assert "Head-to-Head Latency Comparison" in bench_html
-    assert "FASTER" in bench_html
+    assert "Static rendering benchmarks" in bench_html
+    assert "End-to-end latency" in bench_html
+    assert "lower" in bench_html
+    assert "Engineered for Extreme Speed" not in bench_html

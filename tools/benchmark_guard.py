@@ -24,7 +24,7 @@ def main() -> int:
     parser.add_argument("--max-slowdown", type=float, default=20.0,
                         help="allowed slowdown percentage (default: 20)")
     parser.add_argument("--metric", choices=("speedup", "rs"), default="speedup",
-                        help="speedup compares plt.rs/matplotlib; rs compares wall time")
+                        help="speedup compares Matplotvite/matplotlib; rs compares wall time")
     parser.add_argument("--strict", action="store_true",
                         help="also fail when a benchmark has no baseline entry")
     args = parser.parse_args()

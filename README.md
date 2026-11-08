@@ -1,34 +1,50 @@
-# plt.rs
+# Matplotvite
 
-> **Experimental and incomplete.** `plt.rs` is under active development, its API
-> may change between releases, and it does not yet cover the full matplotlib
-> surface. Do not rely on it for production-critical output without validation.
+> **Experimental.** Matplotvite is under active development. Its API may change
+> between releases, and it does not cover the full matplotlib surface. Validate
+> output before relying on it in production.
 
-Matplotlib-style static plots, rendered and encoded to PNG, SVG or PDF entirely in
-Rust (PyO3 + plotters). Python deps: numpy only. No matplotlib, no Pillow.
+Matplotvite renders matplotlib-style static figures from Python through a compiled
+Rust extension (PyO3 + plotters). It writes PNG, SVG, PDF, and WebP, and NumPy is its
+only Python runtime dependency.
 
-🔗 **[Live Example Gallery](https://kassoulet.github.io/plt_rs/)** &bull; ⚡ **[Speed Benchmarks](https://kassoulet.github.io/plt_rs/benchmarks.html)**
+- [Example gallery](https://kassoulet.github.io/matplotvite/)
+- [Performance measurements](https://kassoulet.github.io/matplotvite/benchmarks.html)
+- [Supported API](#whats-supported)
 
-## Performance at a Glance
+## Install
 
-| Benchmark Case | `plt.rs` | `matplotlib` | Speedup |
-|---|---:|---:|---:|
-| Single Line (100 pts, PNG) | **3.05 ms** | 77.51 ms | **25.4x** |
-| Single Line (1,000 pts, PNG) | **2.68 ms** | 77.72 ms | **29.0x** |
-| Single Line (10,000 pts, PNG) | **6.06 ms** | 81.34 ms | **13.4x** |
-| Single Line (100,000 pts, PNG) | **38.74 ms** | 103.96 ms | **2.7x** |
-| Multi-Series (5 lines x 2,000 pts, PNG) | **8.97 ms** | 121.98 ms | **13.6x** |
-| Subplots (2x2 grid, PNG) | **7.88 ms** | 131.19 ms | **16.6x** |
-| Vector SVG Export (1k pts) | **0.44 ms** | 70.09 ms | **160.6x** |
-| Cold CLI Process Execution | **83.1 ms** | 463.4 ms | **5.6x** |
+```bash
+pip install matplotvite
+```
 
-*Measured on a shared Linux x86_64 host (AMD Ryzen 5 5600G, Python 3.14, matplotlib 3.11.2); wall-clock times vary with machine load. View full interactive charts on the [Benchmarks Page](https://kassoulet.github.io/plt_rs/benchmarks.html) and regenerate with `python tools/benchmark.py`.*
+## Build from source
 
-## Build
 ```bash
 pip install maturin numpy
 maturin develop --release
 ```
+
+## Measured performance
+
+Representative end-to-end timings from `tools/benchmark.py`. The comparison is
+against matplotlib's Agg backend on the same figures and data; treat the ratio as
+machine- and load-dependent, not as a general guarantee.
+
+| Workload | Matplotvite | matplotlib | Ratio |
+|---|---:|---:|---:|
+| Single line, 100 points, PNG | 3.05 ms | 77.51 ms | 25.4× |
+| Single line, 1,000 points, PNG | 2.68 ms | 77.72 ms | 29.0× |
+| Single line, 10,000 points, PNG | 6.06 ms | 81.34 ms | 13.4× |
+| Single line, 100,000 points, PNG | 38.74 ms | 103.96 ms | 2.7× |
+| Five series, 2,000 points each, PNG | 8.97 ms | 121.98 ms | 13.6× |
+| 2×2 subplot grid, PNG | 7.88 ms | 131.19 ms | 16.6× |
+| SVG export, 1,000 points | 0.44 ms | 70.09 ms | 160.6× |
+| Cold CLI process, plot, and save | 83.1 ms | 463.4 ms | 5.6× |
+
+Measured on a Linux x86_64 host (AMD Ryzen 5 5600G, Python 3.14, matplotlib 3.11.2).
+Wall-clock times vary with machine load. See the [benchmark page](https://kassoulet.github.io/matplotvite/benchmarks.html)
+for the full matrix and method.
 
 ## Dependencies
 
@@ -48,7 +64,7 @@ at runtime.
 | Fonts | Geist sans/serif/mono TTFs | OFL, embedded in the binary (see `assets/fonts/`) |
 | Build | Rust stable, `maturin`, CPython (with development headers) | NumPy is only needed to import the built module |
 
-`plt.rs` itself contains no `unsafe` code. All non-Rust code sits behind the
+Matplotvite itself contains no `unsafe` code. All non-Rust code sits behind the
 `pyo3`/`numpy` and `libc` bindings; nothing on the drawing path shells out or links
 a C library directly.
 
@@ -59,7 +75,7 @@ and type checkers see the public API. Wheels use CPython's stable ABI
 ## Usage
 ```python
 import numpy as np
-import plt_rs as plt
+import matplotvite as plt
 
 x = np.linspace(0, 10, 200)
 plt.figure(figsize=(8, 5))
@@ -72,7 +88,7 @@ plt.savefig("demo.png")  # or "demo.svg" / "demo.pdf" / "demo.webp"
 Gridded data, contours and a colorbar:
 ```python
 import numpy as np
-import plt_rs as plt
+import matplotvite as plt
 
 x = np.linspace(-3, 3, 120)
 y = np.linspace(-3, 3, 120)
@@ -87,7 +103,7 @@ plt.savefig("contours.png")
 
 ## What's supported
 
-**Line & marker plots**
+### Line and marker plots
 - `plot(x, y, label=, color=)` — NumPy arrays, zero-copy through PyO3
 - `plot(data=df, x="col_x", y="col_y")` — pandas DataFrame/Series input, with
   the Series name used as the default label and its index used when `x` is omitted
@@ -148,7 +164,7 @@ plt.savefig("contours.png")
   `xscale`/`yscale` pyplot shims — artists and limits map through log10, with base-aware
   tick labels (`base=` honoured, `symlog` raises)
 
-**Gridded data**
+### Gridded data
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=)` — 2-D arrays mapped
   through a colormap, or `(H, W, 3|4)` RGB(A) arrays
 - `colormaps`, `get_cmap(name)`, `cm` and `set_cmap` — all 182 matplotlib colormap
@@ -164,7 +180,7 @@ plt.savefig("contours.png")
   colormap-mapped cells; returns a collection of counts and cell centres
 - `colorbar(mappable, label=)` — gradient strip with min/mid/max ticks
 
-**Axes & layout**
+### Axes and layout
 - `figure(figsize=, dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through,
   `subplot`, `gca`, `gcf`, `axes`
 - `xlabel` / `ylabel` / `title` (all with `fontsize=`), `legend(...)`, `xlim` / `ylim`
@@ -183,34 +199,49 @@ plt.savefig("contours.png")
   facecolor=, edgecolor=, compression=)` — PNG, SVG, vector PDF (text stays selectable;
   the page is sized from `figsize`) and lossless WebP; no path returns `bytes`. PNG
   compression is `"fast"` (default), `"default"`, or `"best"`
+- `GridSpec` and `SubplotSpec` via `fig.add_gridspec(...)`, including row/column spans
+- `subplot_mosaic(...)` with named panels and empty cells
+- `twinx()` / `twiny()` for independent scales on a shared panel
+- `fig.suptitle(...)` and `fig.subplots(..., sharex=, sharey=, squeeze=)`
+- `style.use`, `style.context`, `style.available`, and `rcParams` style presets
 - `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
   `invert_xaxis`/`invert_yaxis`
 
-**Introspection:** `get_xlim`/`get_ylim`, `get_position`, `get_window_extent`,
-`get_visible`/`set_visible`, `remove`, `clear`, `add_artist`/`add_patch`,
-`get_children`, `get_transform`, `get_figure`, `get_facecolor`, `get_alpha`.
-Visibility, removal, and custom tick positions/labels are honoured by the renderer.
+### Introspection
 
-**Compatibility no-ops:** `show`, `draw`, `pause`, `ion`, `ioff`, `update`, `margins`,
-`autoscale`, `set_clip_on`, `set_path_effects`.
+`get_xlim`/`get_ylim`, `get_position`, `get_window_extent`, `get_visible`/`set_visible`,
+`remove`, `clear`, `add_artist`/`add_patch`, `get_children`, `get_transform`,
+`get_figure`, `get_facecolor`, and `get_alpha`. Visibility, removal, and custom tick
+positions/labels are honoured by the renderer.
 
-### Not supported (yet)
-- `twinx`/`twiny`, `GridSpec`
-- colorbars on multi-axes figures
-- interactive display (out of scope forever)
+### Compatibility no-ops
+
+`show`, `draw`, `pause`, `ion`, `ioff`, `update`, `margins`, `autoscale`,
+`set_clip_on`, and `set_path_effects` are accepted for source compatibility.
+
+### Not supported
+
+- colorbars on figures with multiple axes
+- `streamplot`, polar plots, 3-D axes, and other specialised matplotlib modules
+- interactive display (out of scope)
 
 ## Coverage
 
-`TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
+`TRACE.md` tracks how many call sites from matplotlib's own test suite matplotvite
 accepts — currently **9 254 / 10 098 (91%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
-## Examples & Benchmarks
-To build and view the gallery and benchmark pages locally:
+## Examples and benchmarks
+
+The gallery and performance pages are generated from the repository:
+
 ```bash
 python tools/build_pages.py --out dist
 # open dist/index.html or dist/benchmarks.html in your browser
 ```
+
+The gallery source lives in `examples/samples.py`. Every entry is executed both by
+the page generator and by `tests/test_samples.py`.
 
 To run the live benchmark suite:
 ```bash
@@ -223,6 +254,7 @@ suite against `tools/benchmark_baseline.json` and fails when relative performanc
 drops by more than 20% (`tools/benchmark_guard.py`).
 
 ## Test
+
 ```bash
 maturin develop --release
 pip install pytest ruff
@@ -232,6 +264,9 @@ cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
 ```
+
+The Python suite includes runner and snippet execution for every gallery example,
+plus a feature-to-example coverage matrix.
 
 ## Security
 

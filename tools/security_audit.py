@@ -46,7 +46,7 @@ def main() -> int:
         return 1
 
     run(["cargo", "audit"])
-    run([sys.executable, "-m", "bandit", "-q", "-r", "python/plt_rs"])
+    run([sys.executable, "-m", "bandit", "-q", "-r", "python/matplotvite"])
     run([sys.executable, "-m", "pip_audit"])
     return 0
 

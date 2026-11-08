@@ -1,14 +1,14 @@
-# plt.rs — Roadmap
+# Matplotvite — Roadmap
 
-> Tracking progress toward a zero-dependency, Rust-powered drop-in for Matplotlib's most common call sites.
-> TRACE.md baseline: **9 250 / 10 098 call sites covered (91%)** across 91 real-world matplotlib test files.
+> Tracking progress toward a NumPy-only, Rust-rendered subset of Matplotlib's static API.
+> TRACE.md baseline: **9 254 / 10 098 call sites covered (91%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
-> `plt_rs` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
+> `matplotvite` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
 
 ---
 
-## ✅ V1 — Core line chart (done)
+## ✅ 0.1 — Core line chart (done)
 
 - [x] `figure(figsize)` / `close()`
 - [x] `plot(x, y, label=, color=)` — NumPy arrays, zero-copy via PyO3
@@ -22,11 +22,11 @@
 
 ---
 
-## ✅ V2 — Plot style & axis control (done)
+## ✅ 0.2 — Plot style & axis control (done)
 
 > TRACE priorities: `plot` kwargs (lw ×44, marker ×35, linestyle ×14, alpha ×10), `savefig` kwargs (format ×112, dpi ×8, bbox_inches ×10), `axis` ×11, `grid` ×28, `xticks/yticks`.
 
-### 2.1 `plot()` kwargs
+### 0.2.1 `plot()` kwargs
 - [x] `linestyle` / `ls` — solid, dashed, dotted and dashdot (dashdot is approximated); fmt shorthand `"r--o"` / positional `plot(x, y, "g--")`
 - [x] `linewidth` / `lw`
 - [x] `marker` on `plot()` — `o s ^ v < > D x + .` drawn with the scatter marker primitives
@@ -34,52 +34,52 @@
 - [x] `alpha` (line + marker transparency)
 - [x] `drawstyle` — `"default"`, `"steps-pre"`, `"steps-post"` (other values raise)
 
-### 2.2 Color system
+### 0.2.2 Color system
 - [x] Full CSS named colors (148) in `_colors.py` — CSS4 names plus `tab:*` aliases for the tab10 palette
 - [x] RGB tuple `(r, g, b)` and RGBA tuple `(r, g, b, a)` — 0–1 floats, plus hex strings
 - [x] `C0`–`C9` shorthand (tab10 cycle references) and bare `0`–`9` aliases
 - [x] `"none"` / `"transparent"` color
 
-### 2.3 Axes control
+### 0.2.3 Axes control
 - [x] `grid(visible, axis, which, linestyle, linewidth, alpha, color)` — styled major gridlines on x, y or both
 - [x] `xticks(ticks, labels, rotation, fontsize)` / `yticks(...)` — manual ticks and labels, ticks are drawn by the renderer
 - [x] `tick_params(axis, labelsize, length, width, color, rotation)` — label size/colour/rotation and tick mark length/width/colour
 - [x] `axis("off" | "on" | "equal" | "scaled" | "auto" | [xmin,xmax,ymin,ymax])`
-- [x] `set_aspect("equal" | float)` — box shrink, see V4
+- [x] `set_aspect("equal" | float)` — box shrink, see 0.4
 - [x] `axhline(y, color=, linestyle=, linewidth=, xmin=, xmax=)` / `axvline(x, ...)` — axes-fraction ends resolved against the final limits at draw time; `zorder` ignored
 - [x] `axhspan(ymin, ymax, xmin=, xmax=)` / `axvspan` (shaded band) — drawn as an unedged bar rectangle over an axes-fraction span
 
-### 2.4 Text & annotations
+### 0.2.4 Text & annotations
 - [x] `text(x, y, s, color=, fontsize=, ha=, va=)`
 - [x] `text(..., transform=)` — `ax.transAxes`, `fig.transFigure` and data coordinates
 - [x] `annotate(text, xy, xytext=)` — label plus straight arrow; `arrowprops` styling is accepted but ignored
 
-### 2.5 Fill
+### 0.2.5 Fill
 - [x] `fill_between(x, y1, y2, where=, color=, alpha=)` / `fill_betweenx` / `fill(...)` — polygons in data space, `where` runs emitted separately (`interpolate`/`step`/`hatch` ignored); `label=` adds a legend swatch
 
-### 2.6 Legend kwargs
+### 0.2.6 Legend kwargs
 - [x] `loc` — `"best"`, cardinal strings, 2-tuple
 - [x] `ncol` / `ncols`, `frameon`, `fontsize`, `title`, `title_fontsize`
 - [x] `bbox_to_anchor` — axes-fraction or data coordinates
 
-### 2.7 savefig / figure kwargs
+### 0.2.7 savefig / figure kwargs
 - [x] `savefig(format=, dpi=)` — `format` overrides the file extension
 - [x] `savefig(bbox_inches="tight", transparent=)` — tight crops PNG pixels / rewrites the SVG viewBox
 - [x] `savefig(facecolor=, edgecolor=)`
 - [x] `figure(dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through
 - [x] `savefig()` returning bytes (no path) and writing to file-like objects
 
-### 2.8 Font sizes
+### 0.2.8 Font sizes
 - [x] `title(fontsize=)`, `xlabel(fontsize=)`, `ylabel(fontsize=)`, and `text(fontsize=)`
 - [x] Global `rcParams` font size (`font.size`, `axes.labelsize`, `axes.titlesize`, `legend.fontsize`)
 
 ---
 
-## V3 — New plot types & layout  *(medium-frequency)*
+## 0.3 — New plot types & layout  *(medium-frequency)*
 
 > TRACE priorities: `scatter` ×176 Axes / ×30 pyplot, `bar` ×81, `hist` ×74, `twinx` ×31, `tight_layout` ×20.
 
-### 3.1 New plot types
+### 0.3.1 New plot types
 - [x] `scatter(x, y, s=, c=, alpha=, cmap=, label=, marker=)` — per-point sizes, explicit colours or cmap-mapped values, markers `o s ^ v < > D x + .`, legend handle for labelled series
 - [x] `errorbar(...)` — includes scalar / per-point / `(2, N)` errors, caps, `ecolor`, and `fmt` colours/markers
 - [x] `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` / `barh(...)` — rectangles drawn in pixel space, returning a `BarContainer` of mutable handles; labelled bars get a legend swatch
@@ -89,11 +89,11 @@
 - [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline
 - [x] `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(x, ymin, ymax, ...)` — one segment per entry, per-segment colour and style
 
-### 3.2 Log / symlog scales
+### 0.3.2 Log / symlog scales
 - [x] `xscale("log" | "linear")` / `yscale(...)` (pyplot + Axes) — layout and every artist map through log10/base, tick labels are converted back; any positive `base` works, `symlog` raises
 - [x] `semilogx`, `semilogy`, `loglog` convenience wrappers
 
-### 3.3 Layout
+### 0.3.3 Layout
 - [x] `tight_layout(pad=, h_pad=, w_pad=)` — accepted as a no-op: panels always fill their grid cells, so nothing can clip
 - [x] `suptitle(t, fontsize=)` — figure-level title, placed above the panel grid
 - [x] `subplots_adjust(left, right, top, bottom, wspace, hspace)` and `set_in_layout`/`set_layout_engine` — accepted as no-ops
@@ -101,7 +101,7 @@
 - [x] `twinx()` / `twiny()` — dual axes on same panel, with the second axis on the right/top
 - [x] `sharex` / `sharey` in `subplots()` — explicit limits propagate through a shared group; inner tick labels are dropped
 
-### 3.4 Style & theming
+### 0.3.4 Style & theming
 - [x] `plt.style.use("dark_background" | "ggplot" | "seaborn-v0_8")` — presets change figure/axes colours, text colour and the colour cycle
 - [x] `rc`/`rc_context`/`rcParams`/`rcdefaults` — settings are recorded, `rc_context` restores them on exit, and the documented subset below changes rendered output
 - [x] `grid(True|False, which=, axis=)` — light gridlines under the data; `visible=None` flips the current state, styling is passed through
@@ -113,7 +113,7 @@
 - [x] `plt.draw()` as a no-op (compatibility)
 - [x] `plt.axes()` / `plt.pause()` / `plt.ion()` / `plt.ioff()` compatibility shims
 
-### 3.5 Axes introspection (compatibility surface)
+### 0.3.5 Axes introspection (compatibility surface)
 - [x] State getters: `get_xlim`/`get_ylim`/`get_xbound`/`get_ybound`, `get_position`/`set_position`, `get_visible`/`set_visible`, `get_facecolor`/`set_facecolor`, `get_alpha`/`set_alpha`, `get_label`/`set_label`, `get_zorder`/`set_zorder`, `get_title`/`get_xlabel`/`get_ylabel`, `get_figure`, `get_children`
 - [x] No-ops that keep scripts running: `draw`, `update`, `margins`, `relim`, `autoscale`, `autoscale_view`, `set_clip_on`/`set_clip_path`, `set_path_effects`, `add_artist`/`add_patch`/`add_collection`/`add_line`
 - [x] Real behaviour: `remove()` and `set_visible(False)` drop the panel, `axis("off")` hides axes/ticks/labels, `axis("equal"|"auto"|[limits])`, `invert_xaxis`/`invert_yaxis`, `clear`/`cla`, `set(**kwargs)` dispatch
@@ -124,7 +124,7 @@
 
 ---
 
-## V4 — Advanced plot types  *(lower frequency, high visual value)*
+## 0.4 — Advanced plot types  *(lower frequency, high visual value)*
 
 > TRACE: `imshow` ×235, `errorbar` ×82, `boxplot` ×48, `contourf` ×32, `pie` ×26, `stem` ×33.
 
@@ -151,36 +151,36 @@
 
 ---
 
-## V5 — Ecosystem & output  *(wheels, integrations, advanced output)*
+## 0.5 — Ecosystem & output  *(wheels, integrations, advanced output)*
 
-### 5.1 Output formats
+### 0.5.1 Output formats
 - [x] PDF output via `svg2pdf` (real vector text, page size from `dpi`)
 - [x] `savefig()` to `io.BytesIO` / file-like object
 - [x] `savefig()` → `bytes` return (no path argument)
 - [x] WebP output option (lossless, alpha-aware)
 
-### 5.2 Data integration
+### 0.5.2 Data integration
 - [x] Pandas `DataFrame` / `Series` input (`data=` kwarg, label from Series name)
 - [x] `plot(x="col_x", y="col_y", data=df)` sugar
 - [x] `datetime64` / `Timestamp` x-axis (date ticks + formatting)
 - [x] Categorical x-axis (string ticks, bar alignment)
 
-### 5.3 Math text
+### 0.5.3 Math text
 - [x] LaTeX-ish math subset in titles/labels — `$x^2$`, Greek letters via Unicode fallback
 
-### 5.4 Packaging & distribution
+### 0.5.4 Packaging & distribution
 - [x] Type stubs (`.pyi`) and `py.typed` for IDE autocomplete and mypy
 - [x] Wheel CI: `cp39-abi3` wheels for manylinux (x86_64, aarch64), macOS arm64 and Windows x86_64, smoke-tested on the supported Python versions
 - [x] `maturin publish` GitHub Action on tag push
 
-### 5.5 Performance
+### 0.5.5 Performance
 - [x] Parallel subplot rendering with **Rayon** (independent panels rendered concurrently)
 - [x] Incremental re-render: cache unchanged panels, only redraw dirty ones
 - [x] Benchmark suite in CI with regression guard (fail if >20% slower than baseline)
 
 ---
 
-## V6 — 3-D & specialty  *(optional, long-term)*
+## 0.6 — 3-D & specialty  *(optional, long-term)*
 
 - [ ] `Axes3D`: `plot_surface`, `scatter3D`, `plot3D`, `contourf3d`
 - [ ] Polar axes (`polar=True`, `plt.polar()`)

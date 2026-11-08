@@ -1,1 +1,1 @@
-"""Example gallery samples for plt_rs."""
+"""Example gallery samples for matplotvite."""

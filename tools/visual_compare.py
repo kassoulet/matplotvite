@@ -1,4 +1,4 @@
-"""Render each case with matplotlib and plt_rs, write a side-by-side HTML gallery.
+"""Render each case with matplotlib and matplotvite, write a side-by-side HTML gallery.
 
 usage: python tools/visual_compare.py [outdir=visual]   (dev tool: needs matplotlib)
 Add cases to CASES: code runs with `plt` and `np` bound to either library.
@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as mpl
 import matplotlib.image as mimg
-import plt_rs
+import matplotvite
 
 x = np.linspace(0, 10, 200)
 CASES = {
@@ -48,7 +48,7 @@ def run(name, code, lib, tag):
 
 rows = []
 for name, code in CASES.items():
-    (a, ea), (b, eb) = run(name, code, mpl, "mpl"), run(name, code, plt_rs, "rs")
+    (a, ea), (b, eb) = run(name, code, mpl, "mpl"), run(name, code, matplotvite, "rs")
     rms = ""
     if a and b:
         ia, ib = mimg.imread(a)[..., :3], mimg.imread(b)[..., :3]
@@ -57,5 +57,5 @@ for name, code in CASES.items():
     rows.append(f"<tr><td><b>{name}</b><br>rms: {rms or 'n/a'}</td><td>{cell(a, ea)}</td><td>{cell(b, eb)}</td></tr>")
     print(f"{name:24} {'OK ' if b else 'FAIL'} {rms or eb}")
 (out / "index.html").write_text(
-    "<table border=1 cellpadding=6><tr><th>case</th><th>matplotlib</th><th>plt_rs</th></tr>"
+    "<table border=1 cellpadding=6><tr><th>case</th><th>matplotlib</th><th>matplotvite</th></tr>"
     + "".join(rows) + "</table><style>img{max-width:480px}</style>")

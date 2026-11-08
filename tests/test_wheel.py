@@ -4,8 +4,8 @@ import io
 from pathlib import Path
 
 import numpy as np
-import plt_rs as plt
-from plt_rs import _core
+import matplotvite as plt
+from matplotvite import _core
 
 
 def _extension_path() -> Path:

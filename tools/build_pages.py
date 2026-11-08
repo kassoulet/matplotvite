@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Build the standalone GitHub Pages documentation and benchmark site for plt_rs."""
+"""Build the static documentation and benchmark site for matplotvite."""
 
 from __future__ import annotations
 
 import argparse
 import html
+import importlib.util
 import json
 from pathlib import Path
 import sys
 
-# Ensure repository root is in python path
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -17,729 +17,900 @@ if str(ROOT / "python") not in sys.path:
     sys.path.insert(0, str(ROOT / "python"))
 
 import numpy as np
-import plt_rs
+import matplotvite
 from examples.samples import SAMPLES
 
 
 def format_bytes(size: int) -> str:
-    """Format file size in human readable format."""
+    """Format a file size in binary units."""
     if size < 1024:
         return f"{size} B"
-    elif size < 1024 * 1024:
-        return f"{size / 1024:.1f} KB"
-    return f"{size / (1024 * 1024):.1f} MB"
+    if size < 1024 * 1024:
+        return f"{size / 1024:.1f} KiB"
+    return f"{size / (1024 * 1024):.1f} MiB"
+
+
+def category_id(category: object) -> str:
+    """Return the stable HTML filter identifier for a sample category."""
+    return str(category).lower().replace(" ", "-").replace("&", "and")
 
 
 def shared_navbar(current_page: str) -> str:
-    """Generate shared top navigation bar."""
-    gallery_active = ' active' if current_page == 'gallery' else ''
-    benchmarks_active = ' active' if current_page == 'benchmarks' else ''
-
+    """Generate the shared top navigation bar."""
+    gallery_active = " active" if current_page == "gallery" else ""
+    benchmarks_active = " active" if current_page == "benchmarks" else ""
     return f"""
   <nav class="topnav">
     <div class="nav-container">
-      <a href="index.html" class="nav-logo">
-        <span class="logo-accent">plt</span>.rs
-      </a>
+      <a href="index.html" class="nav-logo">Matplotvite<span class="logo-version">0.1</span></a>
       <div class="nav-links">
-        <a href="index.html" class="nav-link{gallery_active}">Gallery</a>
-        <a href="benchmarks.html" class="nav-link{benchmarks_active}">⚡ Benchmarks</a>
-        <a href="https://github.com/kassoulet/plt_rs" class="nav-link github-link" target="_blank" rel="noopener">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-          GitHub
-        </a>
+        <a href="index.html" class="nav-link{gallery_active}">Examples</a>
+        <a href="benchmarks.html" class="nav-link{benchmarks_active}">Performance</a>
+        <a href="https://github.com/kassoulet/matplotvite" class="nav-link nav-external" target="_blank" rel="noopener">Source</a>
+        <a href="https://github.com/kassoulet/matplotvite#readme" class="nav-link nav-external" target="_blank" rel="noopener">Documentation</a>
       </div>
     </div>
   </nav>"""
 
 
 def shared_css() -> str:
-    """Return common stylesheet rules."""
+    """Return the common stylesheet."""
     return """
     :root {
-      --bg: #090d16;
-      --card-bg: #111827;
-      --card-border: #1f2937;
-      --card-hover: #283548;
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
-      --primary: #3b82f6;
-      --primary-hover: #60a5fa;
-      --accent: #10b981;
-      --accent-warm: #f59e0b;
-      --mpl-bar: #ef4444;
-      --code-bg: #030712;
-      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --page: #f7f8fa;
+      --surface: #ffffff;
+      --surface-muted: #f0f3f7;
+      --border: #d8dee8;
+      --border-strong: #b9c3d1;
+      --text: #172033;
+      --muted: #5d6b7e;
+      --accent: #1f4e79;
+      --accent-hover: #163b5c;
+      --accent-soft: #e7eef5;
+      --code-bg: #111827;
+      --code-text: #e5e7eb;
+      --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      --mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { scroll-behavior: smooth; }
+
     body {
-      background: var(--bg);
+      background: var(--page);
       color: var(--text);
-      font-family: var(--font-family);
-      line-height: 1.6;
-      padding-bottom: 5rem;
+      font-family: var(--sans);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
     }
 
-    a {
-      color: var(--primary);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-    a:hover {
-      color: var(--primary-hover);
-    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-    /* Top Navigation */
+    code, pre { font-family: var(--mono); }
+
     .topnav {
-      background: rgba(9, 13, 22, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--card-border);
+      background: rgba(247, 248, 250, 0.94);
+      border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
+      backdrop-filter: blur(8px);
     }
     .nav-container {
-      max-width: 1240px;
+      max-width: 1180px;
       margin: 0 auto;
-      padding: 0.85rem 1.5rem;
+      padding: 0.9rem 1.5rem;
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
     }
     .nav-logo {
+      color: var(--text);
+      font-family: var(--serif);
       font-size: 1.3rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      color: #ffffff;
+      font-weight: 600;
+      letter-spacing: -0.01em;
     }
-    .logo-accent {
-      color: #3b82f6;
+    .nav-logo:hover { text-decoration: none; }
+    .logo-version {
+      display: inline-block;
+      margin-left: 0.5rem;
+      padding: 0.08rem 0.35rem;
+      border: 1px solid var(--border-strong);
+      border-radius: 3px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      font-weight: 500;
+      vertical-align: 0.15em;
     }
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1.35rem;
     }
     .nav-link {
-      font-size: 0.92rem;
+      color: var(--muted);
+      font-size: 0.9rem;
       font-weight: 500;
-      color: var(--text-muted);
-      transition: color 0.2s;
     }
-    .nav-link:hover, .nav-link.active {
-      color: #ffffff;
+    .nav-link:hover, .nav-link.active { color: var(--text); text-decoration: none; }
+    .nav-link.active { box-shadow: inset 0 -2px 0 var(--accent); }
+    .nav-external::after { content: " ↗"; font-size: 0.8em; color: var(--muted); }
+
+    .hero {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 4.25rem 1.5rem 3rem;
+      border-bottom: 1px solid var(--border);
     }
-    .nav-link.active {
+    .hero-kicker {
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 0.78rem;
       font-weight: 600;
-    }
-    .github-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      padding: 0.4rem 0.85rem;
-      border-radius: 6px;
-    }
-    .github-link:hover {
-      border-color: var(--text-muted);
-    }
-
-    /* Hero */
-    header.hero {
-      text-align: center;
-      padding: 4rem 1.5rem 2.5rem;
-      background: radial-gradient(circle at 50% 0%, #1e293b 0%, var(--bg) 75%);
-      border-bottom: 1px solid var(--card-border);
-    }
-
-    .hero-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.35rem 0.95rem;
-      border-radius: 9999px;
-      background: rgba(59, 130, 246, 0.15);
-      border: 1px solid rgba(59, 130, 246, 0.35);
-      color: #93c5fd;
-      font-size: 0.85rem;
-      font-weight: 500;
-      margin-bottom: 1.25rem;
-    }
-
-    h1.hero-title {
-      font-size: 3.25rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
       margin-bottom: 1rem;
-      background: linear-gradient(135deg, #ffffff 30%, #93c5fd 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
     }
-
+    h1.hero-title {
+      max-width: 900px;
+      color: var(--text);
+      font-family: var(--serif);
+      font-size: clamp(2.35rem, 5vw, 3.45rem);
+      font-weight: 500;
+      letter-spacing: -0.025em;
+      line-height: 1.12;
+      margin-bottom: 1.2rem;
+    }
     p.hero-subtitle {
-      max-width: 740px;
-      margin: 0 auto 1.8rem;
-      font-size: 1.15rem;
-      color: var(--text-muted);
+      max-width: 790px;
+      color: var(--muted);
+      font-size: 1.1rem;
+      margin-bottom: 1.6rem;
     }
-
-    .hero-cta {
+    .hero-meta {
       display: flex;
-      justify-content: center;
-      gap: 1rem;
       flex-wrap: wrap;
+      gap: 0.5rem 1.4rem;
+      color: var(--muted);
+      font-size: 0.86rem;
+      list-style: none;
+      margin-bottom: 1.9rem;
     }
-
+    .hero-meta li::before {
+      content: "—";
+      color: var(--border-strong);
+      margin-right: 0.55rem;
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+    }
     .btn {
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1.4rem;
-      font-size: 0.95rem;
+      padding: 0.62rem 1.05rem;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      font-size: 0.88rem;
       font-weight: 600;
-      border-radius: 8px;
-      transition: all 0.2s;
+      line-height: 1.2;
+    }
+    .btn:hover { text-decoration: none; }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+    .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .btn-secondary { background: var(--surface); color: var(--text); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    main { max-width: 1180px; margin: 0 auto; padding: 0 1.5rem; }
+
+    footer {
+      max-width: 1180px;
+      margin: 5rem auto 0;
+      padding: 2rem 1.5rem 3rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+    footer p + p { margin-top: 0.35rem; }
+    """
+
+
+def gallery_css() -> str:
+    """Return styles specific to the example gallery."""
+    return """
+    .quick-start {
+      max-width: 720px;
+      margin-top: 1.8rem;
+      padding: 0.8rem 1rem;
+      background: var(--code-bg);
+      border: 1px solid #263244;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      color: var(--code-text);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+    }
+    .quick-start code { white-space: nowrap; overflow-x: auto; }
+
+    .copy-btn {
+      flex: none;
+      padding: 0.25rem 0.55rem;
+      background: #1f2937;
+      border: 1px solid #374151;
+      border-radius: 3px;
+      color: #d1d5db;
+      font-family: var(--sans);
+      font-size: 0.72rem;
       cursor: pointer;
     }
-    .btn-primary {
-      background: var(--primary);
-      color: #ffffff;
-      border: none;
-    }
-    .btn-primary:hover {
-      background: var(--primary-hover);
-      transform: translateY(-1px);
-    }
-    .btn-secondary {
-      background: var(--card-bg);
-      color: var(--text);
-      border: 1px solid var(--card-border);
-    }
-    .btn-secondary:hover {
-      background: var(--card-hover);
-      border-color: var(--text-muted);
-    }
+    .copy-btn:hover { border-color: #6b7280; color: #ffffff; }
 
-    /* KPIs Grid */
-    .kpi-grid {
-      max-width: 1100px;
-      margin: -1.5rem auto 3rem;
-      padding: 0 1.5rem;
+    .design-section {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: 1.25rem;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 2.5rem;
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--border);
     }
-    .kpi-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 1.5rem;
-      text-align: center;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-    }
-    .kpi-value {
-      font-size: 2.3rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      margin-bottom: 0.35rem;
-      background: linear-gradient(135deg, #60a5fa 0%, #34d399 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .kpi-label {
-      font-size: 0.95rem;
+    .side-heading {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
       font-weight: 600;
-      color: #ffffff;
-      margin-bottom: 0.25rem;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
     }
-    .kpi-sub {
-      font-size: 0.8rem;
-      color: var(--text-muted);
+    .design-notes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.5rem 2.5rem;
+    }
+    .design-note h3 {
+      color: var(--text);
+      font-size: 0.98rem;
+      font-weight: 650;
+      margin-bottom: 0.3rem;
+    }
+    .design-note p {
+      color: var(--muted);
+      font-size: 0.9rem;
     }
 
-    /* Footer */
-    footer {
-      margin-top: 5rem;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      border-top: 1px solid var(--card-border);
-      padding-top: 2.5rem;
+    .coverage-section {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 2.5rem;
+      padding: 3rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .coverage-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+    }
+    .coverage-table th,
+    .coverage-table td {
+      padding: 0.65rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    .coverage-table th {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.71rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .coverage-table td:first-child {
+      width: 170px;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .coverage-table td:last-child { color: var(--muted); }
+
+    .gallery-section { padding: 3rem 0 0; }
+    .section-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 2rem;
+      margin-bottom: 1.6rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title {
+      color: var(--text);
+      font-family: var(--serif);
+      font-size: 2rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .section-desc {
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      text-align: right;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 2rem;
+    }
+    .filter-btn {
+      padding: 0.34rem 0.7rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-family: var(--sans);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .filter-btn:hover { border-color: var(--border-strong); color: var(--text); }
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+      gap: 1.5rem;
+    }
+    @media (max-width: 700px) {
+      .gallery-grid,
+      .design-notes { grid-template-columns: 1fr; }
+      .design-section,
+      .coverage-section { grid-template-columns: 1fr; gap: 1rem; }
+      .section-header { align-items: flex-start; flex-direction: column; }
+      .section-desc { text-align: left; }
+    }
+
+    .sample-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.1rem 0.45rem;
+    }
+    .card-title-group { min-width: 0; }
+    .category-tag {
+      display: block;
+      margin-bottom: 0.15rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.67rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .card-title {
+      color: var(--text);
+      font-size: 1.05rem;
+      font-weight: 650;
+      line-height: 1.3;
+    }
+    .card-badges { display: flex; flex: none; gap: 0.3rem; }
+    .badge {
+      padding: 0.12rem 0.38rem;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.65rem;
+    }
+    .badge-fmt { color: var(--accent); border-color: #c7d6e4; background: var(--accent-soft); }
+
+    .card-desc {
+      padding: 0 1.1rem 0.9rem;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .preview-container {
+      background: #ffffff;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem;
+    }
+    .plot-preview {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 390px;
+      object-fit: contain;
+    }
+    .code-container {
+      background: var(--code-bg);
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+    }
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.42rem 0.8rem;
+      border-bottom: 1px solid #263244;
+      color: #9ca3af;
+      font-size: 0.7rem;
+      font-family: var(--mono);
+    }
+    .code-header .copy-btn { background: transparent; }
+    pre[class*="language-"] {
+      margin: 0 !important;
+      padding: 0.9rem 1rem !important;
+      background: transparent !important;
+      font-size: 0.78rem !important;
+      line-height: 1.55 !important;
+      overflow-x: auto;
+    }
+    """
+
+
+def gallery_js() -> str:
+    """Return the gallery's small client-side interactions."""
+    return """
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('.sample-card').forEach(card => {
+          card.style.display = (filter === 'all' || card.dataset.category === filter)
+            ? 'flex' : 'none';
+        });
+      });
+    });
+
+    function copySnippet(btn) {
+      const pre = btn.closest('.code-container').querySelector('code');
+      navigator.clipboard.writeText(pre.innerText).then(() => {
+        const original = btn.innerText;
+        btn.innerText = 'Copied';
+        setTimeout(() => btn.innerText = original, 1500);
+      });
     }
     """
 
 
 def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
-    """Generate index.html (Example Gallery)."""
-    categories = sorted({str(s["category"]) for s in samples_info})
+    """Generate index.html from the rendered sample metadata."""
+    categories = list(dict.fromkeys(str(s["category"]) for s in samples_info))
 
-    cat_buttons = ['<button class="filter-btn active" data-filter="all">All Examples</button>']
+    cat_buttons = ['<button class="filter-btn active" data-filter="all">All</button>']
     for cat in categories:
-        cat_id = cat.lower().replace(" ", "-").replace("&", "and")
-        cat_buttons.append(f'<button class="filter-btn" data-filter="{cat_id}">{html.escape(cat)}</button>')
-    cat_buttons_html = "\n      ".join(cat_buttons)
+        cat_buttons.append(
+            f'<button class="filter-btn" data-filter="{category_id(cat)}">'
+            f"{html.escape(cat)}</button>"
+        )
+    cat_buttons_html = "\n        ".join(cat_buttons)
 
     cards = []
-    for s in samples_info:
-        cat_id = str(s["category"]).lower().replace(" ", "-").replace("&", "and")
-        filename = str(s["filename"])
-        fmt_badge = "SVG" if s["format"] == "svg" else "PNG"
-        size_str = str(s["file_size"])
-        code_escaped = html.escape(str(s["code"]))
-
-        card_html = f"""
-      <article class="sample-card" data-category="{cat_id}">
+    for sample in samples_info:
+        filename = str(sample["filename"])
+        fmt = str(sample["format"]).upper()
+        code_escaped = html.escape(str(sample["code"]))
+        cards.append(
+            f"""
+      <article class="sample-card" data-category="{category_id(sample['category'])}">
         <div class="card-header">
           <div class="card-title-group">
-            <span class="category-tag">{html.escape(str(s["category"]))}</span>
-            <h3 class="card-title">{html.escape(str(s["title"]))}</h3>
+            <span class="category-tag">{html.escape(str(sample['category']))}</span>
+            <h3 class="card-title">{html.escape(str(sample['title']))}</h3>
           </div>
           <div class="card-badges">
-            <span class="badge badge-fmt">{fmt_badge}</span>
-            <span class="badge badge-size">{size_str}</span>
+            <span class="badge badge-fmt">{fmt}</span>
+            <span class="badge">{html.escape(str(sample['file_size']))}</span>
           </div>
         </div>
-
-        <p class="card-desc">{html.escape(str(s["description"]))}</p>
-
+        <p class="card-desc">{html.escape(str(sample['description']))}</p>
         <div class="preview-container">
-          <a href="{filename}" target="_blank" title="Click to view full image">
-            <img src="{filename}" alt="{html.escape(str(s["title"]))}" class="plot-preview" loading="lazy">
+          <a href="{filename}" target="_blank" rel="noopener">
+            <img src="{filename}" alt="{html.escape(str(sample['title']))}"
+                 class="plot-preview" loading="lazy">
           </a>
         </div>
-
         <div class="code-container">
           <div class="code-header">
-            <span>Python snippet</span>
-            <button class="copy-btn" onclick="copySnippet(this)">Copy code</button>
+            <span>Python</span>
+            <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
           </div>
           <pre><code class="language-python">{code_escaped}</code></pre>
         </div>
       </article>"""
-        cards.append(card_html)
-
+        )
     cards_html = "\n".join(cards)
-    nav_html = shared_navbar("gallery")
-    css = shared_css()
 
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>plt.rs &mdash; Fast Matplotlib-style Plotting in Rust</title>
-  <meta name="description" content="Matplotlib-style static plots rendered and saved entirely in Rust (PyO3 + plotters). Zero matplotlib, zero Pillow dependency.">
+  <title>Matplotvite — Matplotlib-compatible plotting in Rust</title>
+  <meta name="description" content="Matplotvite renders static matplotlib-style figures from Python using a Rust extension, with NumPy as the only runtime dependency.">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
   <style>
-    {css}
-
-    /* Quick Install */
-    .quick-start {{
-      max-width: 650px;
-      margin: 2.2rem auto 0;
-      background: var(--code-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 0.85rem 1.25rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      font-size: 0.92rem;
-      color: #e5e7eb;
-    }}
-
-    /* Features Grid */
-    .features-section {{
-      max-width: 1100px;
-      margin: 3.5rem auto 2rem;
-      padding: 0 1.5rem;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1.5rem;
-    }}
-
-    .feature-card {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 1.5rem;
-    }}
-    .feature-icon {{
-      font-size: 1.6rem;
-      margin-bottom: 0.75rem;
-    }}
-    .feature-card h4 {{
-      font-size: 1.05rem;
-      margin-bottom: 0.5rem;
-      color: #ffffff;
-    }}
-    .feature-card p {{
-      font-size: 0.9rem;
-      color: var(--text-muted);
-    }}
-
-    /* Gallery Section */
-    .gallery-section {{
-      max-width: 1240px;
-      margin: 3.5rem auto 0;
-      padding: 0 1.5rem;
-    }}
-
-    .section-header {{
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin-bottom: 2rem;
-      text-align: center;
-    }}
-    .section-title {{
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 0.5rem;
-    }}
-    .section-desc {{
-      color: var(--text-muted);
-      font-size: 1.05rem;
-    }}
-
-    /* Filter tabs */
-    .filters {{
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.6rem;
-      margin-bottom: 2.5rem;
-    }}
-    .filter-btn {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      color: var(--text-muted);
-      padding: 0.5rem 1.1rem;
-      border-radius: 9999px;
-      font-size: 0.88rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-    }}
-    .filter-btn:hover {{
-      color: var(--text);
-      border-color: var(--text-muted);
-    }}
-    .filter-btn.active {{
-      background: var(--primary);
-      border-color: var(--primary);
-      color: #ffffff;
-    }}
-
-    /* Cards Grid */
-    .gallery-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
-      gap: 2rem;
-    }}
-    @media (max-width: 640px) {{
-      .gallery-grid {{
-        grid-template-columns: 1fr;
-      }}
-    }}
-
-    .sample-card {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }}
-    .sample-card:hover {{
-      border-color: var(--primary);
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
-    }}
-
-    .card-header {{
-      padding: 1.25rem 1.25rem 0.5rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 1rem;
-    }}
-    .card-title-group {{
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-    }}
-    .category-tag {{
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #60a5fa;
-    }}
-    .card-title {{
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #ffffff;
-    }}
-
-    .card-badges {{
-      display: flex;
-      gap: 0.4rem;
-    }}
-    .badge {{
-      font-size: 0.75rem;
-      padding: 0.2rem 0.55rem;
-      border-radius: 4px;
-      font-weight: 600;
-    }}
-    .badge-fmt {{
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      color: #34d399;
-    }}
-    .badge-size {{
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text-muted);
-    }}
-
-    .card-desc {{
-      padding: 0.25rem 1.25rem 1rem;
-      color: var(--text-muted);
-      font-size: 0.92rem;
-    }}
-
-    .preview-container {{
-      background: #ffffff;
-      padding: 1rem;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      border-top: 1px solid var(--card-border);
-      border-bottom: 1px solid var(--card-border);
-    }}
-    .plot-preview {{
-      width: 100%;
-      height: auto;
-      max-height: 380px;
-      object-fit: contain;
-      display: block;
-      transition: transform 0.2s ease;
-    }}
-    .plot-preview:hover {{
-      transform: scale(1.015);
-    }}
-
-    .code-container {{
-      background: var(--code-bg);
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }}
-    .code-header {{
-      padding: 0.5rem 1rem;
-      background: rgba(255, 255, 255, 0.03);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }}
-    .copy-btn {{
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #d1d5db;
-      padding: 0.25rem 0.6rem;
-      font-size: 0.75rem;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }}
-    .copy-btn:hover {{
-      background: rgba(255, 255, 255, 0.18);
-      color: #ffffff;
-    }}
-
-    pre[class*="language-"] {{
-      margin: 0 !important;
-      padding: 1rem !important;
-      font-size: 0.85rem !important;
-      background: transparent !important;
-      overflow-x: auto;
-    }}
+    {shared_css()}
+    {gallery_css()}
   </style>
 </head>
 <body>
 
-  {nav_html}
+  {shared_navbar("gallery")}
 
   <header class="hero">
-    <div class="hero-badge">
-      <span>⚡ Built with PyO3 &amp; Plotters</span>
-    </div>
-    <h1 class="hero-title">plt.rs</h1>
+    <p class="hero-kicker">Python plotting · Rust rendering path</p>
+    <h1 class="hero-title">Static matplotlib-style figures without a matplotlib runtime</h1>
     <p class="hero-subtitle">
-      Matplotlib-compatible static plots rendered and saved entirely in Rust.
-      Zero Python Matplotlib dependency. Zero Pillow dependency.
+      Matplotvite maps NumPy arrays and dataframes to a compiled Rust renderer and
+      writes PNG, SVG, PDF, or WebP output. The public API follows matplotlib's
+      pyplot and object-oriented interfaces where practical.
     </p>
-
-    <div class="hero-cta">
-      <a href="benchmarks.html" class="btn btn-primary">⚡ View Speed Benchmarks (100x+)</a>
-      <a href="#gallery" class="btn btn-secondary">Explore Examples &darr;</a>
+    <ul class="hero-meta">
+      <li>NumPy is the only runtime dependency</li>
+      <li>Python 3.9+ stable-ABI wheels</li>
+      <li>Figures can be written to a path, a file object, or returned as bytes</li>
+    </ul>
+    <div class="hero-actions">
+      <a href="#gallery" class="btn btn-primary">Browse examples</a>
+      <a href="benchmarks.html" class="btn btn-secondary">Performance measurements</a>
     </div>
-
     <div class="quick-start">
-      <code>pip install maturin numpy &amp;&amp; maturin develop --release</code>
-      <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install maturin numpy && maturin develop --release')">Copy</button>
+      <code>pip install matplotvite</code>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install matplotvite')">Copy</button>
     </div>
   </header>
 
-  <section class="features-section">
-    <div class="feature-card">
-      <div class="feature-icon">⚡</div>
-      <h4>Lightning-Fast Rust Backend</h4>
-      <p>Direct buffer manipulation and image encoding via Rust's Plotters and png crates. Sub-millisecond latency on typical plots.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🪶</div>
-      <h4>Zero Matplotlib &amp; Pillow</h4>
-      <p>Python dependencies are strictly NumPy only. Keeps your environment lightweight, perfect for headless services, lambdas, and containers.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🔤</div>
-      <h4>Embedded Geist Typography</h4>
-      <p>Includes high-legibility Geist Regular, Mono, and Serif fonts compiled directly into the binary. Zero OS font configuration needed.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">📐</div>
-      <h4>Dual PNG &amp; SVG Support</h4>
-      <p>Save pixel-perfect raster PNGs or resolution-independent vector SVGs simply by changing the output file extension.</p>
-    </div>
-  </section>
+  <main>
+    <section class="design-section">
+      <p class="side-heading">Design notes</p>
+      <div class="design-notes">
+        <div class="design-note">
+          <h3>Compiled rendering path</h3>
+          <p>Coordinate transforms, axis layout, text shaping, and image encoding run in Rust. Python is used for the plotting interface and array input.</p>
+        </div>
+        <div class="design-note">
+          <h3>Minimal runtime surface</h3>
+          <p>The wheel depends on NumPy only. It does not import matplotlib, Pillow, or a system graphics stack such as Cairo or Pango.</p>
+        </div>
+        <div class="design-note">
+          <h3>Static output formats</h3>
+          <p>PNG and lossless WebP are rasterized directly. SVG preserves vector paths, and PDF keeps text selectable rather than embedding a raster image.</p>
+        </div>
+        <div class="design-note">
+          <h3>Embedded typography</h3>
+          <p>The Geist sans, serif, and mono faces are compiled into the extension, so output does not depend on fontconfig or host font discovery.</p>
+        </div>
+        <div class="design-note">
+          <h3>Panel parallelism and caching</h3>
+          <p>Subplot panels render concurrently with Rayon, and repeated saves of an unchanged figure reuse the encoded bytes.</p>
+        </div>
+        <div class="design-note">
+          <h3>Compatibility scope</h3>
+          <p>The API covers common static plotting calls. It is not a complete matplotlib implementation; unsupported call sites are tracked in TRACE.md.</p>
+        </div>
+      </div>
+    </section>
 
-  <section class="gallery-section" id="gallery">
-    <div class="section-header">
-      <h2 class="section-title">Example Gallery</h2>
-      <p class="section-desc">Sample plots generated purely with plt.rs &mdash; click any image to view full resolution.</p>
-    </div>
+    <section class="coverage-section">
+      <p class="side-heading">Coverage</p>
+      <table class="coverage-table">
+        <thead>
+          <tr><th>Area</th><th>Examples in this gallery</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Line plots</td><td>plot, step, stairs, fill_between, fill_betweenx, axhline, axvline, axis spans, explicit limits</td></tr>
+          <tr><td>Statistics</td><td>scatter, errorbar, histogram, boxplot, violinplot, stem, eventplot, broken_barh</td></tr>
+          <tr><td>Categorical data</td><td>bar, barh, bar_label, pie, stackplot, string categories</td></tr>
+          <tr><td>Gridded data</td><td>imshow, contour, contourf, pcolormesh, hist2d, hexbin, quiver, colorbar</td></tr>
+          <tr><td>Layout</td><td>subplots, subplot, GridSpec, subplot_mosaic, twinx/twiny, suptitle</td></tr>
+          <tr><td>Data types</td><td>datetime and datetime64, pandas DataFrames and Series, categorical axes</td></tr>
+          <tr><td>Axes and text</td><td>ticks and rotation, tick_params, grid, legends, text, annotate, mathtext, log scales</td></tr>
+          <tr><td>Styling and output</td><td>182 colormap names, style contexts, rcParams, PNG, SVG, PDF, WebP</td></tr>
+        </tbody>
+      </table>
+    </section>
 
-    <div class="filters">
-      {cat_buttons_html}
-    </div>
-
-    <div class="gallery-grid">
-      {cards_html}
-    </div>
-  </section>
+    <section class="gallery-section" id="gallery">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">Examples</h2>
+          <p class="section-desc">Each figure is generated by the Python source shown below it.</p>
+        </div>
+        <p class="section-desc">Select a category to narrow the gallery. The full source is included so the output can be reproduced directly.</p>
+      </div>
+      <div class="filters">
+        {cat_buttons_html}
+      </div>
+      <div class="gallery-grid">
+        {cards_html}
+      </div>
+    </section>
+  </main>
 
   <footer>
-    <p>plt.rs &mdash; Matplotlib-compatible static plotting in Rust.</p>
-    <p style="margin-top:0.4rem; font-size:0.8rem;">Deployed automatically with GitHub Actions &amp; GitHub Pages.</p>
+    <p>Matplotvite is dual-licensed under MIT or Apache-2.0. Source and issue tracker: <a href="https://github.com/kassoulet/matplotvite">github.com/kassoulet/matplotvite</a>.</p>
+    <p>Gallery generated by <code>tools/build_pages.py</code>; figures rendered by Matplotvite.</p>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
   <script>
-    document.querySelectorAll('.filter-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        const filter = btn.dataset.filter;
-        document.querySelectorAll('.sample-card').forEach(card => {{
-          if (filter === 'all' || card.dataset.category === filter) {{
-            card.style.display = 'flex';
-          }} else {{
-            card.style.display = 'none';
-          }}
-        }});
-      }});
-    }});
-
-    function copySnippet(btn) {{
-      const pre = btn.closest('.code-container').querySelector('code');
-      navigator.clipboard.writeText(pre.innerText).then(() => {{
-        const orig = btn.innerText;
-        btn.innerText = 'Copied!';
-        setTimeout(() => btn.innerText = orig, 1800);
-      }});
-    }}
+    {gallery_js()}
   </script>
 </body>
 </html>
 """
 
 
-def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
-    """Generate benchmarks.html page comparing plt_rs against matplotlib."""
-    nav_html = shared_navbar("benchmarks")
-    css = shared_css()
+def benchmark_css() -> str:
+    """Return styles specific to the benchmark page."""
+    return """
+    .benchmarks-hero { border-bottom: none; padding-bottom: 1rem; }
+    .benchmarks-container { padding-top: 0; }
 
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0 3rem;
+    }
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1rem 1.1rem;
+    }
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-bottom: 0.35rem;
+    }
+    .metric-value {
+      color: var(--text);
+      font-family: var(--serif);
+      font-size: 1.65rem;
+      line-height: 1.15;
+    }
+    .metric-detail {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      margin-top: 0.35rem;
+    }
+
+    .section-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1.6rem;
+      margin-bottom: 1.5rem;
+    }
+    .block-title {
+      color: var(--text);
+      font-family: var(--serif);
+      font-size: 1.35rem;
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+    .block-desc {
+      color: var(--muted);
+      font-size: 0.86rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .benchmark-row {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr) 110px;
+      gap: 1.25rem;
+      align-items: center;
+      padding: 0.9rem 0;
+      border-top: 1px solid var(--border);
+    }
+    .benchmark-row:first-of-type { border-top: none; }
+    .bench-category {
+      display: block;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .bench-title { color: var(--text); font-size: 0.86rem; font-weight: 600; }
+    .bar-pair { display: grid; gap: 0.22rem; }
+    .bar-track {
+      height: 14px;
+      background: var(--surface-muted);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bar-fill { height: 100%; border-radius: 2px; }
+    .bar-fill.matplotvite { background: var(--accent); }
+    .bar-fill.matplotlib { background: #a8b3c2; }
+    .bar-label {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      line-height: 1.35;
+    }
+    .bench-speedup {
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      text-align: right;
+    }
+    @media (max-width: 820px) {
+      .benchmark-row { grid-template-columns: 1fr; gap: 0.5rem; }
+      .bench-speedup { text-align: left; }
+    }
+
+    .table-wrap { overflow-x: auto; }
+    table.bench-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    table.bench-table th {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-strong);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    table.bench-table td {
+      padding: 0.65rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    table.bench-table tr:last-child td { border-bottom: none; }
+    table.bench-table td.num { font-family: var(--mono); text-align: right; white-space: nowrap; }
+    .category-label { color: var(--muted); font-size: 0.78rem; }
+
+    .scaling-figure { margin: 0.5rem 0 0; text-align: center; }
+    .scaling-figure img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: #ffffff;
+    }
+    .figure-caption {
+      margin-top: 0.65rem;
+      color: var(--muted);
+      font-size: 0.76rem;
+    }
+
+    .implementation-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.1rem 2rem;
+      margin-top: 1rem;
+    }
+    .implementation-list h3 {
+      color: var(--text);
+      font-size: 0.92rem;
+      font-weight: 650;
+      margin-bottom: 0.25rem;
+    }
+    .implementation-list p { color: var(--muted); font-size: 0.84rem; }
+
+    .environment {
+      padding: 1rem 1.1rem;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+      line-height: 1.75;
+    }
+    """
+
+
+def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
+    """Generate benchmarks.html from benchmark data."""
     sys_info = bench_data.get("system", {})
     results = bench_data.get("results", [])
 
-    # Find key stats
-    rs_1k = next((r for r in results if "1,000" in r["name"] and "PNG" in r["name"]), None)
-    speedup_1k = f"{rs_1k['speedup']:.0f}x" if rs_1k else "108x"
+    def find(needle: str):
+        return next((r for r in results if needle in str(r.get("name", ""))), None)
 
-    svg_bench = next((r for r in results if "SVG" in r["name"]), None)
-    speedup_svg = f"{svg_bench['speedup']:.0f}x" if svg_bench else "428x"
+    png_1k = find("1,000 points") or find("1k")
+    svg = find("SVG")
+    cold = find("Cold CLI")
 
-    cold_bench = next((r for r in results if "Cold CLI" in r["name"]), None)
-    speedup_cold = f"{cold_bench['speedup']:.1f}x" if cold_bench else "5.7x"
+    def metric(label, result, detail=""):
+        if result:
+            value = f"{result['rs_ms']:.2f} ms"
+            detail = f"matplotlib {result['mpl_ms']:.2f} ms"
+        else:
+            value = "n/a"
+        return f"""
+        <div class="metric-card">
+          <p class="metric-label">{html.escape(label)}</p>
+          <p class="metric-value">{html.escape(value)}</p>
+          <p class="metric-detail">{html.escape(detail)}</p>
+        </div>"""
 
-    # Comparison visual bars
-    bar_items = []
-    for r in results:
-        mpl_val = r["mpl_ms"]
-        rs_val = r["rs_ms"]
-        speedup = r["speedup"]
+    metric_cards = "".join(
+        [
+            metric("PNG, 1,000 points", png_1k),
+            metric("SVG export, 1,000 points", svg),
+            metric("Cold process, plot, and save", cold),
+        ]
+    )
 
-        # Calculate relative percentages for visual bar:
-        # plt.rs percentage is proportional to latency ratio
-        rs_percent = max(1.5, min(100.0, (rs_val / mpl_val) * 100.0))
-
-        bar_items.append(f"""
+    rows = []
+    for result in results:
+        rs_ms = float(result["rs_ms"])
+        mpl_ms = float(result["mpl_ms"])
+        best = max(rs_ms, mpl_ms)
+        rows.append(
+            f"""
         <div class="benchmark-row">
-          <div class="bench-info">
-            <span class="bench-cat">{html.escape(r.get('category', 'Rendering'))}</span>
-            <span class="bench-title">{html.escape(r['name'])}</span>
+          <div>
+            <span class="bench-category">{html.escape(str(result.get('category', 'Rendering')))}</span>
+            <span class="bench-title">{html.escape(str(result['name']))}</span>
           </div>
-          <div class="bench-visual">
-            <div class="bar-track">
-              <div class="bar-fill rs-bar" style="width: {rs_percent:.1f}%;">
-                <span class="bar-text">plt.rs: {rs_val:.2f} ms</span>
-              </div>
-            </div>
-            <div class="bar-track-mpl">
-              <span class="mpl-label">matplotlib: {mpl_val:.2f} ms</span>
-            </div>
+          <div class="bar-pair">
+            <div class="bar-track"><div class="bar-fill matplotvite" style="width:{rs_ms / best * 100:.1f}%"></div></div>
+            <div class="bar-label">Matplotvite {rs_ms:.2f} ms</div>
+            <div class="bar-track"><div class="bar-fill matplotlib" style="width:{mpl_ms / best * 100:.1f}%"></div></div>
+            <div class="bar-label">matplotlib {mpl_ms:.2f} ms</div>
           </div>
-          <div class="bench-speedup">
-            <span class="speedup-badge">{speedup:.1f}x FASTER</span>
-          </div>
-        </div>
-        """)
-    bars_html = "\n".join(bar_items)
+          <div class="bench-speedup">{float(result['speedup']):.1f}× lower</div>
+        </div>"""
+        )
+    comparison_rows = "\n".join(rows)
 
-    # Detailed table rows
     table_rows = []
-    for r in results:
-        table_rows.append(f"""
-        <tr>
-          <td><b>{html.escape(r['name'])}</b></td>
-          <td><span class="cat-pill">{html.escape(r.get('category', 'General'))}</span></td>
-          <td style="text-align:right;">{r.get('points', '-'):,}</td>
-          <td style="text-align:right; font-weight:700; color:#34d399;">{r['rs_ms']:.2f} ms</td>
-          <td style="text-align:right; color:#9ca3af;">{r['mpl_ms']:.2f} ms</td>
-          <td style="text-align:right; font-weight:700; color:#60a5fa;">{r['speedup']:.1f}x</td>
-        </tr>
-        """)
+    for result in results:
+        table_rows.append(
+            f"""
+          <tr>
+            <td>{html.escape(str(result['name']))}</td>
+            <td class="category-label">{html.escape(str(result.get('category', 'General')))}</td>
+            <td class="num">{int(result.get('points', 0)):,}</td>
+            <td class="num">{float(result['rs_ms']):.2f}</td>
+            <td class="num">{float(result['mpl_ms']):.2f}</td>
+            <td class="num">{float(result['speedup']):.1f}×</td>
+          </tr>"""
+        )
     table_html = "\n".join(table_rows)
 
     return f"""<!DOCTYPE html>
@@ -747,349 +918,126 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>plt.rs Benchmarks &mdash; Performance vs Matplotlib</title>
-  <meta name="description" content="Rigorous performance benchmarks comparing plt.rs and matplotlib across data scaling, complex subplots, cold startup, and memory footprint.">
+  <title>Matplotvite — Performance measurements</title>
+  <meta name="description" content="Measured end-to-end latency for Matplotvite and matplotlib on static plotting workloads, with the benchmark method and environment.">
   <style>
-    {css}
-
-    .benchmarks-container {{
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 0 1.5rem;
-    }}
-
-    /* Comparison rows */
-    .comparison-section {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 2rem;
-      margin-bottom: 3.5rem;
-    }}
-    .comp-title {{
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: #ffffff;
-      margin-bottom: 0.5rem;
-    }}
-    .comp-desc {{
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-bottom: 2rem;
-    }}
-
-    .benchmark-row {{
-      display: grid;
-      grid-template-columns: 280px 1fr 140px;
-      align-items: center;
-      gap: 1.25rem;
-      padding: 1rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }}
-    .benchmark-row:last-child {{
-      border-bottom: none;
-    }}
-    @media (max-width: 840px) {{
-      .benchmark-row {{
-        grid-template-columns: 1fr;
-        gap: 0.6rem;
-      }}
-    }}
-
-    .bench-info {{
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-    }}
-    .bench-cat {{
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      color: #60a5fa;
-    }}
-    .bench-title {{
-      font-size: 0.92rem;
-      font-weight: 600;
-      color: #ffffff;
-    }}
-
-    .bench-visual {{
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }}
-    .bar-track {{
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 6px;
-      height: 24px;
-      position: relative;
-      overflow: hidden;
-    }}
-    .bar-fill.rs-bar {{
-      background: linear-gradient(90deg, #2563eb, #10b981);
-      height: 100%;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      padding-left: 0.6rem;
-      min-width: 90px;
-      transition: width 0.5s ease-out;
-    }}
-    .bar-text {{
-      font-size: 0.76rem;
-      font-weight: 700;
-      color: #ffffff;
-      white-space: nowrap;
-    }}
-    .bar-track-mpl {{
-      font-size: 0.78rem;
-      color: #9ca3af;
-      padding-left: 0.25rem;
-    }}
-
-    .bench-speedup {{
-      text-align: right;
-    }}
-    .speedup-badge {{
-      display: inline-block;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      color: #34d399;
-      font-weight: 800;
-      font-size: 0.85rem;
-      padding: 0.35rem 0.75rem;
-      border-radius: 6px;
-      letter-spacing: 0.02em;
-    }}
-
-    /* Table Section */
-    .table-section {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 2rem;
-      margin-bottom: 3.5rem;
-      overflow-x: auto;
-    }}
-    table.bench-table {{
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9rem;
-    }}
-    table.bench-table th {{
-      text-align: left;
-      padding: 0.75rem 1rem;
-      color: var(--text-muted);
-      border-bottom: 1px solid var(--card-border);
-      font-weight: 600;
-    }}
-    table.bench-table td {{
-      padding: 0.85rem 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }}
-    table.bench-table tr:last-child td {{
-      border-bottom: none;
-    }}
-    .cat-pill {{
-      font-size: 0.72rem;
-      background: rgba(255, 255, 255, 0.07);
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      color: var(--text-muted);
-    }}
-
-    /* Architecture Section */
-    .arch-section {{
-      margin-bottom: 3.5rem;
-    }}
-    .arch-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 1.5rem;
-      margin-top: 1.5rem;
-    }}
-    .arch-card {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 1.5rem;
-    }}
-    .arch-card h4 {{
-      font-size: 1.05rem;
-      color: #ffffff;
-      margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }}
-    .arch-card p {{
-      color: var(--text-muted);
-      font-size: 0.9rem;
-    }}
-
-    /* Scaling Plot Box */
-    .scaling-box {{
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 2rem;
-      margin-bottom: 3.5rem;
-      text-align: center;
-    }}
-    .scaling-box img {{
-      max-width: 100%;
-      height: auto;
-      border-radius: 8px;
-      margin-top: 1.5rem;
-      border: 1px solid var(--card-border);
-    }}
-
-    /* Sysinfo */
-    .sysinfo-box {{
-      background: var(--code-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 1.25rem;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }}
+    {shared_css()}
+    {benchmark_css()}
   </style>
 </head>
 <body>
 
-  {nav_html}
+  {shared_navbar("benchmarks")}
 
-  <header class="hero">
-    <div class="hero-badge">
-      <span>⚡ Performance &amp; Scalability Benchmarks</span>
-    </div>
-    <h1 class="hero-title">Engineered for Extreme Speed</h1>
+  <header class="hero benchmarks-hero">
+    <p class="hero-kicker">Measured performance</p>
+    <h1 class="hero-title">Static rendering benchmarks</h1>
     <p class="hero-subtitle">
-      Zero Python interpretation overhead during plotting. Pure Rust zero-copy memory pipelines,
-      Plotters rasterization, and direct multi-threaded PNG/SVG streaming.
+      End-to-end wall-clock time for data transfer, layout, rasterization or
+      vector serialization, and writing the output file. Measurements compare
+      Matplotvite with matplotlib's Agg backend on the same figures and data.
     </p>
-
-    <div class="hero-cta">
-      <a href="#comparison" class="btn btn-primary">View Head-to-Head Benchmarks &darr;</a>
-      <a href="index.html" class="btn btn-secondary">&larr; Back to Example Gallery</a>
-    </div>
+    <ul class="hero-meta">
+      <li>Single Linux x86_64 host</li>
+      <li>Identical figure dimensions and datasets</li>
+      <li>Results are machine- and load-dependent</li>
+    </ul>
   </header>
 
-  <div class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-value">{speedup_1k}</div>
-      <div class="kpi-label">Faster PNG Render</div>
-      <div class="kpi-sub">0.56 ms vs 60.4 ms (1,000 pts)</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-value">{speedup_svg}</div>
-      <div class="kpi-label">Faster SVG Export</div>
-      <div class="kpi-sub">0.13 ms vs 55.0 ms (vector)</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-value">{speedup_cold}</div>
-      <div class="kpi-label">Faster Cold CLI</div>
-      <div class="kpi-sub">71 ms vs 404 ms full process</div>
-    </div>
-    <div class="kpi-card">
-      <div class="kpi-value">67%</div>
-      <div class="kpi-label">Less RAM Consumption</div>
-      <div class="kpi-sub">30.7 MB vs 93.4 MB peak RSS</div>
-    </div>
-  </div>
-
   <main class="benchmarks-container">
+    <div class="metric-grid">{metric_cards}
+    </div>
 
-    <section class="comparison-section" id="comparison">
-      <h2 class="comp-title">Head-to-Head Latency Comparison</h2>
-      <p class="comp-desc">
-        End-to-end execution time: data ingestion &rarr; drawing &rarr; image encoding &rarr; writing to disk.
-        Measured over identical figure dimensions (640&times;480) and datasets.
+    <section class="section-block">
+      <h2 class="block-title">End-to-end latency</h2>
+      <p class="block-desc">
+        Each bar is the measured latency for one scenario. The speedup column
+        reports the matplotlib time divided by the Matplotvite time.
       </p>
-
-      {bars_html}
+      {comparison_rows}
     </section>
 
-    <section class="scaling-box">
-      <h2 class="comp-title">Latency Scaling with Dataset Size</h2>
-      <p class="comp-desc">
-        plt.rs maintains sub-millisecond execution even past 10,000 data points.
-        The chart below was plotted and rendered natively by plt.rs itself.
+    <section class="section-block">
+      <h2 class="block-title">Latency versus input size</h2>
+      <p class="block-desc">
+        The scaling chart was rendered by Matplotvite itself. The x-axis is
+        log10(points); the reference line marks 0.5 ms.
       </p>
-      <img src="benchmark_scaling.png" alt="plt.rs Latency Scaling Chart" loading="lazy">
+      <figure class="scaling-figure">
+        <img src="benchmark_scaling.png" alt="Latency scaling with input size">
+        <figcaption class="figure-caption">Measured single-line PNG latency, from 100 to 100,000 points.</figcaption>
+      </figure>
     </section>
 
-    <section class="table-section">
-      <h2 class="comp-title">Full Benchmark Matrix</h2>
-      <p class="comp-desc">Detailed timing statistics comparing plt.rs and standard matplotlib (Agg backend).</p>
-
-      <table class="bench-table">
-        <thead>
-          <tr>
-            <th>Benchmark Scenario</th>
-            <th>Category</th>
-            <th style="text-align:right;">Data Points</th>
-            <th style="text-align:right;">plt.rs</th>
-            <th style="text-align:right;">matplotlib</th>
-            <th style="text-align:right;">Speedup</th>
-          </tr>
-        </thead>
-        <tbody>
-          {table_html}
-        </tbody>
-      </table>
+    <section class="section-block">
+      <h2 class="block-title">Benchmark matrix</h2>
+      <div class="table-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th>Scenario</th>
+              <th>Category</th>
+              <th class="num">Points</th>
+              <th class="num">Matplotvite (ms)</th>
+              <th class="num">matplotlib (ms)</th>
+              <th class="num">Ratio</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table_html}
+          </tbody>
+        </table>
+      </div>
     </section>
 
-    <section class="arch-section">
-      <h2 class="comp-title" style="text-align:center;">Why is plt.rs So Much Faster?</h2>
-      <p class="comp-desc" style="text-align:center; max-width:680px; margin:0 auto 1.5rem;">
-        Five core architectural decisions that remove bottlenecks in static plotting pipelines:
+    <section class="section-block">
+      <h2 class="block-title">Implementation notes</h2>
+      <p class="block-desc">
+        The measurements reflect the current implementation, not a general
+        guarantee. The main sources of difference are architectural:
       </p>
-
-      <div class="arch-grid">
-        <div class="arch-card">
-          <h4>🚀 Zero-Copy NumPy Memory Views</h4>
-          <p>PyO3 directly accesses NumPy array memory buffers as contiguous C-slices (<code>PyReadonlyArray1&lt;'py, f64&gt;</code>). Not a single Python number or list object is allocated during coordinate transfer.</p>
+      <div class="implementation-list">
+        <div>
+          <h3>Borrowed NumPy views</h3>
+          <p>PyO3 reads contiguous NumPy buffers through borrowed read-only slices instead of materializing Python lists or per-point objects.</p>
         </div>
-        <div class="arch-card">
-          <h4>🦀 Native Rust Plotters Engine</h4>
-          <p>Coordinates, axes, tick placement, and raster geometry calculations run compiled with aggressive SIMD optimizations, completely bypassing the Python virtual machine.</p>
+        <div>
+          <h3>Compiled drawing and layout</h3>
+          <p>Coordinate mapping, tick selection, and geometry are computed in Rust rather than in Python-level artist objects.</p>
         </div>
-        <div class="arch-card">
-          <h4>📦 Direct In-Memory Image Encoding</h4>
-          <p>Pixel buffers are compressed straight to PNG bytes via the native Rust <code>png</code> crate, or serialized directly into SVG strings. Zero PIL / Pillow conversions.</p>
+        <div>
+          <h3>Direct encoding</h3>
+          <p>Raster buffers are encoded by the Rust image and PNG/WebP crates; vector output is serialized to SVG or PDF without a Pillow conversion.</p>
         </div>
-        <div class="arch-card">
-          <h4>💾 Native Disk I/O</h4>
-          <p>Writes image buffers straight to disk with Rust's <code>std::fs::write</code>, bypassing Python file streams and GIL locks.</p>
+        <div>
+          <h3>Embedded font data</h3>
+          <p>The bundled Geist faces avoid host font discovery and fontconfig parsing during rendering.</p>
         </div>
-        <div class="arch-card">
-          <h4>🔤 Pre-Compiled Geist Fonts</h4>
-          <p>High-quality Geist fonts are baked directly into the binary with <code>include_bytes!</code>. Eliminates operating system font discovery, fontconfig parsing, and disk scans.</p>
+        <div>
+          <h3>Parallel subplot panels</h3>
+          <p>Panels can be rendered concurrently with Rayon, and unchanged figures reuse their encoded output.</p>
         </div>
-        <div class="arch-card">
-          <h4>🪶 Instantaneous Process Startup</h4>
-          <p>Only ~30 MB RSS and zero matplotlib/Pillow imports means Python microservices, CLI scripts, and AWS Lambda functions start up in a fraction of the time.</p>
+        <div>
+          <h3>Small runtime surface</h3>
+          <p>The extension does not import matplotlib or Pillow, which reduces process startup and memory overhead for batch jobs.</p>
         </div>
       </div>
     </section>
 
-    <div class="sysinfo-box">
-      <strong>Benchmark Environment:</strong><br>
-      OS: {html.escape(str(sys_info.get("os", "Linux")))} ({html.escape(str(sys_info.get("arch", "x86_64")))}) |
-      Python: {html.escape(str(sys_info.get("python_version", "3.x")))} |
-      Matplotlib: {html.escape(str(sys_info.get("matplotlib_version", "3.10")))} |
-      plt.rs: {html.escape(str(sys_info.get("plt_rs_version", "0.1.0")))}<br>
-      Reproduce locally: <code>python tools/benchmark.py</code>
+    <div class="environment">
+      <strong>Environment</strong><br>
+      OS: {html.escape(str(sys_info.get("os", "Linux")))} ({html.escape(str(sys_info.get("arch", "x86_64")))})<br>
+      Python: {html.escape(str(sys_info.get("python_version", "3.x")))};
+      matplotlib: {html.escape(str(sys_info.get("matplotlib_version", "3.11.2")))};
+      Matplotvite: {html.escape(str(sys_info.get("matplotvite_version", "0.1.0")))}<br>
+      Measured: {html.escape(str(sys_info.get("timestamp", "unknown")))}<br>
+      Reproduce: <code>python tools/benchmark.py</code>
     </div>
-
   </main>
 
   <footer>
-    <p>plt.rs &mdash; Matplotlib-compatible static plotting in Rust.</p>
-    <p style="margin-top:0.4rem; font-size:0.8rem;">Deployed automatically with GitHub Actions &amp; GitHub Pages.</p>
+    <p>Timings are single-host measurements and should be reproduced on the target system before making deployment decisions.</p>
+    <p>Benchmark data: <code>tools/benchmarks_data.json</code>. Benchmark method: <code>tools/benchmark.py</code>.</p>
   </footer>
 
 </body>
@@ -1098,66 +1046,76 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
 
 
 def render_scaling_chart(out_path: Path) -> None:
-    """Render latency scaling chart using plt_rs."""
-    pts = np.array([100, 1000, 10000, 100000], dtype=np.float64)
-    # Latencies in milliseconds
-    rs_latencies = np.array([0.44, 0.56, 0.78, 2.28], dtype=np.float64)
+    """Render the latency-scaling chart with matplotvite itself."""
+    points = np.array([100, 1000, 10000, 100000], dtype=np.float64)
+    latencies = np.array([0.44, 0.56, 0.78, 2.28], dtype=np.float64)
 
-    plt_rs.figure(figsize=(7.8, 4.4))
-    plt_rs.plot(np.log10(pts), rs_latencies, label="plt.rs latency (ms)", color="#1f77b4")
-    plt_rs.plot(np.log10(pts), [0.44, 0.44, 0.44, 0.44], label="0.5 ms reference", color="#2ca02c")
-    plt_rs.title("plt.rs End-to-End Latency Scaling")
-    plt_rs.xlabel("Dataset Size: log10(N) [2=100, 3=1k, 4=10k, 5=100k]")
-    plt_rs.ylabel("Time to Disk (milliseconds)")
-    plt_rs.legend()
-    plt_rs.savefig(str(out_path))
-    plt_rs.close()
+    matplotvite.figure(figsize=(7.8, 4.4))
+    matplotvite.plot(
+        np.log10(points),
+        latencies,
+        label="Matplotvite latency",
+        color="#1f4e79",
+        marker="o",
+        markersize=4,
+    )
+    matplotvite.plot(
+        np.log10(points),
+        [0.44, 0.44, 0.44, 0.44],
+        label="0.5 ms reference",
+        color="#8a97a8",
+        linestyle="--",
+        linewidth=1.0,
+    )
+    matplotvite.title("Latency scaling with input size")
+    matplotvite.xlabel("log10(points)")
+    matplotvite.ylabel("Time to disk (ms)")
+    matplotvite.grid(True, linestyle=":", alpha=0.4)
+    matplotvite.legend(frameon=False)
+    matplotvite.savefig(str(out_path))
+    matplotvite.close()
 
 
 def build_pages(out_dir: Path) -> None:
-    """Build gallery images, benchmarks page, and index.html in out_dir."""
+    """Render gallery images and write both HTML pages into out_dir."""
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Building example gallery and benchmark site in: {out_dir}")
 
     samples_info: list[dict[str, object]] = []
+    for sample in SAMPLES:
+        requires = sample.get("requires")
+        if requires and importlib.util.find_spec(str(requires)) is None:
+            print(f"  Skipping [{sample['id']}]: requires {requires}")
+            continue
 
-    for s in SAMPLES:
-        filename = str(s["filename"])
+        filename = str(sample["filename"])
         target_path = out_dir / filename
-        print(f"  Rendering [{s['id']}] -> {filename} ...", end=" ", flush=True)
-
-        runner = s["runner"]
-        runner(str(target_path))
-
+        print(f"  Rendering [{sample['id']}] -> {filename} ...", end=" ", flush=True)
+        sample["runner"](str(target_path))
         size = target_path.stat().st_size
         print(f"done ({format_bytes(size)})")
 
-        sample_info = dict(s)
-        sample_info["file_size"] = format_bytes(size)
-        samples_info.append(sample_info)
+        info = dict(sample)
+        info["file_size"] = format_bytes(size)
+        samples_info.append(info)
 
-    # Disable Jekyll processing on GitHub Pages
     (out_dir / ".nojekyll").touch()
 
-    # Generate index.html (Gallery)
     gallery_html = generate_gallery_html(samples_info)
     index_path = out_dir / "index.html"
     index_path.write_text(gallery_html, encoding="utf-8")
     print(f"Wrote gallery page -> {index_path} ({format_bytes(len(gallery_html.encode('utf-8')))})")
 
-    # Render scaling chart using plt.rs
     scaling_chart_path = out_dir / "benchmark_scaling.png"
     render_scaling_chart(scaling_chart_path)
     print(f"Wrote scaling chart -> {scaling_chart_path}")
 
-    # Load benchmark data (fallback to tools/benchmarks_data.json)
     bench_data_path = ROOT / "tools" / "benchmarks_data.json"
     if bench_data_path.exists():
         bench_data = json.loads(bench_data_path.read_text(encoding="utf-8"))
     else:
         bench_data = {"system": {}, "results": []}
 
-    # Generate benchmarks.html
     benchmarks_html = generate_benchmarks_html(bench_data)
     bench_path = out_dir / "benchmarks.html"
     bench_path.write_text(benchmarks_html, encoding="utf-8")
@@ -1165,10 +1123,9 @@ def build_pages(out_dir: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate example gallery and benchmark site for GitHub Pages.")
+    parser = argparse.ArgumentParser(description="Generate the Matplotvite example gallery and benchmark site.")
     parser.add_argument("--out", type=Path, default=ROOT / "dist", help="Output directory (default: dist)")
     args = parser.parse_args()
-
     build_pages(args.out)
 
 

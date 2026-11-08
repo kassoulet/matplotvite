@@ -1,12 +1,12 @@
-"""Trace matplotlib test-suite API usage that plt_rs doesn't support.
+"""Trace matplotlib test-suite API usage that matplotvite doesn't support.
 
 usage: python tools/trace_unsupported.py <matplotlib/tests dir> [out.md] [options]
 
-Needs matplotlib importable (reference API only, dev tool) and plt_rs installed.
+Needs matplotlib importable (reference API only, dev tool) and matplotvite installed.
 Static (AST) scan: counts `plt.X`, and `.method(...)` calls whose name is a public
 pyplot / Axes / Figure method; also kwargs per call name.
 
-The supported side is introspected from plt_rs itself (module, `Axes`, `Figure`),
+The supported side is introspected from matplotvite itself (module, `Axes`, `Figure`),
 including accepted keyword arguments via `inspect.signature`, so the baseline
 can't go stale when the wrapper grows.
 
@@ -22,7 +22,7 @@ import matplotlib
 import matplotlib.pyplot as mpl_plt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-import plt_rs
+import matplotvite
 
 argv = sys.argv[1:]
 check = "--check" in argv
@@ -46,7 +46,7 @@ def pub(obj):
 
 
 PYPLOT, AXES, FIGURE = pub(mpl_plt), pub(Axes), pub(Figure)
-OURS = {"pyplot": plt_rs, "Axes": plt_rs.Axes, "Figure": plt_rs.Figure}
+OURS = {"pyplot": matplotvite, "Axes": matplotvite.Axes, "Figure": matplotvite.Figure}
 SUPPORTED = {kind: pub(obj) for kind, obj in OURS.items()}
 
 

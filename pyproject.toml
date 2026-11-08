@@ -3,7 +3,7 @@ requires = ["maturin>=1.9,<2"]
 build-backend = "maturin"
 
 [project]
-name = "plt-rs"
+name = "matplotvite"
 version = "0.1.0"
 description = "Matplotlib-style static plots rendered in Rust, with numpy as the only Python dependency"
 readme = "README.md"
@@ -29,11 +29,11 @@ classifiers = [
 dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff==0.17.4"]
+dev = ["pytest>=8", "ruff==0.17.4", "pandas"]
 
 [project.urls]
-Homepage = "https://kassoulet.github.io/plt_rs/"
-Repository = "https://github.com/kassoulet/plt_rs"
+Homepage = "https://kassoulet.github.io/matplotvite/"
+Repository = "https://github.com/kassoulet/matplotvite"
 
 [tool.ruff]
 target-version = "py39"
@@ -50,4 +50,4 @@ pythonpath = ["."]
 
 [tool.maturin]
 python-source = "python"
-module-name = "plt_rs._core"
+module-name = "matplotvite._core"

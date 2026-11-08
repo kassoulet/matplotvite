@@ -491,6 +491,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
+name = "matplotvite"
+version = "0.1.0"
+dependencies = [
+ "numpy",
+ "plotters",
+ "png 0.17.16",
+ "pyo3",
+ "rayon",
+ "resvg 0.49.0",
+ "svg2pdf",
+ "tiny-skia 0.12.0",
+ "usvg 0.49.0",
+ "webp",
+]
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -680,22 +696,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51bae2ac328883f7acdfea3d66a7c35751187f870bc81f94563733a154d7a670"
 dependencies = [
  "plotters-backend",
-]
-
-[[package]]
-name = "plt-rs"
-version = "0.1.0"
-dependencies = [
- "numpy",
- "plotters",
- "png 0.17.16",
- "pyo3",
- "rayon",
- "resvg 0.49.0",
- "svg2pdf",
- "tiny-skia 0.12.0",
- "usvg 0.49.0",
- "webp",
 ]
 
 [[package]]
