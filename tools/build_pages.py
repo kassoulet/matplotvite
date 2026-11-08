@@ -8,6 +8,7 @@ import html
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -45,6 +46,7 @@ def speedup_label(ratio: float) -> str:
 def shared_navbar(current_page: str) -> str:
     """Generate the shared top navigation bar."""
     gallery_active = " active" if current_page == "gallery" else ""
+    comparison_active = " active" if current_page == "comparison" else ""
     benchmarks_active = " active" if current_page == "benchmarks" else ""
     return f"""
   <nav class="topnav">
@@ -52,6 +54,7 @@ def shared_navbar(current_page: str) -> str:
       <a href="index.html" class="nav-logo">Matplotvite<span class="logo-version">0.1</span></a>
       <div class="nav-links">
         <a href="index.html" class="nav-link{gallery_active}">Examples</a>
+        <a href="comparison.html" class="nav-link{comparison_active}">Comparison</a>
         <a href="benchmarks.html" class="nav-link{benchmarks_active}">Performance</a>
         <a href="https://github.com/kassoulet/matplotvite" class="nav-link nav-external" target="_blank" rel="noopener">Source</a>
         <a href="https://github.com/kassoulet/matplotvite#readme" class="nav-link nav-external" target="_blank" rel="noopener">Documentation</a>
@@ -63,7 +66,30 @@ def shared_navbar(current_page: str) -> str:
 def shared_css() -> str:
     """Return the common stylesheet."""
     return """
+    @font-face {
+      font-family: "Geist";
+      src: url("assets/fonts/Geist-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Geist Serif";
+      src: url("assets/fonts/GeistSerif-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: "Geist Mono";
+      src: url("assets/fonts/GeistMono-Regular.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
     :root {
+      color-scheme: light dark;
       --page: #f7f8fa;
       --surface: #ffffff;
       --surface-muted: #f0f3f7;
@@ -76,9 +102,26 @@ def shared_css() -> str:
       --accent-soft: #e7eef5;
       --code-bg: #111827;
       --code-text: #e5e7eb;
-      --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-      --mono: "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      --serif: "Geist Serif", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      --mono: "Geist Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #101318;
+        --surface: #171b22;
+        --surface-muted: #1e232c;
+        --border: #2b323e;
+        --border-strong: #3c4655;
+        --text: #e5e9ef;
+        --muted: #a1acba;
+        --accent: #78a9d4;
+        --accent-hover: #9bc2e2;
+        --accent-soft: #1b2a38;
+        --code-bg: #0b0e13;
+        --code-text: #e5e7eb;
+      }
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -99,12 +142,11 @@ def shared_css() -> str:
     code, pre { font-family: var(--mono); }
 
     .topnav {
-      background: rgba(247, 248, 250, 0.94);
+      background: var(--page);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
-      backdrop-filter: blur(8px);
     }
     .nav-container {
       max-width: 1180px;
@@ -592,6 +634,7 @@ def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
     </ul>
     <div class="hero-actions">
       <a href="#gallery" class="btn btn-primary">Browse examples</a>
+      <a href="comparison.html" class="btn btn-secondary">Compare backends</a>
       <a href="benchmarks.html" class="btn btn-secondary">Performance measurements</a>
     </div>
     <div class="quick-start">
@@ -677,6 +720,195 @@ def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
   <script>
     {gallery_js()}
   </script>
+</body>
+</html>
+"""
+
+
+def comparison_css() -> str:
+    """Return styles specific to the backend comparison page."""
+    return """
+    .comparison-section { padding: 2.5rem 0 0; }
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+    @media (max-width: 950px) { .comparison-grid { grid-template-columns: 1fr; } }
+    .comparison-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .comparison-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem 1.1rem 0.5rem;
+    }
+    .comparison-title { font-size: 1rem; font-weight: 650; line-height: 1.35; }
+    .comparison-category {
+      display: block;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.66rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 0.15rem;
+    }
+    .comparison-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .comparison-pane { background: #ffffff; min-width: 0; }
+    .comparison-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.35rem 0.55rem;
+      background: var(--surface-muted);
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 0.64rem;
+    }
+    .comparison-pane img { display: block; width: 100%; height: auto; }
+    .comparison-missing {
+      color: var(--muted);
+      font-size: 0.76rem;
+      padding: 1rem;
+      min-height: 9rem;
+    }
+    .comparison-card details {
+      border-top: 1px solid var(--border);
+      background: var(--code-bg);
+    }
+    .comparison-card summary {
+      cursor: pointer;
+      padding: 0.5rem 0.8rem;
+      color: #cbd5e1;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+    .comparison-card details pre { max-height: 22rem; overflow: auto; }
+    .comparison-note {
+      margin: 1.5rem 0 0;
+      padding: 0.9rem 1rem;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+    """
+
+
+def generate_comparison_html(samples_info: list[dict[str, object]], mpl_available: bool) -> str:
+    """Generate comparison.html from the Matplotvite and matplotlib renders."""
+    cards = []
+    for sample in samples_info:
+        filename = str(sample["filename"])
+        mpl_filename = sample.get("mpl_filename")
+        code_escaped = html.escape(str(sample["code"]))
+        if mpl_filename:
+            right_pane = f'<img src="comparison/{html.escape(str(mpl_filename))}" alt="matplotlib render of {html.escape(str(sample["title"]))}" loading="lazy">'
+            right_label = "matplotlib · Agg"
+        elif not mpl_available:
+            right_pane = '<p class="comparison-missing">matplotlib is not installed in this build.</p>'
+            right_label = "matplotlib · unavailable"
+        else:
+            right_pane = '<p class="comparison-missing">This snippet uses an output format or dependency that the comparison build could not render with matplotlib.</p>'
+            right_label = "matplotlib · skipped"
+        cards.append(
+            f"""
+      <article class="comparison-card">
+        <div class="comparison-head">
+          <div>
+            <span class="comparison-category">{html.escape(str(sample['category']))}</span>
+            <h3 class="comparison-title">{html.escape(str(sample['title']))}</h3>
+          </div>
+          <span class="badge badge-fmt">{str(sample['format']).upper()}</span>
+        </div>
+        <div class="comparison-pair">
+          <div class="comparison-pane">
+            <div class="comparison-label"><span>Matplotvite</span><span>{html.escape(str(sample['file_size']))}</span></div>
+            <a href="{filename}" target="_blank" rel="noopener"><img src="{filename}" alt="Matplotvite render of {html.escape(str(sample['title']))}" loading="lazy"></a>
+          </div>
+          <div class="comparison-pane">
+            <div class="comparison-label"><span>{right_label}</span></div>
+            {right_pane}
+          </div>
+        </div>
+        <details>
+          <summary>Python source</summary>
+          <pre><code class="language-python">{code_escaped}</code></pre>
+        </details>
+      </article>"""
+        )
+    cards_html = "\n".join(cards)
+
+    mpl_note = (
+        "Matplotlib renders in this gallery use the Agg backend and its default DejaVu fonts. "
+        "Matplotvite renders use its embedded Geist faces, so typography and spacing differ even "
+        "when the call sequence is identical."
+        if mpl_available
+        else "matplotlib is not installed in this build; the comparison column is unavailable."
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matplotvite — Backend comparison</title>
+  <meta name="description" content="The same Python plotting snippets rendered by Matplotvite and by matplotlib's Agg backend.">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+  <style>
+    {shared_css()}
+    {comparison_css()}
+  </style>
+</head>
+<body>
+
+  {shared_navbar("comparison")}
+
+  <header class="hero">
+    <p class="hero-kicker">Backend comparison</p>
+    <h1 class="hero-title">The same snippet, two renderers</h1>
+    <p class="hero-subtitle">
+      Each example below executes the source shown in the gallery once with Matplotvite and
+      once with matplotlib's Agg backend. The images are not normalized or retouched.
+    </p>
+    <ul class="hero-meta">
+      <li>Identical call sequence</li>
+      <li>Matplotlib default fonts vs embedded Geist</li>
+      <li>Differences in antialiasing and layout are expected</li>
+    </ul>
+  </header>
+
+  <main>
+    <section class="comparison-section">
+      <p class="comparison-note">{html.escape(mpl_note)}</p>
+      <div class="comparison-grid">
+        {cards_html}
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Both columns execute the same Plot API calls; only the imported pyplot module differs.</p>
+    <p>Source: <code>examples/samples.py</code>. Matplotvite variant runs in-process; matplotlib uses Agg.</p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
 </body>
 </html>
 """
@@ -1052,6 +1284,20 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
 """
 
 
+def render_matplotlib_sample(sample: dict[str, object], out_path: Path) -> None:
+    """Execute a gallery snippet with matplotlib's Agg backend."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    filename = str(sample["filename"])
+    code = str(sample["code"]).replace(
+        "import matplotvite as plt", "import matplotlib.pyplot as plt"
+    )
+    code = code.replace(f'"{filename}"', f'"{out_path.as_posix()}"')
+    code += "\nplt.close('all')\n"
+    exec(code, {})
+
+
 def render_scaling_chart(out_path: Path) -> None:
     """Render the latency-scaling chart with matplotvite itself."""
     points = np.array([100, 1000, 10000, 100000], dtype=np.float64)
@@ -1086,6 +1332,15 @@ def render_scaling_chart(out_path: Path) -> None:
 def build_pages(out_dir: Path) -> None:
     """Render gallery images and write both HTML pages into out_dir."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    font_dir = out_dir / "assets" / "fonts"
+    font_dir.mkdir(parents=True, exist_ok=True)
+    for font_name in (
+        "Geist-Regular.ttf",
+        "GeistSerif-Regular.ttf",
+        "GeistMono-Regular.ttf",
+        "LICENSE_GEIST_OFL.txt",
+    ):
+        shutil.copyfile(ROOT / "assets" / "fonts" / font_name, font_dir / font_name)
     print(f"Building example gallery and benchmark site in: {out_dir}")
 
     samples_info: list[dict[str, object]] = []
@@ -1111,7 +1366,33 @@ def build_pages(out_dir: Path) -> None:
     gallery_html = generate_gallery_html(samples_info)
     index_path = out_dir / "index.html"
     index_path.write_text(gallery_html, encoding="utf-8")
-    print(f"Wrote gallery page -> {index_path} ({format_bytes(len(gallery_html.encode('utf-8')))})")
+    gallery_size = format_bytes(len(gallery_html.encode("utf-8")))
+    print(f"Wrote gallery page -> {index_path} ({gallery_size})")
+
+    mpl_available = importlib.util.find_spec("matplotlib") is not None
+
+    comparison_dir = out_dir / "comparison"
+    comparison_dir.mkdir(parents=True, exist_ok=True)
+    for sample in samples_info:
+        sample["mpl_filename"] = None
+        if not mpl_available or sample["format"] == "webp":
+            continue
+        suffix = Path(str(sample["filename"])).suffix
+        mpl_filename = f"{Path(str(sample['filename'])).stem}-matplotlib{suffix}"
+        target = comparison_dir / mpl_filename
+        print(f"  Rendering matplotlib comparison [{sample['id']}] ...", end=" ", flush=True)
+        try:
+            render_matplotlib_sample(sample, target)
+            sample["mpl_filename"] = mpl_filename
+            print("done")
+        except Exception as exc:  # pragma: no cover - backend-specific fallback
+            print(f"skipped ({exc})")
+
+    comparison_html = generate_comparison_html(samples_info, mpl_available)
+    comparison_path = out_dir / "comparison.html"
+    comparison_path.write_text(comparison_html, encoding="utf-8")
+    comparison_size = format_bytes(len(comparison_html.encode("utf-8")))
+    print(f"Wrote comparison page -> {comparison_path} ({comparison_size})")
 
     scaling_chart_path = out_dir / "benchmark_scaling.png"
     render_scaling_chart(scaling_chart_path)

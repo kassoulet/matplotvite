@@ -2210,6 +2210,7 @@ class Axes:
     def broken_barh(self, xranges, yrange, colors=None, edgecolor=None, alpha=None,
                     linewidth=None, **kwargs):
         """Horizontal bars from `(xstart, width)` pairs over a shared y range."""
+        colors = kwargs.get("facecolors", colors)
         pairs = [(float(a), float(b)) for a, b in xranges]
         if not pairs:
             return None

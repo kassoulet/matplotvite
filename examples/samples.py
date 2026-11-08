@@ -247,7 +247,7 @@ groups = [
 ]
 labels = ["A", "B", "C"]
 fig, axs = plt.subplots(1, 2, figsize=(9.0, 4.2))
-axs[0].boxplot(groups, patch_artist=True, labels=labels)
+axs[0].boxplot(groups, patch_artist=True, tick_labels=labels)
 axs[0].set_title("Box plots")
 axs[0].set_ylabel("Value")
 axs[1].violinplot(groups, showmeans=True, showmedians=True)
@@ -387,9 +387,9 @@ plt.savefig("event_timeline.png")
         code="""import matplotvite as plt
 
 plt.figure(figsize=(7.5, 4.0))
-plt.broken_barh([(1, 3), (6, 2)], (2, 0.7), colors="#4c72b0",
+plt.broken_barh([(1, 3), (6, 2)], (2, 0.7), facecolors="#4c72b0",
                 edgecolor="black", alpha=0.8)
-plt.broken_barh([(2, 1.5), (5, 3)], (3, 0.7), colors="#dd8452",
+plt.broken_barh([(2, 1.5), (5, 3)], (3, 0.7), facecolors="#dd8452",
                 edgecolor="black", alpha=0.8)
 plt.yticks([2.35, 3.35], ["process A", "process B"])
 plt.xlabel("Time (s)")
