@@ -1,22 +1,27 @@
 """plt_rs: minimal matplotlib-like API, rendered entirely in Rust."""
+import datetime as _datetime
+import hashlib as _hashlib
+import math as _math
 import os
+import re as _re
 from contextlib import contextmanager
 
 import numpy as np
 
+from ._cmaps import COLORMAPS as _CMAP_DATA
 from ._colors import CSS_COLORS as _CSS_COLORS
 from ._core import __version__, render as _render
 
 __all__ = (
-    "Axes", "AxesImage", "Colorbar", "ContourSet", "DPI", "Figure", "GridSpec",
-    "SubplotSpec",
+    "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
+    "SubplotSpec", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "fill", "fill_between", "violinplot",
-    "fill_betweenx", "gca", "gcf", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
+    "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "quiver", "rc", "rc_context", "rcdefaults",
-    "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show", "style",
+    "rcParams", "savefig", "scatter", "semilogx", "semilogy", "set_cmap", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
     "ylabel", "ylim", "yscale", "yticks", "__version__",
@@ -82,6 +87,166 @@ def _is_rgb(c):
     """True for a tuple/list of 3 or 4 numeric channel values."""
     return (isinstance(c, (tuple, list)) and len(c) in (3, 4)
             and all(isinstance(v, (int, float, np.number)) for v in c))
+
+
+_MATH_GREEK = {
+    "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε",
+    "varepsilon": "ε", "zeta": "ζ", "eta": "η", "theta": "θ", "vartheta": "ϑ",
+    "iota": "ι", "kappa": "κ", "lambda": "λ", "mu": "μ", "nu": "ν", "xi": "ξ",
+    "omicron": "ο", "pi": "π", "varpi": "ϖ", "rho": "ρ", "varrho": "ϱ",
+    "sigma": "σ", "varsigma": "ς", "tau": "τ", "upsilon": "υ", "phi": "φ",
+    "varphi": "ϕ", "chi": "χ", "psi": "ψ", "omega": "ω", "Alpha": "Α",
+    "Beta": "Β", "Gamma": "Γ", "Delta": "Δ", "Theta": "Θ", "Lambda": "Λ",
+    "Xi": "Ξ", "Pi": "Π", "Sigma": "Σ", "Phi": "Φ", "Psi": "Ψ", "Omega": "Ω",
+}
+_MATH_SYMBOLS = {
+    "pm": "±", "mp": "∓", "times": "×", "div": "÷", "cdot": "·", "infty": "∞",
+    "approx": "≈", "neq": "≠", "leq": "≤", "geq": "≥", "rightarrow": "→",
+    "to": "→", "leftarrow": "←", "degree": "°", "circ": "°", "sum": "∑",
+    "prod": "∏", "int": "∫", "partial": "∂", "nabla": "∇", "sqrt": "√",
+    "propto": "∝", "sim": "∼", "ldots": "…", "dots": "…",
+}
+_SUPERSCRIPTS = str.maketrans(
+    "0123456789+-=()abcdefghijklmnoprstuvwxyz",
+    "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ",
+)
+_SUBSCRIPTS = str.maketrans(
+    "0123456789+-=()aehijklmnoprstuvx",
+    "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ",
+)
+
+
+def _mathtext(text):
+    """Render a small `$...$` TeX subset as Unicode for the text renderer."""
+    value = str(text)
+    parts = value.split("$")
+    if len(parts) % 2 == 0:
+        return value
+
+    def segment(body):
+        body = _re.sub(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", r"\1/\2", body)
+        body = _re.sub(
+            r"\\([A-Za-z]+)",
+            lambda m: _MATH_GREEK.get(m.group(1)) or _MATH_SYMBOLS.get(m.group(1), m.group(0)),
+            body,
+        )
+        body = _re.sub(r"\^\{([^{}]*)\}", lambda m: m.group(1).translate(_SUPERSCRIPTS), body)
+        body = _re.sub(r"\^(\S)", lambda m: m.group(1).translate(_SUPERSCRIPTS), body)
+        body = _re.sub(r"_\{([^{}]*)\}", lambda m: m.group(1).translate(_SUBSCRIPTS), body)
+        body = _re.sub(r"_(\S)", lambda m: m.group(1).translate(_SUBSCRIPTS), body)
+        return body.replace("{", "").replace("}", "").replace("\\", "")
+
+    out = [parts[0]]
+    for i in range(1, len(parts), 2):
+        out.extend((segment(parts[i]), parts[i + 1]))
+    return "".join(out)
+
+
+def _cmap_lookup(name):
+    """Resolve a colormap name to (canonical base, RGB table, reversed?)."""
+    text = str(name).strip()
+    reverse = text.endswith("_r")
+    base = text[:-2] if reverse else text
+    colors = _CMAP_DATA.get(base)
+    if colors is None:
+        canonical = next((key for key in _CMAP_DATA if key.lower() == base.lower()), None)
+        if canonical is None:
+            raise ValueError(f"unsupported colormap: {name!r}")
+        base = canonical
+        colors = _CMAP_DATA[base]
+    return base, np.asarray(colors, dtype=np.uint8), reverse
+
+
+def _cmap_name(cmap):
+    """Canonical registry name; `None` picks up the `image.cmap` rcParam."""
+    if isinstance(cmap, Colormap):
+        return cmap.name
+    if cmap is None:
+        cmap = rcParams.get("image.cmap", "viridis")
+    base, _, reverse = _cmap_lookup(cmap)
+    return base + ("_r" if reverse else "")
+
+
+class Colormap:
+    """A registered matplotlib colormap sampled at its native resolution."""
+
+    def __init__(self, name):
+        base, colors, reverse = _cmap_lookup(name)
+        self.name = base + ("_r" if reverse else "")
+        self.N = int(colors.shape[0])
+        self._rgb = colors.astype(np.float64) / 255.0
+        self._reverse = reverse
+
+    @property
+    def colors(self):
+        return [tuple(float(v) for v in row) for row in self._rgb]
+
+    def __call__(self, X, alpha=None, bytes=False):
+        arr = np.asarray(X, dtype=np.float64)
+        scalar = arr.ndim == 0
+        t = np.clip(arr, 0.0, 1.0)
+        index = np.minimum((t * self.N).astype(int), self.N - 1)
+        if self._reverse:
+            index = self.N - 1 - index
+        rgb = self._rgb[index]
+        if alpha is None:
+            alpha_arr = np.ones(rgb.shape[:-1], dtype=np.float64)
+        else:
+            alpha_arr = np.broadcast_to(np.asarray(alpha, dtype=np.float64),
+                                        rgb.shape[:-1])
+        rgba = np.concatenate([rgb, alpha_arr[..., None]], axis=-1)
+        if bytes:
+            rgba = np.round(rgba * 255.0).astype(np.uint8)
+        if scalar:
+            return tuple(rgba.tolist())
+        return rgba
+
+    def reversed(self, name=None):
+        if name is not None:
+            return get_cmap(name)
+        if self.name.endswith("_r"):
+            return get_cmap(self.name[:-2])
+        return get_cmap(self.name + "_r")
+
+    def __repr__(self):
+        return f"<Colormap {self.name!r}>"
+
+
+def get_cmap(name=None, lut=None):
+    """Return a `Colormap` by registry name (or the `image.cmap` default)."""
+    cmap = name if isinstance(name, Colormap) else Colormap(
+        name if name is not None else rcParams.get("image.cmap", "viridis"))
+    if lut is not None:
+        count = max(int(lut), 1)
+        index = np.round(np.linspace(0.0, cmap.N - 1, count)).astype(int)
+        if cmap._reverse:
+            index = cmap.N - 1 - index
+        cmap._rgb = cmap._rgb[index]
+        cmap.N = count
+    return cmap
+
+
+def colormaps():
+    """Sorted names of every registered colormap, including `_r` variants."""
+    return sorted([*_CMAP_DATA, *(f"{name}_r" for name in _CMAP_DATA)])
+
+
+class _CmapNamespace:
+    """The `plt.cm` namespace, exposing one attribute per colormap."""
+
+    def get_cmap(self, name=None, lut=None):
+        return get_cmap(name, lut)
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        try:
+            return get_cmap(name)
+        except ValueError:
+            raise AttributeError(name) from None
+
+
+cm = _CmapNamespace()
 
 
 class _Share:
@@ -213,8 +378,143 @@ def _span(values):
         return (0.0, 1.0)
     lo, hi = min(vals), max(vals)
     return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
+
+
+def _looks_like_categories(values):
+    """True for string scalars or sequences, which matplotlib treats as categories."""
+    if isinstance(values, str):
+        return True
+    try:
+        array = np.asarray(values)
+    except (TypeError, ValueError):
+        return False
+    if array.dtype.kind in ("U", "S"):
+        return True
+    return (array.dtype.kind == "O" and array.size
+            and isinstance(array.ravel()[0], str))
+
+
+def _looks_like_dates(values):
+    """True for date/datetime/`datetime64` scalars or sequences of them."""
+    if isinstance(values, (np.datetime64, _datetime.date)):
+        return True
+    try:
+        array = np.asarray(values)
+    except (TypeError, ValueError):
+        return False
+    if array.dtype.kind == "M":
+        return True
+    if array.dtype.kind == "O" and array.size:
+        return isinstance(array.ravel()[0], (np.datetime64, _datetime.date))
+    return False
+
+
+def _datetime_to_num(value):
+    """Matplotlib date number: proleptic Gregorian ordinal plus day fraction."""
+    if isinstance(value, np.datetime64):
+        if np.isnat(value):
+            return np.nan
+        delta = value - np.datetime64("1970-01-01T00:00:00")
+        return 719163.0 + float(delta / np.timedelta64(1, "D"))
+    if isinstance(value, _datetime.datetime):
+        if value.tzinfo is not None:
+            value = value.astimezone(_datetime.timezone.utc).replace(tzinfo=None)
+        seconds = (value.hour * 3600.0 + value.minute * 60.0 + value.second
+                   + value.microsecond / 1e6)
+        return value.toordinal() + seconds / 86400.0
+    return float(value.toordinal())
+
+
+def _date_to_num(values):
+    """Convert date-like input to a float array of matplotlib date numbers."""
+    array = np.asarray(values)
+    if array.dtype.kind == "M":
+        result = np.asarray([_datetime_to_num(v) for v in array.ravel()],
+                            dtype=np.float64)
+        result = result.reshape(array.shape)
+    else:
+        result = np.asarray([_datetime_to_num(v) for v in array.ravel()],
+                            dtype=np.float64).reshape(array.shape)
+    return result.item() if result.ndim == 0 else result
+
+
+def _date_from_num(value):
+    ordinal = int(_math.floor(value))
+    seconds = int(round(float(value - ordinal) * 86400.0))
+    return (_datetime.datetime.fromordinal(ordinal)
+            + _datetime.timedelta(seconds=seconds))
+
+
+def _date_label(value):
+    dt = _date_from_num(value)
+    if abs(value - round(value)) < 1e-9:
+        return dt.strftime("%Y-%m-%d")
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def _add_months(value, months):
+    total = value.year * 12 + (value.month - 1) + int(months)
+    year, month = divmod(total, 12)
+    month += 1
+    leap = year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+    last_day = [31, 29 if leap else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
+    return value.replace(year=year, month=month, day=min(value.day, last_day))
+
+
+def _nice_step(raw, steps):
+    for step in steps:
+        if step >= raw:
+            return step
+    return steps[-1] * max(1, int(_math.ceil(raw / steps[-1])))
+
+
+def _date_ticks(lo, hi):
+    """Calendar-aligned tick positions and labels for a date-number range."""
+    if not (np.isfinite(lo) and np.isfinite(hi)) or hi <= lo:
+        return [float(lo)], [_date_label(lo)]
+    span = float(hi - lo)
+    if span >= 60.0:
+        raw = span / 30.44 / 6.0
+        step = _nice_step(raw, [1, 2, 3, 6, 12, 24, 48, 120, 240, 600])
+        start = _date_from_num(lo).replace(day=1, hour=0, minute=0, second=0,
+                                           microsecond=0)
+        if _datetime_to_num(start) < lo:
+            start = _add_months(start, 1)
+        ticks, labels = [], []
+        current = start
+        while len(ticks) < 20:
+            value = _datetime_to_num(current)
+            if value > hi + 1e-9:
+                break
+            if value >= lo - 1e-9:
+                ticks.append(value)
+                labels.append(current.strftime("%Y-%m-%d"))
+            current = _add_months(current, step)
+        return ticks, labels
+    if span >= 2.0:
+        step = int(_nice_step(span / 6.0, [1, 2, 3, 5, 7, 10, 14, 21, 30]))
+        tick = int(_math.ceil(lo - 1e-9))
+        ticks, labels = [], []
+        while tick <= hi + 1e-9 and len(ticks) < 20:
+            if tick >= lo - 1e-9:
+                ticks.append(float(tick))
+                labels.append(_date_from_num(tick).strftime("%Y-%m-%d"))
+            tick += step
+        return ticks, labels
+    step = _nice_step(span * 86400.0 / 6.0,
+                      [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800,
+                       3600, 7200, 10800, 21600, 43200])
+    start = _math.ceil(lo * 86400.0 / step) * step
+    ticks, labels = [], []
+    while start <= hi * 86400.0 + 1e-6 and len(ticks) < 20:
+        value = start / 86400.0
+        if value >= lo - 1e-9:
+            ticks.append(value)
+            labels.append(_date_from_num(value).strftime("%Y-%m-%d %H:%M"))
+        start += step
+    return ticks, labels
 DPI = 100
-_FORMATS = ("png", "svg", "pdf")
+_FORMATS = ("png", "svg", "pdf", "webp")
 _COMPRESSIONS = ("fast", "default", "best")
 
 
@@ -230,7 +530,7 @@ def _output_format(filepath, format):
     else:
         fmt = str(format).lower().lstrip(".")
     if fmt not in _FORMATS:
-        raise ValueError(f"unsupported format: {fmt!r} (use 'png', 'svg', or 'pdf')")
+        raise ValueError(f"unsupported format: {fmt!r} (use 'png', 'svg', 'pdf', or 'webp')")
     return fmt
 
 
@@ -607,6 +907,8 @@ class Axes:
         self._axlines = []
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
+        self._x_date = False
+        self._categories = []
         self._inverted = [False, False]
         self._pos_override = None
         self._share_x = self._share_y = None
@@ -652,12 +954,17 @@ class Axes:
              linewidth=None, lw=None, marker=None, markersize=None, ms=None,
              markerfacecolor=None, mfc=None, markeredgecolor=None, mec=None,
              markeredgewidth=None, mew=None, alpha=None, drawstyle="default", fmt=None,
-             **kwargs):
+             data=None, x=None, y=None, **kwargs):
         """Line plot with matplotlib's styling keywords (`lw`, `ls`, `marker`, `ms`,
-        `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`)."""
+        `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
+        `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
+        args = _resolve_data_args(args, data, x, y)
         x, y, fmt = _plot_args(args, fmt)
         if y is None:
             x, y = np.arange(len(x)), x
+        if not label and getattr(y, "name", None) is not None:
+            label = str(y.name)
+        x = self._xdate(x)
         style = linestyle or ls or "-"
         if fmt:
             f_color, f_style, f_marker = _parse_fmt(fmt)
@@ -950,6 +1257,8 @@ class Axes:
         self.show_legend, self.xlim, self.ylim = False, None, None
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
+        self._x_date = False
+        self._categories = []
         self.show_grid = False
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
         self.grid_axis = "both"
@@ -964,11 +1273,29 @@ class Axes:
 
     cla = clear
 
+    def _xdate(self, values):
+        """Convert date-like or categorical x values to numbers and mark the axis."""
+        if _looks_like_dates(values):
+            self._x_date = True
+            return _date_to_num(values)
+        if _looks_like_categories(values):
+            array = np.asarray(values)
+            labels = [str(v) for v in array.ravel()]
+            for label in labels:
+                if label not in self._categories:
+                    self._categories.append(label)
+            index = {label: i for i, label in enumerate(self._categories)}
+            mapped = np.asarray([index[label] for label in labels], dtype=np.float64)
+            return mapped.reshape(array.shape)
+        return values
+
     def set_xticks(self, ticks, labels=None, rotation=None, fontsize=None,
                    color=None, **kwargs):
-        self._xticks = [float(t) for t in np.asarray(ticks).ravel()]
+        self._xticks = [float(t) for t in np.asarray(self._xdate(ticks)).ravel()]
         if labels is not None:
             self._xticklabels = [str(v) for v in np.asarray(labels).ravel()]
+        else:
+            self._xticklabels = None
         self._tick_style("x", rotation=rotation, labelsize=fontsize, labelcolor=color)
 
     def set_yticks(self, ticks, labels=None, rotation=None, fontsize=None,
@@ -1101,7 +1428,9 @@ class Axes:
             raise ValueError(f"unsupported text transform: {transform!r}")
         size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
         color = color if color is not None else rcParams.get("text.color", "black")
-        self.texts.append((float(x), float(y), str(s), _norm_color(color), size, ha, va, kind))
+        if kind == "data":
+            x = self._xdate(x)
+        self.texts.append((float(x), float(y), _mathtext(s), _norm_color(color), size, ha, va, kind))
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None):
@@ -1117,7 +1446,7 @@ class Axes:
             extent = (0.0, float(w), 0.0, float(h))
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
-        entry = dict(data=a, cmap=cmap or "viridis", vmin=vmin, vmax=vmax,
+        entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
                      extent=tuple(float(v) for v in extent))
         self.images.append(entry)
         # matplotlib's image.aspect default is "equal".
@@ -1419,7 +1748,7 @@ class Axes:
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
-        x = np.asarray(x, dtype=np.float64).ravel()
+        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         n = x.size
         h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
         if align not in ("center", "edge"):
@@ -1496,7 +1825,7 @@ class Axes:
     def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
                      alpha=None, label="", step=None, **kwargs):
         """Fill between two curves; `where` masks split the area into runs."""
-        x = np.asarray(x, dtype=np.float64).ravel()
+        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         a, b = _fill(y1, x.size), _fill(y2, x.size)
         c = color or self._next_color()
         for xs, ya, yb in _runs(x, a, b, where):
@@ -1506,7 +1835,7 @@ class Axes:
     def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
                       **kwargs):
         y = np.asarray(y, dtype=np.float64).ravel()
-        a, b = _fill(x1, y.size), _fill(x2, y.size)
+        a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
         c = color or self._next_color()
         for ys, xa, xb in _runs(y, a, b, where):
             self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
@@ -1516,9 +1845,11 @@ class Axes:
         """Closed polygon: `fill(x, y)` or `fill(x1, y1, x2, y2)`."""
         c = color or self._next_color()
         if len(args) == 2:
-            self.bands.append(_band(_as_f64(args[0]), _as_f64(args[1]), c, alpha, label))
+            self.bands.append(_band(_as_f64(self._xdate(args[0])), _as_f64(args[1]),
+                                    c, alpha, label))
         elif len(args) == 4:
-            x1, y1, x2, y2 = (_as_f64(a) for a in args)
+            x1, y1, x2, y2 = (_as_f64(self._xdate(a) if i in (0, 2) else _as_f64(a))
+                              for i, a in enumerate(args))
             self.bands.append(_band(np.concatenate([x1, x2[::-1]]),
                                     np.concatenate([y1, y2[::-1]]), c, alpha, label))
         else:
@@ -1534,6 +1865,7 @@ class Axes:
     def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
         """Vertical line at data `x`, spanning an axes-fraction y range."""
+        x = self._xdate(x)
         self._vline_refs.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
@@ -1547,7 +1879,8 @@ class Axes:
     def axvspan(self, xmin, xmax, ymin=0.0, ymax=1.0, color=None, alpha=None, label="",
                 **kwargs):
         """Vertical band between two data x values, over an axes-fraction y range."""
-        self.vspans.append(dict(xmin=float(xmin), xmax=float(xmax), ymin=float(ymin),
+        values = self._xdate((xmin, xmax))
+        self.vspans.append(dict(xmin=float(values[0]), xmax=float(values[1]), ymin=float(ymin),
                                 ymax=float(ymax), color=color, alpha=alpha, label=str(label)))
 
     def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading="auto",
@@ -1556,6 +1889,8 @@ class Axes:
 
         `X`/`Y` may be cell edges (one longer than Z's axis) or cell centres.
         """
+        if len(args) == 3 and _looks_like_dates(args[0]):
+            args = (self._xdate(args[0]), args[1], args[2])
         x, y, z, edges = _mesh_args(args)
         rows, cols = z.shape
         if edges:
@@ -1565,7 +1900,7 @@ class Axes:
             dy = float(y[1] - y[0]) if y.size > 1 else 1.0
             extent = (float(x[0]) - dx / 2, float(x[-1]) + dx / 2,
                       float(y[0]) - dy / 2, float(y[-1]) + dy / 2)
-        return self.imshow(z, cmap=cmap or "viridis", vmin=vmin, vmax=vmax,
+        return self.imshow(z, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
                            extent=extent, origin="lower", alpha=alpha)
 
     def pcolor(self, *args, **kwargs):
@@ -1584,7 +1919,7 @@ class Axes:
             raise ValueError("x and y must have the same length")
         counts, xedges, yedges = np.histogram2d(
             x, y, bins=bins, range=range, density=bool(density), weights=weights)
-        image = self.imshow(counts.T, cmap=cmap or "viridis", vmin=cmin, vmax=cmax,
+        image = self.imshow(counts.T, cmap=_cmap_name(cmap), vmin=cmin, vmax=cmax,
                             extent=(float(xedges[0]), float(xedges[-1]),
                                     float(yedges[0]), float(yedges[-1])),
                             origin="lower")
@@ -1640,7 +1975,7 @@ class Axes:
         if not vmax > vmin:
             vmax = vmin + 1.0
         t = np.clip((values[shown] - float(vmin)) / (float(vmax) - float(vmin)), 0.0, 1.0)
-        cmap = cmap or "viridis"
+        cmap = _cmap_name(cmap)
         colors = _cmap_colors(cmap, t)
         radius = width / np.sqrt(3.0)
         angles = np.deg2rad(90.0 + 60.0 * np.arange(6))
@@ -1654,15 +1989,20 @@ class Axes:
         """Text at `xytext` with an arrow pointing at `xy`."""
         size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
         color = color if color is not None else rcParams.get("text.color", "black")
-        self.annotations.append((str(text), (float(xy[0]), float(xy[1])),
+        self.annotations.append((_mathtext(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size))
 
     def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
-                vmin=None, vmax=None, **kwargs):
+                vmin=None, vmax=None, data=None, **kwargs):
         """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
-        colours, or numeric values mapped through `cmap`."""
-        x = np.asarray(x, dtype=np.float64).ravel()
+        colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
+        if data is not None:
+            x = data[x] if isinstance(x, str) else x
+            y = data[y] if isinstance(y, str) else y
+        if not label and getattr(y, "name", None) is not None:
+            label = str(y.name)
+        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         y = np.asarray(y, dtype=np.float64).ravel()
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
@@ -1670,7 +2010,7 @@ class Axes:
         values, colors = _scatter_colors(c if c is not None else self._next_color(), n)
         self.scatter_pts.append(dict(
             x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
-            values=values, cmap=cmap or "viridis",
+            values=values, cmap=_cmap_name(cmap),
             clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
             marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
             label=str(label)))
@@ -1698,7 +2038,8 @@ class Axes:
                 y = np.zeros(ua.size)
             u, v = ua.ravel(), va.ravel()
         elif len(args) >= 4:
-            x, y, u, v = (np.asarray(a, dtype=np.float64).ravel() for a in args[:4])
+            x = np.asarray(self._xdate(args[0]), dtype=np.float64).ravel()
+            y, u, v = (np.asarray(a, dtype=np.float64).ravel() for a in args[1:4])
             if len(args) >= 5 and C is None:
                 C = args[4]
         elif len(args) == 0 and U is not None and V is not None:
@@ -1742,7 +2083,7 @@ class Axes:
                  capsize=None, label="", color=None, **kwargs):
         """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
         error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
-        x = np.asarray(x, dtype=np.float64).ravel()
+        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         y = np.asarray(y, dtype=np.float64).ravel()
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
@@ -1774,20 +2115,20 @@ class Axes:
     def _add_contour(self, args, levels, colors, cmap, filled):
         x, y, z, levels = _contour_args(args, levels)
         entry = dict(x=x, y=y, z=z, levels=_levels(z, levels),
-                     colors=_colors(colors), cmap=cmap or "viridis", filled=filled)
+                     colors=_colors(colors), cmap=_cmap_name(cmap), filled=filled)
         self.contours.append(entry)
         return ContourSet(entry)
 
     def set_title(self, t, fontsize=None, **kwargs):
-        self.title = t
+        self.title = _mathtext(t)
         self.title_size = self._size_or(fontsize, "axes.titlesize")
 
     def set_xlabel(self, t, fontsize=None, **kwargs):
-        self.xlabel = t
+        self.xlabel = _mathtext(t)
         self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
 
     def set_ylabel(self, t, fontsize=None, **kwargs):
-        self.ylabel = t
+        self.ylabel = _mathtext(t)
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
 
     @staticmethod
@@ -1795,7 +2136,8 @@ class Axes:
         return float(value) if value is not None else float(rcParams.get(key, rcParams.get("font.size", 10.0)))
 
     def set_xlim(self, lo, hi):
-        limits = self.xlim = (float(lo), float(hi))
+        values = self._xdate((lo, hi))
+        limits = self.xlim = (float(values[0]), float(values[1]))
         if self._share_x is not None:
             self._share_x.limits = limits
 
@@ -1821,7 +2163,7 @@ class Axes:
         if fontsize is not None:
             self.legend_fontsize = float(fontsize)
         if title is not None:
-            self.legend_title = str(title)
+            self.legend_title = _mathtext(title)
         if title_fontsize is not None:
             self.legend_title_fontsize = float(title_fontsize)
         elif title is not None and self.legend_title_fontsize is None:
@@ -1936,7 +2278,7 @@ class Axes:
                label="", **kwargs):
         """Horizontal segments from `xmin` to `xmax` at every `y`."""
         ys = np.asarray(y, dtype=np.float64).ravel()
-        lo, hi = _fill(xmin, ys.size), _fill(xmax, ys.size)
+        lo, hi = _fill(self._xdate(xmin), ys.size), _fill(self._xdate(xmax), ys.size)
         cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
         widths = _fill(linewidths, ys.size) if linewidths is not None else None
         for i in range(ys.size):
@@ -1947,7 +2289,7 @@ class Axes:
     def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
                label="", **kwargs):
         """Vertical segments from `ymin` to `ymax` at every `x`."""
-        xs = np.asarray(x, dtype=np.float64).ravel()
+        xs = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
         cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
         widths = _fill(linewidths, xs.size) if linewidths is not None else None
@@ -1963,7 +2305,7 @@ class Axes:
             y = np.asarray(args[0], dtype=np.float64).ravel()
             x = np.arange(y.size, dtype=np.float64)
         elif len(args) == 2:
-            x = np.asarray(args[0], dtype=np.float64).ravel()
+            x = np.asarray(self._xdate(args[0]), dtype=np.float64).ravel()
             y = np.asarray(args[1], dtype=np.float64).ravel()
         else:
             raise TypeError("stem expects y or x, y")
@@ -2183,6 +2525,18 @@ class Axes:
                        else float(rcParams.get("legend.fontsize", font)))
         legend_title = (float(self.legend_title_fontsize)
                         if self.legend_title_fontsize is not None else legend_font * 1.1)
+        xticks, xticklabels = self._xticks, self._xticklabels
+        if self._x_date and self.xscale == "linear":
+            if xticks is None:
+                lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
+                xticks, xticklabels = _date_ticks(lo, hi)
+                if x0 > x1:
+                    xticks, xticklabels = list(reversed(xticks)), list(reversed(xticklabels))
+            elif xticklabels is None:
+                xticklabels = [_date_label(float(v)) for v in xticks]
+        elif self._categories and xticks is None:
+            xticks = [float(i) for i in range(len(self._categories))]
+            xticklabels = list(self._categories)
         return dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     xlabel=self.xlabel, ylabel=self.ylabel,
                     title_size=self.title_size, xlabel_size=self.xlabel_size,
@@ -2202,7 +2556,7 @@ class Axes:
                     grid=dict(show=self.show_grid, color=self.grid_color,
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,
                               linestyle=self.grid_linestyle, axis=self.grid_axis),
-                    ticks=dict(xticks=self._xticks, xticklabels=self._xticklabels,
+                    ticks=dict(xticks=xticks, xticklabels=xticklabels,
                                yticks=self._yticks, yticklabels=self._yticklabels,
                                xstyle=self._tick_style_dict("x"),
                                ystyle=self._tick_style_dict("y"),
@@ -2274,6 +2628,75 @@ def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markers
                 linewidth=float(linewidth), marker=str(marker), markersize=float(markersize),
                 mfc=_norm_color(mfc), mec=_norm_color(mec), mew=float(mew),
                 alpha=None if alpha is None else float(alpha), drawstyle=str(drawstyle))
+
+
+def _hash_value(hasher, value):
+    """Feed a deterministic representation of nested panel data to `hasher`."""
+    if isinstance(value, np.ndarray):
+        hasher.update(b"array")
+        hasher.update(value.dtype.str.encode())
+        hasher.update(str(value.shape).encode())
+        hasher.update(np.ascontiguousarray(value).tobytes())
+    elif isinstance(value, dict):
+        hasher.update(b"dict")
+        for key in sorted(value, key=repr):
+            _hash_value(hasher, key)
+            _hash_value(hasher, value[key])
+    elif isinstance(value, (list, tuple)):
+        hasher.update(b"seq")
+        hasher.update(str(len(value)).encode())
+        for item in value:
+            _hash_value(hasher, item)
+    elif isinstance(value, bytes):
+        hasher.update(b"bytes")
+        hasher.update(value)
+    elif isinstance(value, str):
+        hasher.update(b"str")
+        hasher.update(value.encode())
+    elif value is None:
+        hasher.update(b"none")
+    else:
+        hasher.update(b"repr")
+        hasher.update(repr(value).encode())
+
+
+def _panel_cache_key(panel):
+    """Stable fingerprint used by the renderer's per-panel fragment cache."""
+    try:
+        hasher = _hashlib.blake2b(digest_size=8)
+        _hash_value(hasher, panel)
+        return hasher.hexdigest()
+    except (TypeError, ValueError):
+        return ""
+
+
+def _resolve_data_args(args, data, x, y):
+    """Resolve `data=` columns for `plot(..., x=, y=)` and `plot("x", "y", data=)`."""
+    def with_index(values):
+        index = getattr(values, "index", None)
+        return (index, values) if index is not None else (values,)
+
+    if x is not None or y is not None:
+        if y is None:
+            raise TypeError("plot requires y when using data=")
+        if data is None:
+            return (y,) if x is None else (x, y)
+        pick = lambda name: data[name] if isinstance(name, str) else name
+        return with_index(pick(y)) if x is None else (pick(x), pick(y))
+    if data is None:
+        return args
+
+    def pick(name):
+        try:
+            return data[name]
+        except (KeyError, IndexError, TypeError):
+            return name
+
+    if len(args) == 1:
+        return with_index(pick(args[0]))
+    if len(args) == 2:
+        return (pick(args[0]), pick(args[1]))
+    return args
 
 
 def _plot_args(args, fmt):
@@ -2451,25 +2874,16 @@ def _kde(values, points=100, bw_method=None):
     return grid, density
 
 
-_VIRIDIS_STOPS = np.array([
-    [68, 1, 84], [72, 40, 120], [62, 74, 137], [49, 104, 142],
-    [38, 130, 142], [31, 158, 137], [53, 183, 121], [109, 205, 89],
-    [253, 231, 37],
-], dtype=np.float64) / 255.0
-
-
 def _cmap_colors(cmap, values):
-    """Map normalised values through the viridis/gray colormaps to hex colours."""
+    """Map normalised values through any registered colormap to hex colours."""
+    _, table, reverse = _cmap_lookup(cmap)
     t = np.clip(np.asarray(values, dtype=np.float64).ravel(), 0.0, 1.0)
-    if str(cmap).lower() in ("gray", "grey"):
-        vals = np.round(t * 255.0).astype(int)
-        return [f"#{v:02x}{v:02x}{v:02x}" for v in vals]
-    table = _VIRIDIS_STOPS
-    pos = t * (len(table) - 1)
-    index = np.floor(pos).astype(int).clip(0, len(table) - 2)
-    frac = (pos - index)[:, None]
-    rgb = np.round((table[index] * (1.0 - frac) + table[index + 1] * frac) * 255.0)
-    return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb.astype(int)]
+    n = table.shape[0]
+    index = np.minimum((t * n).astype(int), n - 1)
+    if reverse:
+        index = n - 1 - index
+    rgb = table[index]
+    return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
 
 
 def _hexbin_cells(x, y, nx, rows, width, height, x0, y0):
@@ -2653,7 +3067,7 @@ class ContourSet:
     def levels(self): return list(self._e["levels"])
 
     def get_cmap(self): return self._e["cmap"]
-    def set_cmap(self, cmap): self._e["cmap"] = cmap
+    def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_clim(self, vmin=None, vmax=None): pass
 
     def _colorbar_spec(self):
@@ -2669,7 +3083,7 @@ class AxesImage:
     def get_array(self): return self._e["data"]
     def set_data(self, X): self._e["data"] = _as_image(X)
     def get_cmap(self): return self._e["cmap"]
-    def set_cmap(self, cmap): self._e["cmap"] = cmap
+    def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_extent(self, extent): self._e["extent"] = tuple(float(v) for v in extent)
 
     def set_clim(self, vmin=None, vmax=None):
@@ -2784,13 +3198,14 @@ class Figure:
             facecolor if facecolor is not None else rcParams.get("figure.facecolor"))
         self.edgecolor = _norm_color(edgecolor)
         self._suptitle = None
+        self._render_cache = None
         self.transFigure = _CoordTransform("figure")
 
     def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
         """Draw a figure-level title above the panel grid."""
         size = (float(fontsize) if fontsize is not None
                 else float(rcParams.get("figure.titlesize", 14.0)))
-        self._suptitle = dict(text=str(t), size=size, x=float(x), y=float(y))
+        self._suptitle = dict(text=_mathtext(t), size=size, x=float(x), y=float(y))
         return None
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
@@ -2949,24 +3364,35 @@ class Figure:
             # A transparent save drops every patch, like matplotlib.
             for panel in panels:
                 panel["facecolor"] = None
-        data = _render(
-            (w, h),
-            self.grid,
-            panels,
-            {
-                "format": fmt,
-                "transparent": bool(transparent),
-                "tight": bbox_inches == "tight",
-                "dpi": dpi,
-                "facecolor": _norm_color(facecolor) or self.facecolor,
-                "edgecolor": _norm_color(edgecolor) or self.edgecolor,
-                "compression": compression,
-                "suptitle": self._suptitle["text"] if self._suptitle else "",
-                "suptitle_size": self._suptitle["size"] if self._suptitle else 14.0,
-                "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
-                "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
-            },
-        )
+        for panel in panels:
+            panel["cache_key"] = _panel_cache_key(panel)
+        options = {
+            "format": fmt,
+            "transparent": bool(transparent),
+            "tight": bbox_inches == "tight",
+            "dpi": dpi,
+            "facecolor": _norm_color(facecolor) or self.facecolor,
+            "edgecolor": _norm_color(edgecolor) or self.edgecolor,
+            "compression": compression,
+            "suptitle": self._suptitle["text"] if self._suptitle else "",
+            "suptitle_size": self._suptitle["size"] if self._suptitle else 14.0,
+            "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
+            "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
+        }
+        # An unchanged figure reuses its last encoded bytes. The key covers both
+        # the panel payload and every render option, so any edit invalidates it.
+        try:
+            hasher = _hashlib.blake2b(digest_size=16)
+            _hash_value(hasher, (panels, options))
+            key = hasher.digest()
+        except (TypeError, ValueError):
+            key = None
+        if key is not None and self._render_cache is not None and self._render_cache[0] == key:
+            data = self._render_cache[1]
+        else:
+            data = _render((w, h), self.grid, panels, options)
+            if key is not None:
+                self._render_cache = (key, data)
         if filepath is None:
             return data
         if hasattr(filepath, "write"):
@@ -3066,9 +3492,9 @@ def annotate(text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
 
 
 def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", vmin=None,
-            vmax=None, **kwargs):
+            vmax=None, data=None, **kwargs):
     return gca().scatter(x, y, s=s, c=c, alpha=alpha, cmap=cmap, label=label, marker=marker,
-                         vmin=vmin, vmax=vmax)
+                         vmin=vmin, vmax=vmax, data=data)
 
 
 def axes(*args, **kwargs):
@@ -3112,6 +3538,11 @@ def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=N
 
 def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
     return gca().contourf(*args, levels=levels, colors=colors, cmap=cmap, alpha=alpha)
+
+
+def set_cmap(cmap):
+    """Set the default colormap used by image-like artists."""
+    rcParams["image.cmap"] = _cmap_name(cmap)
 
 
 def xlim(lo, hi): gca().set_xlim(lo, hi)
@@ -3160,6 +3591,7 @@ rcParams = {
     "figure.titlesize": 14.0,
     "legend.fontsize": 10.0,
     "axes.prop_cycle": list(_CYCLE),
+    "image.cmap": "viridis",
     "figure.facecolor": "#ffffff",
     "axes.facecolor": "#ffffff",
     "axes.edgecolor": "#000000",
