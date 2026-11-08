@@ -13,7 +13,7 @@ def _extension_path() -> Path:
 
 
 def test_package_exposes_its_version():
-    assert plt.__version__ == "0.1.0"
+    assert plt.__version__ == "0.5.0"
 
 
 def test_compiled_extension_is_installed():

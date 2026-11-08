@@ -4,7 +4,7 @@
     "arch": "x86_64",
     "python_version": "3.13.0",
     "matplotlib_version": "3.11.2",
-    "matplotvite_version": "0.1.0",
+    "matplotvite_version": "0.5.0",
     "timestamp": "2026-11-08 16:35:06 UTC"
   },
   "results": [
