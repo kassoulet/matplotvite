@@ -1021,6 +1021,52 @@ def test_boxplot_single_and_hidden_parts(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_violinplot_bodies_and_stats(tmp_path):
+    rng = np.random.default_rng(3)
+    data = [rng.normal(size=80), rng.normal(2.0, 0.5, size=60)]
+    plt.figure()
+    ax = plt.gca()
+    result = ax.violinplot(data, positions=[2.0, 4.0], widths=[0.8, 0.4],
+                           showmeans=True, showmedians=True)
+    assert set(result) == {"bodies", "cmeans", "cmaxes", "cmins", "cbars"}
+    assert len(result["bodies"]) == 2
+    assert len(result["cmins"]) == len(result["cmaxes"]) == len(result["cbars"]) == 2
+    assert result["bodies"][0].get_facecolor() == plt._CYCLE[0]
+    p = tmp_path / "violin.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<POLYGON") >= 2
+    assert s.count("<POLYLINE") >= 6
+
+
+def test_violinplot_horizontal_side_and_validation(tmp_path):
+    data = [np.array([1.0, 2.0, 3.0, 4.0, 5.0])]
+    plt.figure()
+    ax = plt.gca()
+    result = ax.violinplot(data, orientation="horizontal", side="low",
+                           quantiles=[25, 75], bw_method=0.4)
+    assert len(result["cquantiles"]) == 2
+    assert result["bodies"][0].get_paths()[0]["x"].size > 2
+    p = tmp_path / "violinh.svg"
+    plt.savefig(p)
+    assert p.read_text().upper().count("<POLYGON") >= 1
+    with pytest.raises(ValueError):
+        ax.violinplot(data, side="middle")
+    with pytest.raises(ValueError):
+        ax.violinplot(data, orientation="diagonal")
+    with pytest.raises(ValueError):
+        ax.violinplot([[]])
+
+
+def test_pyplot_violinplot_shim(tmp_path):
+    plt.figure()
+    result = plt.violinplot([1.0, 2.0, 3.0], showextrema=False)
+    assert result["cmins"] == [] and len(result["bodies"]) == 1
+    p = tmp_path / "violin_shim.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_bar_label_places_values(tmp_path):
     plt.figure()
     ax = plt.gca()

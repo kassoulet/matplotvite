@@ -111,6 +111,8 @@ plt.savefig("contours.png")
 - `boxplot(x, notch=, vert=, patch_artist=, labels=)` — boxes, whiskers, caps,
   medians and fliers from the 1.5-IQR rule, with notched outlines, horizontal
   orientation and optional filled boxes
+- `violinplot(dataset, positions=, vert=, widths=)` — Gaussian-KDE violins with
+  optional mean, median, extrema and quantile lines
 - `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline (`orientation="horizontal"` works)
 - `pie(x, labels=, autopct=, colors=, explode=, startangle=)` — filled wedges with
   equal aspect, returning `(wedges, texts, autotexts)`

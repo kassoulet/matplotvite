@@ -12,7 +12,7 @@ __all__ = (
     "SubplotSpec",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
-    "draw", "errorbar", "eventplot", "figure", "fill", "fill_between",
+    "draw", "errorbar", "eventplot", "figure", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "getp", "grid", "hist", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
@@ -321,6 +321,29 @@ class _BarContainer(list):
     @property
     def patches(self):
         return list(self)
+
+
+class _ViolinBody:
+    """Handle for one filled violin polygon."""
+
+    def __init__(self, entry, facecolor=None):
+        self._e = entry
+        self._facecolor = facecolor
+
+    def get_facecolor(self): return self._facecolor or self._e["color"]
+
+    def set_facecolor(self, color):
+        self._facecolor = _norm_color(color)
+        self._e["color"] = self._facecolor
+        return self
+
+    def get_alpha(self): return self._e["alpha"]
+
+    def set_alpha(self, alpha):
+        self._e["alpha"] = None if alpha is None else float(alpha)
+        return self
+
+    def get_paths(self): return [self._e]
 
 
 class _LineHandle:
@@ -1258,6 +1281,102 @@ class Axes:
         self.lines.append(entry)
         return _LineHandle(entry)
 
+    def violinplot(self, dataset, positions=None, vert=None, widths=0.5,
+                   showmeans=False, showextrema=True, showmedians=False,
+                   quantiles=None, points=100, bw_method=None, orientation=None,
+                   side="both", **kwargs):
+        """Violin plot: a Gaussian KDE per dataset drawn as a filled violin.
+
+        Returns a dict with `bodies`, `cmeans`, `cmaxes`, `cmins` and `cbars`
+        (plus `cquantiles` when `quantiles` is given)."""
+        groups = _box_datasets(dataset)
+        if not groups:
+            raise ValueError("violinplot needs at least one dataset")
+        if orientation is None:
+            orientation = "vertical" if (vert is None or vert) else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        if side not in ("both", "left", "right", "low", "high"):
+            raise ValueError(f"unsupported side: {side!r}")
+        n = len(groups)
+        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
+        wid = _fill(widths, n)
+        colors = _colors(kwargs.get("facecolor", kwargs.get("facecolors")))
+        line_color = _single_color(kwargs.get("linecolor", kwargs.get("edgecolor")), None)
+        out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
+        if quantiles is not None:
+            out["cquantiles"] = []
+        for i, raw in enumerate(groups):
+            vals = np.asarray(raw, dtype=np.float64).ravel()
+            vals = vals[np.isfinite(vals)]
+            if vals.size == 0:
+                raise ValueError("violinplot datasets must not be empty")
+            grid, density = _kde(vals, points, bw_method)
+            peak = float(density.max())
+            if not np.isfinite(peak) or peak <= 0.0:
+                peak = 1.0
+            loc, half = float(pos[i]), float(wid[i]) / 2.0
+            scale = half / peak
+            if orientation == "vertical":
+                if side == "both":
+                    xs = np.concatenate([loc + density * scale,
+                                         (loc - density * scale)[::-1]])
+                    ys = np.concatenate([grid, grid[::-1]])
+                else:
+                    sign = -1.0 if side in ("left", "low") else 1.0
+                    xs = np.concatenate([[loc], loc + sign * density * scale, [loc]])
+                    ys = np.concatenate([[grid[0]], grid, [grid[-1]]])
+            else:
+                if side == "both":
+                    ys = np.concatenate([loc + density * scale,
+                                         (loc - density * scale)[::-1]])
+                    xs = np.concatenate([grid, grid[::-1]])
+                else:
+                    sign = -1.0 if side in ("left", "low") else 1.0
+                    ys = np.concatenate([[loc], loc + sign * density * scale, [loc]])
+                    xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
+            color = colors[i % len(colors)] if colors else self._next_color()
+            entry = _band(xs, ys, color, kwargs.get("alpha"))
+            self.bands.append(entry)
+            out["bodies"].append(_ViolinBody(entry, color))
+            if line_color is not None:
+                outline = np.append(xs, xs[0])
+                outline_y = np.append(ys, ys[0])
+                self._stats_line(outline, outline_y, line_color)
+            vmin, vmax = float(vals.min()), float(vals.max())
+            horizontal = orientation == "horizontal"
+            if showextrema:
+                out["cmins"].append(self._stats_line(
+                    [loc - half, loc + half], [vmin, vmin], "black")
+                    if not horizontal else self._stats_line(
+                    [vmin, vmin], [loc - half, loc + half], "black"))
+                out["cmaxes"].append(self._stats_line(
+                    [loc - half, loc + half], [vmax, vmax], "black")
+                    if not horizontal else self._stats_line(
+                    [vmax, vmax], [loc - half, loc + half], "black"))
+                out["cbars"].append(self._stats_line(
+                    [loc, loc], [vmin, vmax], "black")
+                    if not horizontal else self._stats_line(
+                    [vmin, vmax], [loc, loc], "black"))
+            if showmeans:
+                mean = float(vals.mean())
+                out["cmeans"].append(self._stats_line(
+                    [loc - half, loc + half], [mean, mean], "black")
+                    if not horizontal else self._stats_line(
+                    [mean, mean], [loc - half, loc + half], "black"))
+            if showmedians:
+                median = float(np.median(vals))
+                self._stats_line(
+                    [loc - half, loc + half], [median, median], "black")
+            if quantiles is not None:
+                for q in np.atleast_1d(np.asarray(quantiles, dtype=np.float64)).ravel():
+                    value = float(np.percentile(vals, q))
+                    out["cquantiles"].append(self._stats_line(
+                        [value, value], [loc - half, loc + half], "black")
+                        if horizontal else self._stats_line(
+                        [loc - half, loc + half], [value, value], "black"))
+        return out
+
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
@@ -2122,6 +2241,35 @@ def _box_datasets(x):
     return [np.asarray(x, dtype=np.float64).ravel()]
 
 
+def _kde(values, points=100, bw_method=None):
+    """Gaussian KDE on a regular grid, with Scott/Silverman or scalar bandwidth."""
+    vals = np.asarray(values, dtype=np.float64).ravel()
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
+        raise ValueError("a KDE needs at least one finite value")
+    n = vals.size
+    std = float(vals.std(ddof=1)) if n > 1 else 0.0
+    if bw_method is None or bw_method == "scott":
+        factor = n ** (-1.0 / 5.0)
+        bw = std * factor if std > 0.0 else 1.0
+    elif bw_method == "silverman":
+        factor = (n / 4.0) ** (-1.0 / 5.0)
+        bw = std * factor if std > 0.0 else 1.0
+    elif callable(bw_method):
+        bw = float(bw_method(vals))
+    else:
+        bw = float(bw_method) * std if std > 0.0 else float(bw_method)
+    if not np.isfinite(bw) or bw <= 0.0:
+        bw = 1.0
+    lo, hi = float(vals.min()), float(vals.max())
+    if hi <= lo:
+        lo, hi = lo - 1.0, hi + 1.0
+    grid = np.linspace(lo - 3.0 * bw, hi + 3.0 * bw, max(int(points), 2))
+    z = (grid[:, None] - vals[None, :]) / bw
+    density = np.exp(-0.5 * z * z).sum(axis=1) / (n * bw * np.sqrt(2.0 * np.pi))
+    return grid, density
+
+
 def _bar_colors(color, n):
     if color is None:
         return []
@@ -2675,6 +2823,7 @@ def bar_label(container, labels=None, fmt="%g", label_type="edge", padding=0, **
                            padding=padding, **kwargs)
 def barh(*args, **kwargs): return gca().barh(*args, **kwargs)
 def boxplot(*args, **kwargs): return gca().boxplot(*args, **kwargs)
+def violinplot(*args, **kwargs): return gca().violinplot(*args, **kwargs)
 def pie(*args, **kwargs): return gca().pie(*args, **kwargs)
 def stackplot(*args, **kwargs): return gca().stackplot(*args, **kwargs)
 def stem(*args, **kwargs): return gca().stem(*args, **kwargs)
