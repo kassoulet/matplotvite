@@ -112,6 +112,26 @@ out = [
 tot = sum(calls.values())
 ok = sum(c for (k, n), c in calls.items() if supported(k, n))
 out += [f"Call sites supported: **{ok}/{tot}** ({100 * ok // max(tot, 1)}%)", ""]
+
+priority = sorted(
+    (
+        (count, kind, name, len(where[kind, name]))
+        for (kind, name), count in calls.items()
+        if not supported(kind, name)
+    ),
+    reverse=True,
+)[:25]
+out += [
+    "## Priority gaps",
+    "",
+    "Unsupported call sites sorted by how often matplotlib's own tests use them.",
+    "",
+    "| calls | API | files |",
+    "|--:|---|---:|",
+]
+out += [f"| {count} | `{kind}.{name}` | {files} |" for count, kind, name, files in priority]
+out += [""]
+
 for kind in ("pyplot", "Axes", "Figure"):
     rows = sorted(((c, n) for (k, n), c in calls.items() if k == kind), reverse=True)
     out += [f"## {kind}: unsupported (by call count)", "", "| calls | name | files |", "|--:|---|--:|"]

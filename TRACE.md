@@ -4,6 +4,38 @@
 
 Call sites supported: **9254/10098** (91%)
 
+## Priority gaps
+
+Unsupported call sites sorted by how often matplotlib's own tests use them.
+
+| calls | API | files |
+|--:|---|---:|
+| 39 | `Figure.subfigures` | 15 |
+| 23 | `Axes.psd` | 2 |
+| 23 | `Axes.format_coord` | 2 |
+| 22 | `pyplot.imread` | 6 |
+| 21 | `Axes.clabel` | 3 |
+| 18 | `Axes.quiverkey` | 1 |
+| 16 | `Axes.inset_axes` | 6 |
+| 16 | `Axes.get_cursor_data` | 2 |
+| 16 | `Axes.contains` | 6 |
+| 15 | `Axes.tripcolor` | 2 |
+| 15 | `Axes.table` | 1 |
+| 15 | `Axes.get_subplotspec` | 4 |
+| 14 | `Figure.get_linewidth` | 6 |
+| 14 | `Axes.specgram` | 2 |
+| 13 | `pyplot.streamplot` | 2 |
+| 13 | `Figure.add_subfigure` | 2 |
+| 12 | `Axes.format_cursor_data` | 2 |
+| 10 | `pyplot.switch_backend` | 3 |
+| 10 | `Figure.set_edgecolor` | 4 |
+| 10 | `Axes.secondary_xaxis` | 2 |
+| 10 | `Axes.grouped_bar` | 1 |
+| 9 | `Figure.figimage` | 4 |
+| 9 | `Axes.get_gridspec` | 2 |
+| 9 | `Axes.barbs` | 4 |
+| 8 | `pyplot.imsave` | 1 |
+
 ## pyplot: unsupported (by call count)
 
 | calls | name | files |
