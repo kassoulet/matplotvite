@@ -6,6 +6,11 @@
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `matplotvite` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
 
+## Release status
+
+- **Current version: 0.5.0** — milestones 0.1 through 0.5 are complete.
+- 0.6 (3-D and polar axes) is optional and unscheduled; the colormap work is already shipped.
+
 ---
 
 ## ✅ 0.1 — Core line chart (done)
@@ -75,7 +80,7 @@
 
 ---
 
-## 0.3 — New plot types & layout  *(medium-frequency)*
+## ✅ 0.3 — New plot types & layout (done)
 
 > TRACE priorities: `scatter` ×176 Axes / ×30 pyplot, `bar` ×81, `hist` ×74, `twinx` ×31, `tight_layout` ×20.
 
@@ -124,7 +129,7 @@
 
 ---
 
-## 0.4 — Advanced plot types  *(lower frequency, high visual value)*
+## ✅ 0.4 — Advanced plot types (done)
 
 > TRACE: `imshow` ×235, `errorbar` ×82, `boxplot` ×48, `contourf` ×32, `pie` ×26, `stem` ×33.
 
@@ -151,7 +156,7 @@
 
 ---
 
-## 0.5 — Ecosystem & output  *(wheels, integrations, advanced output)*
+## ✅ 0.5 — Ecosystem & output (done)
 
 ### 0.5.1 Output formats
 - [x] PDF output via `svg2pdf` (real vector text, page size from `dpi`)
@@ -176,7 +181,8 @@
 ### 0.5.5 Performance
 - [x] Parallel subplot rendering with **Rayon** (independent panels rendered concurrently)
 - [x] Incremental re-render: cache unchanged panels, only redraw dirty ones
-- [x] Benchmark suite in CI with regression guard (fail if >20% slower than baseline)
+- [x] Comparison benchmark suite in CI (21 workloads) with a 30% regression guard
+- [x] Criterion benchmarks for the Rust output stages (rasterize, PNG, WebP, PDF)
 
 ---
 
@@ -198,7 +204,8 @@ Interactive display windows, `plt.show()` opening a GUI, animation (`FuncAnimati
 ## Cross-cutting / always-on
 
 - Benchmarks page vs matplotlib — built from the checked-in results; refresh with `tools/benchmark.py`
-- Gallery page of sample outputs — deployed to GitHub Pages (`tools/build_pages.py`)
+- Backend comparison page — every gallery snippet run through Matplotlib Agg with per-snippet timings
+- Gallery page of sample outputs — deployed to GitHub Pages (`tools/build_pages.py`), Geist typography and automatic dark mode
 - prek pre-commit hooks: `cargo fmt`, `cargo clippy --deny warnings`, `cargo test`, whitespace/EOF checks
 - Mandatory security scan on pre-push and CI: `cargo audit`, Bandit on runtime Python, `pip-audit`, and secret-key detection
 - Python test matrix: 3.9 → 3.14 on every PR (`maturin develop --release`, then `pytest`)
