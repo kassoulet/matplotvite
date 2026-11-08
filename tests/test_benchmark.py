@@ -67,3 +67,10 @@ def test_build_pages_generation(tmp_path):
     assert "End-to-end latency" in bench_html
     assert "faster" in bench_html
     assert "Engineered for Extreme Speed" not in bench_html
+
+    # Every Prism asset must carry an SRI digest so a tampered CDN file is rejected.
+    for page in ("index.html", "comparison.html"):
+        page_html = (tmp_path / page).read_text(encoding="utf-8")
+        assert page_html.count('integrity="sha384-') == 3
+        assert page_html.count('crossorigin="anonymous"') == 3
+        assert "cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/" in page_html
