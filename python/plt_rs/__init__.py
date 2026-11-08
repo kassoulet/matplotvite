@@ -11,7 +11,7 @@ __all__ = (
     "Axes", "AxesImage", "Colorbar", "ContourSet", "DPI", "Figure", "GridSpec",
     "SubplotSpec",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
-    "bar", "bar_label", "barh", "broken_barh", "close", "colorbar", "contour", "contourf",
+    "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "fill", "fill_between",
     "fill_betweenx", "gca", "gcf", "getp", "grid", "hist", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
@@ -321,6 +321,46 @@ class _BarContainer(list):
     @property
     def patches(self):
         return list(self)
+
+
+class _LineHandle:
+    """Mutable handle around one stored `_series` entry."""
+
+    def __init__(self, entry, facecolor=None):
+        self._e = entry
+        self._facecolor = facecolor
+
+    def get_xdata(self): return self._e["x"]
+    def get_ydata(self): return self._e["y"]
+    def get_color(self): return self._e["color"]
+
+    def set_color(self, color):
+        self._e["color"] = _norm_color(color)
+        return self
+
+    def get_facecolor(self): return self._facecolor
+
+    def set_facecolor(self, color):
+        self._facecolor = _norm_color(color)
+        return self
+
+    def get_linewidth(self): return self._e["linewidth"]
+
+    def set_linewidth(self, width):
+        self._e["linewidth"] = float(width)
+        return self
+
+    def get_linestyle(self): return self._e["linestyle"]
+
+    def set_linestyle(self, linestyle):
+        self._e["linestyle"] = str(linestyle)
+        return self
+
+    def get_label(self): return self._e["label"]
+
+    def set_label(self, label):
+        self._e["label"] = str(label)
+        return self
 
 
 def _call(obj, name):
@@ -1063,6 +1103,160 @@ class Axes:
             self.fill_between(sx, sy, np.repeat(base, 2), color=color, alpha=alpha)
         handles = self.plot(sx, sy, color=color, label=lab)
         return np.asarray(counts, dtype=np.float64), edges, handles
+
+    def boxplot(self, x, notch=None, sym=None, vert=None, whis=None, positions=None,
+                widths=None, patch_artist=None, labels=None, orientation=None,
+                showmeans=False, showcaps=None, showbox=None, showfliers=None,
+                meanline=False, capwidths=None, boxprops=None, medianprops=None,
+                whiskerprops=None, capprops=None, flierprops=None, meanprops=None,
+                manage_ticks=True, autorange=False, label=None, tick_labels=None,
+                **kwargs):
+        """Box-and-whisker plot for one dataset or a sequence of datasets.
+
+        Returns a dict with `boxes`, `medians`, `whiskers`, `caps`, `fliers`
+        and `means` lists, matching matplotlib's `boxplot` result."""
+        groups = _box_datasets(x)
+        if not groups:
+            raise ValueError("boxplot needs at least one dataset")
+        if orientation is None:
+            orientation = "vertical" if (vert is None or vert) else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        n = len(groups)
+        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
+        wid = _fill(0.5 if widths is None else widths, n)
+        cap = _fill(wid if capwidths is None else capwidths, n)
+        box_style = dict(boxprops or {})
+        median_style = dict(medianprops or {})
+        whisker_style = dict(whiskerprops or {})
+        cap_style = dict(capprops or {})
+        flier_style = dict(flierprops or {})
+        mean_style = dict(meanprops or {})
+        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
+        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), box_color)
+        box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.5)
+        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
+        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
+        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), box_color)
+        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.5)
+        cap_color = _single_color(cap_style.get("color", cap_style.get("c")), whisker_color)
+        cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.5)
+        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
+        parsed_color, _, parsed_marker = _stem_fmt(str(sym or ""), None)
+        flier_color = _single_color(
+            flier_style.get("markerfacecolor", flier_style.get("mfc",
+                             flier_style.get("color", flier_style.get("c")))),
+            parsed_color or "black")
+        flier_marker = str(flier_style.get("marker", parsed_marker or "o"))
+        draw_caps = True if showcaps is None else bool(showcaps)
+        draw_box = True if showbox is None else bool(showbox)
+        draw_fliers = True if showfliers is None else bool(showfliers)
+        if labels is None:
+            labels = tick_labels
+        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
+        for i, raw in enumerate(groups):
+            vals = np.asarray(raw, dtype=np.float64).ravel()
+            vals = vals[np.isfinite(vals)]
+            if vals.size == 0:
+                raise ValueError("boxplot datasets must not be empty")
+            q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
+            iqr = q3 - q1
+            if autorange:
+                lo, hi = float(vals.min()), float(vals.max())
+            elif isinstance(whis, (tuple, list)):
+                lo = float(np.percentile(vals, float(whis[0])))
+                hi = float(np.percentile(vals, float(whis[1])))
+            else:
+                bound = 1.5 if whis is None else float(whis)
+                low_bound, high_bound = q1 - bound * iqr, q3 + bound * iqr
+                inside = vals[(vals >= low_bound) & (vals <= high_bound)]
+                lo, hi = (float(inside.min()), float(inside.max())) if inside.size else (q1, q3)
+            fliers = vals[(vals < lo) | (vals > hi)]
+            loc, half = float(pos[i]), float(wid[i]) / 2.0
+            if draw_box:
+                if notch:
+                    depth = 1.57 * iqr / np.sqrt(vals.size)
+                    nlo, nhi = med - depth, med + depth
+                    inner = half / 2.0
+                    if orientation == "vertical":
+                        xs = [loc - half, loc - half, loc - inner, loc - inner,
+                              loc - half, loc - half, loc + half, loc + half,
+                              loc + inner, loc + inner, loc + half, loc + half, loc - half]
+                        ys = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
+                    else:
+                        ys = [loc - half, loc - half, loc - inner, loc - inner,
+                              loc - half, loc - half, loc + half, loc + half,
+                              loc + inner, loc + inner, loc + half, loc + half, loc - half]
+                        xs = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
+                    if patch_artist:
+                        self.bands.append(_band(xs, ys, box_color, box_style.get("alpha")))
+                    entry = _series(xs, ys, "", box_edge, linewidth=box_width)
+                    self.lines.append(entry)
+                    out["boxes"].append(_LineHandle(entry, box_color if patch_artist else "none"))
+                elif orientation == "vertical":
+                    bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
+                                    color=box_color if patch_artist else "none",
+                                    edgecolor=box_edge, label=str(label or "") if i == 0 else "")
+                    out["boxes"].append(bars[0])
+                else:
+                    bars = self.barh([loc], [q3 - q1], height=wid[i], left=q1,
+                                     color=box_color if patch_artist else "none",
+                                     edgecolor=box_edge, label=str(label or "") if i == 0 else "")
+                    out["boxes"].append(bars[0])
+            if orientation == "vertical":
+                med_entry = self._stats_line([loc - half, loc + half], [med, med],
+                                             median_color, median_width)
+                out["medians"].append(med_entry)
+                for y0, y1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [loc, loc], [y0, y1], whisker_color, whisker_width))
+                    if draw_caps:
+                        out["caps"].append(self._stats_line(
+                            [loc - cap[i] / 2.0, loc + cap[i] / 2.0], [y1, y1],
+                            cap_color, cap_width))
+            else:
+                med_entry = self._stats_line([med, med], [loc - half, loc + half],
+                                             median_color, median_width)
+                out["medians"].append(med_entry)
+                for x0, x1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [x0, x1], [loc, loc], whisker_color, whisker_width))
+                    if draw_caps:
+                        out["caps"].append(self._stats_line(
+                            [x1, x1], [loc - cap[i] / 2.0, loc + cap[i] / 2.0],
+                            cap_color, cap_width))
+            if showmeans:
+                mean = float(vals.mean())
+                if orientation == "vertical":
+                    out["means"].append(self._stats_line(
+                        [loc - half, loc + half], [mean, mean], mean_color))
+                else:
+                    out["means"].append(self._stats_line(
+                        [mean, mean], [loc - half, loc + half], mean_color))
+            if draw_fliers and fliers.size and str(sym or "") != "":
+                if orientation == "vertical":
+                    self.scatter(np.full(fliers.size, loc), fliers, s=36,
+                                 c=flier_color, marker=flier_marker)
+                else:
+                    self.scatter(fliers, np.full(fliers.size, loc), s=36,
+                                 c=flier_color, marker=flier_marker)
+                out["fliers"].append(self.scatter_pts[-1])
+            else:
+                out["fliers"].append(None)
+        if manage_ticks:
+            shown = ([str(v) for v in labels] if labels is not None
+                     else [f"{v:g}" for v in pos])
+            if orientation == "vertical":
+                self.set_xticks(pos, labels=shown)
+            else:
+                self.set_yticks(pos, labels=shown)
+        return out
+
+    def _stats_line(self, x, y, color, linewidth=1.5, linestyle="-"):
+        """Append one statistics line and return its mutable handle."""
+        entry = _series(x, y, "", color, linestyle=linestyle, linewidth=linewidth)
+        self.lines.append(entry)
+        return _LineHandle(entry)
 
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
@@ -1913,6 +2107,21 @@ def _fill(values, n):
     return np.ascontiguousarray(a)
 
 
+def _box_datasets(x):
+    """Split `boxplot`/`violinplot` input into one 1-D array per dataset."""
+    if isinstance(x, np.ndarray):
+        if x.ndim == 2:
+            return [x[:, i].astype(np.float64) for i in range(x.shape[1])]
+        return [np.asarray(x, dtype=np.float64).ravel()]
+    if isinstance(x, (list, tuple)):
+        if len(x) == 0:
+            return []
+        if np.asarray(x[0]).ndim == 0:
+            return [np.asarray(x, dtype=np.float64).ravel()]
+        return [np.asarray(v, dtype=np.float64).ravel() for v in x]
+    return [np.asarray(x, dtype=np.float64).ravel()]
+
+
 def _bar_colors(color, n):
     if color is None:
         return []
@@ -2465,6 +2674,7 @@ def bar_label(container, labels=None, fmt="%g", label_type="edge", padding=0, **
     return gca().bar_label(container, labels=labels, fmt=fmt, label_type=label_type,
                            padding=padding, **kwargs)
 def barh(*args, **kwargs): return gca().barh(*args, **kwargs)
+def boxplot(*args, **kwargs): return gca().boxplot(*args, **kwargs)
 def pie(*args, **kwargs): return gca().pie(*args, **kwargs)
 def stackplot(*args, **kwargs): return gca().stackplot(*args, **kwargs)
 def stem(*args, **kwargs): return gca().stem(*args, **kwargs)

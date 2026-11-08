@@ -131,7 +131,7 @@
 - [x] `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)`
 - [x] `stem(x, y, linefmt=, markerfmt=, basefmt=, bottom=)` — segments over `vlines`, tips via `scatter`, baseline via `hlines`; `orientation="horizontal"` draws sideways stems
 - [x] `pie(x, labels=, autopct=, colors=, explode=, startangle=, normalize=)` — wedges as filled polygons with equal aspect, axis off, returns `(wedges, texts, autotexts)`; `shadow` ignored
-- [ ] `boxplot(x, notch=, vert=, patch_artist=, labels=)`
+- [x] `boxplot(x, notch=, vert=, patch_artist=, labels=)` — boxes, whiskers, caps, medians and fliers from 1.5-IQR statistics; notched outlines, horizontal orientation, optional filled boxes and per-dataset labels
 - [ ] `violinplot(dataset, positions=, vert=, widths=)`
 - [x] `imshow(X, cmap=, vmin=, vmax=, origin=, extent=, aspect=)` — 2-D arrays via colormap and RGB(A) arrays, embedded as PNG data URIs; `interpolation`/`alpha` accepted but ignored
 - [x] `set_aspect('equal' | 'auto' | <number>)` — shrinks the plotting box to fix the data scale (matplotlib's `adjustable="box"`)

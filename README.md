@@ -108,6 +108,9 @@ plt.savefig("contours.png")
 - `step(x, y, where="pre"|"post"|"mid")` and `stairs(values, edges=, baseline=, fill=)` —
   staircase lines, with optional fill to a baseline
   (`where="mid"` places corners at interval midpoints)
+- `boxplot(x, notch=, vert=, patch_artist=, labels=)` — boxes, whiskers, caps,
+  medians and fliers from the 1.5-IQR rule, with notched outlines, horizontal
+  orientation and optional filled boxes
 - `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline (`orientation="horizontal"` works)
 - `pie(x, labels=, autopct=, colors=, explode=, startangle=)` — filled wedges with
   equal aspect, returning `(wedges, texts, autotexts)`
@@ -175,7 +178,7 @@ Visibility, removal, and custom tick positions/labels are honoured by the render
 
 ### Not supported (yet)
 - `twinx`/`twiny`, `GridSpec`, `suptitle`
-- `boxplot`, `quiver`, `hist2d`
+- `quiver`, `hist2d`
 - colormaps beyond `viridis`/`gray`; colorbars on multi-axes figures
 - interactive display (out of scope forever)
 

@@ -973,6 +973,54 @@ def test_hist_orientation_density_and_validation(tmp_path):
         plt.hist(data, histtype="barstacked")
 
 
+def test_boxplot_stats_and_labels(tmp_path):
+    data = [np.arange(10.0), np.arange(5.0) * 2.0]
+    plt.figure()
+    ax = plt.gca()
+    result = ax.boxplot(data, labels=["a", "b"], patch_artist=True, showmeans=True)
+    assert set(result) == {"boxes", "medians", "whiskers", "caps", "fliers", "means"}
+    assert len(result["boxes"]) == 2
+    assert len(result["medians"]) == 2
+    assert len(result["whiskers"]) == 4 and len(result["caps"]) == 4
+    assert result["medians"][0].get_ydata()[0] == np.median(data[0])
+    assert result["means"][1].get_ydata()[0] == np.mean(data[1])
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["a", "b"]
+    p = tmp_path / "box.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<POLYLINE") >= 5  # median, two whiskers and two caps
+    assert "#FF7F0E" in s
+
+
+def test_boxplot_horizontal_notch_and_fliers(tmp_path):
+    data = [np.array([0.0, 1.0, 2.0, 3.0, 100.0]), np.array([2.0, 3.0, 4.0, 5.0, 6.0])]
+    plt.figure()
+    ax = plt.gca()
+    result = ax.boxplot(data, orientation="horizontal", notch=True, sym="r+")
+    assert result["fliers"][0] is not None and result["fliers"][1] is None
+    assert len(result["boxes"][0].get_xdata()) == 13  # notched outline
+    assert ax.get_yticklabels()[0].get_text() == "1"
+    p = tmp_path / "boxh.svg"
+    plt.savefig(p)
+    assert "#FF0000" in p.read_text().upper()
+    with pytest.raises(ValueError):
+        ax.boxplot(data, orientation="diagonal")
+    with pytest.raises(ValueError):
+        ax.boxplot([])
+
+
+def test_boxplot_single_and_hidden_parts(tmp_path):
+    plt.figure()
+    result = plt.boxplot([1, 2, 3, 4], showfliers=False, showcaps=False,
+                         showbox=False, autorange=True)
+    assert result["fliers"] == [None]
+    assert result["boxes"] == [] and result["caps"] == []
+    assert result["medians"][0].get_ydata()[0] == 2.5
+    p = tmp_path / "boxsingle.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_bar_label_places_values(tmp_path):
     plt.figure()
     ax = plt.gca()
