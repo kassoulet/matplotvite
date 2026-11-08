@@ -192,7 +192,7 @@ Visibility, removal, and custom tick positions/labels are honoured by the render
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite plt_rs
-accepts — currently **8 896 / 10 098 (88%)**. CI re-runs the trace against
+accepts — currently **9 250 / 10 098 (91%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples & Benchmarks
