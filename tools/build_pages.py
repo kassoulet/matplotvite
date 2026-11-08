@@ -35,6 +35,13 @@ def category_id(category: object) -> str:
     return str(category).lower().replace(" ", "-").replace("&", "and")
 
 
+def speedup_label(ratio: float) -> str:
+    """Express a matplotlib/Matplotvite ratio in plain language."""
+    if ratio >= 1.0:
+        return f"{ratio:.1f}× faster"
+    return f"{1.0 / ratio:.1f}× slower"
+
+
 def shared_navbar(current_page: str) -> str:
     """Generate the shared top navigation bar."""
     gallery_active = " active" if current_page == "gallery" else ""
@@ -893,7 +900,7 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
             <div class="bar-track"><div class="bar-fill matplotlib" style="width:{mpl_ms / best * 100:.1f}%"></div></div>
             <div class="bar-label">matplotlib {mpl_ms:.2f} ms</div>
           </div>
-          <div class="bench-speedup">{float(result['speedup']):.1f}× lower</div>
+          <div class="bench-speedup">{speedup_label(float(result['speedup']))}</div>
         </div>"""
         )
     comparison_rows = "\n".join(rows)

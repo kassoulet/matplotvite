@@ -21,8 +21,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("current", type=Path, help="fresh benchmark JSON")
     parser.add_argument("baseline", type=Path, help="checked-in baseline JSON")
-    parser.add_argument("--max-slowdown", type=float, default=20.0,
-                        help="allowed slowdown percentage (default: 20)")
+    parser.add_argument("--max-slowdown", type=float, default=30.0,
+                        help="allowed slowdown percentage (default: 30; single-run CI noise)")
     parser.add_argument("--metric", choices=("speedup", "rs"), default="speedup",
                         help="speedup compares Matplotvite/matplotlib; rs compares wall time")
     parser.add_argument("--strict", action="store_true",

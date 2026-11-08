@@ -221,6 +221,278 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         "speedup": round(t_cold_mpl / t_cold_rs, 1) if t_cold_rs > 0 else 0,
     })
 
+    # 6. Additional plot types
+    def compare(category: str, name: str, points: int, fn_rs, fn_mpl, iters: int = iters_fast):
+        t_rs = measure_callable(fn_rs, iters=iters)
+        t_mpl = measure_callable(fn_mpl, iters=iters)
+        results.append({
+            "category": category,
+            "name": name,
+            "points": points,
+            "rs_ms": round(t_rs, 2),
+            "mpl_ms": round(t_mpl, 2),
+            "speedup": round(t_mpl / t_rs, 1) if t_rs > 0 else 0,
+        })
+
+    with tempfile.TemporaryDirectory() as tmp:
+        stat_rs = os.path.join(tmp, "stat_rs.png")
+        stat_mpl = os.path.join(tmp, "stat_mpl.png")
+        p_rs_pdf = os.path.join(tmp, "rs.pdf")
+        p_mpl_pdf = os.path.join(tmp, "mpl.pdf")
+
+        rng = np.random.default_rng(42)
+        scatter_x = rng.normal(size=5_000)
+        scatter_y = 0.5 * scatter_x + rng.normal(size=5_000)
+
+        def fn_rs_scatter():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.scatter(scatter_x, scatter_y, s=8, c=scatter_x,
+                           cmap="viridis", alpha=0.7)
+            rs_plt.title("Scatter")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_scatter():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.scatter(scatter_x, scatter_y, s=8, c=scatter_x,
+                            cmap="viridis", alpha=0.7)
+            mpl_plt.title("Scatter")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Statistical", "Scatter (5,000 points, PNG)", 5_000,
+                fn_rs_scatter, fn_mpl_scatter)
+
+        categories = [f"item {i}" for i in range(20)]
+        bar_values = rng.uniform(1.0, 10.0, len(categories))
+
+        def fn_rs_bar():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.bar(categories, bar_values, color="#4c72b0")
+            rs_plt.title("Bars")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_bar():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.bar(categories, bar_values, color="#4c72b0")
+            mpl_plt.title("Bars")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Categorical", "Bar chart (20 categories, PNG)", 20,
+                fn_rs_bar, fn_mpl_bar)
+
+        samples = rng.normal(size=5_000)
+
+        def fn_rs_hist():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.hist(samples, bins=40, density=True, color="#55a868")
+            rs_plt.title("Histogram")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_hist():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.hist(samples, bins=40, density=True, color="#55a868")
+            mpl_plt.title("Histogram")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Statistical", "Histogram (5,000 samples, PNG)", 5_000,
+                fn_rs_hist, fn_mpl_hist)
+
+        groups = [rng.normal(i * 0.4, 1.0, 200) for i in range(5)]
+
+        def fn_rs_box():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.boxplot(groups, patch_artist=True)
+            rs_plt.title("Box plots")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_box():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.boxplot(groups, patch_artist=True)
+            mpl_plt.title("Box plots")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Statistical", "Box plots (5 groups, PNG)", 1_000,
+                fn_rs_box, fn_mpl_box)
+
+        def fn_rs_violin():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.violinplot(groups, showmeans=True, showmedians=True)
+            rs_plt.title("Violin plots")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_violin():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.violinplot(groups, showmeans=True, showmedians=True)
+            mpl_plt.title("Violin plots")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Statistical", "Violin plots (5 groups, PNG)", 1_000,
+                fn_rs_violin, fn_mpl_violin)
+
+        grid_axis = np.linspace(-3, 3, 160)
+        grid_z = np.exp(-(grid_axis[None, :] ** 2 + grid_axis[:, None] ** 2))
+        grid_x, grid_y = np.meshgrid(grid_axis, grid_axis)
+
+        def fn_rs_contour():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.contourf(grid_axis, grid_axis, grid_z, levels=12,
+                            cmap="viridis")
+            rs_plt.title("Contours")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_contour():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.contourf(grid_axis, grid_axis, grid_z, levels=12,
+                             cmap="viridis")
+            mpl_plt.title("Contours")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "Filled contours (160x160, PNG)", 25_600,
+                fn_rs_contour, fn_mpl_contour)
+
+        image_z = np.sin(grid_x * 2.0) * np.cos(grid_y * 1.5)
+
+        def fn_rs_image():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.imshow(image_z, cmap="magma", aspect="auto")
+            rs_plt.title("Image")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_image():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.imshow(image_z, cmap="magma", aspect="auto")
+            mpl_plt.title("Image")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "Image heatmap (160x160, PNG)", 25_600,
+                fn_rs_image, fn_mpl_image)
+
+        def fn_rs_mesh():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.pcolormesh(grid_axis, grid_axis, image_z, cmap="magma")
+            rs_plt.title("Quad mesh")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_mesh():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.pcolormesh(grid_axis, grid_axis, image_z, cmap="magma")
+            mpl_plt.title("Quad mesh")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "Quad mesh (160x160, PNG)", 25_600,
+                fn_rs_mesh, fn_mpl_mesh)
+
+        def fn_rs_hist2d():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.hist2d(scatter_x, scatter_y, bins=32, cmap="viridis")
+            rs_plt.title("2-D histogram")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_hist2d():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.hist2d(scatter_x, scatter_y, bins=32, cmap="viridis")
+            mpl_plt.title("2-D histogram")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "2-D histogram (5,000 points, PNG)", 5_000,
+                fn_rs_hist2d, fn_mpl_hist2d)
+
+        def fn_rs_hexbin():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.hexbin(scatter_x, scatter_y, gridsize=30, cmap="magma")
+            rs_plt.title("Hexagonal bins")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_hexbin():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.hexbin(scatter_x, scatter_y, gridsize=30, cmap="magma")
+            mpl_plt.title("Hexagonal bins")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "Hexagonal bins (5,000 points, PNG)", 5_000,
+                fn_rs_hexbin, fn_mpl_hexbin)
+
+        quiver_axis = np.linspace(-2, 2, 24)
+        quiver_x, quiver_y = np.meshgrid(quiver_axis, quiver_axis)
+
+        def fn_rs_quiver():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.quiver(quiver_x, quiver_y, -quiver_y, quiver_x,
+                          color="#1f77b4")
+            rs_plt.axis("equal")
+            rs_plt.title("Vector field")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_quiver():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.quiver(quiver_x, quiver_y, -quiver_y, quiver_x,
+                           color="#1f77b4")
+            mpl_plt.axis("equal")
+            mpl_plt.title("Vector field")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "Vector field (24x24, PNG)", 576,
+                fn_rs_quiver, fn_mpl_quiver)
+
+        from datetime import datetime, timedelta
+        dates = [datetime(2024, 1, 1) + timedelta(days=i) for i in range(365)]
+        daily = np.cumsum(rng.normal(0.0, 0.5, len(dates)))
+
+        def fn_rs_dates():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.plot(dates, daily, color="#4c72b0")
+            rs_plt.title("Daily values")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_dates():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.plot(dates, daily, color="#4c72b0")
+            mpl_plt.title("Daily values")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Data types", "Datetime axis (365 points, PNG)", 365,
+                fn_rs_dates, fn_mpl_dates)
+
+        def fn_rs_pdf():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.plot(x_sub, y_sub, color="#c44e52")
+            rs_plt.title("PDF export")
+            rs_plt.savefig(p_rs_pdf)
+            rs_plt.close()
+
+        def fn_mpl_pdf():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.plot(x_sub, y_sub, color="#c44e52")
+            mpl_plt.title("PDF export")
+            mpl_plt.savefig(p_mpl_pdf)
+            mpl_plt.close("all")
+
+        compare("Vector Output", "Vector PDF Export (1,000 pts, PDF)", 1_000,
+                fn_rs_pdf, fn_mpl_pdf)
+
     # System metadata
     system_info = {
         "os": platform.system(),

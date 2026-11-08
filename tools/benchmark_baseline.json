@@ -5,72 +5,176 @@
     "python_version": "3.13.0",
     "matplotlib_version": "3.11.2",
     "matplotvite_version": "0.1.0",
-    "timestamp": "2026-11-08 15:11:35 UTC"
+    "timestamp": "2026-11-08 16:35:06 UTC"
   },
   "results": [
     {
       "category": "Data Scaling",
       "name": "Single Line (100 points, PNG)",
       "points": 100,
-      "rs_ms": 3.19,
-      "mpl_ms": 68.82,
-      "speedup": 21.6
+      "rs_ms": 3.61,
+      "mpl_ms": 74.26,
+      "speedup": 20.6
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (1,000 points, PNG)",
       "points": 1000,
-      "rs_ms": 4.62,
-      "mpl_ms": 69.76,
-      "speedup": 15.1
+      "rs_ms": 4.93,
+      "mpl_ms": 74.08,
+      "speedup": 15.0
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (10,000 points, PNG)",
       "points": 10000,
-      "rs_ms": 24.48,
-      "mpl_ms": 73.59,
-      "speedup": 3.0
+      "rs_ms": 25.22,
+      "mpl_ms": 78.04,
+      "speedup": 3.1
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (100,000 points, PNG)",
       "points": 100000,
-      "rs_ms": 224.51,
-      "mpl_ms": 94.19,
+      "rs_ms": 229.57,
+      "mpl_ms": 99.3,
       "speedup": 0.4
     },
     {
       "category": "Complex Layouts",
       "name": "Multi-Series (5 lines x 2,000 pts, PNG)",
       "points": 10000,
-      "rs_ms": 41.98,
-      "mpl_ms": 132.49,
-      "speedup": 3.2
+      "rs_ms": 28.39,
+      "mpl_ms": 112.17,
+      "speedup": 4.0
     },
     {
       "category": "Complex Layouts",
       "name": "Subplots (2x2 grid, PNG)",
       "points": 4000,
-      "rs_ms": 18.4,
-      "mpl_ms": 140.4,
-      "speedup": 7.6
+      "rs_ms": 16.17,
+      "mpl_ms": 130.9,
+      "speedup": 8.1
     },
     {
       "category": "Vector Output",
       "name": "Vector SVG Export (1,000 pts, SVG)",
       "points": 1000,
-      "rs_ms": 2.64,
-      "mpl_ms": 67.9,
-      "speedup": 25.7
+      "rs_ms": 2.61,
+      "mpl_ms": 64.85,
+      "speedup": 24.8
     },
     {
       "category": "Startup & Process",
       "name": "Cold CLI Execution (Process start + plot + save)",
       "points": 1000,
-      "rs_ms": 104.1,
-      "mpl_ms": 538.2,
-      "speedup": 5.2
+      "rs_ms": 99.7,
+      "mpl_ms": 465.8,
+      "speedup": 4.7
+    },
+    {
+      "category": "Statistical",
+      "name": "Scatter (5,000 points, PNG)",
+      "points": 5000,
+      "rs_ms": 42.13,
+      "mpl_ms": 138.94,
+      "speedup": 3.3
+    },
+    {
+      "category": "Categorical",
+      "name": "Bar chart (20 categories, PNG)",
+      "points": 20,
+      "rs_ms": 2.92,
+      "mpl_ms": 106.59,
+      "speedup": 36.5
+    },
+    {
+      "category": "Statistical",
+      "name": "Histogram (5,000 samples, PNG)",
+      "points": 5000,
+      "rs_ms": 2.44,
+      "mpl_ms": 94.47,
+      "speedup": 38.7
+    },
+    {
+      "category": "Statistical",
+      "name": "Box plots (5 groups, PNG)",
+      "points": 1000,
+      "rs_ms": 3.18,
+      "mpl_ms": 61.27,
+      "speedup": 19.3
+    },
+    {
+      "category": "Statistical",
+      "name": "Violin plots (5 groups, PNG)",
+      "points": 1000,
+      "rs_ms": 6.58,
+      "mpl_ms": 69.15,
+      "speedup": 10.5
+    },
+    {
+      "category": "Gridded",
+      "name": "Filled contours (160x160, PNG)",
+      "points": 25600,
+      "rs_ms": 136.95,
+      "mpl_ms": 57.69,
+      "speedup": 0.4
+    },
+    {
+      "category": "Gridded",
+      "name": "Image heatmap (160x160, PNG)",
+      "points": 25600,
+      "rs_ms": 11.38,
+      "mpl_ms": 110.31,
+      "speedup": 9.7
+    },
+    {
+      "category": "Gridded",
+      "name": "Quad mesh (160x160, PNG)",
+      "points": 25600,
+      "rs_ms": 8.59,
+      "mpl_ms": 83.87,
+      "speedup": 9.8
+    },
+    {
+      "category": "Gridded",
+      "name": "2-D histogram (5,000 points, PNG)",
+      "points": 5000,
+      "rs_ms": 10.43,
+      "mpl_ms": 58.28,
+      "speedup": 5.6
+    },
+    {
+      "category": "Gridded",
+      "name": "Hexagonal bins (5,000 points, PNG)",
+      "points": 5000,
+      "rs_ms": 49.94,
+      "mpl_ms": 83.11,
+      "speedup": 1.7
+    },
+    {
+      "category": "Gridded",
+      "name": "Vector field (24x24, PNG)",
+      "points": 576,
+      "rs_ms": 15.65,
+      "mpl_ms": 72.62,
+      "speedup": 4.6
+    },
+    {
+      "category": "Data types",
+      "name": "Datetime axis (365 points, PNG)",
+      "points": 365,
+      "rs_ms": 4.11,
+      "mpl_ms": 66.17,
+      "speedup": 16.1
+    },
+    {
+      "category": "Vector Output",
+      "name": "Vector PDF Export (1,000 pts, PDF)",
+      "points": 1000,
+      "rs_ms": 3.92,
+      "mpl_ms": 63.05,
+      "speedup": 16.1
     }
   ]
 }
