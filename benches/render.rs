@@ -99,8 +99,11 @@ fn encode_png(c: &mut Criterion) {
                 BenchmarkId::new(compression, format!("{width}x{height}")),
                 &pixmap,
                 |b, pixmap| {
+                    // Gallery output is opaque, so the encoder can read the
+                    // buffer directly without demultiplying a copy.
                     b.iter(|| {
-                        bench::encode_png_bytes(black_box(pixmap), black_box(compression)).unwrap()
+                        bench::encode_png_bytes(black_box(pixmap), black_box(compression), true)
+                            .unwrap()
                     })
                 },
             );

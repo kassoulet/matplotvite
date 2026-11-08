@@ -126,8 +126,12 @@ fn render(
         if fmt == "webp" {
             encode_webp(&pixmap).map_err(|e| err(&e))
         } else {
-            encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast))
-                .map_err(|e| err(&e.to_string()))
+            encode_png(
+                &pixmap,
+                compression.unwrap_or(PngCompression::Fast),
+                !transparent,
+            )
+            .map_err(|e| err(&e.to_string()))
         }
     }
 }
@@ -148,7 +152,7 @@ mod tests {
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
         let mut reader = decoder.read_info().unwrap();
-        let mut buf = vec![0; reader.output_buffer_size()];
+        let mut buf = vec![0; reader.output_buffer_size().expect("valid PNG buffer size")];
         let info = reader.next_frame(&mut buf).unwrap();
         buf.truncate(info.buffer_size());
         (info.width, info.height, buf)
@@ -199,8 +203,29 @@ mod tests {
             PngCompression::Default,
             PngCompression::Best,
         ] {
-            let encoded = encode_png(&pixmap, compression).unwrap();
+            let encoded = encode_png(&pixmap, compression, false).unwrap();
             assert_eq!(decode_png(&encoded), reference);
+        }
+    }
+
+    #[test]
+    fn opaque_png_matches_the_demultiplied_encoding() {
+        // Skipping demultiplication is only valid when alpha is 255 everywhere,
+        // so the shortcut must be byte-identical to the general path.
+        let mut pixmap = tiny_skia::Pixmap::new(8, 8).unwrap();
+        for (index, pixel) in pixmap.pixels_mut().iter_mut().enumerate() {
+            let channel = (index % 256) as u8;
+            *pixel = tiny_skia::PremultipliedColorU8::from_rgba(channel, 17, 240, 255).unwrap();
+        }
+
+        for compression in [
+            PngCompression::Fast,
+            PngCompression::Default,
+            PngCompression::Best,
+        ] {
+            let opaque = encode_png(&pixmap, compression, true).unwrap();
+            let demultiplied = encode_png(&pixmap, compression, false).unwrap();
+            assert_eq!(opaque, demultiplied);
         }
     }
 }

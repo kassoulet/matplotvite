@@ -59,8 +59,8 @@ impl PngCompression {
     pub(crate) fn to_png(self) -> png::Compression {
         match self {
             Self::Fast => png::Compression::Fast,
-            Self::Default => png::Compression::Default,
-            Self::Best => png::Compression::Best,
+            Self::Default => png::Compression::Balanced,
+            Self::Best => png::Compression::High,
         }
     }
 }

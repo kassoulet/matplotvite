@@ -13,10 +13,14 @@ pub fn rasterize_svg(svg: &str, width: u32, height: u32) -> Result<(), String> {
 }
 
 /// Encode a pixmap as PNG at the requested compression level.
-pub fn encode_png_bytes(pixmap: &tiny_skia::Pixmap, compression: &str) -> Result<Vec<u8>, String> {
+pub fn encode_png_bytes(
+    pixmap: &tiny_skia::Pixmap,
+    compression: &str,
+    opaque: bool,
+) -> Result<Vec<u8>, String> {
     let compression = PngCompression::parse(compression)
         .ok_or_else(|| format!("unsupported compression: {compression:?}"))?;
-    encode_png(pixmap, compression).map_err(|error| error.to_string())
+    encode_png(pixmap, compression, opaque).map_err(|error| error.to_string())
 }
 
 /// Encode a pixmap as lossless WebP.

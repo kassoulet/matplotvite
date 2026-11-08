@@ -251,21 +251,41 @@ pub(crate) fn rasterize(
 /// Encode a pixmap as PNG. This matches `tiny_skia::Pixmap::encode_png`
 /// (including alpha demultiplication) but exposes the compression level because
 /// the default level dominates save time for typical figure sizes.
+///
+/// `opaque` means every pixel has alpha 255, which holds whenever the figure is
+/// composited over a solid background. Premultiplied and straight-alpha pixels
+/// are then identical, so the buffer is encoded directly instead of being
+/// copied and demultiplied first. That removes a full-frame pass (and a
+/// full-frame allocation) from the common save path.
 pub(crate) fn encode_png(
     pixmap: &tiny_skia::Pixmap,
     compression: PngCompression,
+    opaque: bool,
 ) -> Result<Vec<u8>, png::EncodingError> {
-    let copy = pixmap.to_owned();
-    let rgba = copy.take_demultiplied();
+    let (width, height) = (pixmap.width(), pixmap.height());
+    if opaque {
+        encode_png_data(pixmap.data(), width, height, compression)
+    } else {
+        let rgba = pixmap.to_owned().take_demultiplied();
+        encode_png_data(&rgba, width, height, compression)
+    }
+}
+
+fn encode_png_data(
+    rgba: &[u8],
+    width: u32,
+    height: u32,
+    compression: PngCompression,
+) -> Result<Vec<u8>, png::EncodingError> {
     let mut out = Vec::new();
     {
-        let mut encoder = png::Encoder::new(&mut out, pixmap.width(), pixmap.height());
+        let mut encoder = png::Encoder::new(&mut out, width, height);
         encoder.set_color(png::ColorType::Rgba);
         encoder.set_depth(png::BitDepth::Eight);
         encoder.set_compression(compression.to_png());
-        encoder.set_filter(png::FilterType::Sub);
+        encoder.set_filter(png::Filter::Sub);
         let mut writer = encoder.write_header()?;
-        writer.write_image_data(&rgba)?;
+        writer.write_image_data(rgba)?;
     }
     Ok(out)
 }
