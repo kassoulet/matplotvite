@@ -12,18 +12,14 @@ only Python runtime dependency.
 - [Performance measurements](https://kassoulet.github.io/matplotvite/benchmarks.html)
 - [Supported API](#whats-supported)
 
-## Install
-
-```bash
-pip install matplotvite
-```
-
 ## Build from source
 
 ```bash
 pip install maturin numpy
 maturin develop --release
 ```
+
+No package release is currently published; build the extension from the repository.
 
 ## Measured performance
 
@@ -33,18 +29,39 @@ machine- and load-dependent, not as a general guarantee.
 
 | Workload | Matplotvite | matplotlib | Ratio |
 |---|---:|---:|---:|
-| Single line, 100 points, PNG | 3.05 ms | 77.51 ms | 25.4× |
-| Single line, 1,000 points, PNG | 2.68 ms | 77.72 ms | 29.0× |
-| Single line, 10,000 points, PNG | 6.06 ms | 81.34 ms | 13.4× |
-| Single line, 100,000 points, PNG | 38.74 ms | 103.96 ms | 2.7× |
-| Five series, 2,000 points each, PNG | 8.97 ms | 121.98 ms | 13.6× |
-| 2×2 subplot grid, PNG | 7.88 ms | 131.19 ms | 16.6× |
-| SVG export, 1,000 points | 0.44 ms | 70.09 ms | 160.6× |
-| Cold CLI process, plot, and save | 83.1 ms | 463.4 ms | 5.6× |
+| Single line, 100 points, PNG | 3.61 ms | 74.26 ms | 20.6× |
+| Single line, 1,000 points, PNG | 4.93 ms | 74.08 ms | 15.0× |
+| Single line, 10,000 points, PNG | 25.22 ms | 78.04 ms | 3.1× |
+| Single line, 100,000 points, PNG | 229.57 ms | 99.30 ms | 0.4× |
+| Five series, 2,000 points each, PNG | 28.39 ms | 112.17 ms | 4.0× |
+| 2×2 subplot grid, PNG | 16.17 ms | 130.90 ms | 8.1× |
+| Scatter, 5,000 points, PNG | 42.13 ms | 138.94 ms | 3.3× |
+| Bar chart, 20 categories, PNG | 2.92 ms | 106.59 ms | 36.5× |
+| Filled contours, 160×160, PNG | 136.95 ms | 57.69 ms | 0.4× |
+| SVG export, 1,000 points | 2.61 ms | 64.85 ms | 24.8× |
+| PDF export, 1,000 points | 3.92 ms | 63.05 ms | 16.1× |
+| Cold CLI process, plot, and save | 99.70 ms | 465.80 ms | 4.7× |
 
-Measured on a Linux x86_64 host (AMD Ryzen 5 5600G, Python 3.14, matplotlib 3.11.2).
-Wall-clock times vary with machine load. See the [benchmark page](https://kassoulet.github.io/matplotvite/benchmarks.html)
-for the full matrix and method.
+The suite now measures 21 workloads, including line scaling, subplots, scatter,
+bar, histogram, box/violin summaries, contours, image and quad-mesh rendering,
+2-D histograms, hexagonal bins, quiver fields, datetime axes, and SVG/PDF output.
+The full matrix and methodology are on the
+[benchmark page](https://kassoulet.github.io/matplotvite/benchmarks.html).
+
+Measured on a Linux x86_64 host (Python 3.13, matplotlib 3.11.2). Wall-clock
+times vary with machine load and should be reproduced on the target system.
+
+## Criterion benchmarks
+
+The Rust output stages have a separate Criterion suite:
+
+```bash
+cargo bench --bench render
+```
+
+It measures SVG rasterization at three figure sizes, PNG encoding at fast/default/best
+compression, lossless WebP encoding, and vector PDF conversion. Results are written
+under `target/criterion/`; use `--quick` for a short smoke run.
 
 ## Dependencies
 
@@ -249,9 +266,11 @@ python tools/benchmark.py
 ```
 
 Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
-unchanged figure reuse the previously encoded bytes. CI runs a quick benchmark
-suite against `tools/benchmark_baseline.json` and fails when relative performance
-drops by more than 20% (`tools/benchmark_guard.py`).
+unchanged figure reuse the previously encoded bytes. CI runs the comparison suite
+against `tools/benchmark_baseline.json` and fails when the matplotlib-normalized
+speedup drops by more than 30% (`tools/benchmark_guard.py`). The wider budget
+accounts for single-run variance on shared CI hosts; Criterion provides the
+lower-noise, output-stage measurements.
 
 ## Test
 

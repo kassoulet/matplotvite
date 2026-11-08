@@ -638,8 +638,8 @@ def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
       <a href="benchmarks.html" class="btn btn-secondary">Performance measurements</a>
     </div>
     <div class="quick-start">
-      <code>pip install matplotvite</code>
-      <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install matplotvite')">Copy</button>
+      <code>maturin develop --release</code>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('maturin develop --release')">Copy</button>
     </div>
   </header>
 
