@@ -1401,10 +1401,11 @@ def render_matplotlib_sample(sample: dict[str, object], out_path: Path) -> None:
     exec(code, {})
 
 
-def render_scaling_chart(out_path: Path) -> None:
+def render_scaling_chart(out_path: Path, results: list[dict[str, object]]) -> None:
     """Render the latency-scaling chart with matplotvite itself."""
-    points = np.array([100, 1000, 10000, 100000], dtype=np.float64)
-    latencies = np.array([0.44, 0.56, 0.78, 2.28], dtype=np.float64)
+    scaling = [r for r in results if r.get("category") == "Data Scaling"]
+    points = np.array([r["points"] for r in scaling], dtype=np.float64)
+    latencies = np.array([r["rs_ms"] for r in scaling], dtype=np.float64)
 
     matplotvite.figure(figsize=(7.8, 4.4))
     matplotvite.plot(
@@ -1505,15 +1506,15 @@ def build_pages(out_dir: Path) -> None:
     comparison_size = format_bytes(len(comparison_html.encode("utf-8")))
     print(f"Wrote comparison page -> {comparison_path} ({comparison_size})")
 
-    scaling_chart_path = out_dir / "benchmark_scaling.png"
-    render_scaling_chart(scaling_chart_path)
-    print(f"Wrote scaling chart -> {scaling_chart_path}")
-
     bench_data_path = ROOT / "tools" / "benchmarks_data.json"
     if bench_data_path.exists():
         bench_data = json.loads(bench_data_path.read_text(encoding="utf-8"))
     else:
         bench_data = {"system": {}, "results": []}
+
+    scaling_chart_path = out_dir / "benchmark_scaling.png"
+    render_scaling_chart(scaling_chart_path, bench_data.get("results", []))
+    print(f"Wrote scaling chart -> {scaling_chart_path}")
 
     benchmarks_html = generate_benchmarks_html(bench_data)
     bench_path = out_dir / "benchmarks.html"

@@ -32,18 +32,18 @@ machine- and load-dependent, not as a general guarantee.
 
 | Workload | Matplotvite | matplotlib | Ratio |
 |---|---:|---:|---:|
-| Single line, 100 points, PNG | 3.61 ms | 74.26 ms | 20.6× |
-| Single line, 1,000 points, PNG | 4.93 ms | 74.08 ms | 15.0× |
-| Single line, 10,000 points, PNG | 25.22 ms | 78.04 ms | 3.1× |
-| Single line, 100,000 points, PNG | 229.57 ms | 99.30 ms | 0.4× |
-| Five series, 2,000 points each, PNG | 28.39 ms | 112.17 ms | 4.0× |
-| 2×2 subplot grid, PNG | 16.17 ms | 130.90 ms | 8.1× |
-| Scatter, 5,000 points, PNG | 42.13 ms | 138.94 ms | 3.3× |
-| Bar chart, 20 categories, PNG | 2.92 ms | 106.59 ms | 36.5× |
-| Filled contours, 160×160, PNG | 136.95 ms | 57.69 ms | 0.4× |
-| SVG export, 1,000 points | 2.61 ms | 64.85 ms | 24.8× |
-| PDF export, 1,000 points | 3.92 ms | 63.05 ms | 16.1× |
-| Cold CLI process, plot, and save | 99.70 ms | 465.80 ms | 4.7× |
+| Single line, 100 points, PNG | 2.08 ms | 69.94 ms | 33.6× |
+| Single line, 1,000 points, PNG | 4.39 ms | 69.79 ms | 15.9× |
+| Single line, 10,000 points, PNG | 24.55 ms | 72.46 ms | 3.0× |
+| Single line, 100,000 points, PNG | 231.69 ms | 93.43 ms | 0.4× |
+| Five series, 2,000 points each, PNG | 27.81 ms | 108.07 ms | 3.9× |
+| 2×2 subplot grid, PNG | 15.05 ms | 119.08 ms | 7.9× |
+| Scatter, 5,000 points, PNG | 41.83 ms | 137.89 ms | 3.3× |
+| Bar chart, 20 categories, PNG | 2.52 ms | 101.74 ms | 40.3× |
+| Filled contours, 160×160, PNG | 127.96 ms | 55.92 ms | 0.4× |
+| SVG export, 1,000 points | 2.45 ms | 58.73 ms | 24.0× |
+| PDF export, 1,000 points | 3.93 ms | 59.00 ms | 15.0× |
+| Cold CLI process, plot, and save | 96.30 ms | 428.10 ms | 4.4× |
 
 The suite now measures 21 workloads, including line scaling, subplots, scatter,
 bar, histogram, box/violin summaries, contours, image and quad-mesh rendering,
