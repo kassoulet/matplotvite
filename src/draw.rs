@@ -79,6 +79,47 @@ where
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn draw_vector_arrow<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    base: (i32, i32),
+    from: (i32, i32),
+    to: (i32, i32),
+    col: RGBAColor,
+    width: u32,
+    head_len: f64,
+    head_half: f64,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let (sx, sy) = (from.0 - base.0, from.1 - base.1);
+    let (ax, ay) = (to.0 - base.0, to.1 - base.1);
+    let (dx, dy) = ((ax - sx) as f64, (ay - sy) as f64);
+    let len = (dx * dx + dy * dy).sqrt();
+    if len < 0.5 {
+        area.draw(&Circle::new((sx, sy), width.max(1), col.filled()))?;
+        return Ok(());
+    }
+    let (ux, uy) = (dx / len, dy / len);
+    let hl = head_len.max(2.0).min((len * 0.9).max(2.0));
+    let hw = head_half.max(1.0);
+    let (bx, by) = (ax as f64 - ux * hl, ay as f64 - uy * hl);
+    area.draw(&PathElement::new(
+        vec![(sx, sy), (ax, ay)],
+        col.stroke_width(width.max(1)),
+    ))?;
+    area.draw(&Polygon::new(
+        vec![
+            (ax, ay),
+            ((bx - uy * hw) as i32, (by + ux * hw) as i32),
+            ((bx + uy * hw) as i32, (by - ux * hw) as i32),
+        ],
+        col.filled(),
+    ))?;
+    Ok(())
+}
+
 fn rotated_style(size: f64, col: RGBAColor, rotation: f64) -> TextStyle<'static> {
     let style = ("sans-serif", size.max(6.0).round() as u32)
         .into_font()
@@ -1472,6 +1513,38 @@ where
                         col.stroke_width(2),
                     ))?;
                 }
+            }
+        }
+    }
+    // Quiver arrows sit above the data and below the text layer.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for arrow in &p.arrows {
+            let (axs, ays) = (arrow.x.as_array(), arrow.y.as_array());
+            let (aus, avs) = (arrow.u.as_array(), arrow.v.as_array());
+            let width = arrow.linewidth.max(1.0).round() as u32;
+            let head_len = arrow.headlength.max(1.0) * 1.39;
+            let head_half = arrow.headwidth.max(1.0);
+            for i in 0..axs.len().min(ays.len()).min(aus.len()).min(avs.len()) {
+                let (sx, sy) = chart_area.map_coordinate(&(tx(axs[i]), ty(ays[i])));
+                let (ex, ey) =
+                    chart_area.map_coordinate(&(tx(axs[i] + aus[i]), ty(ays[i] + avs[i])));
+                let col = if arrow.colors.is_empty() {
+                    RGBAColor(31, 119, 180, 1.0)
+                } else {
+                    color(&arrow.colors[i % arrow.colors.len()])
+                };
+                draw_vector_arrow(
+                    area,
+                    base,
+                    (sx, sy),
+                    (ex, ey),
+                    col,
+                    width,
+                    head_len,
+                    head_half,
+                )?;
             }
         }
     }

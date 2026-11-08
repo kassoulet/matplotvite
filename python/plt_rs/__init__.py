@@ -15,7 +15,7 @@ __all__ = (
     "draw", "errorbar", "eventplot", "figure", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
-    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "rc", "rc_context", "rcdefaults",
+    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "quiver", "rc", "rc_context", "rcdefaults",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
@@ -323,6 +323,19 @@ class _BarContainer(list):
         return list(self)
 
 
+class _QuiverHandle:
+    """Handle for one `quiver` collection."""
+
+    def __init__(self, entry): self._e = entry
+
+    def get_offsets(self):
+        return np.column_stack([self._e["x"], self._e["y"]])
+
+    def get_U(self): return self._e["u"]
+    def get_V(self): return self._e["v"]
+    def get_facecolor(self): return list(self._e["colors"])
+
+
 class _HexbinHandle:
     """Handle for the hexagonal cells drawn by `hexbin`."""
 
@@ -559,6 +572,7 @@ class Axes:
         self.contours = []
         self.errors = []
         self.scatter_pts = []
+        self.arrows = []
         self.bars = []
         self.bands = []
         self._hline_refs = []
@@ -766,6 +780,9 @@ class Axes:
             xs.extend([float(c["x"][0]), float(c["x"][-1])])
         for sc in self.scatter_pts:
             xs.extend(sc["x"])
+        for a in self.arrows:
+            xs.extend(a["x"])
+            xs.extend(a["x"] + a["u"])
         for bars in self.bars:
             xs.extend(bars["left"])
             xs.extend(bars["left"] + bars["width"])
@@ -787,6 +804,9 @@ class Axes:
             ys.extend([float(c["y"][0]), float(c["y"][-1])])
         for sc in self.scatter_pts:
             ys.extend(sc["y"])
+        for a in self.arrows:
+            ys.extend(a["y"])
+            ys.extend(a["y"] + a["v"])
         for bars in self.bars:
             ys.extend(bars["bottom"])
             ys.extend(bars["bottom"] + bars["height"])
@@ -917,6 +937,7 @@ class Axes:
         self.contours.clear()
         self.errors.clear()
         self.scatter_pts.clear()
+        self.arrows.clear()
         self.bars.clear()
         self.bands.clear()
         self._hline_refs.clear()
@@ -1654,6 +1675,69 @@ class Axes:
             marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
             label=str(label)))
 
+    def quiver(self, *args, U=None, V=None, C=None, color=None, angles="xy",
+               scale=None, scale_units=None, units="width", width=None,
+               headwidth=3.0, headlength=5.0, headaxislength=4.5, pivot="tail",
+               **kwargs):
+        """Vector field arrows from `quiver(U, V)` or `quiver(X, Y, U, V)`.
+
+        `scale` divides the vector components; `pivot` places the arrow at its
+        tail, middle or tip."""
+        if len(args) == 2:
+            ua = np.asarray(args[0], dtype=np.float64)
+            va = np.asarray(args[1], dtype=np.float64)
+            if ua.shape != va.shape:
+                raise ValueError("U and V must have the same shape")
+            if ua.ndim == 2:
+                rows, cols = ua.shape
+                gx, gy = np.meshgrid(np.arange(cols, dtype=float),
+                                     np.arange(rows, dtype=float))
+                x, y = gx.ravel(), gy.ravel()
+            else:
+                x = np.arange(ua.size, dtype=float)
+                y = np.zeros(ua.size)
+            u, v = ua.ravel(), va.ravel()
+        elif len(args) >= 4:
+            x, y, u, v = (np.asarray(a, dtype=np.float64).ravel() for a in args[:4])
+            if len(args) >= 5 and C is None:
+                C = args[4]
+        elif len(args) == 0 and U is not None and V is not None:
+            ua = np.asarray(U, dtype=np.float64).ravel()
+            va = np.asarray(V, dtype=np.float64).ravel()
+            if ua.size != va.size:
+                raise ValueError("U and V must have the same shape")
+            x = np.arange(ua.size, dtype=float)
+            y = np.zeros(ua.size)
+            u, v = ua, va
+        else:
+            raise TypeError("quiver expects U, V or X, Y, U, V")
+        if not (x.size == y.size == u.size == v.size):
+            raise ValueError("X, Y, U and V must have the same length")
+        if x.size == 0:
+            raise ValueError("quiver needs at least one vector")
+        if angles not in ("xy", "uv"):
+            raise ValueError(f"unsupported angles: {angles!r}")
+        if pivot not in ("tail", "middle", "mid", "tip"):
+            raise ValueError(f"unsupported pivot: {pivot!r}")
+        if scale is not None and not isinstance(scale, str):
+            if float(scale) == 0.0:
+                raise ValueError("scale must not be zero")
+            u, v = u / float(scale), v / float(scale)
+        if pivot in ("tip",):
+            x, y = x - u, y - v
+        elif pivot in ("middle", "mid"):
+            x, y = x - u / 2.0, y - v / 2.0
+        colors = (_line_colors(color, x.size) if color is not None
+                  else [self._next_color()])
+        linewidth = _number(kwargs.get("linewidth", kwargs.get("lw")), 1.5)
+        entry = dict(x=np.ascontiguousarray(x), y=np.ascontiguousarray(y),
+                     u=np.ascontiguousarray(u), v=np.ascontiguousarray(v),
+                     colors=colors, linewidth=linewidth,
+                     headwidth=_number(headwidth, 3.0),
+                     headlength=_number(headlength, 5.0))
+        self.arrows.append(entry)
+        return _QuiverHandle(entry)
+
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
                  capsize=None, label="", color=None, **kwargs):
         """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
@@ -2089,6 +2173,8 @@ class Axes:
         texts = [self._resolve_text(t, x0, x1, y0, y1) for t in self.texts]
         scatter = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
                    for e in self.scatter_pts]
+        arrows = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
+                  for e in self.arrows]
         contours = [(c["x"], c["y"], c["z"], c["levels"],
                      [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"])
                     for c in self.contours]
@@ -2126,6 +2212,7 @@ class Axes:
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
                              for e in scatter],
+                    arrows=arrows,
                     colorbar=None,
                     axis_off=self._axis_off,
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
@@ -2829,7 +2916,7 @@ class Figure:
                                yticklabels=None, xstyle=dict(tick), ystyle=dict(tick),
                                hide_xlabels=False, hide_ylabels=False),
                     xlim=None, ylim=None, annotations=[], images=[],
-                    contours=[], errors=[], scatter=[], bars=[], bands=[],
+                    contours=[], errors=[], scatter=[], arrows=[], bars=[], bands=[],
                     x_log=False, y_log=False, log_base=10.0, aspect=None,
                     axis_off=False, facecolor=None, foreground=None,
                     bounds=None, twin="", twin_gap=0.0, patches=[], collections=[],
@@ -3002,6 +3089,10 @@ def pause(*args, **kwargs): pass
 def ion(*args, **kwargs): pass
 
 def ioff(*args, **kwargs): pass
+
+
+def quiver(*args, **kwargs):
+    return gca().quiver(*args, **kwargs)
 
 
 def errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,

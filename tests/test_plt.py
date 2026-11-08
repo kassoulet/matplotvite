@@ -1119,6 +1119,49 @@ def test_hexbin_default_keeps_empty_cells_and_pyplot_shims(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_quiver_arrows_and_extents(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    q = ax.quiver([0, 1], [0, 0], [1, 1], [1, -1],
+                  color=["red", "green"], pivot="tail")
+    assert q.get_offsets().shape == (2, 2)
+    assert np.allclose(q.get_U(), [1, 1]) and np.allclose(q.get_V(), [1, -1])
+    assert ax.get_xlim() == (0.0, 2.0)
+    assert ax.get_ylim() == (-1.0, 1.0)
+    p = tmp_path / "quiver.svg"
+    plt.savefig(p)
+    s = p.read_text().upper()
+    assert s.count("<POLYGON") >= 2  # arrow heads
+    assert s.count("<POLYLINE") >= 2  # arrow shafts
+    assert "#FF0000" in s and "#008000" in s
+
+
+def test_quiver_forms_scale_and_validation(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    grid = ax.quiver(np.ones((2, 3)), np.zeros((2, 3)))
+    assert grid.get_offsets().shape == (6, 2)
+    scaled = ax.quiver([0], [0], [2], [1], scale=2, pivot="tip", angles="uv")
+    assert np.allclose(scaled.get_U(), [1.0]) and np.allclose(scaled.get_V(), [0.5])
+    assert np.allclose(scaled.get_offsets(), [[-1.0, -0.5]])
+    plt.figure()
+    q = plt.quiver(U=[1, 2], V=[0, 1], scale="auto")
+    assert q.get_offsets().shape == (2, 2)
+    p = tmp_path / "quiver2.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    with pytest.raises(ValueError):
+        ax.quiver([0, 1], [0, 1], [1], [1])
+    with pytest.raises(ValueError):
+        ax.quiver([0], [0], [1], [1], angles="radians")
+    with pytest.raises(ValueError):
+        ax.quiver([0], [0], [1], [1], pivot="nose")
+    with pytest.raises(ValueError):
+        ax.quiver([0], [0], [1], [1], scale=0)
+    with pytest.raises(TypeError):
+        ax.quiver([0])
+
+
 def test_bar_label_places_values(tmp_path):
     plt.figure()
     ax = plt.gca()

@@ -98,6 +98,8 @@ plt.savefig("contours.png")
   markers `o s ^ v < > D x + .`, with a legend handle when labelled
 - `errorbar(x, y, yerr=, xerr=, fmt=, capsize=, ecolor=)` — scalar, per-point or
   `(2, N)` asymmetric errors, optional caps, and `fmt` markers
+- `quiver(X, Y, U, V)` / `quiver(U, V)` — vector-field arrows with `scale`,
+  `pivot`, per-arrow colours and head sizing
 - `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` and
   `barh(...)` — single or per-bar colours, optional edge and error bars; returns a
   `BarContainer` whose handles support `set_facecolor`/`set_alpha`, with a legend swatch
@@ -184,7 +186,6 @@ Visibility, removal, and custom tick positions/labels are honoured by the render
 
 ### Not supported (yet)
 - `twinx`/`twiny`, `GridSpec`, `suptitle`
-- `quiver`
 - colormaps beyond `viridis`/`gray`; colorbars on multi-axes figures
 - interactive display (out of scope forever)
 

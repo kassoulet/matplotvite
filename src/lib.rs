@@ -52,6 +52,7 @@ fn render(
                 && p.contours.is_empty()
                 && p.errors.is_empty()
                 && p.scatter.is_empty()
+                && p.arrows.is_empty()
                 && p.bars.is_empty()
                 && p.bands.is_empty()
                 && p.patches.is_empty()

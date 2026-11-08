@@ -142,7 +142,7 @@
 - [x] `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` / `pcolor` / `pcolorfast` — cells rasterised through the image path, edges or centres accepted (`shading`/`norm` accepted but ignored)
 - [x] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)` — 2-D histograms through the image path and hexagonal binning with colormap-mapped cells, including `C=`, `mincnt=` and per-axis `bins`
 - [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` (`baseline="zero"` and `"sym"`)
-- [ ] `quiver(X, Y, U, V)` — vector field arrows
+- [x] `quiver(X, Y, U, V)` — vector field arrows, including the `quiver(U, V)` grid form, `scale`, `pivot` and head sizing
 - [x] `stairs(values, edges=, baseline=, fill=)` — staircase built from bin values and edges, optionally filled to a baseline (`orientation="horizontal"` raises)
 - [x] `eventplot(positions, orientation=, lineoffsets=, linelengths=, colors=, linestyles=)` — one short line per event, one row per positions array; `linewidths` honoured
 - [x] `broken_barh(xranges, yrange, colors=, edgecolor=, alpha=)` — `(start, width)` pairs drawn as bars over a shared y range, edge colour and alpha honoured

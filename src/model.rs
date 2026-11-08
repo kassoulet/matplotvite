@@ -153,6 +153,27 @@ pub(crate) struct Scatter<'py> {
     pub(crate) label: String,
 }
 
+/// One `quiver` call: arrow tails, vector components and styling.
+#[derive(FromPyObject)]
+pub(crate) struct Arrow<'py> {
+    #[pyo3(item)]
+    pub(crate) x: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    pub(crate) y: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    pub(crate) u: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    pub(crate) v: PyReadonlyArray1<'py, f64>,
+    #[pyo3(item)]
+    pub(crate) colors: Vec<String>,
+    #[pyo3(item)]
+    pub(crate) linewidth: f64,
+    #[pyo3(item)]
+    pub(crate) headwidth: f64,
+    #[pyo3(item)]
+    pub(crate) headlength: f64,
+}
+
 /// (x, y, z, levels, colors, colormap, filled).
 pub(crate) type ContourItem<'py> = (
     PyReadonlyArray1<'py, f64>,
@@ -313,6 +334,8 @@ pub(crate) struct Panel<'py> {
     pub(crate) errors: Vec<ErrorItem<'py>>,
     #[pyo3(item)]
     pub(crate) scatter: Vec<Scatter<'py>>,
+    #[pyo3(item)]
+    pub(crate) arrows: Vec<Arrow<'py>>,
     #[pyo3(item)]
     pub(crate) bars: Vec<Bar<'py>>,
     #[pyo3(item)]
