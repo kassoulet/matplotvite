@@ -165,6 +165,29 @@ jobs:
       - name: Verify the installed wheel
         run: python -m pytest -q tests/test_wheel.py
 
+  benchmarks:
+    name: benchmark regression guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Run benchmarks and check the regression budget
+        env:
+          MPLBACKEND: Agg
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install maturin numpy "matplotlib==3.11.2"
+          maturin develop --release
+          python tools/benchmark.py --quick --out dist/benchmarks.json
+          python tools/benchmark_guard.py dist/benchmarks.json tools/benchmark_baseline.json
+
   trace:
     name: coverage trace
     runs-on: ubuntu-latest

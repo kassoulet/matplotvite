@@ -1,0 +1,76 @@
+{
+  "system": {
+    "os": "Linux",
+    "arch": "x86_64",
+    "python_version": "3.13.0",
+    "matplotlib_version": "3.11.2",
+    "plt_rs_version": "0.1.0",
+    "timestamp": "2026-11-08 15:11:35 UTC"
+  },
+  "results": [
+    {
+      "category": "Data Scaling",
+      "name": "Single Line (100 points, PNG)",
+      "points": 100,
+      "rs_ms": 3.19,
+      "mpl_ms": 68.82,
+      "speedup": 21.6
+    },
+    {
+      "category": "Data Scaling",
+      "name": "Single Line (1,000 points, PNG)",
+      "points": 1000,
+      "rs_ms": 4.62,
+      "mpl_ms": 69.76,
+      "speedup": 15.1
+    },
+    {
+      "category": "Data Scaling",
+      "name": "Single Line (10,000 points, PNG)",
+      "points": 10000,
+      "rs_ms": 24.48,
+      "mpl_ms": 73.59,
+      "speedup": 3.0
+    },
+    {
+      "category": "Data Scaling",
+      "name": "Single Line (100,000 points, PNG)",
+      "points": 100000,
+      "rs_ms": 224.51,
+      "mpl_ms": 94.19,
+      "speedup": 0.4
+    },
+    {
+      "category": "Complex Layouts",
+      "name": "Multi-Series (5 lines x 2,000 pts, PNG)",
+      "points": 10000,
+      "rs_ms": 41.98,
+      "mpl_ms": 132.49,
+      "speedup": 3.2
+    },
+    {
+      "category": "Complex Layouts",
+      "name": "Subplots (2x2 grid, PNG)",
+      "points": 4000,
+      "rs_ms": 18.4,
+      "mpl_ms": 140.4,
+      "speedup": 7.6
+    },
+    {
+      "category": "Vector Output",
+      "name": "Vector SVG Export (1,000 pts, SVG)",
+      "points": 1000,
+      "rs_ms": 2.64,
+      "mpl_ms": 67.9,
+      "speedup": 25.7
+    },
+    {
+      "category": "Startup & Process",
+      "name": "Cold CLI Execution (Process start + plot + save)",
+      "points": 1000,
+      "rs_ms": 104.1,
+      "mpl_ms": 538.2,
+      "speedup": 5.2
+    }
+  ]
+}
