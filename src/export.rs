@@ -1,6 +1,12 @@
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::sync::{Mutex, OnceLock};
+
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
+use rayon::prelude::*;
 
 use crate::color::color;
 use crate::draw::draw_panel;
@@ -14,28 +20,6 @@ pub(crate) fn render_pdf(svg: &str, dpi: f64) -> Result<Vec<u8>, String> {
     let tree = svg2pdf::usvg::Tree::from_str(svg, &opts).map_err(|e| e.to_string())?;
     let page = svg2pdf::PageOptions { dpi: dpi as f32 };
     svg2pdf::to_pdf(&tree, svg2pdf::ConversionOptions::default(), page).map_err(|e| e.to_string())
-}
-
-/// Insert overlays right after the SVG's background rect (or the root tag when
-/// the figure is transparent), so embedded images sit behind the axes and
-/// series. All overlays are inserted as one block to preserve their order.
-pub(crate) fn insert_overlays(svg: &str, tags: &[String], has_background: bool) -> String {
-    if tags.is_empty() {
-        return svg.to_string();
-    }
-    let Some(start) = svg.find("<svg") else {
-        return svg.to_string();
-    };
-    let Some(mut at) = svg[start..].find('>').map(|i| start + i + 1) else {
-        return svg.to_string();
-    };
-    let rest = svg[at..].trim_start();
-    if has_background && rest.starts_with("<rect") {
-        if let Some(i) = rest.find("/>") {
-            at += (svg[at..].len() - rest.len()) + i + 2;
-        }
-    }
-    format!("{}\n{}{}", &svg[..at], tags.join("\n"), &svg[at..])
 }
 
 /// The fill used by the rasterised and vector figure background. `None` keeps
@@ -52,57 +36,120 @@ pub(crate) fn figure_background(transparent: bool, facecolor: Option<&str>) -> O
     }
 }
 
-/// Render all panels to an SVG string via plotters.
-pub(crate) fn render_svg(
+/// The body of an SVG document, without its root tag.
+fn svg_body(svg: &str) -> &str {
+    let Some(start) = svg.find('>') else {
+        return "";
+    };
+    let Some(end) = svg.rfind("</svg>") else {
+        return "";
+    };
+    &svg[start + 1..end]
+}
+
+/// Insert a fragment immediately before the closing `</svg>` tag.
+fn append_body(svg: &mut String, body: &str) {
+    if let Some(at) = svg.rfind("</svg>") {
+        svg.insert_str(at, body);
+        svg.insert(at + body.len(), '\n');
+    }
+}
+
+type PanelFragment = (String, Vec<String>);
+type PanelCache = Mutex<HashMap<u64, PanelFragment>>;
+
+static PANEL_CACHE: OnceLock<PanelCache> = OnceLock::new();
+
+/// Draw one panel into a full-size transparent SVG and return its body. Each
+/// fragment uses absolute canvas coordinates, so the bodies can simply be
+/// concatenated in panel order.
+fn panel_fragment(
     size: (u32, u32),
     grid: (usize, usize),
-    panels: &[Panel],
-    background: Option<RGBAColor>,
-    edgecolor: Option<&str>,
+    p: &Panel,
+    top_pad: i32,
+) -> Result<(String, Vec<String>), String> {
+    let (w, h) = size;
+    let mut svg = String::new();
+    let mut overlays = Vec::new();
+    {
+        let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
+        let content = root.margin(top_pad, 0, 0, 0);
+        let cells = content.split_evenly(grid);
+        let gap = if p.twin.is_empty() {
+            0
+        } else {
+            (p.twin_gap * w as f64).round() as i32
+        };
+        match p.bounds {
+            Some((x, y, pw, ph)) => {
+                let left = (x * w as f64).round() as i32;
+                let top = ((1.0 - y - ph) * h as f64).round() as i32;
+                let right = (w as f64 - (x + pw) * w as f64).round() as i32;
+                let bottom = (y * h as f64).round() as i32;
+                let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
+                draw_panel(&area, p, &mut overlays, gap).map_err(|e| e.to_string())?;
+            }
+            None => draw_panel(
+                cells.get(p.pos).ok_or("subplot index out of range")?,
+                p,
+                &mut overlays,
+                gap,
+            )
+            .map_err(|e| e.to_string())?,
+        }
+        root.present().map_err(|e| e.to_string())?;
+    }
+    Ok((svg_body(&svg).to_string(), overlays))
+}
+
+fn fragment_key(size: (u32, u32), grid: (usize, usize), p: &Panel, top_pad: i32) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    p.cache_key.hash(&mut hasher);
+    size.hash(&mut hasher);
+    grid.hash(&mut hasher);
+    top_pad.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Reuse the encoded/drawn fragment of an unchanged panel; only dirty panels
+/// are handed back to the drawing code (and to Rayon).
+fn cached_panel_fragment(
+    size: (u32, u32),
+    grid: (usize, usize),
+    p: &Panel,
+    top_pad: i32,
+) -> Result<PanelFragment, String> {
+    if p.cache_key.is_empty() {
+        return panel_fragment(size, grid, p, top_pad);
+    }
+    let key = fragment_key(size, grid, p, top_pad);
+    let cache = PANEL_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Ok(guard) = cache.lock() {
+        if let Some(fragment) = guard.get(&key) {
+            return Ok(fragment.clone());
+        }
+    }
+    let fragment = panel_fragment(size, grid, p, top_pad)?;
+    if let Ok(mut guard) = cache.lock() {
+        if guard.len() >= 256 {
+            guard.clear();
+        }
+        guard.insert(key, fragment.clone());
+    }
+    Ok(fragment)
+}
+
+/// Figure-level decorations (title and border), drawn after all panels.
+fn decoration_fragment(
+    size: (u32, u32),
     suptitle: Option<Suptitle>,
+    edgecolor: Option<&str>,
 ) -> Result<String, String> {
     let (w, h) = size;
     let mut svg = String::new();
-    let mut overlays: Vec<String> = Vec::new();
     {
-        let root = SVGBackend::with_string(&mut svg, (w, h)).into_drawing_area();
-        // A transparent figure gets no background rect at all, so the SVG (and the
-        // PNG rasterised from it) keeps alpha where nothing was drawn.
-        if let Some(bg) = background {
-            root.fill(&bg).map_err(|e| e.to_string())?;
-        }
-        // A figure title reserves a band at the top so it never overlaps the
-        // first row of panels.
-        let top_pad = suptitle
-            .as_ref()
-            .map(|s| (s.size * 1.6).round() as i32 + 8)
-            .unwrap_or(0);
-        let content = root.margin(top_pad, 0, 0, 0);
-        let cells = content.split_evenly(grid);
-        for p in panels {
-            let gap = if p.twin.is_empty() {
-                0
-            } else {
-                (p.twin_gap * w as f64).round() as i32
-            };
-            match p.bounds {
-                Some((x, y, pw, ph)) => {
-                    let left = (x * w as f64).round() as i32;
-                    let top = ((1.0 - y - ph) * h as f64).round() as i32;
-                    let right = (w as f64 - (x + pw) * w as f64).round() as i32;
-                    let bottom = (y * h as f64).round() as i32;
-                    let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
-                    draw_panel(&area, p, &mut overlays, gap).map_err(|e| e.to_string())?;
-                }
-                None => draw_panel(
-                    cells.get(p.pos).ok_or("subplot index out of range")?,
-                    p,
-                    &mut overlays,
-                    gap,
-                )
-                .map_err(|e| e.to_string())?,
-            }
-        }
+        let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
         if let Some(s) = suptitle {
             let style = ("sans-serif", s.size.max(6.0).round() as u32)
                 .into_font()
@@ -123,7 +170,57 @@ pub(crate) fn render_svg(
         }
         root.present().map_err(|e| e.to_string())?;
     }
-    Ok(insert_overlays(&svg, &overlays, background.is_some()))
+    Ok(svg_body(&svg).to_string())
+}
+
+/// A root SVG containing only the figure background; panels are inserted later.
+fn background_fragment(size: (u32, u32), background: Option<RGBAColor>) -> Result<String, String> {
+    let mut svg = String::new();
+    {
+        let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
+        if let Some(bg) = background {
+            root.fill(&bg).map_err(|e| e.to_string())?;
+        }
+        root.present().map_err(|e| e.to_string())?;
+    }
+    Ok(svg)
+}
+
+/// Render all panels to an SVG string via plotters. Independent panels are
+/// rasterised/drawn concurrently with Rayon and concatenated in panel order.
+pub(crate) fn render_svg(
+    size: (u32, u32),
+    grid: (usize, usize),
+    panels: &[Panel],
+    background: Option<RGBAColor>,
+    edgecolor: Option<&str>,
+    suptitle: Option<Suptitle>,
+) -> Result<String, String> {
+    // A figure title reserves a band at the top so it never overlaps the first
+    // row of panels.
+    let top_pad = suptitle
+        .as_ref()
+        .map(|s| (s.size * 1.6).round() as i32 + 8)
+        .unwrap_or(0);
+    let fragments: Vec<(String, Vec<String>)> = panels
+        .par_iter()
+        .map(|p| cached_panel_fragment(size, grid, p, top_pad))
+        .collect::<Result<_, String>>()?;
+    let (bodies, overlays): (Vec<String>, Vec<Vec<String>>) = fragments.into_iter().unzip();
+    let overlays: Vec<String> = overlays.into_iter().flatten().collect();
+
+    let mut svg = background_fragment(size, background)?;
+    for body in bodies {
+        append_body(&mut svg, &body);
+    }
+    for overlay in overlays {
+        append_body(&mut svg, &overlay);
+    }
+    if suptitle.is_some() || edgecolor.is_some() {
+        let decorations = decoration_fragment(size, suptitle, edgecolor)?;
+        append_body(&mut svg, &decorations);
+    }
+    Ok(svg)
 }
 
 /// Rasterise an SVG string via resvg + tiny-skia.
@@ -171,6 +268,15 @@ pub(crate) fn encode_png(
         writer.write_image_data(&rgba)?;
     }
     Ok(out)
+}
+
+/// Encode a pixmap as lossless WebP, matching the PNG alpha handling.
+pub(crate) fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String> {
+    let copy = pixmap.to_owned();
+    let rgba = copy.take_demultiplied();
+    let encoded =
+        webp::Encoder::from_rgba(&rgba, pixmap.width(), pixmap.height()).encode_lossless();
+    Ok(encoded.to_vec())
 }
 
 type Bbox = (u32, u32, u32, u32); // x, y, width, height

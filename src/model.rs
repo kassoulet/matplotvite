@@ -296,6 +296,9 @@ pub(crate) struct Grid {
 
 #[derive(FromPyObject)]
 pub(crate) struct Panel<'py> {
+    /// Fingerprint from the Python layer; empty disables the fragment cache.
+    #[pyo3(item)]
+    pub(crate) cache_key: String,
     #[pyo3(item)]
     pub(crate) pos: usize, // row-major cell index
     #[pyo3(item)]
@@ -374,6 +377,11 @@ pub(crate) struct Panel<'py> {
     #[pyo3(item)]
     pub(crate) collections: Vec<ArtistCollection>,
 }
+
+// Panels are read concurrently by Rayon during SVG assembly. The Python GIL is
+// held for the whole `render` call and every array in a panel is an immutable
+// readonly view, so sharing the panel between render threads is safe.
+unsafe impl Sync for Panel<'_> {}
 
 /// A patch added through `add_patch`, reduced to simple data-space geometry.
 #[derive(FromPyObject)]

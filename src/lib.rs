@@ -1,3 +1,4 @@
+mod cmap_data;
 mod color;
 mod draw;
 mod export;
@@ -10,8 +11,8 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
 use crate::export::{
-    background_pixel, content_bbox, crop_pixmap, encode_png, figure_background, rasterize,
-    render_pdf, render_svg, svg_tight,
+    background_pixel, content_bbox, crop_pixmap, encode_png, encode_webp, figure_background,
+    rasterize, render_pdf, render_svg, svg_tight,
 };
 use crate::fonts::register_plotters_fonts;
 use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
@@ -63,9 +64,9 @@ fn render(
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }
     let fmt = format.to_ascii_lowercase();
-    if !matches!(fmt.as_str(), "png" | "svg" | "pdf") {
+    if !matches!(fmt.as_str(), "png" | "svg" | "pdf" | "webp") {
         return Err(PyValueError::new_err(format!(
-            "unsupported format: {format:?} (use 'png', 'svg', or 'pdf')"
+            "unsupported format: {format:?} (use 'png', 'svg', 'pdf', or 'webp')"
         )));
     }
     let compression = match compression {
@@ -119,8 +120,12 @@ fn render(
             Some(bbox) => crop_pixmap(&pixmap, bbox).map_err(|e| err(&e))?,
             None => pixmap,
         };
-        encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast))
-            .map_err(|e| err(&e.to_string()))
+        if fmt == "webp" {
+            encode_webp(&pixmap).map_err(|e| err(&e))
+        } else {
+            encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast))
+                .map_err(|e| err(&e.to_string()))
+        }
     }
 }
 
@@ -144,6 +149,12 @@ mod tests {
         let info = reader.next_frame(&mut buf).unwrap();
         buf.truncate(info.buffer_size());
         (info.width, info.height, buf)
+    }
+
+    #[test]
+    fn panels_can_be_shared_between_render_threads() {
+        fn assert_sync<T: Sync>() {}
+        assert_sync::<Panel<'static>>();
     }
 
     #[test]

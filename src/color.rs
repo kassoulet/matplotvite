@@ -1,5 +1,7 @@
 use plotters::prelude::RGBAColor;
 
+use crate::cmap_data::lookup;
+
 /// Parse a normalised colour (`#rgb`, `#rrggbb`, `#rrggbbaa`) or a legacy name.
 /// "none"/"transparent" become fully transparent so callers can draw them
 /// without special-casing.
@@ -46,32 +48,32 @@ pub(crate) fn color(s: &str) -> RGBAColor {
     }
 }
 
-/// Minimal colormaps; unknown names fall back to viridis.
+/// One matplotlib colormap lookup; `_r` names reverse the sampled LUT.
+/// Unknown names fall back to viridis, matching the previous behaviour.
 pub(crate) fn colormap(name: &str, t: f64) -> [u8; 4] {
+    let (base, reversed) = match name.strip_suffix("_r") {
+        Some(base) => (base, true),
+        None => (name, false),
+    };
+    let def = lookup(base)
+        .or_else(|| lookup("viridis"))
+        .expect("viridis is part of the registry");
+    let n = def.colors.len();
+    if n == 0 {
+        return [0, 0, 0, 255];
+    }
     let t = if t.is_finite() {
         t.clamp(0.0, 1.0)
     } else {
         0.0
     };
-    if name.eq_ignore_ascii_case("gray") || name.eq_ignore_ascii_case("grey") {
-        let v = (t * 255.0).round() as u8;
-        return [v, v, v, 255];
+    let mut index = (t * n as f64) as usize;
+    if index >= n {
+        index = n - 1;
     }
-    const VIRIDIS: [[u8; 3]; 9] = [
-        [68, 1, 84],
-        [72, 40, 120],
-        [62, 74, 137],
-        [49, 104, 142],
-        [38, 130, 142],
-        [31, 158, 137],
-        [53, 183, 121],
-        [109, 205, 89],
-        [253, 231, 37],
-    ];
-    let pos = t * (VIRIDIS.len() - 1) as f64;
-    let i = (pos.floor() as usize).min(VIRIDIS.len() - 2);
-    let f = pos - i as f64;
-    let (a, b) = (VIRIDIS[i], VIRIDIS[i + 1]);
-    let mix = |k: usize| (a[k] as f64 + (b[k] as f64 - a[k] as f64) * f).round() as u8;
-    [mix(0), mix(1), mix(2), 255]
+    if reversed {
+        index = n - 1 - index;
+    }
+    let color = def.colors[index];
+    [color[0], color[1], color[2], 255]
 }
