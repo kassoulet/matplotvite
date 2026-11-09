@@ -343,21 +343,23 @@ pub(crate) fn content_bbox(
     let data = pixmap.data();
     let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0u32, 0u32);
     let mut found = false;
-    for y in 0..h {
-        for x in 0..w {
-            let i = ((y * w + x) * 4) as usize;
-            let px = &data[i..i + 4];
+    for (y, row) in data.chunks_exact(w as usize * 4).enumerate() {
+        let mut row_found = false;
+        for (x, px) in row.chunks_exact(4).enumerate() {
             let drawn = match background {
                 None => px[3] != 0,
-                Some(bg) => px[..4] != bg,
+                Some(bg) => px != bg.as_slice(),
             };
             if drawn {
-                found = true;
-                x0 = x0.min(x);
-                y0 = y0.min(y);
-                x1 = x1.max(x);
-                y1 = y1.max(y);
+                row_found = true;
+                x0 = x0.min(x as u32);
+                x1 = x1.max(x as u32);
             }
+        }
+        if row_found {
+            found = true;
+            y0 = y0.min(y as u32);
+            y1 = y as u32;
         }
     }
     found.then(|| (x0, y0, x1 - x0 + 1, y1 - y0 + 1))
@@ -370,12 +372,14 @@ pub(crate) fn crop_pixmap(
 ) -> Result<tiny_skia::Pixmap, String> {
     let mut out = tiny_skia::Pixmap::new(bw, bh).ok_or("failed to allocate pixmap")?;
     let (src, sw) = (pixmap.data(), pixmap.width());
-    for y in 0..bh {
-        for x in 0..bw {
-            let s = (((by + y) * sw + (bx + x)) * 4) as usize;
-            let d = ((y * bw + x) * 4) as usize;
-            out.data_mut()[d..d + 4].copy_from_slice(&src[s..s + 4]);
-        }
+    let src_stride = sw as usize * 4;
+    let dst_stride = bw as usize * 4;
+    let x_offset = bx as usize * 4;
+    let dst = out.data_mut();
+    for y in 0..bh as usize {
+        let s = (by as usize + y) * src_stride + x_offset;
+        let d = y * dst_stride;
+        dst[d..d + dst_stride].copy_from_slice(&src[s..s + dst_stride]);
     }
     Ok(out)
 }
