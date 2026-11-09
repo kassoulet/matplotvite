@@ -757,7 +757,7 @@ fn tick_label(v: f64) -> String {
         return "0".to_string();
     }
     let a = v.abs();
-    if !(1e-3..1e5).contains(&a) {
+    if a >= 1e5 || a < 1e-3 {
         format!("{v:.2e}")
     } else {
         format!("{v:.4}")
@@ -770,7 +770,7 @@ fn tick_label(v: f64) -> String {
 /// Tick label for a log coordinate: base^v written as a plain number.
 fn log_label(v: f64, base: f64) -> String {
     let value = base.powf(v);
-    if !(1e-4..1e5).contains(&value) {
+    if value >= 1e5 || value < 1e-4 {
         format!("{value:.0e}")
     } else {
         format!("{value:.4}")

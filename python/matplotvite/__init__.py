@@ -371,26 +371,13 @@ class _TextLabel:
 
 
 def _span(values):
-    """Same padding rule as the Rust renderer: a flat series gets a unit window.
-
-    Optimized with NumPy vectorized min/max to avoid Python list-comprehension
-    overhead on large series (e.g. 10k-100k points), with fallback for mixed types.
-    """
-    try:
-        arr = np.asarray(values, dtype=float).ravel()
-        arr = arr[np.isfinite(arr)]
-        if not arr.size:
-            return (0.0, 1.0)
-        lo = float(np.min(arr))
-        hi = float(np.max(arr))
-        return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
-    except (TypeError, ValueError):
-        vals = [float(v) for v in values]
-        vals = [v for v in vals if np.isfinite(v)]
-        if not vals:
-            return (0.0, 1.0)
-        lo, hi = min(vals), max(vals)
-        return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
+    """Same padding rule as the Rust renderer: a flat series gets a unit window."""
+    vals = [float(v) for v in values]
+    vals = [v for v in vals if np.isfinite(v)]
+    if not vals:
+        return (0.0, 1.0)
+    lo, hi = min(vals), max(vals)
+    return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 
 
 def _looks_like_categories(values):
@@ -1141,16 +1128,20 @@ class Axes:
     def get_xlim(self):
         if self._share_x is not None:
             lo, hi = self._share_x.limits or self._share_x.union("x")
+        elif self.xlim is not None:
+            lo, hi = self.xlim
         else:
-            lo, hi = self.xlim or self._extent_x()
-        return _log_bounds(lo, hi, self.xscale, self._extent_x())
+            lo, hi = self._extent_x()
+        return _log_bounds(lo, hi, self.xscale, (lambda: self._extent_x()))
 
     def get_ylim(self):
         if self._share_y is not None:
             lo, hi = self._share_y.limits or self._share_y.union("y")
+        elif self.ylim is not None:
+            lo, hi = self.ylim
         else:
-            lo, hi = self.ylim or self._extent_y()
-        return _log_bounds(lo, hi, self.yscale, self._extent_y())
+            lo, hi = self._extent_y()
+        return _log_bounds(lo, hi, self.yscale, (lambda: self._extent_y()))
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
 
@@ -2752,11 +2743,15 @@ def _parse_fmt(fmt):
 
 def _log_bounds(lo, hi, scale, extent):
     """Log axes can only cover positive data; the lower bound climbs to the
-    smallest positive sample when the data crosses zero."""
+    smallest positive sample when the data crosses zero.
+
+    Avoids evaluating extent if scale is not 'log'.
+    """
     lo, hi = float(lo), float(hi)
     if scale != "log":
         return (lo, hi)
-    positive = [float(v) for v in extent if v > 0]
+    extent_vals = extent() if callable(extent) else extent
+    positive = [float(v) for v in extent_vals if v > 0]
     lo = max(lo, min(positive)) if positive else 1e-10
     if hi <= lo:
         hi = lo * 10.0

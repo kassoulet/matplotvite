@@ -1,5 +1,5 @@
 # Bolt's Journal
 
-## 2026-03-30 - Vectorizing axis limit spans
-**Learning:** Matplotvite computes limits in Python (`_extent_x` and `_extent_y`) by calling `_span()` on flattened data points. For large series (10k-100k points), pure-Python list comprehensions (`[float(v) for v in values]` and filtering `np.isfinite`) created severe CPU bottlenecks and GC pressure, taking up over 85% of total savefig time. Vectorizing `_span()` with `np.asarray` and `np.isfinite` yields up to 37x faster span evaluation and brings 100k points PNG render from 554ms down to 64ms (speedup 0.4x -> 3.1x vs matplotlib).
-**Action:** When computing summary bounds, min/max, or extents over plot inputs, always leverage NumPy vectorization instead of Python iteration/comprehensions.
+## 2026-03-30 - Lazy evaluation of axes extent in get_xlim/get_ylim
+**Learning:** `get_xlim` and `get_ylim` repeatedly evaluated `_extent_x()` and `_extent_y()` even for linear scales and explicit limits. In `_log_bounds`, `extent` was always passed as an eagerly computed argument even though log adjustments only apply when `scale == "log"`. In addition, `self.xlim or self._extent_x()` caused double-evaluation of `_extent_x()`. Passing `extent` as a lazy callable cuts redundant full-series extent scans in half, consistently improving SVG export, multi-series, subplots, and line benchmarks without modifying shared data layout.
+**Action:** When calculating bounds and limits that depend on conditional properties (e.g. log scale vs linear scale), compute expensive extents lazily rather than eagerly passing them.
