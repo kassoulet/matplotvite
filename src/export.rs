@@ -45,14 +45,6 @@ fn svg_body(svg: &str) -> &str {
     &svg[start + 1..end]
 }
 
-/// Insert a fragment immediately before the closing `</svg>` tag.
-fn append_body(svg: &mut String, body: &str) {
-    if let Some(at) = svg.rfind("</svg>") {
-        svg.insert_str(at, body);
-        svg.insert(at + body.len(), '\n');
-    }
-}
-
 type PanelFragment = (String, Vec<String>);
 
 /// A full SVG fragment can be megabytes for a dense scatter, so entry count
@@ -282,18 +274,31 @@ pub(crate) fn render_svg(
         .collect::<Result<_, String>>()?;
     let (bodies, overlays): (Vec<String>, Vec<Vec<String>>) = fragments.into_iter().unzip();
     let overlays: Vec<String> = overlays.into_iter().flatten().collect();
+    let decorations = if suptitle.is_some() || edgecolor.is_some() {
+        Some(decoration_fragment(size, suptitle, edgecolor, dpi)?)
+    } else {
+        None
+    };
 
-    let mut svg = background_fragment(size, background)?;
-    for body in bodies {
-        append_body(&mut svg, &body);
+    // Build the document in one pass. Inserting each fragment before
+    // `</svg>` shifted the whole tail once per panel and overlay.
+    let body = background_fragment(size, background)?;
+    let insert_at = body
+        .rfind("</svg>")
+        .ok_or("rendered SVG has no closing tag")?;
+    let extra = bodies.iter().map(String::len).sum::<usize>()
+        + overlays.iter().map(String::len).sum::<usize>()
+        + decorations.as_ref().map_or(0, String::len)
+        + bodies.len()
+        + overlays.len()
+        + if decorations.is_some() { 1 } else { 0 };
+    let mut svg = String::with_capacity(body.len() + extra);
+    svg.push_str(&body[..insert_at]);
+    for part in bodies.iter().chain(&overlays).chain(decorations.iter()) {
+        svg.push_str(part);
+        svg.push('\n');
     }
-    for overlay in overlays {
-        append_body(&mut svg, &overlay);
-    }
-    if suptitle.is_some() || edgecolor.is_some() {
-        let decorations = decoration_fragment(size, suptitle, edgecolor, dpi)?;
-        append_body(&mut svg, &decorations);
-    }
+    svg.push_str(&body[insert_at..]);
     Ok(svg)
 }
 
