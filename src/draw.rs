@@ -534,6 +534,14 @@ where
     Ok(())
 }
 
+/// Largest marker radius drawn; a bad `s` value should not ask the backend
+/// to build an arbitrarily large path.
+const MAX_MARKER_RADIUS: f64 = 4096.0;
+
+fn marker_radius(area: f64) -> f64 {
+    (area.max(0.0).sqrt() / 2.0 * 1.39).clamp(1.0, MAX_MARKER_RADIUS)
+}
+
 /// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
 fn draw_marker<DB: DrawingBackend, C: Color>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
@@ -675,7 +683,7 @@ where
 fn contour_segments(x: &[f64], y: &[f64], z: &[f64], level: f64) -> Vec<((f64, f64), (f64, f64))> {
     let (rows, cols) = (y.len(), x.len());
     let mut out = Vec::new();
-    if rows < 2 || cols < 2 || z.len() != rows * cols {
+    if rows < 2 || cols < 2 || rows.checked_mul(cols) != Some(z.len()) {
         return out;
     }
     let at = |i: usize, j: usize| z[i * cols + j];
@@ -1167,7 +1175,7 @@ where
             let ys: Vec<f64> = y.as_array().iter().copied().collect();
             let zs: Vec<f64> = z.as_array().iter().copied().collect();
             let (rows, cols) = (ys.len(), xs.len());
-            if rows < 2 || cols < 2 || zs.len() != rows * cols {
+            if rows < 2 || cols < 2 || rows.checked_mul(cols) != Some(zs.len()) {
                 continue;
             }
             let bands = levels.len() - 1;
@@ -1515,7 +1523,7 @@ where
                     .copied()
                     .unwrap_or(36.0)
                     .max(0.0);
-                let r = (size.sqrt() / 2.0 * 1.39).max(1.0);
+                let r = marker_radius(size);
                 let col = if coll.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
@@ -1662,7 +1670,7 @@ where
                 Some(a) => color(name).mix(a.clamp(0.0, 1.0)),
                 None => color(name).mix(1.0),
             };
-            let r = (s.markersize / 2.0 * 1.39).max(1.0);
+            let r = marker_radius(s.markersize * s.markersize);
             let stroke = s.mew.max(1.0).round() as u32;
             let chart_area = chart.plotting_area();
             for (xv, yv) in xs.iter().zip(ys.iter()) {
@@ -1756,7 +1764,7 @@ where
                 let (cx, cy) = chart_area.map_coordinate(&(tx(xs[i]), ty(ys[i])));
                 // matplotlib's `s` is an area in points^2; ~1.39 px/pt at 100 dpi.
                 let sz = sizes.get(i).copied().unwrap_or(36.0).max(0.0);
-                let r = (sz.sqrt() / 2.0 * 1.39).max(1.0);
+                let r = marker_radius(sz);
                 let col = if !sc.colors.is_empty() {
                     color(&sc.colors[i % sc.colors.len()])
                 } else if let Some(v) = &values {
@@ -1829,7 +1837,7 @@ where
             let ys: Vec<f64> = y.as_array().iter().copied().collect();
             let zs: Vec<f64> = z.as_array().iter().copied().collect();
             let (rows, cols) = (ys.len(), xs.len());
-            if rows < 2 || cols < 2 || zs.len() != rows * cols {
+            if rows < 2 || cols < 2 || rows.checked_mul(cols) != Some(zs.len()) {
                 continue;
             }
             let n = levels.len() as f64;
