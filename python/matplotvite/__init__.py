@@ -371,7 +371,10 @@ class _TextLabel:
 
 
 def _span(values):
-    """Same padding rule as the Rust renderer: a flat series gets a unit window."""
+    """A flat series is widened so its extent is never degenerate.
+
+    The Rust renderer applies Matplotlib's autoscale margin on top of this.
+    """
     vals = np.asarray(values, dtype=float).ravel()
     vals = vals[np.isfinite(vals)]
     if vals.size == 0:

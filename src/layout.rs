@@ -24,20 +24,24 @@ pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
 }
 
 /// Matplotlib's default 5% autoscale margin on each side of the data range.
-/// Flat data needs a non-zero width; the offset is 5% of the value, or one
-/// unit around zero.
+///
+/// Mirrors `matplotlib.transforms.nonsingular` followed by the margin
+/// expansion in `Axes.autoscale_view`: a degenerate range is first widened by
+/// 5% of its magnitude (or to `[-0.05, 0.05]` at zero), then the usual 5%
+/// margin is applied to the resulting span.
 pub(crate) fn padded_range(lo: f64, hi: f64) -> (f64, f64) {
     const MARGIN: f64 = 0.05;
     if !lo.is_finite() || !hi.is_finite() {
         return (0.0, 1.0);
     }
-    if lo == hi {
-        let pad = if lo == 0.0 { 1.0 } else { lo.abs() * MARGIN };
-        (lo - pad, lo + pad)
-    } else {
-        let pad = (hi - lo) * MARGIN;
+    let (lo, hi) = if lo == hi {
+        let pad = if lo == 0.0 { MARGIN } else { lo.abs() * MARGIN };
         (lo - pad, hi + pad)
-    }
+    } else {
+        (lo, hi)
+    };
+    let pad = (hi - lo) * MARGIN;
+    (lo - pad, hi + pad)
 }
 
 /// Data ranges for a panel: series values plus image extents, unless pinned.
@@ -197,8 +201,12 @@ mod tests {
 
     #[test]
     fn padded_range_expands_flat_data_symmetrically() {
-        assert_eq!(padded_range(0.0, 0.0), (-1.0, 1.0));
+        // Matplotlib widens the degenerate interval first, then adds the margin.
+        let (lo, hi) = padded_range(0.0, 0.0);
+        assert!((lo + 0.055).abs() < 1e-12 && (hi - 0.055).abs() < 1e-12);
         let (lo, hi) = padded_range(5.0, 5.0);
-        assert!((lo - 4.75).abs() < 1e-12 && (hi - 5.25).abs() < 1e-12);
+        assert!((lo - 4.725).abs() < 1e-12 && (hi - 5.275).abs() < 1e-12);
+        let (lo, hi) = padded_range(-5.0, -5.0);
+        assert!((lo + 5.275).abs() < 1e-12 && (hi + 4.725).abs() < 1e-12);
     }
 }
