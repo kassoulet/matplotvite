@@ -516,6 +516,26 @@ def _date_ticks(lo, hi):
 DPI = 100
 _FORMATS = ("png", "svg", "pdf", "webp")
 _COMPRESSIONS = ("fast", "default", "best")
+_MAX_CANVAS_DIM = 32768
+_MAX_CANVAS_AREA = 268435456  # 2^28 pixels (~1 GB RGBA raw buffer limit)
+
+
+def _validate_dimension(val, name):
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a real number, got {val!r}") from None
+    if not _math.isfinite(v) or v <= 0.0:
+        raise ValueError(f"{name} must be positive and finite, got {val!r}")
+    return v
+
+
+def _validate_figsize(figsize):
+    if not isinstance(figsize, (tuple, list, np.ndarray)) or len(figsize) != 2:
+        raise ValueError(f"figsize must be a sequence of 2 positive numbers, got {figsize!r}")
+    w = _validate_dimension(figsize[0], "figsize width")
+    h = _validate_dimension(figsize[1], "figsize height")
+    return (w, h)
 
 
 def _output_format(filepath, format):
@@ -3193,9 +3213,12 @@ class Colorbar:
 
 class Figure:
     def __init__(self, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None):
-        self.figsize, self.grid, self.axes, self._cur = figsize, (1, 1), [], None
+        self.figsize = _validate_figsize(figsize)
+        self.grid, self.axes, self._cur = (1, 1), [], None
         self._colorbar = None
-        self.dpi = float(dpi if dpi is not None else rcParams.get("figure.dpi", DPI))
+        self.dpi = _validate_dimension(
+            dpi if dpi is not None else rcParams.get("figure.dpi", DPI), "dpi"
+        )
         self.facecolor = _norm_color(
             facecolor if facecolor is not None else rcParams.get("figure.facecolor"))
         self.edgecolor = _norm_color(edgecolor)
@@ -3298,7 +3321,7 @@ class Figure:
     def set_size_inches(self, width, height=None):
         if height is None:
             width, height = width
-        self.figsize = (float(width), float(height))
+        self.figsize = _validate_figsize((width, height))
 
     def colorbar(self, mappable=None, ax=None, label=""):
         """Reserve a strip beside the single axes showing `mappable`'s scale."""
@@ -3348,7 +3371,7 @@ class Figure:
         pixel size and `bbox_inches="tight"` crops to the drawn content.
         `compression` selects PNG compression: "fast" (default), "default",
         or "best"."""
-        dpi = float(dpi or self.dpi or DPI)
+        dpi = _validate_dimension(dpi if dpi is not None else (self.dpi or DPI), "dpi")
         if compression is not None:
             compression = str(compression).lower()
             if compression not in _COMPRESSIONS:
@@ -3359,7 +3382,18 @@ class Figure:
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
         fmt = _output_format(filepath, format)
-        w, h = (round(v * dpi) for v in self.figsize)
+        rw, rh = (round(v * dpi) for v in self.figsize)
+        if rw < 1 or rh < 1:
+            raise ValueError(f"figure dimensions ({rw}x{rh}) must be at least 1x1 pixels")
+        if rw > _MAX_CANVAS_DIM or rh > _MAX_CANVAS_DIM:
+            raise ValueError(
+                f"figure dimension ({rw}x{rh}) exceeds maximum allowed dimension of {_MAX_CANVAS_DIM}px"
+            )
+        if rw * rh > _MAX_CANVAS_AREA:
+            raise ValueError(
+                f"total figure pixel count ({rw * rh}) exceeds maximum allowed ({_MAX_CANVAS_AREA}px)"
+            )
+        w, h = rw, rh
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
         if self._colorbar is not None:
             panels.append(self._colorbar_panel())
