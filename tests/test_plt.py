@@ -1991,6 +1991,19 @@ def test_add_collection_renders_offsets(tmp_path):
     assert "#0000FF" in svg and "#FF0000" in svg
 
 
+def test_dense_collection_uses_raster_layer_only_for_raster_output(tmp_path):
+    rng = np.random.default_rng(11)
+    offsets = rng.normal(size=(5000, 2))
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.add_collection(_FakeCollection(offsets, [(0, 0, 1, 1)], [16]))
+    png = fig.savefig(None, format="png")
+    svg = fig.savefig(None, format="svg")
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    # SVG stays vector, and the raster PNG must not reuse its cached fragment.
+    assert svg.lower().count(b"<circle") >= 5000
+    assert len(png) * 4 < len(svg)
+
+
 def test_window_extent_accounts_for_labels_and_title():
     fig, ax = plt.subplots(figsize=(4, 3), dpi=100)
     ax.plot([0, 1], [0, 1])

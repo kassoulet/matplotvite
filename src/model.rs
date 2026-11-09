@@ -469,4 +469,10 @@ pub(crate) struct Band<'py> {
     pub(crate) alpha: Option<f64>,
     #[pyo3(item)]
     pub(crate) label: String,
+    /// Number of closed rings packed into `x`/`y`; zero means one polygon.
+    #[pyo3(item)]
+    pub(crate) cells: usize,
+    /// Six hex digits per cell when `cells > 0` (hexbin's per-cell colours).
+    #[pyo3(item)]
+    pub(crate) cell_colors: String,
 }

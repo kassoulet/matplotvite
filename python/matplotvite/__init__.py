@@ -1981,10 +1981,17 @@ class Axes:
         colors = _cmap_colors(cmap, t)
         radius = width / np.sqrt(3.0)
         angles = np.deg2rad(90.0 + 60.0 * np.arange(6))
-        for k, color in zip(shown, colors):
-            cx, cy = centers[k]
-            self.bands.append(_band(cx + radius * np.cos(angles),
-                                    cy + radius * np.sin(angles), color, alpha))
+        # Build every hexagon in one array and keep the cells in a single band:
+        # one dict per cell dominates hexbin's Python time and cache-key hashing.
+        sel = centers[shown]
+        xs = (sel[:, 0:1] + radius * np.cos(angles)).ravel()
+        ys = (sel[:, 1:2] + radius * np.sin(angles)).ravel()
+        self.bands.append(dict(
+            x=np.ascontiguousarray(xs), y=np.ascontiguousarray(ys),
+            color="#000000", alpha=None if alpha is None else float(alpha), label="",
+            cells=int(shown.size),
+            cell_colors="".join(c[1:] for c in colors),
+        ))
         return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
     def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
@@ -2801,7 +2808,8 @@ def _as_f64(v):
 
 def _band(xs, ys, color, alpha, label=""):
     return dict(x=_as_f64(xs), y=_as_f64(ys), color=_norm_color(color),
-                alpha=None if alpha is None else float(alpha), label=str(label))
+                alpha=None if alpha is None else float(alpha), label=str(label),
+                cells=0, cell_colors="")
 
 
 def _runs(x, y1, y2, where):

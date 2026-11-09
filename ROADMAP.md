@@ -9,7 +9,8 @@
 ## Release status
 
 - **Current version: 0.5.0** — milestones 0.1 through 0.5 are complete.
-- 0.6 (3-D and polar axes) is optional and unscheduled; the colormap work is already shipped.
+- **0.6** targets performance and visual fidelity; see the section below.
+- Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
 
 ---
 
@@ -181,7 +182,7 @@
 ### 0.5.5 Performance
 - [x] Parallel subplot rendering with **Rayon** (independent panels rendered concurrently)
 - [x] Incremental re-render: cache unchanged panels, only redraw dirty ones
-- [x] Comparison benchmark suite in CI (21 workloads) with a 30% regression guard
+- [x] Comparison benchmark suite in CI (25 workloads) with a 30% regression guard
 - [x] Criterion benchmarks for the Rust output stages (rasterize, PNG, WebP, PDF)
 
 ---
@@ -193,18 +194,44 @@
 
 ---
 
-## 0.6 — 3-D & specialty  *(optional, long-term)*
+## 🎯 0.6 — Performance & fidelity
 
-- [ ] `Axes3D`: `plot_surface`, `scatter3D`, `plot3D`, `contourf3d`
-- [ ] Polar axes (`polar=True`, `plt.polar()`)
-- [ ] `subplot_mosaic` with mixed 2-D / 3-D panels
-- [x] `imshow` colormaps beyond viridis/gray (all 182 matplotlib names, including reversals)
+> Goal: widen the speed gap and tighten visual parity without giving up vector output.
+> Target: no workload below 4× matplotlib and a tracked gallery pixel-diff budget.
+
+### Performance
+- [ ] Render PNG/WebP panels directly instead of building and re-parsing an SVG
+- [ ] Extend raster marker layers to every marker source (series markers, error bars, collections)
+- [ ] Collapse filled-contour bands into a few boundary polygons instead of per-cell runs
+- [ ] Share cached panel fragments across figures with identical content
+- [ ] Add a Criterion budget gate alongside the end-to-end benchmark guard
+
+### Fidelity
+- [ ] Pixel-diff the gallery against Matplotlib and track a per-snippet mismatch metric
+- [ ] Match marker shapes, dash patterns and cap/join styles exactly
+- [ ] Honour `imshow(interpolation=, alpha=)` and `contour(linewidths=, alpha=)`
+- [ ] Use real glyph metrics for text alignment, rotation and legend packing
+- [ ] Verify alpha compositing and colour conversion against Matplotlib
+
+---
+
+## 🔮 Later — Interactive & GUI (GPUI)
+
+> Planned after 0.6: an optional interactive window built on GPUI. The static
+> renderer and the default wheel stay headless and dependency-free.
+
+- [ ] Separate, feature-gated crate (for example `matplotvite-gpui`) so the base wheel never links a GUI toolkit
+- [ ] GPUI window with panning, zooming, hover readouts and legend toggles
+- [ ] Incremental redraws from the Rust drawing model without rebuilding Python state
+- [ ] Reuse the panel layout, colour and marker code; only the presentation backend changes
+- [ ] GPU-backed preview for large series, with `savefig` remaining the source of truth for output
+- [ ] `plt.show()` opens the GPUI window when it is installed and stays a no-op otherwise
 
 ---
 
 ## Out of scope (forever)
 
-Interactive display windows, `plt.show()` opening a GUI, animation (`FuncAnimation`), widgets, GUI backends (TkAgg, Qt, etc.), `%matplotlib inline` magic.
+Animation (`FuncAnimation`), widgets, `%matplotlib inline`, and non-GPUI GUI backends (TkAgg, Qt, etc.). Interactive windows are a future GPUI target, not part of the static library.
 
 ---
 

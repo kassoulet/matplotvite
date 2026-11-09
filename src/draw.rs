@@ -1212,13 +1212,15 @@ where
                                     break;
                                 }
                             }
-                            let pts = vec![
-                                map(xs[j0], y0),
-                                map(xs[j + 1], y0),
-                                map(xs[j + 1], y1),
-                                map(xs[j0], y1),
-                            ];
-                            area.draw(&Polygon::new(pts, col.filled()))?;
+                            // Runs are axis-aligned rectangles; `<rect>` is
+                            // considerably cheaper for resvg than a 4-point path.
+                            let (xa, ya) = map(xs[j0], y0);
+                            let (xb, yb) = map(xs[j + 1], y1);
+                            let (xl, xr) = (xa.min(xb), xa.max(xb));
+                            let (yt, yb) = (ya.min(yb), ya.max(yb));
+                            if xr > xl && yb > yt {
+                                area.draw(&Rectangle::new([(xl, yt), (xr, yb)], col.filled()))?;
+                            }
                             j += 1;
                             continue;
                         }
@@ -1254,18 +1256,42 @@ where
             if xs.len() < 3 || xs.len() != ys.len() {
                 continue;
             }
-            let pts: Vec<(i32, i32)> = xs
-                .iter()
-                .zip(ys.iter())
-                .map(|(x, y)| {
-                    let (px, py) = chart_area.map_coordinate(&(tx(*x), ty(*y)));
-                    (px - base.0, py - base.1)
-                })
-                .collect();
-            let col = match band.alpha {
-                Some(a) => color(&band.color).mix(a.clamp(0.0, 1.0)),
-                None => color(&band.color).mix(1.0),
+            let alpha = band.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
+            let map = |x: f64, y: f64| {
+                let (px, py) = chart_area.map_coordinate(&(tx(x), ty(y)));
+                (px - base.0, py - base.1)
             };
+            // Batched bands carry one closed ring and one RGB triple per cell;
+            // hexbin uses this to avoid one Python dict per hexagon.
+            if band.cells > 0
+                && band.cell_colors.len() == band.cells * 6
+                && xs.len() % band.cells == 0
+            {
+                let per_cell = xs.len() / band.cells;
+                let parse = |h: &str| u8::from_str_radix(h, 16).unwrap_or(0);
+                for k in 0..band.cells {
+                    let start = k * per_cell;
+                    let pts: Vec<(i32, i32)> = (0..per_cell)
+                        .map(|i| map(xs[start + i], ys[start + i]))
+                        .collect();
+                    let hex = &band.cell_colors[k * 6..k * 6 + 6];
+                    let col =
+                        RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
+                            .mix(alpha);
+                    area.draw(&Polygon::new(pts, col.filled()))?;
+                }
+                if !band.label.is_empty() {
+                    let hex = &band.cell_colors[..6];
+                    legend_bands.push((
+                        band.label.clone(),
+                        RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
+                            .mix(alpha),
+                    ));
+                }
+                continue;
+            }
+            let pts: Vec<(i32, i32)> = xs.iter().zip(ys.iter()).map(|(x, y)| map(*x, *y)).collect();
+            let col = color(&band.color).mix(alpha);
             area.draw(&Polygon::new(pts, col.filled()))?;
             if !band.label.is_empty() {
                 legend_bands.push((band.label.clone(), col));
@@ -1347,6 +1373,18 @@ where
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
+        let dense_offsets = raster_scatter
+            && p.collections
+                .iter()
+                .map(|coll| coll.points.len() / 2)
+                .sum::<usize>()
+                >= 4096;
+        let mut collection_layer = if dense_offsets {
+            let (w, h) = area.dim_in_pixel();
+            tiny_skia::Pixmap::new(w.max(1), h.max(1))
+        } else {
+            None
+        };
         for patch in &p.patches {
             let alpha = patch.alpha.clamp(0.0, 1.0);
             let face = patch.facecolor.as_deref().map(color).filter(|c| c.3 > 0.0);
@@ -1475,7 +1513,11 @@ where
                 } else {
                     color(&coll.colors[i % coll.colors.len()])
                 };
-                draw_marker(area, base, (px, py), r, col.mix(alpha), 1, marker)?;
+                if let Some(layer) = collection_layer.as_mut() {
+                    draw_marker_raster(layer, base, (px, py), r, col.mix(alpha), 1, marker);
+                } else {
+                    draw_marker(area, base, (px, py), r, col.mix(alpha), 1, marker)?;
+                }
             }
             for (i, seg) in coll.segments.iter().enumerate() {
                 if seg.len() < 4 {
@@ -1501,6 +1543,20 @@ where
                         .stroke_width(coll.linewidth.max(1.0).round() as u32),
                 ))?;
             }
+        }
+        if let Some(layer) = collection_layer {
+            let (w, h) = area.dim_in_pixel();
+            let png = crate::export::encode_png(&layer, PngCompression::Fast, false)
+                .map_err(|e| e.to_string())?;
+            overlays.push(format!(
+                "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+                 preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
+                base.0,
+                base.1,
+                w,
+                h,
+                base64(&png)
+            ));
         }
     }
     for s in &p.series {
