@@ -32,20 +32,20 @@ machine- and load-dependent, not as a general guarantee.
 
 | Workload | Matplotvite | matplotlib | Ratio |
 |---|---:|---:|---:|
-| Single line, 100 points, PNG | 3.36 ms | 126.94 ms | 37.8× |
-| Single line, 1,000 points, PNG | 4.13 ms | 121.73 ms | 29.5× |
-| Single line, 10,000 points, PNG | 6.63 ms | 125.68 ms | 18.9× |
-| Single line, 100,000 points, PNG | 29.66 ms | 179.39 ms | 6.0× |
-| Five series, 2,000 points each, PNG | 12.76 ms | 188.72 ms | 14.8× |
-| 2×2 subplot grid, PNG | 10.71 ms | 216.91 ms | 20.2× |
-| Scatter, 5,000 points, PNG | 10.50 ms | 261.86 ms | 24.9× |
-| Scatter, 50,000 points, PNG | 24.99 ms | 144.35 ms | 5.8× |
-| Bar chart, 20 categories, PNG | 5.20 ms | 156.34 ms | 30.1× |
-| Filled contours, 160×160, PNG | 33.74 ms | 103.45 ms | 3.1× |
-| Hexagonal bins, 5,000 points, PNG | 21.74 ms | 151.89 ms | 7.0× |
-| SVG export, 1,000 points | 0.85 ms | 110.47 ms | 130.7× |
-| PDF export, 1,000 points | 3.06 ms | 126.71 ms | 41.5× |
-| Cold CLI process, plot, and save | 133.80 ms | 738.10 ms | 5.5× |
+| Single line, 100 points, PNG | 5.11 ms | 161.48 ms | 31.6× |
+| Single line, 1,000 points, PNG | 6.23 ms | 131.82 ms | 21.1× |
+| Single line, 10,000 points, PNG | 6.78 ms | 137.12 ms | 20.2× |
+| Single line, 100,000 points, PNG | 30.04 ms | 192.15 ms | 6.4× |
+| Five series, 2,000 points each, PNG | 13.74 ms | 197.95 ms | 14.4× |
+| 2×2 subplot grid, PNG | 10.85 ms | 268.86 ms | 24.8× |
+| Scatter, 5,000 points, PNG | 11.27 ms | 276.89 ms | 24.6× |
+| Scatter, 50,000 points, PNG | 26.16 ms | 145.35 ms | 5.6× |
+| Bar chart, 20 categories, PNG | 5.89 ms | 169.14 ms | 28.7× |
+| Filled contours, 160×160, PNG | 34.49 ms | 108.65 ms | 3.2× |
+| Hexagonal bins, 5,000 points, PNG | 21.16 ms | 154.18 ms | 7.3× |
+| SVG export, 1,000 points | 0.95 ms | 116.29 ms | 121.9× |
+| PDF export, 1,000 points | 3.16 ms | 134.02 ms | 42.3× |
+| Cold CLI process, plot, and save | 146.30 ms | 762.00 ms | 5.2× |
 
 The suite now measures 25 workloads, including line scaling, dense SVG export,
 subplots, scatter up to 50,000 points, bar, histogram, box/violin summaries,
