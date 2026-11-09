@@ -388,12 +388,20 @@ class _TextLabel:
     def set_fontsize(self, size): self._fontsize = float(size)
 
 
-def _margin(lo, hi, scale):
-    """Matplotlib's default 5% autoscale margin (in log space for log axes)."""
+def _margin(lo, hi, scale, sticky=()):
+    """Matplotlib's default 5% autoscale margin (in log space for log axes).
+
+    `sticky` edges (images, hexbin) swallow the margin on their side, like
+    Matplotlib's `sticky_edges`.
+    """
     f = np.log10 if scale == "log" else float
     lo, hi = f(lo), f(hi)
+    sticky = [f(e) for e in sticky if e > 0 or scale != "log"]
     pad = (hi - lo) * 0.05
-    lo, hi = lo - pad, hi + pad
+    plo, phi = lo - pad, hi + pad
+    below = [e for e in sticky if plo < e <= lo]
+    above = [e for e in sticky if hi <= e < phi]
+    lo, hi = max(below, default=plo), min(above, default=phi)
     return (10.0 ** lo, 10.0 ** hi) if scale == "log" else (lo, hi)
 
 
@@ -932,6 +940,7 @@ class Axes:
         self.aspect = None
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
+        self._sticky_x, self._sticky_y = [], []
         self.visible, self._removed, self._axis_off = True, False, False
         self.artists, self.label, self.zorder = [], "", 0
         self.facecolor, self.alpha = None, None
@@ -1181,7 +1190,11 @@ class Axes:
         explicit = group.limits if group is not None else self.xlim
         lo, hi = explicit or (group.union("x") if group is not None else extent)
         lo, hi = _log_bounds(lo, hi, self.xscale, extent)
-        return (lo, hi) if explicit else _margin(lo, hi, self.xscale)
+        if explicit:
+            return (lo, hi)
+        sticky = [e for im in self.images for e in (im["extent"][0], im["extent"][1])]
+        sticky += self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)]
+        return _margin(lo, hi, self.xscale, sticky)
 
     def get_ylim(self):
         extent = self._extent_y()
@@ -1189,7 +1202,11 @@ class Axes:
         explicit = group.limits if group is not None else self.ylim
         lo, hi = explicit or (group.union("y") if group is not None else extent)
         lo, hi = _log_bounds(lo, hi, self.yscale, extent)
-        return (lo, hi) if explicit else _margin(lo, hi, self.yscale)
+        if explicit:
+            return (lo, hi)
+        sticky = [e for im in self.images for e in (im["extent"][2], im["extent"][3])]
+        sticky += self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)]
+        return _margin(lo, hi, self.yscale, sticky)
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
 
@@ -1292,6 +1309,7 @@ class Axes:
         self.lines.clear()
         self.texts.clear()
         self.images.clear()
+        self._sticky_x, self._sticky_y = [], []
         self.annotations.clear()
         self.contours.clear()
         self.errors.clear()
@@ -1500,7 +1518,8 @@ class Axes:
             extent = (0.0, float(w), 0.0, float(h))
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
-        interp = "antialiased" if interpolation is None else str(interpolation).lower()
+        # No resampling by default: pixels are drawn as-is.
+        interp = "nearest" if interpolation is None else str(interpolation).lower()
         if interp == "auto":
             interp = "antialiased"
         if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
@@ -2086,6 +2105,8 @@ class Axes:
             cells=int(shown.size),
             cell_colors="".join(c[1:] for c in colors),
         ))
+        self._sticky_x += [ex0, ex1]
+        self._sticky_y += [ey0, ey1]
         return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
     def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):

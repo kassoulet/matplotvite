@@ -2270,3 +2270,13 @@ def test_svg_text_is_escaped():
     svg = plt.savefig(None, format="svg").decode()
     assert "<script" not in svg.lower()
     assert "&lt;" in svg and "&amp;" in svg
+
+
+def test_images_have_sticky_edges_and_no_default_resampling():
+    plt.figure()
+    ax = plt.gca()
+    im = ax.imshow(np.zeros((3, 4)))
+    assert ax.get_xlim() == (0.0, 4.0) and ax.get_ylim() == (0.0, 3.0)
+    assert ax.images[0]["interpolation"] == "nearest"
+    ax.plot([0, 10], [0, 1])
+    assert ax.get_xlim() == pytest.approx((0.0, 10.5))
