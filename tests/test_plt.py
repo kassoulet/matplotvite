@@ -2183,3 +2183,14 @@ def test_figure_and_savefig_colors_and_bytes(tmp_path):
     buf = io.BytesIO()
     fig.savefig(buf, format="svg")
     assert buf.getvalue().startswith(b"<svg")
+
+
+def test_svg_text_is_escaped():
+    plt.figure((4, 3))
+    plt.plot([0, 1], [0, 1], label='</text><script>alert("label")</script>&')
+    plt.title('<script>alert("title")</script>')
+    plt.xlabel('a & b')
+    plt.legend()
+    svg = plt.savefig(None, format="svg").decode()
+    assert "<script" not in svg.lower()
+    assert "&lt;" in svg and "&amp;" in svg
