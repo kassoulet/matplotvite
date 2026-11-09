@@ -5,7 +5,7 @@ use plotters::style::IntoFont;
 
 use crate::color::{color, colormap};
 use crate::image::{base64, image_png};
-use crate::layout::{auto_ticks, panel_ranges, range};
+use crate::layout::{auto_ticks, padded_range, panel_ranges, range};
 use crate::model::{Legend, LegendEntry, LegendSwatch, Panel, PngCompression};
 
 /// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
@@ -987,6 +987,14 @@ where
         if y1 <= y0 {
             y1 = y0 + 1.0;
         }
+    }
+    // Match matplotlib's default 5% autoscale margin. Explicit limits are
+    // already selected in `panel_ranges` and bypass the padding unchanged.
+    if p.xlim.is_none() {
+        (x0, x1) = padded_range(x0, x1);
+    }
+    if p.ylim.is_none() {
+        (y0, y1) = padded_range(y0, y1);
     }
     // A fixed aspect shrinks the plotting box instead of bending the data limits,
     // like matplotlib's adjustable="box".

@@ -1,6 +1,6 @@
 use crate::model::Panel;
 
-pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
+fn raw_range(it: impl Iterator<Item = f64>) -> (f64, f64) {
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for v in it.filter(|v| v.is_finite()) {
@@ -9,10 +9,34 @@ pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
     }
     if !lo.is_finite() || !hi.is_finite() {
         (0.0, 1.0)
-    } else if lo < hi {
+    } else {
+        (lo, hi)
+    }
+}
+
+pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
+    let (lo, hi) = raw_range(it);
+    if lo < hi {
         (lo, hi)
     } else {
         (lo - 1.0, lo + 1.0)
+    }
+}
+
+/// Matplotlib's default 5% autoscale margin on each side of the data range.
+/// Flat data needs a non-zero width; the offset is 5% of the value, or one
+/// unit around zero.
+pub(crate) fn padded_range(lo: f64, hi: f64) -> (f64, f64) {
+    const MARGIN: f64 = 0.05;
+    if !lo.is_finite() || !hi.is_finite() {
+        return (0.0, 1.0);
+    }
+    if lo == hi {
+        let pad = if lo == 0.0 { 1.0 } else { lo.abs() * MARGIN };
+        (lo - pad, lo + pad)
+    } else {
+        let pad = (hi - lo) * MARGIN;
+        (lo - pad, hi + pad)
     }
 }
 
@@ -112,8 +136,8 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
     if ys.is_empty() {
         ys = vec![0.0, 1.0];
     }
-    let (x0, x1) = p.xlim.unwrap_or_else(|| range(xs.into_iter()));
-    let (y0, y1) = p.ylim.unwrap_or_else(|| range(ys.into_iter()));
+    let (x0, x1) = p.xlim.unwrap_or_else(|| raw_range(xs.into_iter()));
+    let (y0, y1) = p.ylim.unwrap_or_else(|| raw_range(ys.into_iter()));
     (x0, x1, y0, y1)
 }
 
@@ -160,4 +184,21 @@ pub(crate) fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
         }
     }
     nice_ticks(lo, hi, 6)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn padded_range_adds_five_percent_on_each_side() {
+        assert_eq!(padded_range(0.0, 10.0), (-0.5, 10.5));
+    }
+
+    #[test]
+    fn padded_range_expands_flat_data_symmetrically() {
+        assert_eq!(padded_range(0.0, 0.0), (-1.0, 1.0));
+        let (lo, hi) = padded_range(5.0, 5.0);
+        assert!((lo - 4.75).abs() < 1e-12 && (hi - 5.25).abs() < 1e-12);
+    }
 }
