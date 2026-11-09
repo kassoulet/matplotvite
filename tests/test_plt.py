@@ -1306,7 +1306,12 @@ def test_step_and_stairs(tmp_path):
     ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="post", color="red")
     ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="mid", label="mid")
     ax.step([0, 1, 2, 3], [1, 2, 0, 3], where="pre", label="pre")
-    ax.stairs([1, 2, 1], edges=[0, 1, 2, 3], fill=True, color="green")
+    ax.stairs([1, 2, 1], edges=[0, 1, 2, 3], fill=True, color="green", alpha=0.25)
+    # A filled stairs is a patch: the face takes the colour and alpha, and it
+    # does not also register an outline line.
+    assert len(ax.bands) == 1
+    assert ax.bands[0]["color"] == "#008000"
+    assert ax.bands[0]["alpha"] == 0.25
     # Every `where` style must register a line (mid is its own polyline).
     assert [line["drawstyle"] for line in ax.lines[:3]] == [
         "steps-post", "steps-post", "steps-pre"]

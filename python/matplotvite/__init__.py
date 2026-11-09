@@ -2582,9 +2582,19 @@ class Axes:
         xs[1::2] = e[1:]
         ys[0::2] = v
         ys[1::2] = v
-        if fill:
-            self.fill_between(xs, ys, baseline, color=color)
-        return self.plot(xs, ys, color=color, label=label, **kwargs)
+        if not fill:
+            return self.plot(xs, ys, color=color, label=label, **kwargs)
+        # A filled `stairs` is one StepPatch: `color` fills it, `alpha` applies to
+        # the whole patch, and no edge is drawn unless one is asked for.
+        alpha = kwargs.pop("alpha", None)
+        edge = kwargs.pop("edgecolor", kwargs.pop("ec", None))
+        linewidth = kwargs.pop("linewidth", kwargs.pop("lw", None))
+        face = kwargs.pop("facecolor", kwargs.pop("fc", None)) or color
+        self.fill_between(xs, ys, baseline, color=face, alpha=alpha, label=label)
+        if edge is not None:
+            self.plot(xs, ys, color=edge, alpha=alpha, label="",
+                      linewidth=linewidth if linewidth is not None else 1.0)
+        return None
 
     # Layout requests are accepted but ignored: every panel is drawn at its fixed
     # gridspec cell, so there is nothing to negotiate.
