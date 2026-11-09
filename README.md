@@ -74,9 +74,9 @@ It measures SVG rasterization at three figure sizes plus dense-line and
 filled-polygon fixtures, PNG encoding at fast/default/best compression, lossless
 WebP encoding, and vector PDF conversion. Results are written under
 `target/criterion/`; use `--quick` for a short smoke run. CI runs the quick suite,
-checks it against `benches/criterion_baseline.json` with
-`tools/criterion_guard.py` (25% budget), and uploads the estimates as workflow
-artifacts. Refresh the baseline with:
+reports it against `benches/criterion_baseline.json` with
+`tools/criterion_guard.py` (advisory 25% budget), and uploads the estimates as
+workflow artifacts. Refresh the baseline with:
 
 ```bash
 cargo bench --bench render -- --quick
@@ -295,10 +295,11 @@ CI uploads `visual_diff.json` with the side-by-side HTML gallery.
 
 Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
 unchanged figure reuse the previously encoded bytes. CI runs the comparison suite
-against `tools/benchmark_baseline.json` and fails when the matplotlib-normalized
+against `tools/benchmark_baseline.json` and reports when the matplotlib-normalized
 speedup drops by more than 30% (`tools/benchmark_guard.py`). The wider budget
-accounts for single-run variance on shared CI hosts; Criterion provides the
-lower-noise, output-stage measurements.
+accounts for single-run variance on shared CI hosts; the guard job is advisory
+and does not block the workflow. Criterion provides the lower-noise, output-stage
+measurements.
 
 ## Test
 

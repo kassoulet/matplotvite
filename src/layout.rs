@@ -44,7 +44,16 @@ pub(crate) fn padded_range(lo: f64, hi: f64) -> (f64, f64) {
     (lo - pad, hi + pad)
 }
 
-/// Data ranges for a panel: series values plus image extents, unless pinned.
+/// Final bounds for one axis.
+///
+/// Explicit limits are used verbatim; otherwise the raw data extent gets
+/// matplotlib's default 5% autoscale margin.
+pub(crate) fn axis_bounds(extent: (f64, f64), explicit: Option<(f64, f64)>) -> (f64, f64) {
+    explicit.unwrap_or_else(|| padded_range(extent.0, extent.1))
+}
+
+/// Raw data ranges for a panel: series values plus image extents. Explicit
+/// limits are applied later by [`axis_bounds`], after any log transform.
 pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
     let mut xs: Vec<f64> = Vec::new();
     let mut ys: Vec<f64> = Vec::new();
@@ -140,8 +149,8 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
     if ys.is_empty() {
         ys = vec![0.0, 1.0];
     }
-    let (x0, x1) = p.xlim.unwrap_or_else(|| raw_range(xs.into_iter()));
-    let (y0, y1) = p.ylim.unwrap_or_else(|| raw_range(ys.into_iter()));
+    let (x0, x1) = raw_range(xs.into_iter());
+    let (y0, y1) = raw_range(ys.into_iter());
     (x0, x1, y0, y1)
 }
 
@@ -197,6 +206,18 @@ mod tests {
     #[test]
     fn padded_range_adds_five_percent_on_each_side() {
         assert_eq!(padded_range(0.0, 10.0), (-0.5, 10.5));
+    }
+
+    #[test]
+    fn axis_bounds_honors_explicit_limits_without_padding() {
+        assert_eq!(axis_bounds((0.0, 10.0), Some((2.0, 6.0))), (2.0, 6.0));
+        assert_eq!(axis_bounds((5.0, 5.0), Some((1.0, 2.0))), (1.0, 2.0));
+    }
+
+    #[test]
+    fn axis_bounds_pads_automatic_limits() {
+        assert_eq!(axis_bounds((0.0, 10.0), None), (-0.5, 10.5));
+        assert_eq!(axis_bounds((5.0, 5.0), None), (4.725, 5.275));
     }
 
     #[test]

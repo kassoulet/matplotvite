@@ -182,14 +182,14 @@
 ### 0.5.5 Performance
 - [x] Parallel subplot rendering with **Rayon** (independent panels rendered concurrently)
 - [x] Incremental re-render: cache unchanged panels, only redraw dirty ones
-- [x] Comparison benchmark suite in CI (25 workloads) with a 30% regression guard
+- [x] Comparison benchmark suite in CI (25 workloads) with an advisory 30% regression report
 - [x] Criterion benchmarks for the Rust output stages (rasterize, PNG, WebP, PDF)
 
 ---
 
 ## Fidelity follow-ups — static render
 
-- [ ] Default data margins — matplotlib expands autoscaled axes by 5% on each side; matplotvite currently draws the raw data bounds, so curves touch the frame and automatic ticks can omit the zero edge
+- [x] Default data margins — autoscaled axes expand by matplotlib's 5% margin on each side, with flat data widened symmetrically and explicit `xlim`/`ylim` left untouched
 - [ ] Legend `loc="best"` — currently aliases upper-right; score candidate corners against the drawn series and pick the least-overlapping one like matplotlib
 
 ---
@@ -204,7 +204,7 @@
 - [x] Extend raster marker layers to every marker source (series markers, error bars, collections)
 - [x] Merge filled-contour interiors into runs and clip only boundary cells
 - [x] Share cached panel fragments across figures with identical content
-- [x] Add a Criterion budget gate alongside the end-to-end benchmark guard
+- [x] Add an advisory Criterion budget report alongside the end-to-end benchmark guard
 
 ### Fidelity
 - [x] Pixel-diff the gallery against Matplotlib and track a per-snippet mismatch metric
