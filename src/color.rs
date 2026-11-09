@@ -55,9 +55,11 @@ pub(crate) fn colormap(name: &str, t: f64) -> [u8; 4] {
         Some(base) => (base, true),
         None => (name, false),
     };
-    let def = lookup(base)
-        .or_else(|| lookup("viridis"))
-        .expect("viridis is part of the registry");
+    // Unknown names fall back to viridis; if the registry itself is empty,
+    // return opaque black rather than panicking on user input.
+    let Some(def) = lookup(base).or_else(|| lookup("viridis")) else {
+        return [0, 0, 0, 255];
+    };
     let n = def.colors.len();
     if n == 0 {
         return [0, 0, 0, 255];
