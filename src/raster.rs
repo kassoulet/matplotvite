@@ -126,8 +126,8 @@ fn render_panel(
     let (pw, ph) = (rect.w, rect.h);
     let (bw, bh) = (pw * scale, ph * scale);
     let mut rgb = vec![0u8; bw as usize * bh as usize * 3];
-    for px in rgb.chunks_exact_mut(3) {
-        px.copy_from_slice(&background);
+    for px in rgb.as_chunks_mut::<3>().0 {
+        *px = background;
     }
     {
         let backend = BitMapBackend::with_buffer(&mut rgb, (bw, bh));
