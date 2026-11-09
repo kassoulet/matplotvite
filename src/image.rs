@@ -33,7 +33,7 @@ pub(crate) fn base64(data: &[u8]) -> String {
 }
 
 /// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
-pub(crate) fn image_png(item: &ImageItem<'_>) -> Result<Vec<u8>, String> {
+pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
     let (arr, cmap, vmin, vmax, _, _) = item;
     let a = arr.as_array();
     let shape = a.shape();

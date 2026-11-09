@@ -17,7 +17,7 @@ pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
 }
 
 /// Data ranges for a panel: series values plus image extents, unless pinned.
-pub(crate) fn panel_ranges(p: &Panel<'_>) -> (f64, f64, f64, f64) {
+pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
     let mut xs: Vec<f64> = Vec::new();
     let mut ys: Vec<f64> = Vec::new();
     for s in &p.series {

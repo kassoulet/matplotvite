@@ -27,6 +27,7 @@ use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
 #[pyfunction]
 #[pyo3(signature = (size, grid, panels, options))]
 fn render(
+    py: Python<'_>,
     size: (u32, u32),
     grid: (usize, usize),
     panels: Vec<Panel>,
@@ -45,7 +46,6 @@ fn render(
         suptitle_x,
         suptitle_y,
     } = options;
-    let err = |e: &str| PyRuntimeError::new_err(e.to_string());
     register_plotters_fonts();
     if suptitle.is_empty()
         && panels.iter().all(|p| {
@@ -115,57 +115,57 @@ fn render(
         x: suptitle_x,
         y: suptitle_y,
     });
-    let svg = render_svg(
-        size,
-        grid,
-        &panels,
-        background,
-        edgecolor.as_deref(),
-        title,
-        RenderOutput {
-            dpi,
-            raster: matches!(fmt.as_str(), "png" | "webp"),
-        },
-    )
-    .map_err(|e| err(&e))?;
-    if fmt == "svg" || fmt == "pdf" {
-        let svg = match if tight {
-            rasterize(&svg, w, h, transparent)
-                .ok()
-                .and_then(|p| content_bbox(&p, background_pixel(background)))
-                .and_then(|bbox| svg_tight(&svg, bbox))
+    let edgecolor = edgecolor.as_deref();
+    let output = RenderOutput {
+        dpi,
+        raster: matches!(fmt.as_str(), "png" | "webp"),
+    };
+
+    // All input has been copied out of NumPy, so drawing, rasterisation and
+    // encoding no longer need the GIL. Other Python threads can run while a
+    // large figure is rendered.
+    let result = py.detach(move || -> Result<Vec<u8>, String> {
+        let svg = render_svg(size, grid, &panels, background, edgecolor, title, output)?;
+        if fmt == "svg" || fmt == "pdf" {
+            let svg = match if tight {
+                rasterize(&svg, w, h, transparent)
+                    .ok()
+                    .and_then(|p| content_bbox(&p, background_pixel(background)))
+                    .and_then(|bbox| svg_tight(&svg, bbox))
+            } else {
+                None
+            } {
+                Some(svg) => svg,
+                None => svg,
+            };
+            if fmt == "pdf" {
+                render_pdf(&svg, dpi)
+            } else {
+                Ok(svg.into_bytes())
+            }
         } else {
-            None
-        } {
-            Some(svg) => svg,
-            None => svg,
-        };
-        if fmt == "pdf" {
-            render_pdf(&svg, dpi).map_err(|e| err(&e))
-        } else {
-            Ok(svg.into_bytes())
+            let pixmap = rasterize(&svg, w, h, transparent)?;
+            let pixmap = match if tight {
+                content_bbox(&pixmap, background_pixel(background))
+            } else {
+                None
+            } {
+                Some(bbox) => crop_pixmap(&pixmap, bbox)?,
+                None => pixmap,
+            };
+            if fmt == "webp" {
+                encode_webp(&pixmap)
+            } else {
+                encode_png(
+                    &pixmap,
+                    compression.unwrap_or(PngCompression::Fast),
+                    !transparent,
+                )
+                .map_err(|e| e.to_string())
+            }
         }
-    } else {
-        let pixmap = rasterize(&svg, w, h, transparent).map_err(|e| err(&e))?;
-        let pixmap = match if tight {
-            content_bbox(&pixmap, background_pixel(background))
-        } else {
-            None
-        } {
-            Some(bbox) => crop_pixmap(&pixmap, bbox).map_err(|e| err(&e))?,
-            None => pixmap,
-        };
-        if fmt == "webp" {
-            encode_webp(&pixmap).map_err(|e| err(&e))
-        } else {
-            encode_png(
-                &pixmap,
-                compression.unwrap_or(PngCompression::Fast),
-                !transparent,
-            )
-            .map_err(|e| err(&e.to_string()))
-        }
-    }
+    });
+    result.map_err(PyRuntimeError::new_err)
 }
 
 #[pymodule]
@@ -192,8 +192,8 @@ mod tests {
 
     #[test]
     fn panels_can_be_shared_between_render_threads() {
-        fn assert_sync<T: Sync>() {}
-        assert_sync::<Panel<'static>>();
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Panel>();
     }
 
     #[test]
