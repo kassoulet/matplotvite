@@ -151,6 +151,9 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "test_demo/test_grid" in index and "test_demo_test_grid.png" in index
     assert "parametrised test" in index
+    # The baseline is copied in so the gallery is browsable away from the sdist.
+    assert "baseline_test_demo_test_grid.png" in index
+    assert (out / "baseline_test_demo_test_grid.png").exists()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     rendered = {case["id"]: case for case in manifest}["test_demo/test_grid"]
     assert rendered["status"] == "rendered"

@@ -199,6 +199,53 @@ jobs:
             dist/visual_diff.json
           retention-days: 90
 
+  galleries:
+    name: comparison galleries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Build
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install maturin numpy "matplotlib==3.11.2"
+          maturin develop --release
+      - name: Fetch the harvested sources
+        run: |
+          pip download --no-binary :all: --no-deps "matplotlib==3.11.2" -d dist/sdist
+          mkdir -p dist/mpl-sdist
+          tar -xzf dist/sdist/matplotlib-3.11.2.tar.gz -C dist/mpl-sdist
+          git clone --depth 1 --filter=blob:none --sparse -b v3.11.2 \
+            https://github.com/matplotlib/matplotlib dist/mpl-src
+          git -C dist/mpl-src sparse-checkout set galleries/examples
+          git clone --depth 1 --filter=blob:none --sparse \
+            https://github.com/mwaskom/seaborn dist/sns-src
+          git -C dist/sns-src sparse-checkout set examples
+      - name: Regenerate the galleries
+        env:
+          MPLBACKEND: Agg
+        run: |
+          . .venv/bin/activate
+          python tools/harvest_matplotlib.py --out dist/mpl-corpus
+          python tools/harvest_matplotlib.py --examples dist/mpl-src --out dist/mpl-examples
+          python tools/harvest_seaborn.py --out dist/seaborn-gallery
+      - name: Upload the galleries
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: galleries-${{ github.sha }}
+          path: |
+            dist/mpl-corpus
+            dist/mpl-examples
+            dist/seaborn-gallery
+          retention-days: 90
+
   criterion:
     name: criterion output benchmarks
     runs-on: ubuntu-latest

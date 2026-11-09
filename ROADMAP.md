@@ -11,6 +11,7 @@
 - **Current version: 0.5.0** — milestones 0.1 through 0.5 are complete.
 - **0.6** targets performance and visual fidelity; see the section below.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
+- **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
 
 ---
@@ -227,6 +228,7 @@
 ### Matplotlib test corpus
 - [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. On Matplotlib 3.11.2 that is 526 cases, 125 rendering today (66 at the baseline's pixel size, 12% median mismatch), so the ~375 API failures are the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
 - [x] Harvest the gallery examples — `tools/harvest_matplotlib.py --examples <checkout>` rewrites every script under `galleries/examples`, strips the interactive tail, renders it and writes a per-category gallery whose failures are the gap list. On Matplotlib 3.11.2, 65 of 507 render (lines 11/41, text 11/43, pyplots 2/2); the largest remaining gaps are `nothing to plot` (18), helpers imported from `matplotlib.cbook` (16), missing module attributes (14) and `Axes.spines`/`canvas` (17). `examples/` now lives at `galleries/examples` in the checkout, so a sparse checkout of that path is enough
+- [x] Keep the galleries reproducible — `pytest -m gallery` regenerates all three from local checkouts and skips when they are absent (the default `pytest` run deselects the marker), and CI publishes the HTML plus relative baseline copies as a build artifact
 - [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
 
 ### Seaborn gallery
@@ -238,6 +240,39 @@
 - [ ] Ship a `pandas` plotting backend module so `pd.options.plotting.backend = "matplotvite"` works, covering `kind=` line, bar, barh, hist, box, area, scatter and pie
 - [ ] Verify `df.plot()` / `Series.plot()` against pandas + Matplotlib for index handling (datetime, categorical, MultiIndex), axis labels, legend and kwarg pass-through
 - [ ] Document the supported pandas version matrix and the behaviour for unimplemented `kind=` values (raise clearly rather than drawing something wrong)
+
+---
+
+## 🎯 0.8 — Plot families the Seaborn gallery asks for
+
+> Goal: turn the needs-API ranking into actual plot families, so seaborn-style figures can be expressed
+> through our Matplotlib surface. The order below follows how many of Seaborn's 48 needs-API gallery
+> examples want each capability (`python tools/harvest_seaborn.py` re-ranks them).
+
+### Joint & marginal axes (6 examples)
+- [ ] `jointplot` / `JointGrid` layout — a main axes plus top/right marginal axes sharing the limits, with axes-level `kind=` presets (scatter, hist, kde, reg, hex)
+- [ ] Marginal histograms and KDE curves, including the shared tick grid and the space reserved for a figure-level legend
+
+### Multi-axes grids (6 examples)
+- [ ] `FacetGrid` / `PairGrid` over `subplots` — row/col variables, shared or independent axes, per-facet titles and figure-level legend
+- [ ] Per-facet plot calls (strip, box, line) without rebuilding the figure for each cell
+
+### Grouping and uncertainty (~18 examples)
+- [ ] `hue` / `style` grouping that maps groups to the colour cycle, markers and linestyles, with one legend entry per variable rather than per group
+- [ ] Confidence bands around a line (bootstrap mean ± CI) drawn as a filled band with the same alpha/legend semantics as Seaborn
+- [ ] Violin bodies (KDE silhouette plus inner quartiles) and jittered/swarmed categorical positions
+- [ ] Point estimates with error bars (`pointplot`, `barplot`)
+
+### Distribution and composition (~16 examples)
+- [ ] Histogram and ECDF statistics (`stat=count/density/probability`) with stacked and `multiple=dodge/fill` bars
+- [ ] Annotated matrices for `heatmap` — `pcolormesh` with per-cell text and diverging colour maps
+- [ ] KDE curves on arbitrary axes (`kdeplot`) including bivariate contours
+
+### Regression (4 examples)
+- [ ] Ordinary-least-squares fit with a confidence band and scatter (`regplot`), dependency-free; a statsmodels path stays optional for the model-based variants
+
+### Not planned
+- [ ] `clustermap` — hierarchical clustering and dendrogram layout need SciPy, which the dependency-free renderer does not take on
 
 ---
 

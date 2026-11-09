@@ -25,6 +25,7 @@ import json
 import os
 import pathlib
 import re
+import shutil
 import tempfile
 import textwrap
 
@@ -293,9 +294,14 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             else:
                 entry["status"] = "failed"
                 entry["error"] = error
-        rel = baseline.resolve()
-        baseline_cell = (f'<img src="{html.escape(str(rel))}">' if baseline.exists()
-                         else "<pre>no baseline</pre>")
+        if baseline.exists():
+            # Copy the reference next to the gallery so the HTML stays browsable
+            # when the directory is moved or published as a CI artifact.
+            view = out / f"baseline_{slug}{baseline.suffix or '.png'}"
+            shutil.copyfile(baseline, view)
+            baseline_cell = f'<img src="{html.escape(view.name)}">'
+        else:
+            baseline_cell = "<pre>no baseline</pre>"
         ours_cell = (f'<img src="{html.escape(slug)}.png">' if entry.get("ours")
                      else f'<pre style="color:#c00">{html.escape(str(entry["error"] or ""))}</pre>')
         score = entry.get("rms")

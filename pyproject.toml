@@ -47,6 +47,11 @@ select = ["F", "E9"]
 # `pytest` inserts only the test directory on sys.path, so bare invocations (CI)
 # could not import the repo-local `tools` and `examples` packages.
 pythonpath = ["."]
+# Regenerating the full galleries takes minutes and needs checkouts that are not
+# vendored, so those tests only run on request: `pytest -m gallery`.
+markers = [
+    "gallery: regenerate a full comparison gallery from a local checkout (run with `pytest -m gallery`)",
+]
 
 [tool.maturin]
 python-source = "python"
