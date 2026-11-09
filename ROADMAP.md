@@ -18,7 +18,7 @@
 ## ✅ 0.1 — Core line chart (done)
 
 - [x] `figure(figsize)` / `close()`
-- [x] `plot(x, y, label=, color=)` — NumPy arrays, zero-copy via PyO3
+- [x] `plot(x, y, label=, color=)` — NumPy arrays, zero-copy via PyO3; repeated data sets (`plot(x1, y1, x2, y2, ...)`) return one `Line2D` handle each, and the handle's `set_color`/`set_data`/`set_label` setters mutate the drawn series
 - [x] `xlabel` / `ylabel` / `title`
 - [x] `legend()`
 - [x] `savefig(path)` — PNG & SVG encoded in Rust, written by the Python layer; no Pillow
@@ -226,7 +226,7 @@
 
 ### Matplotlib test corpus
 - [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. On Matplotlib 3.11.2 that is 526 cases, 118 rendering today (62 at the baseline's pixel size, 13% median mismatch), so the ~380 API failures are the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
-- [ ] Harvest the `examples/` tree (`plot_types`, `gallery`, `tutorials`, `showcase`) into the comparison gallery, tagged by category, so uncovered API surfaces as a gap list the way TRACE does for mirrored call sites
+- [x] Harvest the gallery examples — `tools/harvest_matplotlib.py --examples <checkout>` rewrites every script under `galleries/examples`, strips the interactive tail, renders it and writes a per-category gallery whose failures are the gap list. On Matplotlib 3.11.2, 65 of 507 render (lines 11/41, text 11/43, pyplots 2/2); the largest remaining gaps are `nothing to plot` (18), helpers imported from `matplotlib.cbook` (16), missing module attributes (14) and `Axes.spines`/`canvas` (17). `examples/` now lives at `galleries/examples` in the checkout, so a sparse checkout of that path is enough
 - [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
 
 ### Seaborn gallery

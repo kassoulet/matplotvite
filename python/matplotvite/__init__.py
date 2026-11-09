@@ -951,6 +951,45 @@ def _collection_entry(artist):
                 label=str(_call(artist, "get_label") or ""))
 
 
+class Line2D:
+    """Handle for a plotted series, mirroring Matplotlib's `Line2D` setters.
+
+    It mutates the series the axes will draw, so `line, = plot(...)` followed by
+    `line.set_color(...)` behaves like Matplotlib.
+    """
+
+    def __init__(self, series):
+        self._series = series
+
+    def get_xdata(self): return self._series["x"]
+    def get_ydata(self): return self._series["y"]
+    def set_xdata(self, x): self._series["x"] = _as_f64(x)
+    def set_ydata(self, y): self._series["y"] = _as_f64(y)
+
+    def set_data(self, x, y):
+        self.set_xdata(x)
+        self.set_ydata(y)
+
+    def get_color(self): return self._series["color"]
+    def set_color(self, color): self._series["color"] = _norm_color(color)
+    def get_alpha(self): return self._series["alpha"]
+    def set_alpha(self, alpha):
+        self._series["alpha"] = None if alpha is None else float(alpha)
+    def get_linewidth(self): return self._series["linewidth"]
+    def set_linewidth(self, linewidth): self._series["linewidth"] = float(linewidth)
+    def get_linestyle(self): return self._series["linestyle"]
+    def set_linestyle(self, linestyle): self._series["linestyle"] = str(linestyle)
+    def get_marker(self): return self._series["marker"]
+    def set_marker(self, marker): self._series["marker"] = str(marker)
+    def set_markersize(self, size): self._series["markersize"] = float(size)
+    def set_markerfacecolor(self, color): self._series["mfc"] = _norm_color(color)
+    def set_markeredgecolor(self, color): self._series["mec"] = _norm_color(color)
+    def get_label(self): return self._series["label"]
+    def set_label(self, label): self._series["label"] = str(label)
+    def get_drawstyle(self): return self._series["drawstyle"]
+    def set_drawstyle(self, drawstyle): self._series["drawstyle"] = str(drawstyle)
+
+
 class Axes:
     def __init__(self, pos):
         self.pos, self.lines, self.texts = pos, [], []
@@ -1046,32 +1085,39 @@ class Axes:
         `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
         `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
         args = _resolve_data_args(args, data, x, y)
-        x, y, fmt = _plot_args(args, fmt)
-        if y is None:
-            x, y = np.arange(len(x)), x
-        if not label and getattr(y, "name", None) is not None:
-            label = str(y.name)
-        x = self._xdate(x)
-        style = linestyle or ls or "-"
-        if fmt:
-            f_color, f_style, f_marker = _parse_fmt(fmt)
-            color = color or c or f_color
-            if linestyle is None and ls is None:
-                style = f_style or style
-            if not marker:
-                marker = f_marker
-        line_color = color or c or self._next_color()
         if drawstyle not in ("default", "steps-pre", "steps-post"):
             raise ValueError(f"unsupported drawstyle: {drawstyle!r}")
-        edge = markeredgecolor or mec
-        self.lines.append(_series(
-            x, y, label, line_color, linestyle=style,
-            linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
-            marker=marker or "",
-            markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
-            mfc=markerfacecolor or mfc, mec=edge,
-            mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
-            alpha=alpha, drawstyle=drawstyle))
+        handles = []
+        for index, (gx, gy, gfmt) in enumerate(_plot_args(args, fmt)):
+            if gy is None:
+                gx, gy = np.arange(len(gx)), gx
+            gfmt = gfmt or (fmt if index == 0 else None)
+            if not label and getattr(gy, "name", None) is not None:
+                glabel = str(gy.name)
+            else:
+                glabel = label if index == 0 else ""
+            style = linestyle or ls or "-"
+            gcolor, gmarker = color or c, marker
+            if gfmt:
+                f_color, f_style, f_marker = _parse_fmt(gfmt)
+                gcolor = gcolor or f_color
+                if linestyle is None and ls is None:
+                    style = f_style or style
+                if not gmarker:
+                    gmarker = f_marker
+            line_color = gcolor or self._next_color()
+            edge = markeredgecolor or mec
+            handle = _series(
+                self._xdate(gx), gy, glabel, line_color, linestyle=style,
+                linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
+                marker=gmarker or "",
+                markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
+                mfc=markerfacecolor or mfc, mec=edge,
+                mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
+                alpha=alpha, drawstyle=drawstyle)
+            self.lines.append(handle)
+            handles.append(Line2D(handle))
+        return handles
 
     def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
         self.aspect = _norm_aspect(aspect)
@@ -2893,13 +2939,35 @@ def _resolve_data_args(args, data, x, y):
 
 
 def _plot_args(args, fmt):
-    if len(args) == 1:
-        return args[0], None, fmt
-    if len(args) == 2:
-        return args[0], args[1], fmt
-    if len(args) == 3:
-        return args[0], args[1], fmt or args[2]
-    raise TypeError("plot expects y, (x, y) or (x, y, fmt)")
+    """Split plot args into (x, y, fmt) groups, supporting multiple data sets.
+
+    `plot(y)`, `plot(x, y)`, `plot(y, "r--")`, `plot(x, y, "r--")` and the
+    repeated `plot(x1, y1, x2, y2, ...)` form Matplotlib accepts all map to
+    groups; a trailing format string applies to the group before it.
+    """
+    groups: list[tuple] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if isinstance(arg, str):
+            if groups and groups[-1][2] is None:
+                groups[-1] = (groups[-1][0], groups[-1][1], arg)
+            i += 1
+            continue
+        if i + 1 < len(args) and not isinstance(args[i + 1], str):
+            groups.append((arg, args[i + 1], None))
+            i += 2
+        elif i + 1 < len(args):
+            groups.append((None, arg, args[i + 1]))
+            i += 2
+        else:
+            groups.append((None, arg, None))
+            i += 1
+    if not groups:
+        raise TypeError("plot expects y, (x, y) or (x, y, fmt)")
+    if len(groups) > 1 and groups[-1][0] is None:
+        raise TypeError("third arg must be a format string")
+    return groups
 
 
 # Marker characters the renderer understands; keep in sync with

@@ -1,15 +1,20 @@
-"""Harvest Matplotlib's baseline-image tests into a renderable comparison gallery.
+"""Harvest Matplotlib's own tests and gallery examples into comparison galleries.
 
-usage: python tools/harvest_matplotlib.py [--source PATH] [--out dist/mpl-corpus]
+usage:
+  python tools/harvest_matplotlib.py [--source PATH] [--out dist/mpl-corpus]
+  python tools/harvest_matplotlib.py --examples PATH [--out dist/mpl-examples]
 
-Each `@image_comparison(...)` test in Matplotlib's own test suite names a
-baseline PNG that Matplotlib asserts its renderer reproduces. This tool pulls
-those tests out of a Matplotlib checkout (the wheel ships the test modules but
-not `baseline_images`, so an sdist or git checkout is required), rewrites each
-test body into a standalone snippet, renders it with matplotvite and writes a
-side-by-side gallery of baseline vs. ours plus a manifest of every case.
+In the default mode, each `@image_comparison(...)` test in Matplotlib's test
+suite names a baseline PNG that Matplotlib asserts its renderer reproduces. The
+tool pulls those tests out of a Matplotlib checkout (the wheel ships the test
+modules but not `baseline_images`, so an sdist or git checkout is required),
+rewrites each test body into a standalone snippet, renders it with matplotvite
+and writes a side-by-side gallery of baseline vs. ours plus a manifest.
 
-Exit status is 1 only when no baseline images could be found.
+With `--examples`, every script under `galleries/examples` (or `examples`) is
+rewritten the same way, tagged with its gallery category and rendered into a
+gallery whose failures are the API gap list. Exit status is 1 only when there
+is nothing to harvest.
 """
 from __future__ import annotations
 
@@ -77,6 +82,78 @@ def image_comparison_baselines(func: ast.FunctionDef) -> list[str] | None:
     return None
 
 
+def find_examples_root(source: pathlib.Path) -> pathlib.Path | None:
+    """Locate the gallery examples directory in a Matplotlib checkout."""
+    for candidate in (source / "galleries/examples", source / "examples", source):
+        if any(candidate.glob("*/*.py")):
+            return candidate
+    return None
+
+
+class _ExampleStripper(ast.NodeTransformer):
+    """Drop Matplotlib/NumPy imports and the interactive tail of a gallery script."""
+
+    def visit_Import(self, node: ast.Import):
+        kept = [alias for alias in node.names
+                if alias.name.split(".")[0] not in ("matplotlib", "numpy")]
+        if not kept:
+            return None
+        node.names = kept
+        return node
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        if (node.module or "").split(".")[0] in ("matplotlib", "numpy"):
+            return None
+        return node
+
+    def visit_If(self, node: ast.If):
+        if "__main__" in ast.unparse(node.test):
+            return None
+        return self.generic_visit(node)
+
+    def visit_Expr(self, node: ast.Expr):
+        call = ast.unparse(node)
+        if re.match(r"(plt|mpl|matplotlib\.pyplot)\.(show|pause|draw|close)\(", call):
+            return None
+        return node
+
+
+def prepare_example(text: str) -> str | None:
+    """Rewrite a gallery script into a snippet that draws once and saves."""
+    if "input(" in text:
+        return None
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    tree = _ExampleStripper().visit(tree)
+    code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
+    if not code:
+        return None
+    return code + "\nplt.savefig(OUT, dpi=100)\n"
+
+
+def harvest_examples(examples_root: pathlib.Path) -> list[dict[str, object]]:
+    """One case per example script, tagged with its gallery category."""
+    cases: list[dict[str, object]] = []
+    for script in sorted(examples_root.rglob("*.py")):
+        relative = script.relative_to(examples_root)
+        text = script.read_text(encoding="utf-8")
+        try:
+            docstring = ast.get_docstring(ast.parse(text)) or ""
+        except SyntaxError:
+            docstring = ""
+        summary = next((line.strip() for line in docstring.splitlines() if line.strip()), "")
+        cases.append({
+            "id": relative.with_suffix("").as_posix(),
+            "category": relative.parts[0] if len(relative.parts) > 1 else "examples",
+            "path": str(script),
+            "description": summary,
+            "snippet": prepare_example(text),
+        })
+    return cases
+
+
 def _resolve_baseline(tests_root: pathlib.Path, stem: str, name: str) -> pathlib.Path:
     """`baseline_images` names omit extensions; prefer the PNG variant."""
     base = tests_root / "baseline_images" / stem / name
@@ -140,6 +217,9 @@ def render(snippet: str, out_path: pathlib.Path) -> str | None:
                  "OUT": str(out_path)}
     try:
         matplotvite.close("all")
+        # Each case starts from Matplotlib's defaults, not the previous case's
+        # rcParams edits.
+        matplotvite.rcdefaults()
         np.random.seed(0)
         exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
         if not out_path.exists():
@@ -165,10 +245,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=pathlib.Path,
                         help="Matplotlib checkout or sdist root")
-    parser.add_argument("--out", type=pathlib.Path, default=pathlib.Path("dist/mpl-corpus"))
-    parser.add_argument("--json", type=pathlib.Path, dest="json_out",
-                        default=pathlib.Path("dist/mpl-corpus/manifest.json"))
+    parser.add_argument("--examples", type=pathlib.Path,
+                        help="render the gallery scripts under this checkout instead")
+    parser.add_argument("--out", type=pathlib.Path, default=None)
+    parser.add_argument("--json", type=pathlib.Path, dest="json_out", default=None)
     args = parser.parse_args()
+    default_out = "dist/mpl-examples" if args.examples else "dist/mpl-corpus"
+    args.out = args.out or pathlib.Path(default_out)
+    args.json_out = args.json_out or args.out / "manifest.json"
+    if args.examples:
+        return harvest_examples_gallery(args.examples, args.out, args.json_out)
 
     tests_root = find_tests_root(args.source)
     if tests_root is None:
@@ -239,6 +325,60 @@ def main() -> int:
     print(f"\n{len(cases)} baseline cases: {rendered} rendered, "
           f"{statuses.count('failed')} failed, {statuses.count('unsupported')} "
           f"unsupported; gallery: {args.out / 'index.html'}")
+    return 0
+
+
+def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
+                             manifest_path: pathlib.Path) -> int:
+    """Render every gallery example and report the ones our API cannot express."""
+    examples_root = find_examples_root(source)
+    if examples_root is None:
+        print(f"No gallery examples found under {source}.")
+        return 1
+    cases = harvest_examples(examples_root)
+    out.mkdir(parents=True, exist_ok=True)
+    rows: list[str] = []
+    statuses: dict[str, list[int]] = {}
+    for case in cases:
+        slug = str(case["id"]).replace("/", "_")
+        entry = dict(case)
+        entry["error"] = None
+        if case["snippet"] is None:
+            entry["status"] = "unsupported"
+            entry["error"] = "interactive or unparseable"
+        else:
+            ours = out / f"{slug}.png"
+            entry["error"] = render(str(case["snippet"]), ours)
+            entry["status"] = "rendered" if entry["error"] is None else "failed"
+            if entry["error"] is None:
+                entry["ours"] = str(ours)
+        counts = statuses.setdefault(str(case["category"]), [0, 0])
+        counts[0] += 1
+        counts[1] += entry["status"] == "rendered"
+        view = (f'<img src="{html.escape(slug)}.png">' if entry.get("ours")
+                else f'<pre style="color:#c00">{html.escape(str(entry["error"]))}</pre>')
+        rows.append(
+            f"<tr><td>{html.escape(str(case['category']))}<br>"
+            f"<b>{html.escape(str(case['id']))}</b><br>"
+            f"{html.escape(str(case['description']))}</td>"
+            f"<td>{view}</td><td>{entry['status']}</td></tr>")
+        case.clear()
+        case.update(entry)
+        print(f"{case['id']:60} {entry['status']:9} {entry['error'] or ''}".rstrip())
+
+    summary = "".join(
+        f"<li>{html.escape(name)}: {ok}/{total} rendered</li>"
+        for name, (total, ok) in sorted(statuses.items()))
+    rendered = sum(case["status"] == "rendered" for case in cases)
+    (out / "index.html").write_text(
+        f"<p>{rendered}/{len(cases)} examples rendered</p><ul>{summary}</ul>"
+        "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
+        "<th>status</th></tr>" + "".join(rows)
+        + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
+    print(f"\n{rendered}/{len(cases)} gallery examples rendered; "
+          f"gallery: {out / 'index.html'}")
     return 0
 
 

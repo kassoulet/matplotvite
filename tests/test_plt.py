@@ -872,8 +872,26 @@ def test_plot_alpha_and_bad_drawstyle(tmp_path):
     assert re.search(r'opacity="0\.[23]', p.read_text())
     with pytest.raises(ValueError):
         plt.plot([0, 1], [0, 1], drawstyle="steps-middle")
+    # Repeated data sets are valid; a dangling numeric third arg is not.
+    assert len(plt.plot([1], [2], [3], [4])) == 2
     with pytest.raises(TypeError):
-        plt.plot([1], [2], [3], [4])
+        plt.plot([1], [2], [3])
+
+
+def test_plot_multiple_data_sets_and_line_handles():
+    plt.figure()
+    lines = plt.plot([0, 1], [1, 0], [0, 1], [0, 1], "r--")
+    assert len(lines) == 2
+    assert lines[1].get_color() == "#ff0000" and lines[1].get_linestyle() == "--"
+    lines[0].set_color("green")
+    lines[0].set_label("first")
+    lines[0].set_data([0, 2], [2, 0])
+    entry = plt.gca().lines[0]
+    assert entry["color"] == "#008000" and entry["label"] == "first"
+    assert list(entry["x"]) == [0.0, 2.0]
+    # y-only plots and their fmt shorthand still produce a single handle.
+    line, = plt.plot([3, 1, 2], "o")
+    assert line.get_marker() == "o"
 
 
 def test_plot_step_drawstyles(tmp_path):
