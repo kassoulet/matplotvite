@@ -1,6 +1,4 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, OnceLock};
 
 use plotters::prelude::*;
@@ -56,9 +54,61 @@ fn append_body(svg: &mut String, body: &str) {
 }
 
 type PanelFragment = (String, Vec<String>);
-type PanelCache = Mutex<HashMap<u64, PanelFragment>>;
 
-static PANEL_CACHE: OnceLock<PanelCache> = OnceLock::new();
+/// A full SVG fragment can be megabytes for a dense scatter, so entry count
+/// alone is not a useful bound. Evict oldest insertions once either the entry
+/// or byte budget is reached; one oversized fragment is simply not cached.
+struct PanelCache {
+    entries: HashMap<String, PanelFragment>,
+    order: VecDeque<String>,
+    bytes: usize,
+}
+
+impl PanelCache {
+    const MAX_BYTES: usize = 64 * 1024 * 1024;
+    const MAX_ENTRIES: usize = 256;
+
+    fn new() -> Self {
+        Self {
+            entries: HashMap::new(),
+            order: VecDeque::new(),
+            bytes: 0,
+        }
+    }
+
+    fn get(&self, key: &str) -> Option<&PanelFragment> {
+        self.entries.get(key)
+    }
+
+    fn insert(&mut self, key: String, fragment: PanelFragment) {
+        let bytes = fragment_bytes(&fragment);
+        if bytes > Self::MAX_BYTES {
+            return;
+        }
+        while !self.order.is_empty()
+            && (self.bytes + bytes > Self::MAX_BYTES || self.entries.len() >= Self::MAX_ENTRIES)
+        {
+            let Some(old_key) = self.order.pop_front() else {
+                break;
+            };
+            if let Some(old) = self.entries.remove(&old_key) {
+                self.bytes = self.bytes.saturating_sub(fragment_bytes(&old));
+            }
+        }
+        if let Some(old) = self.entries.insert(key.clone(), fragment) {
+            self.bytes = self.bytes.saturating_sub(fragment_bytes(&old));
+        } else {
+            self.order.push_back(key);
+        }
+        self.bytes += bytes;
+    }
+}
+
+fn fragment_bytes(fragment: &PanelFragment) -> usize {
+    fragment.0.len() + fragment.1.iter().map(String::len).sum::<usize>()
+}
+
+static PANEL_CACHE: OnceLock<Mutex<PanelCache>> = OnceLock::new();
 
 /// Draw one panel into a full-size transparent SVG and return its body. Each
 /// fragment uses absolute canvas coordinates, so the bodies can simply be
@@ -112,16 +162,20 @@ fn fragment_key(
     p: &Panel,
     top_pad: i32,
     raster_scatter: bool,
-) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    p.cache_key.hash(&mut hasher);
-    size.hash(&mut hasher);
-    grid.hash(&mut hasher);
-    top_pad.hash(&mut hasher);
-    // Raster and vector output differ for dense scatter, so the cached
-    // fragment must not be shared between them.
-    raster_scatter.hash(&mut hasher);
-    hasher.finish()
+) -> String {
+    // `cache_key` is a 128-bit blake2b digest; keep all of it instead of
+    // folding it into a 64-bit hash. Raster and vector output differ for dense
+    // scatter, so the mode is part of the key too.
+    format!(
+        "{}:{}x{}:{}x{}:{}:{}",
+        p.cache_key,
+        size.0,
+        size.1,
+        grid.0,
+        grid.1,
+        top_pad,
+        if raster_scatter { 1 } else { 0 }
+    )
 }
 
 /// Reuse the encoded/drawn fragment of an unchanged panel; only dirty panels
@@ -137,7 +191,7 @@ fn cached_panel_fragment(
         return panel_fragment(size, grid, p, top_pad, raster_scatter);
     }
     let key = fragment_key(size, grid, p, top_pad, raster_scatter);
-    let cache = PANEL_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = PANEL_CACHE.get_or_init(|| Mutex::new(PanelCache::new()));
     if let Ok(guard) = cache.lock() {
         if let Some(fragment) = guard.get(&key) {
             return Ok(fragment.clone());
@@ -145,9 +199,6 @@ fn cached_panel_fragment(
     }
     let fragment = panel_fragment(size, grid, p, top_pad, raster_scatter)?;
     if let Ok(mut guard) = cache.lock() {
-        if guard.len() >= 256 {
-            guard.clear();
-        }
         guard.insert(key, fragment.clone());
     }
     Ok(fragment)

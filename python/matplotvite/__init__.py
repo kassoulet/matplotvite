@@ -2702,7 +2702,7 @@ def _hash_value(hasher, value):
 def _panel_cache_key(panel):
     """Stable fingerprint used by the renderer's per-panel fragment cache."""
     try:
-        hasher = _hashlib.blake2b(digest_size=8)
+        hasher = _hashlib.blake2b(digest_size=16)
         _hash_value(hasher, panel)
         return hasher.hexdigest()
     except (TypeError, ValueError):
