@@ -200,6 +200,13 @@ fn background_fragment(size: (u32, u32), background: Option<RGBAColor>) -> Resul
     Ok(svg)
 }
 
+/// Encoding mode for the figure: DPI scales point-based text, and raster
+/// formats may use raster marker layers.
+pub(crate) struct RenderOutput {
+    pub(crate) dpi: f64,
+    pub(crate) raster: bool,
+}
+
 /// Render all panels to an SVG string via plotters. Independent panels are
 /// rasterised/drawn concurrently with Rayon and concatenated in panel order.
 pub(crate) fn render_svg(
@@ -209,9 +216,9 @@ pub(crate) fn render_svg(
     background: Option<RGBAColor>,
     edgecolor: Option<&str>,
     suptitle: Option<Suptitle>,
-    dpi: f64,
-    raster_scatter: bool,
+    output: RenderOutput,
 ) -> Result<String, String> {
+    let dpi = output.dpi;
     // A figure title reserves a band at the top so it never overlaps the first
     // row of panels.
     let top_pad = suptitle
@@ -220,7 +227,7 @@ pub(crate) fn render_svg(
         .unwrap_or(0);
     let fragments: Vec<(String, Vec<String>)> = panels
         .par_iter()
-        .map(|p| cached_panel_fragment(size, grid, p, top_pad, raster_scatter))
+        .map(|p| cached_panel_fragment(size, grid, p, top_pad, output.raster))
         .collect::<Result<_, String>>()?;
     let (bodies, overlays): (Vec<String>, Vec<Vec<String>>) = fragments.into_iter().unzip();
     let overlays: Vec<String> = overlays.into_iter().flatten().collect();

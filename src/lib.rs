@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 
 use crate::export::{
     background_pixel, content_bbox, crop_pixmap, encode_png, encode_webp, figure_background,
-    rasterize, render_pdf, render_svg, svg_tight,
+    rasterize, render_pdf, render_svg, svg_tight, RenderOutput,
 };
 use crate::fonts::register_plotters_fonts;
 use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
@@ -101,8 +101,10 @@ fn render(
         background,
         edgecolor.as_deref(),
         title,
-        dpi,
-        matches!(fmt.as_str(), "png" | "webp"),
+        RenderOutput {
+            dpi,
+            raster: matches!(fmt.as_str(), "png" | "webp"),
+        },
     )
     .map_err(|e| err(&e))?;
     if fmt == "svg" || fmt == "pdf" {
