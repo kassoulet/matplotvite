@@ -9,7 +9,20 @@ use rayon::prelude::*;
 use crate::color::color;
 use crate::draw::{draw_panel, text_px};
 use crate::fonts::{fontdb, pdf_options};
-use crate::model::{Panel, PngCompression, Suptitle};
+use crate::model::{Panel, PngCompression, Suptitle, TextItem};
+
+/// Figure-level marks (title, text and border) drawn after every panel.
+pub(crate) struct FigureDecorations<'a> {
+    pub(crate) suptitle: Option<Suptitle<'a>>,
+    pub(crate) texts: &'a [TextItem],
+    pub(crate) edgecolor: Option<&'a str>,
+}
+
+impl FigureDecorations<'_> {
+    pub(crate) fn is_empty(&self) -> bool {
+        self.suptitle.is_none() && self.edgecolor.is_none() && self.texts.is_empty()
+    }
+}
 
 /// Convert SVG markup into a single-page vector PDF. `dpi` sets the physical
 /// page size: the SVG's pixel dimensions are treated as `dpi` pixels per inch.
@@ -197,18 +210,17 @@ fn cached_panel_fragment(
     Ok(fragment)
 }
 
-/// Figure-level decorations (title and border), drawn after all panels.
+/// Figure-level decorations (title, text and border), drawn after all panels.
 fn decoration_fragment(
     size: (u32, u32),
-    suptitle: Option<Suptitle>,
-    edgecolor: Option<&str>,
+    decorations: &FigureDecorations<'_>,
     dpi: f64,
 ) -> Result<String, String> {
     let (w, h) = size;
     let mut svg = String::new();
     {
         let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
-        if let Some(s) = suptitle {
+        if let Some(ref s) = decorations.suptitle {
             let style = ("sans-serif", text_px(s.size.max(6.0), dpi).round() as u32)
                 .into_font()
                 .color(&BLACK);
@@ -219,7 +231,35 @@ fn decoration_fragment(
             ))
             .map_err(|e| e.to_string())?;
         }
-        if let Some(ec) = edgecolor {
+        for (x, y, text, colour, size, ha, va) in decorations.texts {
+            // Figure coordinates are fractions of the canvas, like `fig.text`.
+            let px = text_px(*size, dpi).max(1.0);
+            let tw = crate::fonts::text_width(text, px);
+            let dx = match ha.as_str() {
+                "center" => -tw / 2.0,
+                "right" => -tw,
+                _ => 0.0,
+            };
+            let dy = match va.as_str() {
+                "top" => 0.0,
+                "center" => -px / 2.0,
+                "bottom" => -px,
+                _ => -px * 0.8,
+            };
+            let style = ("sans-serif", px.round() as u32)
+                .into_font()
+                .color(&color(colour));
+            root.draw(&Text::new(
+                text.to_string(),
+                (
+                    (x * w as f64 + dx) as i32,
+                    ((1.0 - y) * h as f64 + dy) as i32,
+                ),
+                style,
+            ))
+            .map_err(|e| e.to_string())?;
+        }
+        if let Some(ec) = decorations.edgecolor {
             root.draw(&Rectangle::new(
                 [(0, 0), (w as i32 - 1, h as i32 - 1)],
                 color(ec).stroke_width(1),
@@ -261,14 +301,14 @@ pub(crate) fn render_svg(
     grid: (usize, usize),
     panels: &[Panel],
     background: Option<RGBAColor>,
-    edgecolor: Option<&str>,
-    suptitle: Option<Suptitle>,
+    decorations: FigureDecorations<'_>,
     output: RenderOutput,
 ) -> Result<(String, Option<Bbox>), String> {
     let dpi = output.dpi;
     // A figure title reserves a band at the top so it never overlaps the first
     // row of panels.
-    let top_pad = suptitle
+    let top_pad = decorations
+        .suptitle
         .as_ref()
         .map(|s| (text_px(s.size, dpi.max(1.0)) * 1.6).round() as i32 + 8)
         .unwrap_or(0);
@@ -278,10 +318,10 @@ pub(crate) fn render_svg(
         .collect::<Result<_, String>>()?;
     let (bodies, overlays): (Vec<String>, Vec<Vec<String>>) = fragments.into_iter().unzip();
     let overlays: Vec<String> = overlays.into_iter().flatten().collect();
-    let decorations = if suptitle.is_some() || edgecolor.is_some() {
-        Some(decoration_fragment(size, suptitle, edgecolor, dpi)?)
-    } else {
+    let decoration_svg = if decorations.is_empty() {
         None
+    } else {
+        Some(decoration_fragment(size, &decorations, dpi)?)
     };
 
     // Build the document in one pass. Inserting each fragment before
@@ -293,13 +333,13 @@ pub(crate) fn render_svg(
         .ok_or("rendered SVG has no closing tag")?;
     let extra = bodies.iter().map(String::len).sum::<usize>()
         + overlays.iter().map(String::len).sum::<usize>()
-        + decorations.as_ref().map_or(0, String::len)
+        + decoration_svg.as_ref().map_or(0, String::len)
         + bodies.len()
         + overlays.len()
-        + if decorations.is_some() { 1 } else { 0 };
+        + if decoration_svg.is_some() { 1 } else { 0 };
     let mut svg = String::with_capacity(body.len() + extra);
     svg.push_str(&body[..insert_at]);
-    for part in bodies.iter().chain(&overlays).chain(decorations.iter()) {
+    for part in bodies.iter().chain(&overlays).chain(decoration_svg.iter()) {
         svg.push_str(part);
         svg.push('\n');
     }

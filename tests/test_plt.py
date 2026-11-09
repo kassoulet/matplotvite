@@ -2259,6 +2259,26 @@ def test_suptitle_renders_above_the_grid(tmp_path):
     assert plt.gcf()._suptitle["text"] == "pyplot title"
 
 
+def test_figure_text_needs_no_axes_and_is_not_clipped(tmp_path):
+    fig = plt.figure()
+    fig.text(0.5, 0.5, "figure text", ha="center", va="center", fontsize=16, color="red")
+    p = tmp_path / "figtext.svg"
+    fig.savefig(p)
+    assert re.search(r">\s*figure text\s*<", p.read_text())
+    # It sits above the panels, spanning the grid rather than one cell.
+    fig2, _ = plt.subplots(1, 2)
+    fig2.text(0.5, 0.95, "across panels", ha="center")
+    p2 = tmp_path / "figtext_grid.svg"
+    fig2.savefig(p2)
+    assert "across panels" in p2.read_text()
+    # Text properties the renderer cannot draw yet are accepted, but a typo is not.
+    fig2.text(0.1, 0.1, "rotated", rotation=45, usetex=False)
+    with pytest.raises(TypeError):
+        fig2.text(0.1, 0.1, "bad", nonsense=1)
+    plt.figtext(0.5, 0.5, "pyplot helper")
+    assert plt.gcf()._figure_texts[-1][2] == "pyplot helper"
+
+
 def test_figure_and_savefig_colors_and_bytes(tmp_path):
     import io
 

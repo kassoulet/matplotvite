@@ -17,7 +17,7 @@ use pyo3::prelude::*;
 
 use crate::export::{
     background_pixel, content_bbox, crop_pixmap, encode_png, encode_webp, figure_background,
-    rasterize, render_pdf, render_svg, svg_tight, RenderOutput,
+    rasterize, render_pdf, render_svg, svg_tight, FigureDecorations, RenderOutput,
 };
 use crate::fonts::register_plotters_fonts;
 use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
@@ -48,9 +48,11 @@ fn render(
         suptitle_size,
         suptitle_x,
         suptitle_y,
+        figure_texts,
     } = options;
     register_plotters_fonts();
     if suptitle.is_empty()
+        && figure_texts.is_empty()
         && panels.iter().all(|p| {
             p.series.is_empty()
                 && p.texts.is_empty()
@@ -118,7 +120,11 @@ fn render(
         x: suptitle_x,
         y: suptitle_y,
     });
-    let edgecolor = edgecolor.as_deref();
+    let decorations = FigureDecorations {
+        suptitle: title,
+        texts: &figure_texts,
+        edgecolor: edgecolor.as_deref(),
+    };
     let output = RenderOutput {
         dpi,
         raster: matches!(fmt.as_str(), "png" | "webp"),
@@ -130,8 +136,7 @@ fn render(
     // vector path remains the fallback for everything else.
     let direct = fmt == "png"
         && !transparent
-        && title.is_none()
-        && edgecolor.is_none()
+        && decorations.is_empty()
         && panels.iter().all(|p| p.images.is_empty())
         && direct_eligible(&panels);
     let direct_background =
@@ -158,7 +163,7 @@ fn render(
             return encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast), true)
                 .map_err(|e| e.to_string());
         }
-        let (svg, bounds) = render_svg(size, grid, &panels, background, edgecolor, title, output)?;
+        let (svg, bounds) = render_svg(size, grid, &panels, background, decorations, output)?;
         if fmt == "svg" || fmt == "pdf" {
             let svg = match if tight {
                 bounds.and_then(|bbox| svg_tight(&svg, bbox))

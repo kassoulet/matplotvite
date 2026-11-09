@@ -59,6 +59,7 @@
 ### 0.2.4 Text & annotations
 - [x] `text(x, y, s, color=, fontsize=, ha=, va=)`
 - [x] `text(..., transform=)` — `ax.transAxes`, `fig.transFigure` and data coordinates
+- [x] `fig.text(...)` / `plt.figtext(...)` — figure-fraction text drawn above the panels so it is never clipped, with no axes required; other `Text` properties (`rotation`, `usetex`, `math_fontfamily`, font families, ...) are accepted but not drawn yet
 - [x] `annotate(text, xy, xytext=)` — label plus straight arrow; `arrowprops` styling is accepted but ignored
 
 ### 0.2.5 Fill
@@ -224,7 +225,7 @@
 > `tools/visual_compare.py` uses against Matplotlib Agg.
 
 ### Matplotlib test corpus
-- [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. On Matplotlib 3.11.2 that is 526 cases, 105 rendering today (61 at the baseline's pixel size, 14% median mismatch), so the ~395 API failures are the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
+- [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. On Matplotlib 3.11.2 that is 526 cases, 118 rendering today (62 at the baseline's pixel size, 13% median mismatch), so the ~380 API failures are the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
 - [ ] Harvest the `examples/` tree (`plot_types`, `gallery`, `tutorials`, `showcase`) into the comparison gallery, tagged by category, so uncovered API surfaces as a gap list the way TRACE does for mirrored call sites
 - [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
 

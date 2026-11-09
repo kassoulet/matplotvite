@@ -107,6 +107,9 @@ pub(crate) struct RenderOptions {
     pub(crate) suptitle_x: f64,
     #[pyo3(item)]
     pub(crate) suptitle_y: f64,
+    /// Figure-fraction text, drawn after the panels so it is never clipped.
+    #[pyo3(item)]
+    pub(crate) figure_texts: Vec<TextItem>,
 }
 
 /// Figure-level title drawn above the panel grid.

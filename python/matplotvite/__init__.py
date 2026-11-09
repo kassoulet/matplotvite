@@ -17,7 +17,7 @@ __all__ = (
     "SubplotSpec", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
-    "draw", "errorbar", "eventplot", "figure", "fill", "fill_between", "violinplot",
+    "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "quiver", "rc", "rc_context", "rcdefaults",
@@ -118,6 +118,34 @@ def _math_script(body, table, marker):
     if all(ord(ch) in table for ch in body):
         return body.translate(table)
     return f"{marker}({body})"
+
+
+# Text properties Matplotlib accepts that the renderer has no model for. They are
+# accepted so Matplotlib code runs unchanged; size, colour, alignment and
+# transform are the ones that actually change the output.
+_IGNORED_TEXT_KWARGS = frozenset(
+    "alpha antialiased antialiasing backgroundcolor bbox clip_box clip_on clip_path "
+    "family figure font fontfamily fontname fontproperties font_properties "
+    "fontstretch fontstyle fontvariant fontweight gid in_layout linespacing ma "
+    "math_fontfamily multialignment parse_math path_effects picker rasterized "
+    "rotation rotation_mode sketch_params snap url usetex verticalalignment "
+    "visible weight wrap zorder".split()
+)
+
+
+def _text_props(fontdict, kwargs):
+    """Split text keywords into the honoured subset and the compatibility no-ops."""
+    props = dict(fontdict or {})
+    props.update(kwargs)
+    transform = props.pop("transform", None)
+    fontsize = props.pop("fontsize", props.pop("size", None))
+    colour = props.pop("color", props.pop("c", None))
+    ha = props.pop("horizontalalignment", props.pop("ha", "left"))
+    va = props.pop("verticalalignment", props.pop("va", "baseline"))
+    unexpected = [key for key in props if key not in _IGNORED_TEXT_KWARGS]
+    if unexpected:
+        raise TypeError(f"unexpected text keyword argument {unexpected[0]!r}")
+    return transform, fontsize, colour, ha, va
 
 
 def _mathtext(text):
@@ -1485,10 +1513,11 @@ class Axes:
                     raise AttributeError(f"Axes.set() does not support {key!r}")
                 setter(value)
 
-    def text(self, x, y, s, color=None, fontsize=None, ha="left", va="baseline",
-             transform=None):
+    def text(self, x, y, s, fontdict=None, **kwargs):
         """Place text at (x, y); `transform` may be `ax.transAxes` or
-        `fig.transFigure` to use axes- or figure-fraction coordinates."""
+        `fig.transFigure` to use axes- or figure-fraction coordinates. Other
+        Matplotlib text properties are accepted but not drawn yet."""
+        transform, fontsize, colour, ha, va = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va not in ("baseline", "bottom", "center", "top"):
@@ -1497,10 +1526,10 @@ class Axes:
         if kind not in ("data", "axes", "figure"):
             raise ValueError(f"unsupported text transform: {transform!r}")
         size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
-        color = color if color is not None else rcParams.get("text.color", "black")
+        colour = colour if colour is not None else rcParams.get("text.color", "black")
         if kind == "data":
             x = self._xdate(x)
-        self.texts.append((float(x), float(y), _mathtext(s), _norm_color(color), size, ha, va, kind))
+        self.texts.append((float(x), float(y), _mathtext(s), _norm_color(colour), size, ha, va, kind))
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None):
@@ -3347,6 +3376,7 @@ class Figure:
             facecolor if facecolor is not None else rcParams.get("figure.facecolor"))
         self.edgecolor = _norm_color(edgecolor)
         self._suptitle = None
+        self._figure_texts = []
         self._render_cache = None
         self.transFigure = _CoordTransform("figure")
 
@@ -3355,6 +3385,19 @@ class Figure:
         size = (float(fontsize) if fontsize is not None
                 else float(rcParams.get("figure.titlesize", 14.0)))
         self._suptitle = dict(text=_mathtext(t), size=size, x=float(x), y=float(y))
+        return None
+
+    def text(self, x, y, s, fontdict=None, **kwargs):
+        """Figure-fraction text, drawn above every panel so nothing clips it."""
+        _transform, fontsize, colour, ha, va = _text_props(fontdict, kwargs)
+        if ha not in ("left", "center", "right"):
+            raise ValueError(f"unsupported ha: {ha!r}")
+        if va not in ("baseline", "bottom", "center", "top"):
+            raise ValueError(f"unsupported va: {va!r}")
+        size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
+        colour = colour if colour is not None else rcParams.get("text.color", "black")
+        self._figure_texts.append((float(x), float(y), _mathtext(s),
+                                   _norm_color(colour), size, ha, va))
         return None
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
@@ -3521,6 +3564,7 @@ class Figure:
             "suptitle_size": self._suptitle["size"] if self._suptitle else 14.0,
             "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
             "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
+            "figure_texts": self._figure_texts,
         }
         # An unchanged figure reuses its last encoded bytes. The key covers both
         # the panel payload and every render option, so any edit invalidates it.
@@ -3577,6 +3621,8 @@ def subplot_mosaic(mosaic, empty_sentinel=".", figsize=(6.4, 4.8), dpi=None,
     return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
 def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
     return gcf().suptitle(t, x=x, y=y, fontsize=fontsize, **kwargs)
+def figtext(x, y, s, **kwargs):
+    return gcf().text(x, y, s, **kwargs)
 def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
 def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
