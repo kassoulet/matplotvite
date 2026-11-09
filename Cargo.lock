@@ -647,6 +647,7 @@ dependencies = [
  "criterion",
  "numpy",
  "plotters",
+ "plotters-backend",
  "png 0.18.1",
  "pyo3",
  "rayon",

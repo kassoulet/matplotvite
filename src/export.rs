@@ -131,7 +131,7 @@ fn panel_fragment(
                 let right = (w as f64 - (x + pw) * w as f64).round() as i32;
                 let bottom = (y * h as f64).round() as i32;
                 let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
-                draw_panel(&area, p, &mut overlays, gap, raster_scatter)
+                draw_panel(&area, p, &mut overlays, gap, raster_scatter, p.dpi)
                     .map_err(|e| e.to_string())?;
             }
             None => draw_panel(
@@ -140,6 +140,7 @@ fn panel_fragment(
                 &mut overlays,
                 gap,
                 raster_scatter,
+                p.dpi,
             )
             .map_err(|e| e.to_string())?,
         }

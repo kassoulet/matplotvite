@@ -106,14 +106,18 @@ _MATH_SYMBOLS = {
     "prod": "∏", "int": "∫", "partial": "∂", "nabla": "∇", "sqrt": "√",
     "propto": "∝", "sim": "∼", "ldots": "…", "dots": "…",
 }
-_SUPERSCRIPTS = str.maketrans(
-    "0123456789+-=()abcdefghijklmnoprstuvwxyz",
-    "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ",
-)
-_SUBSCRIPTS = str.maketrans(
-    "0123456789+-=()aehijklmnoprstuvx",
-    "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ",
-)
+# Geist includes the Unicode superscript and subscript digits but not the
+# modifier letters or subscript operators. Unsupported scripts fall back to
+# parenthesized baseline notation instead of rendering missing-glyph boxes.
+_SUPERSCRIPTS = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
+_SUBSCRIPTS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+
+def _math_script(body, table, marker):
+    """Translate a script that the bundled font can show, else keep it readable."""
+    if all(ord(ch) in table for ch in body):
+        return body.translate(table)
+    return f"{marker}({body})"
 
 
 def _mathtext(text):
@@ -130,10 +134,24 @@ def _mathtext(text):
             lambda m: _MATH_GREEK.get(m.group(1)) or _MATH_SYMBOLS.get(m.group(1), m.group(0)),
             body,
         )
-        body = _re.sub(r"\^\{([^{}]*)\}", lambda m: m.group(1).translate(_SUPERSCRIPTS), body)
-        body = _re.sub(r"\^(\S)", lambda m: m.group(1).translate(_SUPERSCRIPTS), body)
-        body = _re.sub(r"_\{([^{}]*)\}", lambda m: m.group(1).translate(_SUBSCRIPTS), body)
-        body = _re.sub(r"_(\S)", lambda m: m.group(1).translate(_SUBSCRIPTS), body)
+        body = _re.sub(
+            r"\^\{([^{}]*)\}|\^(\S)",
+            lambda m: _math_script(
+                m.group(1) if m.group(1) is not None else m.group(2),
+                _SUPERSCRIPTS,
+                "^",
+            ),
+            body,
+        )
+        body = _re.sub(
+            r"_\{([^{}]*)\}|_(\S)",
+            lambda m: _math_script(
+                m.group(1) if m.group(1) is not None else m.group(2),
+                _SUBSCRIPTS,
+                "_",
+            ),
+            body,
+        )
         return body.replace("{", "").replace("}", "").replace("\\", "")
 
     out = [parts[0]]
@@ -2626,7 +2644,12 @@ class Axes:
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
                              for e in scatter],
                     arrows=arrows,
-                    colorbar=None,
+                    colorbar=(
+                        (self._fig._colorbar["cmap"], self._fig._colorbar["vmin"],
+                         self._fig._colorbar["vmax"], self._fig._colorbar["label"])
+                        if self._fig is not None and self._fig._colorbar is not None
+                        and self is self._fig.axes[0] else None
+                    ),
                     axis_off=self._axis_off,
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
                     foreground=_norm_color(rcParams.get("text.color")),
@@ -3383,32 +3406,10 @@ class Figure:
             spec = AxesImage(axes.images[-1])._colorbar_spec()
         else:
             raise ValueError("colorbar needs an image or contour to describe")
-        self.grid = (1, 2)
         self._colorbar = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
                               vmax=float(spec["vmax"]), label=str(label))
         return Colorbar(self._colorbar)
 
-    def _colorbar_panel(self):
-        cb = self._colorbar
-        tick = dict(labelsize=10.0, length=3.5, width=1.0, color=None,
-                    labelcolor=None, rotation=0.0)
-        return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
-                    dpi=float(self.dpi or DPI),
-                    title_size=None, xlabel_size=None, ylabel_size=None,
-                    legend=dict(show=False, loc="best", ncol=1, frameon=True,
-                                fontsize=10.0, title="", title_fontsize=11.0,
-                                anchor=None),
-                    grid=dict(show=False, color=None, linewidth=None, alpha=None,
-                              linestyle=None, axis="both"),
-                    ticks=dict(xticks=None, xticklabels=None, yticks=None,
-                               yticklabels=None, xstyle=dict(tick), ystyle=dict(tick),
-                               hide_xlabels=False, hide_ylabels=False),
-                    xlim=None, ylim=None, annotations=[], images=[],
-                    contours=[], errors=[], scatter=[], arrows=[], bars=[], bands=[],
-                    x_log=False, y_log=False, log_base=10.0, aspect=None,
-                    axis_off=False, facecolor=None, foreground=None,
-                    bounds=None, twin="", twin_gap=0.0, patches=[], collections=[],
-                    colorbar=(cb["cmap"], cb["vmin"], cb["vmax"], cb["label"]))
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
                 transparent=False, facecolor=None, edgecolor=None,
@@ -3442,8 +3443,6 @@ class Figure:
             )
         w, h = rw, rh
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
-        if self._colorbar is not None:
-            panels.append(self._colorbar_panel())
         # savefig(dpi=) overrides the figure default, and text sizes scale with it.
         for panel in panels:
             panel["dpi"] = dpi

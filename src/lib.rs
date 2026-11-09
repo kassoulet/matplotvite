@@ -6,6 +6,8 @@ mod fonts;
 mod image;
 mod layout;
 mod model;
+mod raster;
+mod scale;
 
 #[doc(hidden)]
 pub mod bench;
@@ -19,6 +21,7 @@ use crate::export::{
 };
 use crate::fonts::register_plotters_fonts;
 use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
+use crate::raster::{direct_eligible, render_png};
 
 /// Render a figure and return its encoded bytes.
 ///
@@ -122,10 +125,39 @@ fn render(
         tight_bounds: tight && matches!(fmt.as_str(), "svg" | "pdf"),
     };
 
+    // The direct bitmap path skips SVG generation and resvg. It currently
+    // covers opaque PNGs without embedded images or figure decorations; the
+    // vector path remains the fallback for everything else.
+    let direct = fmt == "png"
+        && !transparent
+        && title.is_none()
+        && edgecolor.is_none()
+        && panels.iter().all(|p| p.images.is_empty())
+        && direct_eligible(&panels);
+    let direct_background =
+        background_pixel(background).map(|pixel| [pixel[0], pixel[1], pixel[2]]);
+
     // All input has been copied out of NumPy, so drawing, rasterisation and
     // encoding no longer need the GIL. Other Python threads can run while a
     // large figure is rendered.
     let result = py.detach(move || -> Result<Vec<u8>, String> {
+        if direct {
+            let background = direct_background.ok_or("direct PNG requires an opaque background")?;
+            let pixmap = render_png(size, grid, &panels, background)?;
+            let pixmap = match if tight {
+                content_bbox(
+                    &pixmap,
+                    Some([background[0], background[1], background[2], 255]),
+                )
+            } else {
+                None
+            } {
+                Some(bbox) => crop_pixmap(&pixmap, bbox)?,
+                None => pixmap,
+            };
+            return encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast), true)
+                .map_err(|e| e.to_string());
+        }
         let (svg, bounds) = render_svg(size, grid, &panels, background, edgecolor, title, output)?;
         if fmt == "svg" || fmt == "pdf" {
             let svg = match if tight {

@@ -401,6 +401,23 @@ def test_colorbar_strip(tmp_path):
     assert s.count("<rect") + s.count("<polygon") > 60
 
 
+def test_colorbar_draws_inside_main_panel():
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.contourf(np.add.outer(np.arange(20.0), np.arange(20.0)), levels=[0, 10, 20, 30])
+    fig.colorbar(label="z")
+    assert fig.grid == (1, 1)
+    assert ax._panel()["colorbar"] is not None
+
+
+def test_equal_aspect_draws_title_once(tmp_path):
+    plt.figure((4, 3))
+    plt.imshow(np.arange(12.0).reshape(3, 4))
+    plt.title("Aspect title")
+    p = tmp_path / "aspect_title.svg"
+    plt.savefig(p)
+    assert p.read_text().count("Aspect title") == 1
+
+
 def test_scatter_sizes_and_cmap(tmp_path):
     plt.figure((4, 3))
     plt.scatter([1, 2, 3], [1, 4, 9], s=[20, 60, 120], c=[0.0, 0.5, 1.0], marker="s")
@@ -1839,6 +1856,8 @@ def test_mathtext_titles_labels_and_text(tmp_path):
 
     assert _mathtext("$x^2$") == "x²"
     assert _mathtext("$x^{10}$") == "x¹⁰"
+    assert _mathtext("$e^{-x}$") == "e^(-x)"
+    assert _mathtext("$A_{i-1}$") == "A_(i-1)"
     assert _mathtext("$\\alpha$ and $\\beta_1$") == "α and β₁"
     assert _mathtext("$\\sqrt{x}$") == "√x"
     assert _mathtext("plain text") == "plain text"
@@ -1850,12 +1869,13 @@ def test_mathtext_titles_labels_and_text(tmp_path):
     plt.xlabel("$\\alpha$")
     plt.ylabel("$\\beta_{0}$")
     plt.text(0.1, 0.5, "$\\infty$")
+    plt.text(0.1, 0.3, "$e^{-x}$")
     ax = plt.gca()
     assert ax.title == "x²" and ax.xlabel == "α" and ax.ylabel == "β₀"
     p = tmp_path / "mathtext.svg"
     plt.savefig(p)
     svg = p.read_text()
-    assert "x²" in svg and "β₀" in svg
+    assert "x²" in svg and "β₀" in svg and "e^(-x)" in svg
 
 
 def test_unchanged_figure_reuses_encoded_bytes(monkeypatch):

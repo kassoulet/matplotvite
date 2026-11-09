@@ -200,7 +200,7 @@
 > Target: no workload below 4× matplotlib and a tracked gallery pixel-diff budget.
 
 ### Performance
-- [ ] Render PNG/WebP panels directly instead of building and re-parsing an SVG
+- [x] Render PNG panels directly instead of building and re-parsing an SVG (2× oversampled bitmap for multi-panel/large figures; WebP, transparent, and image output still use the vector path)
 - [x] Extend raster marker layers to every marker source (series markers, error bars, collections)
 - [x] Merge filled-contour interiors into runs and clip only boundary cells
 - [x] Share cached panel fragments across figures with identical content

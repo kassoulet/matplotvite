@@ -293,6 +293,11 @@ The visual comparison renders every gallery case through Matplotlib and
 matplotvite and records per-snippet RMS and visibly-different-pixel percentages.
 CI uploads `visual_diff.json` with the side-by-side HTML gallery.
 
+Opaque PNG figures with multiple panels, or at least 1,000 plotted primitives,
+render through a 2× oversampled bitmap backend and skip SVG generation and resvg.
+Small single-panel plots, transparent output, embedded images, WebP, SVG, and PDF
+keep the existing vector path.
+
 Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
 unchanged figure reuse the previously encoded bytes. CI runs the comparison suite
 against `tools/benchmark_baseline.json` and reports when the matplotlib-normalized

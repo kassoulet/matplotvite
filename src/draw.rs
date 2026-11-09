@@ -145,6 +145,7 @@ fn rotated_style(size: f64, col: RGBAColor, rotation: f64, dpi: f64) -> TextStyl
 /// Draw ticks, tick labels and styled gridlines for panels whose tick layout is
 /// controlled from Python. The plotters mesh still provides the axis frame and
 /// descriptions; this only replaces its ticks and grid.
+#[allow(clippy::too_many_arguments)]
 fn draw_manual_ticks<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     chart: &ChartContext<DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
@@ -153,6 +154,7 @@ fn draw_manual_ticks<DB: DrawingBackend>(
     log_base: f64,
     side: &str,
     gap: i32,
+    dpi: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -290,7 +292,7 @@ where
                 xtick_col.stroke_width(xtick_w),
             ))?;
             if !label.is_empty() && !p.ticks.hide_xlabels {
-                let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation, p.dpi)
+                let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation, dpi)
                     .pos(Pos::new(HPos::Center, vpos));
                 area.draw(&Text::new(label.clone(), (px, label_y), style))?;
             }
@@ -325,7 +327,7 @@ where
                 ytick_col.stroke_width(ytick_w),
             ))?;
             if !label.is_empty() && !p.ticks.hide_ylabels {
-                let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation, p.dpi)
+                let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation, dpi)
                     .pos(Pos::new(hpos, VPos::Center));
                 area.draw(&Text::new(label.clone(), (label_x, py), style))?;
             }
@@ -334,7 +336,7 @@ where
     let fg = color(default_tick);
     if side == "right" && !p.ylabel.is_empty() {
         let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
-        let style = rotated_style(size, fg, 270.0, p.dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        let style = rotated_style(size, fg, 270.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.ylabel.clone(),
             (right + gap - 4, (top + bottom) / 2),
@@ -342,7 +344,7 @@ where
         ))?;
     } else if side == "top" && !p.xlabel.is_empty() {
         let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
-        let style = rotated_style(size, fg, 0.0, p.dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        let style = rotated_style(size, fg, 0.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.xlabel.clone(),
             ((left + right) / 2, top - gap + 10),
@@ -616,8 +618,11 @@ fn num(v: f64) -> String {
 }
 
 /// A vertical gradient strip with min/mid/max ticks and an optional axis label.
+/// `plot` is the main chart's plotting rectangle in panel-local pixels; the
+/// strip spans exactly that vertical range, like a matplotlib colorbar.
 fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
+    plot: (i32, i32, i32, i32),
     cmap: &str,
     vmin: f64,
     vmax: f64,
@@ -627,8 +632,9 @@ where
     DB::ErrorType: 'static,
 {
     let (w, h) = area.dim_in_pixel();
-    let (x0, x1) = (14i32, 44i32);
-    let (y0, y1) = (12i32, h as i32 - 26);
+    let (_, top, right, bottom) = plot;
+    let (x0, x1) = (right + 18, right + 48);
+    let (y0, y1) = (top, bottom);
     if x1 >= w as i32 || y1 - y0 < 4 {
         return Ok(());
     }
@@ -665,12 +671,12 @@ where
         draw_label(
             area,
             (0, 0),
-            (x1 + 6, h as i32 - 6),
+            (x1 + 6, (y1 + 8).min(h as i32 - 2)),
             label,
             RGBAColor(0, 0, 0, 1.0),
             14.0,
             "left",
-            "bottom",
+            "top",
         )?;
     }
     Ok(())
@@ -954,13 +960,12 @@ pub(crate) fn draw_panel<DB: DrawingBackend>(
     overlays: &mut Vec<String>,
     twin_gap_px: i32,
     raster_scatter: bool,
+    dpi: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
 {
-    if let Some((cmap, vmin, vmax, label)) = &p.colorbar {
-        return draw_colorbar(area, cmap, *vmin, *vmax, label);
-    }
+    let colorbar = p.colorbar.as_ref();
     let fg = color(p.foreground.as_deref().unwrap_or("#000000"));
     let twin_side = p.twin.as_str();
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
@@ -995,11 +1000,11 @@ where
     }
     // Apply matplotlib's default 5% autoscale margin in the (possibly
     // log-transformed) coordinate space. Explicit limits bypass it unchanged.
-    (x0, x1) = axis_bounds((x0, x1), p.xlim);
-    (y0, y1) = axis_bounds((y0, y1), p.ylim);
+    (x0, x1) = axis_bounds((x0, x1), p.xlim.map(|(lo, hi)| (tx(lo), tx(hi))));
+    (y0, y1) = axis_bounds((y0, y1), p.ylim.map(|(lo, hi)| (ty(lo), ty(hi))));
     // A fixed aspect shrinks the plotting box instead of bending the data limits,
     // like matplotlib's adjustable="box".
-    let title_size = text_px(p.title_size.unwrap_or(12.0).max(6.0), p.dpi)
+    let title_size = text_px(p.title_size.unwrap_or(12.0).max(6.0), dpi)
         .max(6.0)
         .round() as u32;
     let custom_legend = p.legend.show && p.legend.is_custom();
@@ -1017,19 +1022,27 @@ where
     let shrunk_area;
     let mut builder = ChartBuilder::on(area);
     builder.margin(25);
-    if twin_side == "y" {
+    if colorbar.is_some() {
+        builder.margin_right(125);
+    } else if twin_side == "y" {
         builder.margin_right(10 + twin_gap_px);
     } else if twin_side == "x" {
         builder.margin_top(10 + twin_gap_px);
     }
+    // An equal-aspect panel may rebuild its chart after measuring the plotting
+    // area. Leave the caption empty for that probe so it cannot be drawn twice.
     let mut chart = builder
-        .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
+        .caption(
+            if p.aspect.is_some() { "" } else { &p.title },
+            ("sans-serif", title_size).into_font().color(&fg),
+        )
         .x_label_area_size(35)
         .y_label_area_size(45)
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
         let ratio = (x1 - x0) / (y1 - y0) / scale;
+        let mut target: Option<DrawingArea<DB, plotters::coord::Shift>> = None;
         if pw > 8 && ph > 8 && ratio.is_finite() && ratio > 0.0 {
             let mut dw = 0i32;
             let mut dh = 0i32;
@@ -1040,20 +1053,26 @@ where
             }
             if dw > 0 || dh > 0 {
                 shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
-                let mut rb = ChartBuilder::on(&shrunk_area);
-                rb.margin(25);
-                if twin_side == "y" {
-                    rb.margin_right(10 + twin_gap_px);
-                } else if twin_side == "x" {
-                    rb.margin_top(10 + twin_gap_px);
-                }
-                chart = rb
-                    .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
-                    .x_label_area_size(35)
-                    .y_label_area_size(45)
-                    .build_cartesian_2d(x0..x1, y0..y1)?;
+                target = Some(shrunk_area);
             }
         }
+        let mut rb = match &target {
+            Some(a) => ChartBuilder::on(a),
+            None => ChartBuilder::on(area),
+        };
+        rb.margin(25);
+        if colorbar.is_some() {
+            rb.margin_right(125);
+        } else if twin_side == "y" {
+            rb.margin_right(10 + twin_gap_px);
+        } else if twin_side == "x" {
+            rb.margin_top(10 + twin_gap_px);
+        }
+        chart = rb
+            .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
+            .x_label_area_size(35)
+            .y_label_area_size(45)
+            .build_cartesian_2d(x0..x1, y0..y1)?;
     }
     if let Some(fc) = &p.facecolor {
         chart.plotting_area().fill(&color(fc))?;
@@ -1077,13 +1096,13 @@ where
                 tick_label(*v)
             }
         };
-        let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), p.dpi).round() as u32;
+        let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), dpi).round() as u32;
         let desc_size = text_px(
             p.xlabel_size
                 .unwrap_or(10.0)
                 .max(p.ylabel_size.unwrap_or(10.0))
                 .max(6.0),
-            p.dpi,
+            dpi,
         )
         .round() as u32;
         let mut mesh = chart.configure_mesh();
@@ -1153,6 +1172,7 @@ where
                 base,
                 axis_side,
                 twin_gap_px,
+                dpi,
             )?;
         }
     }
@@ -1935,7 +1955,7 @@ where
         let base = area.get_base_pixel();
         for (x, y, s, c, size, ha, va) in &p.texts {
             let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
-            draw_label(area, base, pos, s, color(c), text_px(*size, p.dpi), ha, va)?;
+            draw_label(area, base, pos, s, color(c), text_px(*size, dpi), ha, va)?;
         }
         for (text, xy, xytext, c, size) in &p.annotations {
             let target = chart_area.map_coordinate(&(tx(xy.0), ty(xy.1)));
@@ -1952,7 +1972,7 @@ where
                 anchor,
                 text,
                 color(c),
-                text_px(*size, p.dpi),
+                text_px(*size, dpi),
                 "left",
                 "baseline",
             )?;
@@ -1993,7 +2013,7 @@ where
             &entries,
             &p.legend,
             fg,
-            p.dpi,
+            dpi,
         )?;
     } else if p.legend.show {
         let loc = p.legend.loc.as_str();
@@ -2011,7 +2031,7 @@ where
         let mut labels = chart.configure_series_labels();
         labels.position(position).label_font((
             "sans-serif",
-            text_px(p.legend.fontsize.max(6.0), p.dpi).round() as u32,
+            text_px(p.legend.fontsize.max(6.0), dpi).round() as u32,
         ));
         if p.legend.frameon {
             labels
@@ -2025,6 +2045,20 @@ where
                 .border_style(TRANSPARENT);
         }
         labels.draw()?;
+    }
+    if let Some((cmap, vmin, vmax, label)) = colorbar {
+        let base = area.get_base_pixel();
+        let pa = chart.plotting_area();
+        let tl = pa.map_coordinate(&(x0, y1));
+        let br = pa.map_coordinate(&(x1, y0));
+        draw_colorbar(
+            area,
+            (tl.0 - base.0, tl.1 - base.1, br.0 - base.0, br.1 - base.1),
+            cmap,
+            *vmin,
+            *vmax,
+            label,
+        )?;
     }
     Ok(())
 }
