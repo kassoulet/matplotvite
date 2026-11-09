@@ -102,6 +102,7 @@ fn render(
         edgecolor.as_deref(),
         title,
         dpi,
+        matches!(fmt.as_str(), "png" | "webp"),
     )
     .map_err(|e| err(&e))?;
     if fmt == "svg" || fmt == "pdf" {

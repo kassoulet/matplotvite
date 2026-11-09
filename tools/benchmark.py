@@ -493,6 +493,88 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         compare("Vector Output", "Vector PDF Export (1,000 pts, PDF)", 1_000,
                 fn_rs_pdf, fn_mpl_pdf)
 
+        # Dense lines stress the vector writer; filled bands stress the
+        # rasteriser, so each gets its own scaling point.
+        big_x = np.linspace(0, 10, 100_000)
+        big_y = np.sin(big_x)
+        big_rs_svg = os.path.join(tmp, "big_rs.svg")
+        big_mpl_svg = os.path.join(tmp, "big_mpl.svg")
+
+        def fn_rs_big_svg():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.plot(big_x, big_y)
+            rs_plt.savefig(big_rs_svg)
+            rs_plt.close()
+
+        def fn_mpl_big_svg():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.plot(big_x, big_y)
+            mpl_plt.savefig(big_mpl_svg)
+            mpl_plt.close("all")
+
+        compare("Vector Output", "Single Line (100,000 points, SVG)", 100_000,
+                fn_rs_big_svg, fn_mpl_big_svg, iters=iters_heavy)
+
+        def fn_rs_contour_lines():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.contour(grid_axis, grid_axis, grid_z, levels=12,
+                           cmap="viridis")
+            rs_plt.title("Contour lines")
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_contour_lines():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.contour(grid_axis, grid_axis, grid_z, levels=12,
+                            cmap="viridis")
+            mpl_plt.title("Contour lines")
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Gridded", "Contour lines (160x160, 12 levels, PNG)", 25_600,
+                fn_rs_contour_lines, fn_mpl_contour_lines)
+
+        scatter_big_x = rng.normal(size=50_000)
+        scatter_big_y = 0.5 * scatter_big_x + rng.normal(size=50_000)
+
+        def fn_rs_scatter_big():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.scatter(scatter_big_x, scatter_big_y, s=4, alpha=0.6)
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_scatter_big():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.scatter(scatter_big_x, scatter_big_y, s=4, alpha=0.6)
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Statistical", "Scatter (50,000 points, PNG)", 50_000,
+                fn_rs_scatter_big, fn_mpl_scatter_big, iters=iters_heavy)
+
+        cached_rs = os.path.join(tmp, "cached_rs.png")
+        cached_mpl = os.path.join(tmp, "cached_mpl.png")
+        rs_fig = rs_plt.figure(figsize=(6.4, 4.8))
+        rs_plt.plot(x_sub, y_sub, label="sin")
+        rs_plt.legend()
+        rs_fig.savefig(cached_rs)
+        mpl_fig = mpl_plt.figure(figsize=(6.4, 4.8))
+        mpl_plt.plot(x_sub, y_sub, label="sin")
+        mpl_plt.legend()
+        mpl_fig.savefig(cached_mpl)
+
+        t_rs = measure_callable(lambda: rs_fig.savefig(cached_rs), iters=iters_fast)
+        t_mpl = measure_callable(lambda: mpl_fig.savefig(cached_mpl), iters=iters_fast)
+        mpl_plt.close("all")
+        results.append({
+            "category": "Repeated Output",
+            "name": "Repeated savefig (unchanged figure, PNG)",
+            "points": 1_000,
+            "rs_ms": round(t_rs, 2),
+            "mpl_ms": round(t_mpl, 2),
+            "speedup": round(t_mpl / t_rs, 1) if t_rs > 0 else 0,
+        })
+
     # System metadata
     system_info = {
         "os": platform.system(),

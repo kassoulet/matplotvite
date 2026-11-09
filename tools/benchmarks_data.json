@@ -2,179 +2,211 @@
   "system": {
     "os": "Linux",
     "arch": "x86_64",
-    "python_version": "3.13.0",
-    "matplotlib_version": "3.11.2",
+    "python_version": "3.14.4",
+    "matplotlib_version": "3.10.7+dfsg1",
     "matplotvite_version": "0.5.0",
-    "timestamp": "2026-11-08 21:14:33 UTC"
+    "timestamp": "2026-11-09 09:44:08 UTC"
   },
   "results": [
     {
       "category": "Data Scaling",
       "name": "Single Line (100 points, PNG)",
       "points": 100,
-      "rs_ms": 2.08,
-      "mpl_ms": 69.94,
-      "speedup": 33.6
+      "rs_ms": 3.85,
+      "mpl_ms": 118.95,
+      "speedup": 30.9
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (1,000 points, PNG)",
       "points": 1000,
-      "rs_ms": 4.39,
-      "mpl_ms": 69.79,
-      "speedup": 15.9
+      "rs_ms": 4.67,
+      "mpl_ms": 119.11,
+      "speedup": 25.5
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (10,000 points, PNG)",
       "points": 10000,
-      "rs_ms": 24.55,
-      "mpl_ms": 72.46,
-      "speedup": 3.0
+      "rs_ms": 6.91,
+      "mpl_ms": 123.21,
+      "speedup": 17.8
     },
     {
       "category": "Data Scaling",
       "name": "Single Line (100,000 points, PNG)",
       "points": 100000,
-      "rs_ms": 231.69,
-      "mpl_ms": 93.43,
-      "speedup": 0.4
+      "rs_ms": 29.61,
+      "mpl_ms": 179.5,
+      "speedup": 6.1
     },
     {
       "category": "Complex Layouts",
       "name": "Multi-Series (5 lines x 2,000 pts, PNG)",
       "points": 10000,
-      "rs_ms": 27.81,
-      "mpl_ms": 108.07,
-      "speedup": 3.9
+      "rs_ms": 13.67,
+      "mpl_ms": 186.9,
+      "speedup": 13.7
     },
     {
       "category": "Complex Layouts",
       "name": "Subplots (2x2 grid, PNG)",
       "points": 4000,
-      "rs_ms": 15.05,
-      "mpl_ms": 119.08,
-      "speedup": 7.9
+      "rs_ms": 13.04,
+      "mpl_ms": 214.57,
+      "speedup": 16.5
     },
     {
       "category": "Vector Output",
       "name": "Vector SVG Export (1,000 pts, SVG)",
       "points": 1000,
-      "rs_ms": 2.45,
-      "mpl_ms": 58.73,
-      "speedup": 24.0
+      "rs_ms": 0.88,
+      "mpl_ms": 109.35,
+      "speedup": 124.8
     },
     {
       "category": "Startup & Process",
       "name": "Cold CLI Execution (Process start + plot + save)",
       "points": 1000,
-      "rs_ms": 96.3,
-      "mpl_ms": 428.1,
-      "speedup": 4.4
+      "rs_ms": 135.0,
+      "mpl_ms": 728.4,
+      "speedup": 5.4
     },
     {
       "category": "Statistical",
       "name": "Scatter (5,000 points, PNG)",
       "points": 5000,
-      "rs_ms": 41.83,
-      "mpl_ms": 137.89,
-      "speedup": 3.3
+      "rs_ms": 11.09,
+      "mpl_ms": 260.33,
+      "speedup": 23.5
     },
     {
       "category": "Categorical",
       "name": "Bar chart (20 categories, PNG)",
       "points": 20,
-      "rs_ms": 2.52,
-      "mpl_ms": 101.74,
-      "speedup": 40.3
+      "rs_ms": 4.88,
+      "mpl_ms": 154.25,
+      "speedup": 31.6
     },
     {
       "category": "Statistical",
       "name": "Histogram (5,000 samples, PNG)",
       "points": 5000,
-      "rs_ms": 2.14,
-      "mpl_ms": 84.28,
-      "speedup": 39.4
+      "rs_ms": 4.02,
+      "mpl_ms": 150.57,
+      "speedup": 37.4
     },
     {
       "category": "Statistical",
       "name": "Box plots (5 groups, PNG)",
       "points": 1000,
-      "rs_ms": 2.82,
-      "mpl_ms": 59.24,
-      "speedup": 21.0
+      "rs_ms": 5.27,
+      "mpl_ms": 105.65,
+      "speedup": 20.1
     },
     {
       "category": "Statistical",
       "name": "Violin plots (5 groups, PNG)",
       "points": 1000,
-      "rs_ms": 6.03,
-      "mpl_ms": 67.29,
-      "speedup": 11.2
+      "rs_ms": 7.89,
+      "mpl_ms": 123.09,
+      "speedup": 15.6
     },
     {
       "category": "Gridded",
       "name": "Filled contours (160x160, PNG)",
       "points": 25600,
-      "rs_ms": 127.96,
-      "mpl_ms": 55.92,
-      "speedup": 0.4
+      "rs_ms": 33.42,
+      "mpl_ms": 102.1,
+      "speedup": 3.1
     },
     {
       "category": "Gridded",
       "name": "Image heatmap (160x160, PNG)",
       "points": 25600,
-      "rs_ms": 10.66,
-      "mpl_ms": 108.36,
-      "speedup": 10.2
+      "rs_ms": 21.32,
+      "mpl_ms": 198.33,
+      "speedup": 9.3
     },
     {
       "category": "Gridded",
       "name": "Quad mesh (160x160, PNG)",
       "points": 25600,
-      "rs_ms": 8.13,
-      "mpl_ms": 73.69,
-      "speedup": 9.1
+      "rs_ms": 16.39,
+      "mpl_ms": 136.42,
+      "speedup": 8.3
     },
     {
       "category": "Gridded",
       "name": "2-D histogram (5,000 points, PNG)",
       "points": 5000,
-      "rs_ms": 9.75,
-      "mpl_ms": 55.13,
-      "speedup": 5.7
+      "rs_ms": 19.32,
+      "mpl_ms": 99.94,
+      "speedup": 5.2
     },
     {
       "category": "Gridded",
       "name": "Hexagonal bins (5,000 points, PNG)",
       "points": 5000,
-      "rs_ms": 49.68,
-      "mpl_ms": 79.01,
-      "speedup": 1.6
+      "rs_ms": 58.81,
+      "mpl_ms": 145.67,
+      "speedup": 2.5
     },
     {
       "category": "Gridded",
       "name": "Vector field (24x24, PNG)",
       "points": 576,
-      "rs_ms": 14.91,
-      "mpl_ms": 70.16,
-      "speedup": 4.7
+      "rs_ms": 25.3,
+      "mpl_ms": 122.66,
+      "speedup": 4.8
     },
     {
       "category": "Data types",
       "name": "Datetime axis (365 points, PNG)",
       "points": 365,
-      "rs_ms": 3.73,
-      "mpl_ms": 63.69,
-      "speedup": 17.1
+      "rs_ms": 6.0,
+      "mpl_ms": 111.88,
+      "speedup": 18.7
     },
     {
       "category": "Vector Output",
       "name": "Vector PDF Export (1,000 pts, PDF)",
       "points": 1000,
-      "rs_ms": 3.93,
-      "mpl_ms": 59.0,
-      "speedup": 15.0
+      "rs_ms": 3.7,
+      "mpl_ms": 125.23,
+      "speedup": 33.8
+    },
+    {
+      "category": "Vector Output",
+      "name": "Single Line (100,000 points, SVG)",
+      "points": 100000,
+      "rs_ms": 26.28,
+      "mpl_ms": 108.0,
+      "speedup": 4.1
+    },
+    {
+      "category": "Gridded",
+      "name": "Contour lines (160x160, 12 levels, PNG)",
+      "points": 25600,
+      "rs_ms": 13.92,
+      "mpl_ms": 107.39,
+      "speedup": 7.7
+    },
+    {
+      "category": "Statistical",
+      "name": "Scatter (50,000 points, PNG)",
+      "points": 50000,
+      "rs_ms": 25.39,
+      "mpl_ms": 136.6,
+      "speedup": 5.4
+    },
+    {
+      "category": "Repeated Output",
+      "name": "Repeated savefig (unchanged figure, PNG)",
+      "points": 1000,
+      "rs_ms": 0.76,
+      "mpl_ms": 45.28,
+      "speedup": 59.6
     }
   ]
 }

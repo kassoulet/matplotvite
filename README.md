@@ -32,26 +32,33 @@ machine- and load-dependent, not as a general guarantee.
 
 | Workload | Matplotvite | matplotlib | Ratio |
 |---|---:|---:|---:|
-| Single line, 100 points, PNG | 2.08 ms | 69.94 ms | 33.6× |
-| Single line, 1,000 points, PNG | 4.39 ms | 69.79 ms | 15.9× |
-| Single line, 10,000 points, PNG | 24.55 ms | 72.46 ms | 3.0× |
-| Single line, 100,000 points, PNG | 231.69 ms | 93.43 ms | 0.4× |
-| Five series, 2,000 points each, PNG | 27.81 ms | 108.07 ms | 3.9× |
-| 2×2 subplot grid, PNG | 15.05 ms | 119.08 ms | 7.9× |
-| Scatter, 5,000 points, PNG | 41.83 ms | 137.89 ms | 3.3× |
-| Bar chart, 20 categories, PNG | 2.52 ms | 101.74 ms | 40.3× |
-| Filled contours, 160×160, PNG | 127.96 ms | 55.92 ms | 0.4× |
-| SVG export, 1,000 points | 2.45 ms | 58.73 ms | 24.0× |
-| PDF export, 1,000 points | 3.93 ms | 59.00 ms | 15.0× |
-| Cold CLI process, plot, and save | 96.30 ms | 428.10 ms | 4.4× |
+| Single line, 100 points, PNG | 3.85 ms | 118.95 ms | 30.9× |
+| Single line, 1,000 points, PNG | 4.67 ms | 119.11 ms | 25.5× |
+| Single line, 10,000 points, PNG | 6.91 ms | 123.21 ms | 17.8× |
+| Single line, 100,000 points, PNG | 29.61 ms | 179.50 ms | 6.1× |
+| Five series, 2,000 points each, PNG | 13.67 ms | 186.90 ms | 13.7× |
+| 2×2 subplot grid, PNG | 13.04 ms | 214.57 ms | 16.5× |
+| Scatter, 5,000 points, PNG | 11.09 ms | 260.33 ms | 23.5× |
+| Scatter, 50,000 points, PNG | 25.39 ms | 136.60 ms | 5.4× |
+| Bar chart, 20 categories, PNG | 4.88 ms | 154.25 ms | 31.6× |
+| Filled contours, 160×160, PNG | 33.42 ms | 102.10 ms | 3.1× |
+| SVG export, 1,000 points | 0.88 ms | 109.35 ms | 124.8× |
+| PDF export, 1,000 points | 3.70 ms | 125.23 ms | 33.8× |
+| Cold CLI process, plot, and save | 135.00 ms | 728.40 ms | 5.4× |
 
-The suite now measures 21 workloads, including line scaling, subplots, scatter,
-bar, histogram, box/violin summaries, contours, image and quad-mesh rendering,
-2-D histograms, hexagonal bins, quiver fields, datetime axes, and SVG/PDF output.
+The suite now measures 25 workloads, including line scaling, dense SVG export,
+subplots, scatter up to 50,000 points, bar, histogram, box/violin summaries,
+contour fills and lines, image and quad-mesh rendering, 2-D histograms,
+hexagonal bins, quiver fields, datetime axes, repeated saves, and SVG/PDF output.
 The full matrix and methodology are on the
 [benchmark page](https://kassoulet.github.io/matplotvite/benchmarks.html).
 
-Measured on a Linux x86_64 host (Python 3.13, matplotlib 3.11.2). Wall-clock
+Dense line series are simplified to sub-pixel resolution before drawing, dense
+scatters are composited into a raster marker layer for PNG/WebP, and filled
+contour bands merge interior cells into runs; those keep the slow paths bounded
+by output resolution instead of input size.
+
+Measured on a Linux x86_64 host (Python 3.14, matplotlib 3.10.7). Wall-clock
 times vary with machine load and should be reproduced on the target system.
 
 ## Criterion benchmarks
@@ -62,9 +69,10 @@ The Rust output stages have a separate Criterion suite:
 cargo bench --bench render
 ```
 
-It measures SVG rasterization at three figure sizes, PNG encoding at fast/default/best
-compression, lossless WebP encoding, and vector PDF conversion. Results are written
-under `target/criterion/`; use `--quick` for a short smoke run.
+It measures SVG rasterization at three figure sizes plus dense-line and
+filled-polygon fixtures, PNG encoding at fast/default/best compression, lossless
+WebP encoding, and vector PDF conversion. Results are written under
+`target/criterion/`; use `--quick` for a short smoke run.
 
 ## Dependencies
 

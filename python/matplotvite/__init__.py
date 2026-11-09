@@ -372,11 +372,11 @@ class _TextLabel:
 
 def _span(values):
     """Same padding rule as the Rust renderer: a flat series gets a unit window."""
-    vals = [float(v) for v in values]
-    vals = [v for v in vals if np.isfinite(v)]
-    if not vals:
+    vals = np.asarray(values, dtype=float).ravel()
+    vals = vals[np.isfinite(vals)]
+    if vals.size == 0:
         return (0.0, 1.0)
-    lo, hi = min(vals), max(vals)
+    lo, hi = float(vals.min()), float(vals.max())
     return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 
 
@@ -1126,18 +1126,20 @@ class Axes:
         return _span(ys)
 
     def get_xlim(self):
+        extent = self._extent_x()
         if self._share_x is not None:
             lo, hi = self._share_x.limits or self._share_x.union("x")
         else:
-            lo, hi = self.xlim or self._extent_x()
-        return _log_bounds(lo, hi, self.xscale, self._extent_x())
+            lo, hi = self.xlim or extent
+        return _log_bounds(lo, hi, self.xscale, extent)
 
     def get_ylim(self):
+        extent = self._extent_y()
         if self._share_y is not None:
             lo, hi = self._share_y.limits or self._share_y.union("y")
         else:
-            lo, hi = self.ylim or self._extent_y()
-        return _log_bounds(lo, hi, self.yscale, self._extent_y())
+            lo, hi = self.ylim or extent
+        return _log_bounds(lo, hi, self.yscale, extent)
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
 

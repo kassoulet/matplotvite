@@ -6,7 +6,7 @@ use plotters::style::IntoFont;
 use crate::color::{color, colormap};
 use crate::image::{base64, image_png};
 use crate::layout::{auto_ticks, panel_ranges, range};
-use crate::model::{Legend, LegendEntry, LegendSwatch, Panel};
+use crate::model::{Legend, LegendEntry, LegendSwatch, Panel, PngCompression};
 
 /// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
 /// points at `dpi`. Convert once so both land on the same pixel size.
@@ -751,13 +751,166 @@ fn clip_value(poly: Vec<(f64, f64, f64)>, bound: f64, keep_above: bool) -> Vec<(
     out
 }
 
+/// Greedily drop points closer than `tolerance` pixels to the last kept point.
+/// Matplotlib simplifies dense paths before drawing; without this a 100k-point
+/// line becomes a 0.8 MB SVG path and swamps the render time.
+fn simplify_polyline(
+    pts: &[(f64, f64)],
+    tolerance: f64,
+    map: impl Fn(&(f64, f64)) -> (f64, f64),
+) -> Vec<(f64, f64)> {
+    let mut out = Vec::new();
+    if pts.len() < 3 {
+        return pts.to_vec();
+    }
+    out.push(pts[0]);
+    let mut last = map(&pts[0]);
+    for p in &pts[1..pts.len().saturating_sub(1)] {
+        let (x, y) = map(p);
+        if !x.is_finite() || !y.is_finite() {
+            // Keep non-finite points and stop simplifying the rest so the
+            // undrawn gaps in the series stay where they were.
+            out.push(*p);
+            last = (x, y);
+            continue;
+        }
+        let (dx, dy) = (x - last.0, y - last.1);
+        if dx * dx + dy * dy >= tolerance * tolerance {
+            out.push(*p);
+            last = (x, y);
+        }
+    }
+    if let Some(last_pt) = pts.last() {
+        if out.last() != Some(last_pt) {
+            out.push(*last_pt);
+        }
+    }
+    out
+}
+
+/// Paint one marker into a transparent raster layer. Dense raster scatters use
+/// this instead of one SVG element per point, which keeps resvg's per-element
+/// work out of the save path.
+fn draw_marker_raster(
+    pixmap: &mut tiny_skia::Pixmap,
+    base: (i32, i32),
+    pos: (i32, i32),
+    r: f64,
+    col: RGBAColor,
+    stroke: u32,
+    marker: &str,
+) {
+    let (x, y) = ((pos.0 - base.0) as f32, (pos.1 - base.1) as f32);
+    let r = r as f32;
+    let alpha = (col.3.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let paint = tiny_skia::Paint {
+        shader: tiny_skia::Shader::SolidColor(tiny_skia::Color::from_rgba8(
+            col.0, col.1, col.2, alpha,
+        )),
+        anti_alias: true,
+        ..Default::default()
+    };
+    if marker == "x" || marker == "+" {
+        let mut pb = tiny_skia::PathBuilder::new();
+        if marker == "x" {
+            pb.move_to(x - r, y - r);
+            pb.line_to(x + r, y + r);
+            pb.move_to(x - r, y + r);
+            pb.line_to(x + r, y - r);
+        } else {
+            pb.move_to(x - r, y);
+            pb.line_to(x + r, y);
+            pb.move_to(x, y - r);
+            pb.line_to(x, y + r);
+        }
+        if let Some(path) = pb.finish() {
+            let stroke = tiny_skia::Stroke {
+                width: stroke.max(1) as f32,
+                ..Default::default()
+            };
+            pixmap.stroke_path(
+                &path,
+                &paint,
+                &stroke,
+                tiny_skia::Transform::identity(),
+                None,
+            );
+        }
+        return;
+    }
+    let mut pb = tiny_skia::PathBuilder::new();
+    let built = match marker {
+        "s" => {
+            if let Some(rect) = tiny_skia::Rect::from_ltrb(x - r, y - r, x + r, y + r) {
+                pb.push_rect(rect);
+            }
+            Some(())
+        }
+        "^" => {
+            pb.move_to(x, y - r);
+            pb.line_to(x + r, y + r);
+            pb.line_to(x - r, y + r);
+            pb.close();
+            Some(())
+        }
+        "v" => {
+            pb.move_to(x - r, y - r);
+            pb.line_to(x + r, y - r);
+            pb.line_to(x, y + r);
+            pb.close();
+            Some(())
+        }
+        "<" => {
+            pb.move_to(x + r, y - r);
+            pb.line_to(x + r, y + r);
+            pb.line_to(x - r, y);
+            pb.close();
+            Some(())
+        }
+        ">" => {
+            pb.move_to(x - r, y - r);
+            pb.line_to(x - r, y + r);
+            pb.line_to(x + r, y);
+            pb.close();
+            Some(())
+        }
+        "D" => {
+            pb.move_to(x, y - r);
+            pb.line_to(x + r, y);
+            pb.line_to(x, y + r);
+            pb.line_to(x - r, y);
+            pb.close();
+            Some(())
+        }
+        "." => {
+            pb.push_circle(x, y, (r / 2.0).max(1.0));
+            Some(())
+        }
+        _ => {
+            pb.push_circle(x, y, r);
+            Some(())
+        }
+    };
+    if built.is_some() {
+        if let Some(path) = pb.finish() {
+            pixmap.fill_path(
+                &path,
+                &paint,
+                tiny_skia::FillRule::Winding,
+                tiny_skia::Transform::identity(),
+                None,
+            );
+        }
+    }
+}
+
 /// Tick label for a linear axis: short, without float noise.
 fn tick_label(v: f64) -> String {
     if v == 0.0 {
         return "0".to_string();
     }
     let a = v.abs();
-    if a >= 1e5 || a < 1e-3 {
+    if !(1e-3..1e5).contains(&a) {
         format!("{v:.2e}")
     } else {
         format!("{v:.4}")
@@ -770,7 +923,7 @@ fn tick_label(v: f64) -> String {
 /// Tick label for a log coordinate: base^v written as a plain number.
 fn log_label(v: f64, base: f64) -> String {
     let value = base.powf(v);
-    if value >= 1e5 || value < 1e-4 {
+    if !(1e-4..1e5).contains(&value) {
         format!("{value:.0e}")
     } else {
         format!("{value:.4}")
@@ -795,6 +948,7 @@ pub(crate) fn draw_panel<DB: DrawingBackend>(
     p: &Panel,
     overlays: &mut Vec<String>,
     twin_gap_px: i32,
+    raster_scatter: bool,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -1017,28 +1171,74 @@ where
                 } else {
                     color(&colors[band % colors.len()])
                 };
+                let map = |px: f64, py: f64| {
+                    let (ax, ay) = chart_area.map_coordinate(&(tx(px), ty(py)));
+                    (ax - base.0, ay - base.1)
+                };
                 for i in 0..rows - 1 {
-                    for j in 0..cols - 1 {
-                        let p00 = (xs[j], ys[i], zs[i * cols + j]);
-                        let p01 = (xs[j + 1], ys[i], zs[i * cols + j + 1]);
-                        let p10 = (xs[j], ys[i + 1], zs[(i + 1) * cols + j]);
-                        let p11 = (xs[j + 1], ys[i + 1], zs[(i + 1) * cols + j + 1]);
-                        // Split each cell into two triangles: a band cut through a triangle
-                        // is an exact polygon for piecewise-linear interpolation.
+                    let (y0, y1) = (ys[i], ys[i + 1]);
+                    let row = &zs[i * cols..i * cols + cols];
+                    let next = &zs[(i + 1) * cols..(i + 1) * cols + cols];
+                    let mut j = 0;
+                    while j + 1 < cols {
+                        let (z00, z01) = (row[j], row[j + 1]);
+                        let (z10, z11) = (next[j], next[j + 1]);
+                        let zmin = z00.min(z01).min(z10).min(z11);
+                        let zmax = z00.max(z01).max(z10).max(z11);
+                        if zmin > hi || zmax < lo {
+                            j += 1;
+                            continue;
+                        }
+                        if zmin >= lo && zmax <= hi {
+                            // Cells entirely inside a band tile it exactly, so a
+                            // horizontal run collapses into one rectangle. This
+                            // is what keeps the rasteriser from walking tens of
+                            // thousands of tiny triangle sub-paths.
+                            let j0 = j;
+                            while j + 1 < cols - 1 {
+                                let (a, b) = (row[j + 1], row[j + 2]);
+                                let (c, d) = (next[j + 1], next[j + 2]);
+                                if a >= lo
+                                    && a <= hi
+                                    && b >= lo
+                                    && b <= hi
+                                    && c >= lo
+                                    && c <= hi
+                                    && d >= lo
+                                    && d <= hi
+                                {
+                                    j += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            let pts = vec![
+                                map(xs[j0], y0),
+                                map(xs[j + 1], y0),
+                                map(xs[j + 1], y1),
+                                map(xs[j0], y1),
+                            ];
+                            area.draw(&Polygon::new(pts, col.filled()))?;
+                            j += 1;
+                            continue;
+                        }
+                        let p00 = (xs[j], y0, z00);
+                        let p01 = (xs[j + 1], y0, z01);
+                        let p10 = (xs[j], y1, z10);
+                        let p11 = (xs[j + 1], y1, z11);
+                        // Split each partial cell into two triangles: a band cut
+                        // through a triangle is an exact polygon for piecewise-
+                        // linear interpolation.
                         for tri in [[p00, p01, p11], [p00, p11, p10]] {
                             let poly = clip_band(&tri, lo, hi);
                             if poly.len() < 3 {
                                 continue;
                             }
-                            let pts: Vec<(i32, i32)> = poly
-                                .iter()
-                                .map(|&(px, py, _)| {
-                                    let (ax, ay) = chart_area.map_coordinate(&(tx(px), ty(py)));
-                                    (ax - base.0, ay - base.1)
-                                })
-                                .collect();
+                            let pts: Vec<(i32, i32)> =
+                                poly.iter().map(|&(px, py, _)| map(px, py)).collect();
                             area.draw(&Polygon::new(pts, col.filled()))?;
                         }
+                        j += 1;
                     }
                 }
             }
@@ -1320,6 +1520,21 @@ where
                 }
             }
         }
+        if n > 2000 && s.drawstyle != "steps-pre" && s.drawstyle != "steps-post" {
+            // Pixel-space simplification leaves the drawn path visually
+            // unchanged while cutting the SVG path (and rasteriser work) by
+            // orders of magnitude for dense series.
+            let kept = {
+                let chart_area = chart.plotting_area();
+                simplify_polyline(&pts, 0.5, |p| {
+                    let (x, y) = chart_area.map_coordinate(p);
+                    (x as f64, y as f64)
+                })
+            };
+            if kept.len() < pts.len() {
+                pts = kept;
+            }
+        }
         let width = s.linewidth.max(1.0).round() as u32;
         let col = match s.alpha {
             Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),
@@ -1450,6 +1665,19 @@ where
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
         let mut legend_scatter: Vec<(String, RGBAColor)> = Vec::new();
+        let dense = raster_scatter
+            && p.scatter
+                .iter()
+                .map(|sc| sc.x.as_array().len().min(sc.y.as_array().len()))
+                .sum::<usize>()
+                >= 4096;
+        let mut marker_layer = if dense {
+            let (w, h) = area.dim_in_pixel();
+            // Falling back to per-point elements is better than failing a save.
+            tiny_skia::Pixmap::new(w.max(1), h.max(1))
+        } else {
+            None
+        };
         for sc in &p.scatter {
             let xs = sc.x.as_array();
             let ys = sc.y.as_array();
@@ -1478,7 +1706,12 @@ where
                 } else {
                     RGBAColor(31, 119, 180, 1.0)
                 };
-                draw_marker(area, base, (cx, cy), r, col.mix(alpha), 2, &sc.marker)?;
+                let col = col.mix(alpha);
+                if let Some(layer) = marker_layer.as_mut() {
+                    draw_marker_raster(layer, base, (cx, cy), r, col, 2, &sc.marker);
+                } else {
+                    draw_marker(area, base, (cx, cy), r, col, 2, &sc.marker)?;
+                }
             }
             if !sc.label.is_empty() {
                 let icon = if sc.colors.is_empty() {
@@ -1488,6 +1721,20 @@ where
                 };
                 legend_scatter.push((sc.label.clone(), icon.mix(alpha)));
             }
+        }
+        if let Some(layer) = marker_layer {
+            let (w, h) = area.dim_in_pixel();
+            let png = crate::export::encode_png(&layer, PngCompression::Fast, false)
+                .map_err(|e| e.to_string())?;
+            overlays.push(format!(
+                "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+                 preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
+                base.0,
+                base.1,
+                w,
+                h,
+                base64(&png)
+            ));
         }
         // Registered once the plotting-area borrow is released.
         for (label, col) in legend_scatter {

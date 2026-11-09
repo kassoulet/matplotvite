@@ -54,6 +54,66 @@ fn svg_fixture(width: u32, height: u32) -> String {
     svg
 }
 
+/// One polyline with `points` vertices — the shape a dense line series emits.
+fn dense_line_svg(width: u32, height: u32, points: usize) -> String {
+    let mut svg = String::new();
+    write!(
+        svg,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">"#
+    )
+    .unwrap();
+    svg.push_str(r##"<rect width="100%" height="100%" fill="#ffffff"/>"##);
+    svg.push_str(r##"<polyline fill="none" stroke="#1f4e79" stroke-width="1.1" points=""##);
+    for sample in 0..points {
+        let t = sample as f64 / (points - 1) as f64;
+        let x = 40.0 + t * (width as f64 - 60.0);
+        let y = height as f64 * (0.5 - 0.4 * (t * 400.0).sin());
+        write!(svg, "{x:.2},{y:.2} ").unwrap();
+    }
+    svg.push_str(r##""/></svg>"##);
+    svg
+}
+
+/// A grid of filled cells split into triangles — the shape a filled contour
+/// panel emits before cells are merged into runs.
+fn filled_grid_svg(width: u32, height: u32, cells_per_side: usize) -> String {
+    let mut svg = String::new();
+    write!(
+        svg,
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">"#
+    )
+    .unwrap();
+    svg.push_str(r##"<rect width="100%" height="100%" fill="#ffffff"/>"##);
+    let cell_w = (width as f64 - 80.0) / cells_per_side as f64;
+    let cell_h = (height as f64 - 60.0) / cells_per_side as f64;
+    for row in 0..cells_per_side {
+        for col in 0..cells_per_side {
+            let x = 40.0 + col as f64 * cell_w;
+            let y = 30.0 + row as f64 * cell_h;
+            let t = (row + col) as f64 / (cells_per_side * 2) as f64;
+            let color = if t < 0.5 { "#440154" } else { "#fde725" };
+            write!(
+                svg,
+                r##"<polygon fill="{color}" points="{x:.2},{y:.2} {:.2},{y:.2} {:.2},{:.2} "/>"##,
+                x + cell_w,
+                x + cell_w,
+                y + cell_h
+            )
+            .unwrap();
+            write!(
+                svg,
+                r##"<polygon fill="{color}" points="{x:.2},{y:.2} {:.2},{:.2} {x:.2},{:.2} "/>"##,
+                x + cell_w,
+                y + cell_h,
+                y + cell_h
+            )
+            .unwrap();
+        }
+    }
+    svg.push_str("</svg>");
+    svg
+}
+
 fn pixmap_fixture(width: u32, height: u32) -> tiny_skia::Pixmap {
     let mut pixmap = tiny_skia::Pixmap::new(width, height).unwrap();
     let data = pixmap.data_mut();
@@ -82,6 +142,42 @@ fn rasterize(c: &mut Criterion) {
                 b.iter(|| {
                     bench::rasterize_svg(black_box(svg), black_box(width), black_box(height))
                         .unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+fn rasterize_dense(c: &mut Criterion) {
+    let mut group = c.benchmark_group("rasterize_dense_line");
+    for points in [10_000, 50_000, 100_000] {
+        let svg = dense_line_svg(640, 480, points);
+        group.throughput(Throughput::Bytes(svg.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("{points}_points")),
+            &svg,
+            |b, svg| {
+                b.iter(|| {
+                    bench::rasterize_svg(black_box(svg), black_box(640), black_box(480)).unwrap()
+                })
+            },
+        );
+    }
+    group.finish();
+}
+
+fn rasterize_filled(c: &mut Criterion) {
+    let mut group = c.benchmark_group("rasterize_filled_grid");
+    for cells in [64, 128, 160] {
+        let svg = filled_grid_svg(640, 480, cells);
+        group.throughput(Throughput::Bytes(svg.len() as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("{cells}x{cells}")),
+            &svg,
+            |b, svg| {
+                b.iter(|| {
+                    bench::rasterize_svg(black_box(svg), black_box(640), black_box(480)).unwrap()
                 })
             },
         );
@@ -147,6 +243,6 @@ criterion_group! {
         .warm_up_time(Duration::from_secs(1))
         .measurement_time(Duration::from_secs(3))
         .without_plots();
-    targets = rasterize, encode_png, encode_webp, encode_pdf
+    targets = rasterize, rasterize_dense, rasterize_filled, encode_png, encode_webp, encode_pdf
 }
 criterion_main!(benches);

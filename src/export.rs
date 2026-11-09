@@ -68,6 +68,7 @@ fn panel_fragment(
     grid: (usize, usize),
     p: &Panel,
     top_pad: i32,
+    raster_scatter: bool,
 ) -> Result<(String, Vec<String>), String> {
     let (w, h) = size;
     let mut svg = String::new();
@@ -88,13 +89,15 @@ fn panel_fragment(
                 let right = (w as f64 - (x + pw) * w as f64).round() as i32;
                 let bottom = (y * h as f64).round() as i32;
                 let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
-                draw_panel(&area, p, &mut overlays, gap).map_err(|e| e.to_string())?;
+                draw_panel(&area, p, &mut overlays, gap, raster_scatter)
+                    .map_err(|e| e.to_string())?;
             }
             None => draw_panel(
                 cells.get(p.pos).ok_or("subplot index out of range")?,
                 p,
                 &mut overlays,
                 gap,
+                raster_scatter,
             )
             .map_err(|e| e.to_string())?,
         }
@@ -103,12 +106,21 @@ fn panel_fragment(
     Ok((svg_body(&svg).to_string(), overlays))
 }
 
-fn fragment_key(size: (u32, u32), grid: (usize, usize), p: &Panel, top_pad: i32) -> u64 {
+fn fragment_key(
+    size: (u32, u32),
+    grid: (usize, usize),
+    p: &Panel,
+    top_pad: i32,
+    raster_scatter: bool,
+) -> u64 {
     let mut hasher = DefaultHasher::new();
     p.cache_key.hash(&mut hasher);
     size.hash(&mut hasher);
     grid.hash(&mut hasher);
     top_pad.hash(&mut hasher);
+    // Raster and vector output differ for dense scatter, so the cached
+    // fragment must not be shared between them.
+    raster_scatter.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -119,18 +131,19 @@ fn cached_panel_fragment(
     grid: (usize, usize),
     p: &Panel,
     top_pad: i32,
+    raster_scatter: bool,
 ) -> Result<PanelFragment, String> {
     if p.cache_key.is_empty() {
-        return panel_fragment(size, grid, p, top_pad);
+        return panel_fragment(size, grid, p, top_pad, raster_scatter);
     }
-    let key = fragment_key(size, grid, p, top_pad);
+    let key = fragment_key(size, grid, p, top_pad, raster_scatter);
     let cache = PANEL_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     if let Ok(guard) = cache.lock() {
         if let Some(fragment) = guard.get(&key) {
             return Ok(fragment.clone());
         }
     }
-    let fragment = panel_fragment(size, grid, p, top_pad)?;
+    let fragment = panel_fragment(size, grid, p, top_pad, raster_scatter)?;
     if let Ok(mut guard) = cache.lock() {
         if guard.len() >= 256 {
             guard.clear();
@@ -197,6 +210,7 @@ pub(crate) fn render_svg(
     edgecolor: Option<&str>,
     suptitle: Option<Suptitle>,
     dpi: f64,
+    raster_scatter: bool,
 ) -> Result<String, String> {
     // A figure title reserves a band at the top so it never overlaps the first
     // row of panels.
@@ -206,7 +220,7 @@ pub(crate) fn render_svg(
         .unwrap_or(0);
     let fragments: Vec<(String, Vec<String>)> = panels
         .par_iter()
-        .map(|p| cached_panel_fragment(size, grid, p, top_pad))
+        .map(|p| cached_panel_fragment(size, grid, p, top_pad, raster_scatter))
         .collect::<Result<_, String>>()?;
     let (bodies, overlays): (Vec<String>, Vec<Vec<String>>) = fragments.into_iter().unzip();
     let overlays: Vec<String> = overlays.into_iter().flatten().collect();
