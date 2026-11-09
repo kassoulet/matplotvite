@@ -10,6 +10,7 @@
 
 - **Current version: 0.5.0** — milestones 0.1 through 0.5 are complete.
 - **0.6** targets performance and visual fidelity; see the section below.
+- **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
 
 ---
@@ -190,7 +191,7 @@
 ## Fidelity follow-ups — static render
 
 - [x] Default data margins — autoscaled axes expand by matplotlib's 5% margin on each side, with flat data widened symmetrically and explicit `xlim`/`ylim` left untouched
-- [ ] Legend `loc="best"` — currently aliases upper-right; score candidate corners against the drawn series and pick the least-overlapping one like matplotlib
+- [x] Legend `loc="best"` — scores matplotlib's candidate corners in its own order (upper right → center), using the same badness formula (contained line vertices and point offsets, patch overlaps, one per crossing line) against the drawn series, bars, fills, patches and collections, and takes the least-overlapping placement
 
 ---
 
@@ -208,10 +209,34 @@
 
 ### Fidelity
 - [x] Pixel-diff the gallery against Matplotlib and track a per-snippet mismatch metric
-- [ ] Match marker shapes and cap/join styles exactly (dash sequences now follow Matplotlib's linewidth-scaled lengths)
+- [x] Match marker shapes and cap/join styles exactly — every documented marker (`o s p P h H 8 * X d v ^ < > 1-4 x + | _`) is drawn from matplotlib's own unit paths in both the vector and raster marker layers; solid lines use `projecting` caps and `round` joins (the backend union's false miter point and inner notch are filled and split away), and dashes keep `butt` caps with `round` joins (dash sequences follow Matplotlib's linewidth-scaled lengths)
 - [x] Honour `imshow(interpolation=, alpha=)` and `contour(linewidths=, alpha=)`
 - [x] Use real glyph metrics for text alignment and legend packing
 - [x] Verify alpha compositing and colour conversion against Matplotlib
+
+---
+
+## 🎯 0.7 — Corpus & ecosystem compatibility
+
+> Goal: stop relying on a hand-written gallery as our only parity evidence. Harvest other projects' own
+> reference outputs, and widen the entry points users actually call.
+> Every harvested snippet runs through `tools/visual_compare.py` against Matplotlib Agg and is tracked by
+> its per-snippet `mismatch_pct` / `rms`, the same metric the 0.6 gallery gate introduced.
+
+### Matplotlib test corpus
+- [ ] Harvest `lib/matplotlib/tests/baseline_images` — turn each `test_*.py` case into a renderable snippet with its expected image, and add every case our API can express to the test gallery
+- [ ] Harvest the `examples/` tree (`plot_types`, `gallery`, `tutorials`, `showcase`) into the comparison gallery, tagged by category, so uncovered API surfaces as a gap list the way TRACE does for mirrored call sites
+- [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
+
+### Seaborn gallery
+- [ ] Harvest Seaborn's `examples/` gallery and reference images, and record which plots already render through our Matplotlib-compatible surface
+- [ ] Report Seaborn compatibility as pass / needs-API / unsupported, and feed the needs-API list back into TRACE priorities (for example `kdeplot`, `regplot`, `heatmap`, `pairplot`)
+- [ ] Cover the Seaborn plots that are thin wrappers over API we already have with pixel-diff tests
+
+### Pandas `.plot()`
+- [ ] Ship a `pandas` plotting backend module so `pd.options.plotting.backend = "matplotvite"` works, covering `kind=` line, bar, barh, hist, box, area, scatter and pie
+- [ ] Verify `df.plot()` / `Series.plot()` against pandas + Matplotlib for index handling (datetime, categorical, MultiIndex), axis labels, legend and kwarg pass-through
+- [ ] Document the supported pandas version matrix and the behaviour for unimplemented `kind=` values (raise clearly rather than drawing something wrong)
 
 ---
 

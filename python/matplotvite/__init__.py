@@ -2863,11 +2863,16 @@ def _plot_args(args, fmt):
     raise TypeError("plot expects y, (x, y) or (x, y, fmt)")
 
 
+# Marker characters the renderer understands; keep in sync with
+# `marker_shape` in src/draw.rs and `_STEM_MARKERS` below.
+_MARKERS = set("os^v<>Dx+.*hHpPXd8|_1234")
+
+
 def _parse_fmt(fmt):
     """Split a matplotlib fmt string into (colour, linestyle, marker)."""
     color_map = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
-    markers = set("os^v<>Dx+.*hpH")
+    markers = _MARKERS
     color, style, mark = None, "", ""
     i = 0
     while i < len(fmt):
@@ -2902,7 +2907,7 @@ def _log_bounds(lo, hi, scale, extent):
     return (lo, hi)
 
 
-_STEM_MARKERS = "os^v<>Dx+."
+_STEM_MARKERS = "os^v<>Dx+.*hHpPXd8|_1234"
 
 
 def _stem_fmt(fmt, default_marker=None):

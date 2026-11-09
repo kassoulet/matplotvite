@@ -350,10 +350,10 @@ pub(crate) struct Legend {
 }
 
 impl Legend {
-    /// The plotters legend only covers the default layout; every placement or
-    /// typographic option goes through the manual renderer.
+    /// The plotters legend only covers the upper-right layout; every placement
+    /// (including the scored `"best"` one) goes through the manual renderer.
     pub(crate) fn is_custom(&self) -> bool {
-        self.loc != "best"
+        self.loc == "best"
             || self.ncol > 1
             || !self.frameon
             || !self.title.is_empty()

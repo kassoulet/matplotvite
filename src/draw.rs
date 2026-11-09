@@ -6,7 +6,7 @@ use plotters::style::IntoFont;
 use crate::color::{color, colormap};
 use crate::image::{base64, image_png};
 use crate::layout::{auto_ticks, axis_bounds, panel_ranges, range};
-use crate::model::{Legend, LegendEntry, LegendSwatch, Panel, PngCompression};
+use crate::model::{Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression};
 
 /// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
 /// points at `dpi`. Convert once so both land on the same pixel size.
@@ -354,6 +354,168 @@ where
     Ok(())
 }
 
+/// Candidate axes-fraction placements for `loc="best"`, in matplotlib's
+/// preference order (`AnchoredOffsetbox.codes`). Ties keep the earlier entry.
+const BEST_LOCS: [&str; 10] = [
+    "upper right",
+    "upper left",
+    "lower left",
+    "lower right",
+    "right",
+    "center left",
+    "center right",
+    "lower center",
+    "upper center",
+    "center",
+];
+
+/// Per-artist vertex cap for the `"best"` scorer: the score only needs a
+/// representative sample, and dense series should not be copied per candidate.
+const LEGEND_SCORE_VERTICES: usize = 1024;
+
+/// Pixel-space geometry of the drawn artists, mirroring matplotlib's
+/// `Legend._auto_legend_data`: line paths, collection offsets and patch boxes.
+#[derive(Default)]
+struct LegendObstacles {
+    lines: Vec<Vec<(f64, f64)>>,
+    offsets: Vec<(f64, f64)>,
+    boxes: Vec<(f64, f64, f64, f64)>,
+}
+
+impl LegendObstacles {
+    fn push_line(&mut self, mut pts: Vec<(f64, f64)>) {
+        // Bound the work for artists that emit thousands of small paths.
+        if pts.len() < 2 || self.lines.len() >= 4096 {
+            return;
+        }
+        if pts.len() > LEGEND_SCORE_VERTICES {
+            let stride = pts.len().div_ceil(LEGEND_SCORE_VERTICES);
+            let last = *pts.last().expect("non-empty polyline");
+            let mut thinned = Vec::with_capacity(LEGEND_SCORE_VERTICES + 1);
+            thinned.extend(pts.iter().step_by(stride).copied());
+            thinned.push(last);
+            pts = thinned;
+        }
+        self.lines.push(pts);
+    }
+
+    fn push_point(&mut self, (x, y): (f64, f64)) {
+        if x.is_finite() && y.is_finite() && self.offsets.len() < 8192 {
+            self.offsets.push((x, y));
+        }
+    }
+
+    /// matplotlib's badness: containment counts for line vertices and point
+    /// offsets, box overlaps for filled patches, plus one per line that touches
+    /// the candidate box.
+    fn badness(&self, x: f64, y: f64, w: f64, h: f64) -> usize {
+        let (x0, y0, x1, y1) = (x, y, x + w, y + h);
+        let inside = |p: (f64, f64)| p.0 >= x0 && p.0 <= x1 && p.1 >= y0 && p.1 <= y1;
+        let mut badness = self.offsets.iter().filter(|p| inside(**p)).count();
+        for line in &self.lines {
+            badness += line.iter().filter(|p| inside(**p)).count();
+            if line.iter().any(|p| inside(*p)) || polyline_crosses_box(line, x0, y0, x1, y1) {
+                badness += 1;
+            }
+        }
+        badness
+            + self
+                .boxes
+                .iter()
+                .filter(|b| box_overlaps(b, x0, y0, x1, y1))
+                .count()
+    }
+}
+
+fn segments_cross(a: (f64, f64), b: (f64, f64), c: (f64, f64), d: (f64, f64)) -> bool {
+    let cross = |p: (f64, f64), q: (f64, f64), r: (f64, f64)| {
+        (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+    };
+    let (d1, d2) = (cross(c, d, a), cross(c, d, b));
+    let (d3, d4) = (cross(a, b, c), cross(a, b, d));
+    ((d1 > 0.0) != (d2 > 0.0)) && ((d3 > 0.0) != (d4 > 0.0))
+}
+
+fn polyline_crosses_box(line: &[(f64, f64)], x0: f64, y0: f64, x1: f64, y1: f64) -> bool {
+    let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)];
+    line.windows(2)
+        .any(|seg| (0..4).any(|i| segments_cross(seg[0], seg[1], corners[i], corners[(i + 1) % 4])))
+}
+
+fn box_overlaps(b: &(f64, f64, f64, f64), x0: f64, y0: f64, x1: f64, y1: f64) -> bool {
+    b.0 < x1 && x0 < b.2 && b.1 < y1 && y0 < b.3
+}
+
+fn legend_anchor(loc: &str) -> (f64, f64) {
+    match loc {
+        "upper left" => (0.0, 1.0),
+        "lower left" => (0.0, 0.0),
+        "lower right" => (1.0, 0.0),
+        "center" => (0.5, 0.5),
+        "center left" => (0.0, 0.5),
+        "center right" | "right" => (1.0, 0.5),
+        "upper center" => (0.5, 1.0),
+        "lower center" => (0.5, 0.0),
+        _ => (1.0, 1.0),
+    }
+}
+
+fn anchored_legend_pos(
+    ax: f64,
+    ay: f64,
+    loc: &str,
+    box_w: f64,
+    box_h: f64,
+    rect: (i32, i32, i32, i32),
+) -> (f64, f64) {
+    let (left, top, right, bottom) = rect;
+    let px = left as f64 + ax * (right - left) as f64;
+    let py = bottom as f64 - ay * (bottom - top) as f64;
+    let x = if loc.contains("right") {
+        px - box_w
+    } else if loc.contains("left") {
+        px
+    } else {
+        px - box_w / 2.0
+    };
+    let y = if loc.contains("upper") {
+        py
+    } else if loc.contains("lower") {
+        py - box_h
+    } else {
+        py - box_h / 2.0
+    };
+    (
+        x.clamp(left as f64, (right as f64 - box_w).max(left as f64)),
+        y.clamp(top as f64, (bottom as f64 - box_h).max(top as f64)),
+    )
+}
+
+/// Score every candidate placement and keep the least-overlapping one, stopping
+/// at the first zero-badness candidate like matplotlib.
+fn best_legend_pos(
+    obstacles: &LegendObstacles,
+    box_w: f64,
+    box_h: f64,
+    rect: (i32, i32, i32, i32),
+) -> (f64, f64) {
+    let mut best = anchored_legend_pos(1.0, 1.0, "upper right", box_w, box_h, rect);
+    let mut best_badness = usize::MAX;
+    for loc in BEST_LOCS {
+        let (ax, ay) = legend_anchor(loc);
+        let pos = anchored_legend_pos(ax, ay, loc, box_w, box_h, rect);
+        let badness = obstacles.badness(pos.0, pos.1, box_w, box_h);
+        if badness < best_badness {
+            best_badness = badness;
+            best = pos;
+        }
+        if badness == 0 {
+            break;
+        }
+    }
+    best
+}
+
 /// Draw the legend myself so placement, columns, title and frame options all
 /// work; plotters' built-in legend only supports a single column.
 fn draw_legend<DB: DrawingBackend>(
@@ -361,6 +523,7 @@ fn draw_legend<DB: DrawingBackend>(
     rect: (i32, i32, i32, i32),
     entries: &[LegendEntry],
     opts: &Legend,
+    obstacles: &LegendObstacles,
     text: RGBAColor,
     dpi: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
@@ -387,37 +550,15 @@ where
     };
     let box_w = col_w * cols as f64 + 8.0;
     let box_h = rows as f64 * row_h + title_h + 8.0;
-    let (left, top, right, bottom) = rect;
-    let (ax, ay) = opts.anchor.unwrap_or(match opts.loc.as_str() {
-        "upper left" => (0.0, 1.0),
-        "lower left" => (0.0, 0.0),
-        "lower right" => (1.0, 0.0),
-        "center" => (0.5, 0.5),
-        "center left" => (0.0, 0.5),
-        "center right" | "right" => (1.0, 0.5),
-        "upper center" => (0.5, 1.0),
-        "lower center" => (0.5, 0.0),
-        _ => (1.0, 1.0),
-    });
-    let px = left as f64 + ax * (right - left) as f64;
-    let py = bottom as f64 - ay * (bottom - top) as f64;
     let loc = opts.loc.as_str();
-    let mut x = if loc.contains("right") {
-        px - box_w
-    } else if loc.contains("left") {
-        px
+    let (x, y) = if let Some((ax, ay)) = opts.anchor {
+        anchored_legend_pos(ax, ay, loc, box_w, box_h, rect)
+    } else if loc == "best" {
+        best_legend_pos(obstacles, box_w, box_h, rect)
     } else {
-        px - box_w / 2.0
+        let (ax, ay) = legend_anchor(loc);
+        anchored_legend_pos(ax, ay, loc, box_w, box_h, rect)
     };
-    let mut y = if loc.contains("upper") {
-        py
-    } else if loc.contains("lower") {
-        py - box_h
-    } else {
-        py - box_h / 2.0
-    };
-    x = x.clamp(left as f64, (right as f64 - box_w).max(left as f64));
-    y = y.clamp(top as f64, (bottom as f64 - box_h).max(top as f64));
     if opts.frameon {
         area.draw(&Rectangle::new(
             [
@@ -486,6 +627,115 @@ fn dash_pattern(linestyle: &str) -> Option<(f64, f64)> {
 }
 
 /// Stroke a polyline as dashes, in panel-local pixels.
+/// A corner where matplotlib's round join is visibly different from the
+/// backend's union of butt-ended segments. Pixel-quantised dense data has many
+/// apparent corners of a pixel or two; those are covered by the stroke itself
+/// and must not split the path, or smooth series cost a path per sample.
+fn sharp_corner(a: (i32, i32), b: (i32, i32), c: (i32, i32), width: u32) -> bool {
+    let half = width as f64 / 2.0;
+    if half < 2.0 {
+        // Below a few pixels the join geometry is sub-pixel either way.
+        return false;
+    }
+    let d1 = ((b.0 - a.0) as f64, (b.1 - a.1) as f64);
+    let d2 = ((c.0 - b.0) as f64, (c.1 - b.1) as f64);
+    let (l1, l2) = (
+        (d1.0 * d1.0 + d1.1 * d1.1).sqrt(),
+        (d2.0 * d2.0 + d2.1 * d2.1).sqrt(),
+    );
+    if l1 < half || l2 < half {
+        return false;
+    }
+    let cross = d1.0 * d2.1 - d1.1 * d2.0;
+    cross.abs() / (l1 * l2) >= 0.2
+}
+
+fn has_sharp_join(pts: &[(i32, i32)], width: u32) -> bool {
+    pts.windows(3)
+        .any(|w| sharp_corner(w[0], w[1], w[2], width))
+}
+
+/// matplotlib's default `solid_capstyle` is `projecting`: the stroke runs half a
+/// line width past each endpoint. The backends end paths with a butt cap, so add
+/// the missing half-square at the two ends of the line.
+fn draw_projected_caps<DB: DrawingBackend, C: Color + Copy>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    pts: &[(i32, i32)],
+    col: C,
+    width: u32,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    if pts.len() < 2 || width == 0 {
+        return Ok(());
+    }
+    let half = width as f64 / 2.0;
+    let last = pts.len() - 1;
+    for (end, inward) in [(pts[0], pts[1]), (pts[last], pts[last - 1])] {
+        let (dx, dy) = ((end.0 - inward.0) as f64, (end.1 - inward.1) as f64);
+        let len = (dx * dx + dy * dy).sqrt();
+        if !len.is_finite() || len <= 0.0 {
+            continue;
+        }
+        let tip = (
+            (end.0 as f64 + dx / len * half).round() as i32,
+            (end.1 as f64 + dy / len * half).round() as i32,
+        );
+        area.draw(&PathElement::new(vec![end, tip], col.stroke_width(width)))?;
+    }
+    Ok(())
+}
+
+/// Finish and draw one run of a polyline. The backend already gives every path
+/// matplotlib's default `projecting` cap (half a line width past the end), so a
+/// run trimmed by that much stops exactly at the point it was trimmed to.
+fn stroke_run<DB: DrawingBackend, C: Color + Copy>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    run: &mut Vec<(i32, i32)>,
+    col: C,
+    width: u32,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let path = std::mem::take(run);
+    if path.len() >= 2 {
+        area.draw(&PathElement::new(path, col.stroke_width(width)))?;
+    }
+    Ok(())
+}
+
+/// Draw a solid polyline with matplotlib's `solid_joinstyle="round"`: split the
+/// path at sharp corners, fill each corner with a disc of the line radius, and
+/// trim the split ends so no backend cap overshoots the corner.
+fn draw_solid_polyline<DB: DrawingBackend, C: Color + Copy>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    pts: &[(i32, i32)],
+    col: C,
+    width: u32,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let radius = ((width as f64 / 2.0).max(1.0)) as u32;
+    let mut run: Vec<(i32, i32)> = vec![pts[0]];
+    for i in 1..pts.len() {
+        let at_end = i == pts.len() - 1;
+        if !at_end && sharp_corner(pts[i - 1], pts[i], pts[i + 1], width) {
+            if run.last() != Some(&pts[i]) {
+                run.push(pts[i]);
+            }
+            stroke_run(area, &mut run, col, width)?;
+            area.draw(&Circle::new(pts[i], radius, col.filled()))?;
+            run.push(pts[i]);
+        } else {
+            run.push(pts[i]);
+        }
+    }
+    stroke_run(area, &mut run, col, width)
+}
+
 fn draw_dashed<DB: DrawingBackend, C: Color>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     pts: &[(i32, i32)],
@@ -521,6 +771,13 @@ where
                     ],
                     col.stroke_width(width),
                 ))?;
+                // matplotlib's dash join is round: a dash that runs through a
+                // polyline vertex gets a disc there.
+                if seg >= len - t - 1e-9 && left - seg > 1e-9 {
+                    let vertex = (x1.round() as i32, y1.round() as i32);
+                    let radius = ((width as f64 / 2.0).max(1.0)) as u32;
+                    area.draw(&Circle::new(vertex, radius, col.filled()))?;
+                }
             }
             t += seg;
             left -= seg;
@@ -541,6 +798,120 @@ fn marker_radius(area: f64) -> f64 {
     (area.max(0.0).sqrt() / 2.0 * 1.39).clamp(1.0, MAX_MARKER_RADIUS)
 }
 
+/// Marker geometry in matplotlib's normalized unit square (y up): filled
+/// outlines as polygons, stroked markers as line subpaths, circles by radius.
+enum MarkerShape {
+    Polygon(Vec<(f64, f64)>),
+    Strokes(Vec<((f64, f64), (f64, f64))>),
+    Circle(f64),
+}
+
+/// matplotlib's marker paths, so markers we draw match its shapes exactly.
+fn marker_shape(marker: &str) -> MarkerShape {
+    let poly = |pts: &[(f64, f64)]| MarkerShape::Polygon(pts.to_vec());
+    match marker {
+        "s" => poly(&[(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
+        "D" => poly(&[(0.0, -0.5), (0.5, 0.0), (0.0, 0.5), (-0.5, 0.0)]),
+        "d" => poly(&[(0.0, -0.707), (0.424, 0.0), (0.0, 0.707), (-0.424, 0.0)]),
+        "p" => poly(&[
+            (0.0, 0.5),
+            (-0.476, 0.155),
+            (-0.294, -0.405),
+            (0.294, -0.405),
+            (0.476, 0.155),
+        ]),
+        "P" => poly(&[
+            (-0.167, -0.5),
+            (0.167, -0.5),
+            (0.167, -0.167),
+            (0.5, -0.167),
+            (0.5, 0.167),
+            (0.167, 0.167),
+            (0.167, 0.5),
+            (-0.167, 0.5),
+            (-0.167, 0.167),
+            (-0.5, 0.167),
+            (-0.5, -0.167),
+            (-0.167, -0.167),
+        ]),
+        "h" => poly(&[
+            (0.0, 0.5),
+            (-0.433, 0.25),
+            (-0.433, -0.25),
+            (0.0, -0.5),
+            (0.433, -0.25),
+            (0.433, 0.25),
+        ]),
+        "H" => poly(&[
+            (-0.25, 0.433),
+            (-0.5, 0.0),
+            (-0.25, -0.433),
+            (0.25, -0.433),
+            (0.5, 0.0),
+            (0.25, 0.433),
+        ]),
+        "8" => poly(&[
+            (-0.191, 0.462),
+            (-0.462, 0.191),
+            (-0.462, -0.191),
+            (-0.191, -0.462),
+            (0.191, -0.462),
+            (0.462, -0.191),
+            (0.462, 0.191),
+            (0.191, 0.462),
+        ]),
+        "*" => poly(&[
+            (0.0, 0.5),
+            (-0.112, 0.155),
+            (-0.476, 0.155),
+            (-0.182, -0.059),
+            (-0.294, -0.405),
+            (0.0, -0.191),
+            (0.294, -0.405),
+            (0.182, -0.059),
+            (0.476, 0.155),
+            (0.112, 0.155),
+        ]),
+        "X" => poly(&[
+            (-0.25, -0.5),
+            (0.0, -0.25),
+            (0.25, -0.5),
+            (0.5, -0.25),
+            (0.25, 0.0),
+            (0.5, 0.25),
+            (0.25, 0.5),
+            (0.0, 0.25),
+            (-0.25, 0.5),
+            (-0.5, 0.25),
+            (-0.25, 0.0),
+            (-0.5, -0.25),
+        ]),
+        "^" => poly(&[(0.0, 0.5), (-0.5, -0.5), (0.5, -0.5)]),
+        "v" => poly(&[(0.0, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
+        "<" => poly(&[(-0.5, 0.0), (0.5, -0.5), (0.5, 0.5)]),
+        ">" => poly(&[(0.5, 0.0), (-0.5, 0.5), (-0.5, -0.5)]),
+        "1" | "2" | "3" | "4" => {
+            let (stem, arm_a, arm_b) = match marker {
+                "1" => ((0.0, -0.5), (0.4, 0.25), (-0.4, 0.25)),
+                "2" => ((0.0, 0.5), (-0.4, -0.25), (0.4, -0.25)),
+                "3" => ((-0.5, 0.0), (0.25, -0.4), (0.25, 0.4)),
+                _ => ((0.5, 0.0), (-0.25, 0.4), (-0.25, -0.4)),
+            };
+            MarkerShape::Strokes(vec![
+                ((0.0, 0.0), stem),
+                ((0.0, 0.0), arm_a),
+                ((0.0, 0.0), arm_b),
+            ])
+        }
+        "x" => MarkerShape::Strokes(vec![((-0.5, -0.5), (0.5, 0.5)), ((-0.5, 0.5), (0.5, -0.5))]),
+        "+" => MarkerShape::Strokes(vec![((-0.5, 0.0), (0.5, 0.0)), ((0.0, -0.5), (0.0, 0.5))]),
+        "|" => MarkerShape::Strokes(vec![((0.0, -0.5), (0.0, 0.5))]),
+        "_" => MarkerShape::Strokes(vec![((-0.5, 0.0), (0.5, 0.0))]),
+        "." => MarkerShape::Circle(0.5),
+        _ => MarkerShape::Circle(1.0),
+    }
+}
+
 /// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
 fn draw_marker<DB: DrawingBackend, C: Color>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
@@ -555,54 +926,43 @@ where
     DB::ErrorType: 'static,
 {
     let (x, y) = (pos.0 - base.0, pos.1 - base.1);
-    let ri = r.round().max(1.0) as i32;
-    match marker {
-        "s" => area.draw(&Rectangle::new(
-            [(x - ri, y - ri), (x + ri, y + ri)],
-            col.filled(),
-        ))?,
-        "^" => area.draw(&Polygon::new(
-            vec![(x, y - ri), (x + ri, y + ri), (x - ri, y + ri)],
-            col.filled(),
-        ))?,
-        "v" => area.draw(&Polygon::new(
-            vec![(x, y + ri), (x + ri, y - ri), (x - ri, y - ri)],
-            col.filled(),
-        ))?,
-        "<" => area.draw(&Polygon::new(
-            vec![(x - ri, y), (x + ri, y + ri), (x + ri, y - ri)],
-            col.filled(),
-        ))?,
-        ">" => area.draw(&Polygon::new(
-            vec![(x + ri, y), (x - ri, y + ri), (x - ri, y - ri)],
-            col.filled(),
-        ))?,
-        "D" => area.draw(&Polygon::new(
-            vec![(x, y - ri), (x + ri, y), (x, y + ri), (x - ri, y)],
-            col.filled(),
-        ))?,
-        "x" => {
-            area.draw(&PathElement::new(
-                vec![(x - ri, y - ri), (x + ri, y + ri)],
-                col.stroke_width(stroke),
-            ))?;
-            area.draw(&PathElement::new(
-                vec![(x - ri, y + ri), (x + ri, y - ri)],
-                col.stroke_width(stroke),
-            ))?;
+    let ri = r.round().max(1.0);
+    let span = 2.0 * ri;
+    let map = |(vx, vy): (f64, f64)| {
+        (
+            (x as f64 + vx * span).round() as i32,
+            (y as f64 - vy * span).round() as i32,
+        )
+    };
+    match marker_shape(marker) {
+        MarkerShape::Polygon(verts) => {
+            if marker == "s" {
+                // Keep a square marker as an SVG `<rect>`; the raster backends
+                // produce the same pixels either way.
+                area.draw(&Rectangle::new(
+                    [
+                        (x - ri as i32, y - ri as i32),
+                        (x + ri as i32, y + ri as i32),
+                    ],
+                    col.filled(),
+                ))?;
+            } else {
+                let pts: Vec<(i32, i32)> = verts.iter().map(|v| map(*v)).collect();
+                area.draw(&Polygon::new(pts, col.filled()))?;
+            }
         }
-        "+" => {
-            area.draw(&PathElement::new(
-                vec![(x - ri, y), (x + ri, y)],
-                col.stroke_width(stroke),
-            ))?;
-            area.draw(&PathElement::new(
-                vec![(x, y - ri), (x, y + ri)],
-                col.stroke_width(stroke),
-            ))?;
+        MarkerShape::Strokes(segs) => {
+            for (a, b) in segs {
+                area.draw(&PathElement::new(
+                    vec![map(a), map(b)],
+                    col.stroke_width(stroke),
+                ))?;
+            }
         }
-        "." => area.draw(&Circle::new((x, y), (ri / 2).max(1) as u32, col.filled()))?,
-        _ => area.draw(&Circle::new((x, y), ri as u32, col.filled()))?,
+        MarkerShape::Circle(frac) => {
+            let radius = (ri * frac).max(1.0) as u32;
+            area.draw(&Circle::new((x, y), radius, col.filled()))?;
+        }
     }
     Ok(())
 }
@@ -811,8 +1171,10 @@ fn draw_marker_raster(
     stroke: u32,
     marker: &str,
 ) {
-    let (x, y) = ((pos.0 - base.0) as f32, (pos.1 - base.1) as f32);
-    let r = r as f32;
+    let (x, y) = ((pos.0 - base.0) as f64, (pos.1 - base.1) as f64);
+    let r = r.round().max(1.0);
+    let span = 2.0 * r;
+    let map = |(vx, vy): (f64, f64)| ((x + vx * span) as f32, (y - vy * span) as f32);
     let alpha = (col.3.clamp(0.0, 1.0) * 255.0).round() as u8;
     let paint = tiny_skia::Paint {
         shader: tiny_skia::Shader::SolidColor(tiny_skia::Color::from_rgba8(
@@ -821,96 +1183,62 @@ fn draw_marker_raster(
         anti_alias: true,
         ..Default::default()
     };
-    if marker == "x" || marker == "+" {
-        let mut pb = tiny_skia::PathBuilder::new();
-        if marker == "x" {
-            pb.move_to(x - r, y - r);
-            pb.line_to(x + r, y + r);
-            pb.move_to(x - r, y + r);
-            pb.line_to(x + r, y - r);
-        } else {
-            pb.move_to(x - r, y);
-            pb.line_to(x + r, y);
-            pb.move_to(x, y - r);
-            pb.line_to(x, y + r);
-        }
-        if let Some(path) = pb.finish() {
-            let stroke = tiny_skia::Stroke {
-                width: stroke.max(1) as f32,
-                ..Default::default()
-            };
-            pixmap.stroke_path(
-                &path,
-                &paint,
-                &stroke,
-                tiny_skia::Transform::identity(),
-                None,
-            );
-        }
-        return;
-    }
-    let mut pb = tiny_skia::PathBuilder::new();
-    let built = match marker {
-        "s" => {
-            if let Some(rect) = tiny_skia::Rect::from_ltrb(x - r, y - r, x + r, y + r) {
-                pb.push_rect(rect);
+    match marker_shape(marker) {
+        MarkerShape::Strokes(segs) => {
+            let mut pb = tiny_skia::PathBuilder::new();
+            for (a, b) in segs {
+                let (ax, ay) = map(a);
+                let (bx, by) = map(b);
+                pb.move_to(ax, ay);
+                pb.line_to(bx, by);
             }
-            Some(())
+            if let Some(path) = pb.finish() {
+                let stroke = tiny_skia::Stroke {
+                    width: stroke.max(1) as f32,
+                    ..Default::default()
+                };
+                pixmap.stroke_path(
+                    &path,
+                    &paint,
+                    &stroke,
+                    tiny_skia::Transform::identity(),
+                    None,
+                );
+            }
         }
-        "^" => {
-            pb.move_to(x, y - r);
-            pb.line_to(x + r, y + r);
-            pb.line_to(x - r, y + r);
-            pb.close();
-            Some(())
+        MarkerShape::Circle(frac) => {
+            let mut pb = tiny_skia::PathBuilder::new();
+            pb.push_circle(x as f32, y as f32, (r * frac).max(1.0) as f32);
+            if let Some(path) = pb.finish() {
+                pixmap.fill_path(
+                    &path,
+                    &paint,
+                    tiny_skia::FillRule::Winding,
+                    tiny_skia::Transform::identity(),
+                    None,
+                );
+            }
         }
-        "v" => {
-            pb.move_to(x - r, y - r);
-            pb.line_to(x + r, y - r);
-            pb.line_to(x, y + r);
-            pb.close();
-            Some(())
-        }
-        "<" => {
-            pb.move_to(x + r, y - r);
-            pb.line_to(x + r, y + r);
-            pb.line_to(x - r, y);
-            pb.close();
-            Some(())
-        }
-        ">" => {
-            pb.move_to(x - r, y - r);
-            pb.line_to(x - r, y + r);
-            pb.line_to(x + r, y);
-            pb.close();
-            Some(())
-        }
-        "D" => {
-            pb.move_to(x, y - r);
-            pb.line_to(x + r, y);
-            pb.line_to(x, y + r);
-            pb.line_to(x - r, y);
-            pb.close();
-            Some(())
-        }
-        "." => {
-            pb.push_circle(x, y, (r / 2.0).max(1.0));
-            Some(())
-        }
-        _ => {
-            pb.push_circle(x, y, r);
-            Some(())
-        }
-    };
-    if built.is_some() {
-        if let Some(path) = pb.finish() {
-            pixmap.fill_path(
-                &path,
-                &paint,
-                tiny_skia::FillRule::Winding,
-                tiny_skia::Transform::identity(),
-                None,
-            );
+        MarkerShape::Polygon(verts) => {
+            let mut pb = tiny_skia::PathBuilder::new();
+            if let Some((vx, vy)) = verts.first() {
+                let (px, py) = map((*vx, *vy));
+                pb.move_to(px, py);
+                for v in &verts[1..] {
+                    let (px, py) = map(*v);
+                    pb.line_to(px, py);
+                }
+                pb.close();
+            }
+            if let Some(path) = pb.finish() {
+                pixmap.fill_path(
+                    &path,
+                    &paint,
+                    tiny_skia::FillRule::Winding,
+                    tiny_skia::Transform::identity(),
+                    None,
+                );
+            }
         }
     }
 }
@@ -1676,17 +2004,25 @@ where
                 }
             }
         } else {
-            let series = chart.draw_series(LineSeries::new(pts, col.stroke_width(width)))?;
+            let chart_area = chart.plotting_area();
+            let px: Vec<(i32, i32)> = pts
+                .iter()
+                .map(|p| {
+                    let (x, y) = chart_area.map_coordinate(p);
+                    (x - base.0, y - base.1)
+                })
+                .collect();
+            if has_sharp_join(&px, width) {
+                draw_solid_polyline(area, &px, col, width)?;
+            } else {
+                area.draw(&PathElement::new(px.clone(), col.stroke_width(width)))?;
+            }
+            draw_projected_caps(area, &px, col, width)?;
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
                     swatch: LegendSwatch::Line(col, width),
                 });
-                if !custom_legend {
-                    series.label(s.label.as_str()).legend(move |(x, y)| {
-                        PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
-                    });
-                }
             }
         }
         if !s.marker.is_empty() && s.markersize > 0.0 {
@@ -2002,6 +2338,117 @@ where
             ));
         }
     }
+    // `loc="best"` scores candidate corners against the drawn artists, so collect
+    // their pixel geometry once, mirroring matplotlib's `Legend._auto_legend_data`.
+    let legend_obstacles = if custom_legend && p.legend.loc == "best" {
+        let pa = chart.plotting_area();
+        let base = area.get_base_pixel();
+        let mut obstacles = LegendObstacles::default();
+        let to_px = |x: f64, y: f64| {
+            let (px, py) = pa.map_coordinate(&(tx(x), ty(y)));
+            (px as f64 - base.0 as f64, py as f64 - base.1 as f64)
+        };
+        let sample = |xs: &OwnedArray1, ys: &OwnedArray1| -> Vec<(f64, f64)> {
+            let (xs, ys) = (xs.as_array(), ys.as_array());
+            let n = xs.len().min(ys.len());
+            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
+            (0..n)
+                .step_by(stride)
+                .map(|i| to_px(xs[i], ys[i]))
+                .collect()
+        };
+        for s in &p.series {
+            obstacles.push_line(sample(&s.x, &s.y));
+        }
+        for bar in &p.bars {
+            let (left, bottom) = (bar.left.as_array(), bar.bottom.as_array());
+            let (width, height) = (bar.width.as_array(), bar.height.as_array());
+            for i in 0..left
+                .len()
+                .min(bottom.len())
+                .min(width.len())
+                .min(height.len())
+            {
+                let (ax0, ay0) = to_px(left[i], bottom[i]);
+                let (ax1, ay1) = to_px(left[i] + width[i], bottom[i] + height[i]);
+                obstacles
+                    .boxes
+                    .push((ax0.min(ax1), ay0.min(ay1), ax0.max(ax1), ay0.max(ay1)));
+            }
+        }
+        for band in &p.bands {
+            obstacles.push_line(sample(&band.x, &band.y));
+        }
+        for sc in &p.scatter {
+            let (xs, ys) = (sc.x.as_array(), sc.y.as_array());
+            let n = xs.len().min(ys.len());
+            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
+            for i in (0..n).step_by(stride) {
+                obstacles.push_point(to_px(xs[i], ys[i]));
+            }
+        }
+        for err in &p.errors {
+            let (xs, ys) = (err.0.as_array(), err.1.as_array());
+            let n = xs.len().min(ys.len());
+            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
+            for i in (0..n).step_by(stride) {
+                obstacles.push_point(to_px(xs[i], ys[i]));
+            }
+        }
+        for patch in &p.patches {
+            match patch.kind.as_str() {
+                "rect" => {
+                    let (ax0, ay0) = to_px(patch.x, patch.y);
+                    let (ax1, ay1) = to_px(patch.x + patch.width, patch.y + patch.height);
+                    obstacles
+                        .boxes
+                        .push((ax0.min(ax1), ay0.min(ay1), ax0.max(ax1), ay0.max(ay1)));
+                }
+                "circle" => {
+                    let (cx, cy) = to_px(patch.x, patch.y);
+                    let (rx, _) = to_px(patch.x + patch.width, patch.y);
+                    let (_, ry) = to_px(patch.x, patch.y + patch.width);
+                    let (rx, ry) = ((rx - cx).abs(), (ry - cy).abs());
+                    let ring = (0..16)
+                        .map(|i| {
+                            let t = i as f64 / 16.0 * std::f64::consts::TAU;
+                            (cx + rx * t.cos(), cy + ry * t.sin())
+                        })
+                        .collect();
+                    obstacles.push_line(ring);
+                }
+                _ => {
+                    let pts = patch
+                        .points
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|pair| to_px(pair[0], pair[1]))
+                        .collect();
+                    obstacles.push_line(pts);
+                }
+            }
+        }
+        for coll in &p.collections {
+            let n = coll.points.len() / 2;
+            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
+            for i in (0..n).step_by(stride) {
+                obstacles.push_point(to_px(coll.points[i * 2], coll.points[i * 2 + 1]));
+            }
+            for seg in &coll.segments {
+                let pts = seg
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|pair| to_px(pair[0], pair[1]))
+                    .collect();
+                obstacles.push_line(pts);
+            }
+        }
+        obstacles
+    } else {
+        LegendObstacles::default()
+    };
     if p.legend.show && custom_legend {
         let base = area.get_base_pixel();
         let pa = chart.plotting_area();
@@ -2012,6 +2459,7 @@ where
             (tl.0 - base.0, tl.1 - base.1, br.0 - base.0, br.1 - base.1),
             &entries,
             &p.legend,
+            &legend_obstacles,
             fg,
             dpi,
         )?;
