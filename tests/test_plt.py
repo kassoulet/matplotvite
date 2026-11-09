@@ -293,6 +293,16 @@ def test_single_subplots_returns_axes_and_pyplot_targets_current(tmp_path):
     assert "via pyplot" in (tmp_path / "s.svg").read_text()
 
 
+def test_subplot_three_digit_shorthand():
+    # `subplot(121)` means a 1x2 grid, first cell (matplotlib's shorthand).
+    fig = plt.figure()
+    ax = plt.subplot(121)
+    ax.plot([0, 1], [1, 0])
+    plt.subplot(122).plot([0, 1], [0, 1])
+    assert fig.grid == (1, 2)
+    assert [a.pos for a in fig.axes] == [0, 1]
+
+
 def _bump(n=30):
     x = np.linspace(-2, 2, n)
     y = np.linspace(-2, 2, n)

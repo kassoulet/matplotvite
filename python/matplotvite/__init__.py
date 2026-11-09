@@ -3362,6 +3362,9 @@ class Figure:
         may be passed instead to place the axes on an irregular grid."""
         if isinstance(nrows, SubplotSpec):
             return self._add_spec(nrows)
+        if isinstance(nrows, int) and 111 <= nrows <= 999 and ncols == 1 and index == 1:
+            # `subplot(121)` is shorthand for `subplot(1, 2, 1)`.
+            nrows, ncols, index = divmod(nrows, 100)[0], *divmod(nrows % 100, 10)
         if (nrows, ncols) != self.grid:
             if self.axes:
                 raise ValueError("mixed subplot grids are not supported yet")
