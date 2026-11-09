@@ -115,6 +115,13 @@ def test_tight_bbox_with_colored_background(tmp_path):
     fig.savefig(tight, bbox_inches="tight")
     assert int.from_bytes(tight.read_bytes()[16:20], "big") < 400
 
+    # The background must not force the vector tight box back to full canvas.
+    svg = tmp_path / "tight-red.svg"
+    fig.savefig(svg, bbox_inches="tight")
+    text = svg.read_text()
+    assert 'viewBox="0 0 400 300"' not in text
+    assert 'fill="#FF0000"' in text
+
 
 def test_file_like_name_selects_format(tmp_path):
     import io

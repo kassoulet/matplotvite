@@ -119,19 +119,17 @@ fn render(
     let output = RenderOutput {
         dpi,
         raster: matches!(fmt.as_str(), "png" | "webp"),
+        tight_bounds: tight && matches!(fmt.as_str(), "svg" | "pdf"),
     };
 
     // All input has been copied out of NumPy, so drawing, rasterisation and
     // encoding no longer need the GIL. Other Python threads can run while a
     // large figure is rendered.
     let result = py.detach(move || -> Result<Vec<u8>, String> {
-        let svg = render_svg(size, grid, &panels, background, edgecolor, title, output)?;
+        let (svg, bounds) = render_svg(size, grid, &panels, background, edgecolor, title, output)?;
         if fmt == "svg" || fmt == "pdf" {
             let svg = match if tight {
-                rasterize(&svg, w, h, transparent)
-                    .ok()
-                    .and_then(|p| content_bbox(&p, background_pixel(background)))
-                    .and_then(|bbox| svg_tight(&svg, bbox))
+                bounds.and_then(|bbox| svg_tight(&svg, bbox))
             } else {
                 None
             } {

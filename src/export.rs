@@ -248,6 +248,9 @@ fn background_fragment(size: (u32, u32), background: Option<RGBAColor>) -> Resul
 pub(crate) struct RenderOutput {
     pub(crate) dpi: f64,
     pub(crate) raster: bool,
+    /// Compute tight bounds from SVG geometry (vector output) instead of
+    /// rasterising the whole figure just to measure it.
+    pub(crate) tight_bounds: bool,
 }
 
 /// Render all panels to an SVG string via plotters. Independent panels are
@@ -260,7 +263,7 @@ pub(crate) fn render_svg(
     edgecolor: Option<&str>,
     suptitle: Option<Suptitle>,
     output: RenderOutput,
-) -> Result<String, String> {
+) -> Result<(String, Option<Bbox>), String> {
     let dpi = output.dpi;
     // A figure title reserves a band at the top so it never overlaps the first
     // row of panels.
@@ -281,8 +284,9 @@ pub(crate) fn render_svg(
     };
 
     // Build the document in one pass. Inserting each fragment before
-    // `</svg>` shifted the whole tail once per panel and overlay.
-    let body = background_fragment(size, background)?;
+    // `</svg>` shifted the whole tail once per panel and overlay. The figure
+    // background is added after measuring so it cannot hide the content bounds.
+    let body = background_fragment(size, None)?;
     let insert_at = body
         .rfind("</svg>")
         .ok_or("rendered SVG has no closing tag")?;
@@ -299,7 +303,40 @@ pub(crate) fn render_svg(
         svg.push('\n');
     }
     svg.push_str(&body[insert_at..]);
-    Ok(svg)
+    let bounds = if output.tight_bounds {
+        svg_bounds(&svg, size)
+    } else {
+        None
+    };
+    if background.is_some() {
+        let background = background_fragment(size, background)?;
+        let background = svg_body(&background);
+        let root_end = svg.find('>').ok_or("rendered SVG has no root tag")? + 1;
+        svg.insert_str(root_end, background);
+    }
+    Ok((svg, bounds))
+}
+
+/// Geometric bounds of the drawn content, including strokes and text, in
+/// canvas pixels. The figure background is deliberately absent from `svg`.
+fn svg_bounds(svg: &str, (w, h): (u32, u32)) -> Option<Bbox> {
+    let opts = usvg::Options {
+        fontdb: fontdb(),
+        ..Default::default()
+    };
+    let tree = usvg::Tree::from_str(svg, &opts).ok()?;
+    let rect = tree.root().abs_stroke_bounding_box();
+    if !rect.width().is_finite() || !rect.height().is_finite() {
+        return None;
+    }
+    let x0 = rect.left().floor().clamp(0.0, w as f32);
+    let y0 = rect.top().floor().clamp(0.0, h as f32);
+    let x1 = rect.right().ceil().clamp(0.0, w as f32);
+    let y1 = rect.bottom().ceil().clamp(0.0, h as f32);
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
+    Some((x0 as u32, y0 as u32, (x1 - x0) as u32, (y1 - y0) as u32))
 }
 
 /// Rasterise an SVG string via resvg + tiny-skia.
@@ -397,7 +434,7 @@ pub(crate) fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String>
     Ok(encoded.to_vec())
 }
 
-type Bbox = (u32, u32, u32, u32); // x, y, width, height
+pub(crate) type Bbox = (u32, u32, u32, u32); // x, y, width, height
 
 /// The opaque pixel produced by painting `background` over the rasteriser's
 /// white canvas. `None` means the figure is transparent.
