@@ -392,7 +392,7 @@ pub(crate) fn encode_png(
 /// cloned the entire pixmap.
 fn demultiply(pixmap: &tiny_skia::Pixmap) -> Vec<u8> {
     let mut rgba = pixmap.data().to_vec();
-    for px in rgba.chunks_exact_mut(4) {
+    for px in rgba.as_chunks_mut::<4>().0 {
         let a = px[3] as u32;
         match a {
             0 => px[..3].fill(0),
@@ -457,10 +457,10 @@ pub(crate) fn content_bbox(
     let mut found = false;
     for (y, row) in data.chunks_exact(w as usize * 4).enumerate() {
         let mut row_found = false;
-        for (x, px) in row.chunks_exact(4).enumerate() {
+        for (x, px) in row.as_chunks::<4>().0.iter().enumerate() {
             let drawn = match background {
                 None => px[3] != 0,
-                Some(bg) => px != bg.as_slice(),
+                Some(bg) => px.as_slice() != bg.as_slice(),
             };
             if drawn {
                 row_found = true;
