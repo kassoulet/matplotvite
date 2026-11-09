@@ -309,8 +309,10 @@ python tools/harvest_seaborn.py --out dist/seaborn-gallery
 ```
 
 Each writes an `index.html` and a `manifest.json`; the baseline gallery copies its
-reference images alongside the page so it stays browsable when moved. These are
-gitignored build artifacts under `dist/`. To regenerate all three as a check:
+reference images alongside the page so it stays browsable when moved. The pixel
+metrics read PNGs through Matplotlib, so without it the corpus gallery still
+renders and records `metrics_error` per case. These are gitignored build
+artifacts under `dist/`. To regenerate all three as a check:
 
 ```bash
 pytest -m gallery

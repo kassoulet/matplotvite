@@ -241,17 +241,21 @@ def render(snippet: str, out_path: pathlib.Path) -> str | None:
 
 
 def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
-    """RMS and visibly-different percentage against the baseline PNG."""
-    try:  # same metric as the gallery tool; importable both as a script and as a package
-        from visual_compare import compare_images
-    except ModuleNotFoundError:
-        from tools.visual_compare import compare_images
+    """RMS and visibly-different percentage against the baseline PNG.
 
+    The comparison reads PNGs through Matplotlib, which the renderer itself does
+    not need; without it the gallery still renders and records why the metric is
+    unavailable.
+    """
     if not baseline.exists():
         return {"error": f"missing baseline {baseline}"}
-    try:
+    try:  # same metric as the gallery tool; importable both as a script and as a package
+        try:
+            from visual_compare import compare_images
+        except ModuleNotFoundError:
+            from tools.visual_compare import compare_images
         return compare_images(baseline, ours)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - a missing matplotlib or bad PNG is data, not a crash
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
@@ -287,10 +291,16 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
                 entry["status"] = "rendered"
                 rendered += 1
                 entry["ours"] = str(ours)
-                result = metrics(baseline, ours)
-                entry.update(result)
-                if result.get("error"):
+                if baseline.exists():
+                    result = metrics(baseline, ours)
+                    metric_error = result.pop("error", None)
+                    entry.update(result)
+                    if metric_error is not None:
+                        # Rendering succeeded; only the pixel comparison is unavailable.
+                        entry["metrics_error"] = metric_error
+                else:
                     entry["status"] = "no baseline"
+                    entry["error"] = f"missing baseline {baseline}"
             else:
                 entry["status"] = "failed"
                 entry["error"] = error
@@ -315,6 +325,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
         case["shape_match"] = entry.get("shape_match")
         case["rms"] = entry.get("rms")
         case["mismatch_pct"] = entry.get("mismatch_pct")
+        case["metrics_error"] = entry.get("metrics_error")
         print(f"{case_id:44} {entry['status']:9} {entry['error'] or ''}".rstrip())
 
     (out / "index.html").write_text(
