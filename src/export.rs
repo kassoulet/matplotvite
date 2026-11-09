@@ -289,9 +289,29 @@ pub(crate) fn encode_png(
     if opaque {
         encode_png_data(pixmap.data(), width, height, compression)
     } else {
-        let rgba = pixmap.to_owned().take_demultiplied();
+        let rgba = demultiply(pixmap);
         encode_png_data(&rgba, width, height, compression)
     }
+}
+
+/// Convert a premultiplied pixmap to straight-alpha RGBA in one allocation.
+/// `Pixmap::to_owned().take_demultiplied()` did the same conversion but first
+/// cloned the entire pixmap.
+fn demultiply(pixmap: &tiny_skia::Pixmap) -> Vec<u8> {
+    let mut rgba = pixmap.data().to_vec();
+    for px in rgba.chunks_exact_mut(4) {
+        let a = px[3] as u32;
+        match a {
+            0 => px[..3].fill(0),
+            255 => {}
+            _ => {
+                for c in &mut px[..3] {
+                    *c = ((*c as u32 * 255 + a / 2) / a).min(255) as u8;
+                }
+            }
+        }
+    }
+    rgba
 }
 
 fn encode_png_data(
@@ -315,8 +335,7 @@ fn encode_png_data(
 
 /// Encode a pixmap as lossless WebP, matching the PNG alpha handling.
 pub(crate) fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String> {
-    let copy = pixmap.to_owned();
-    let rgba = copy.take_demultiplied();
+    let rgba = demultiply(pixmap);
     let encoded =
         webp::Encoder::from_rgba(&rgba, pixmap.width(), pixmap.height()).encode_lossless();
     Ok(encoded.to_vec())
