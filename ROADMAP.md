@@ -230,8 +230,8 @@
 - [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
 
 ### Seaborn gallery
-- [ ] Harvest Seaborn's `examples/` gallery and reference images, and record which plots already render through our Matplotlib-compatible surface
-- [ ] Report Seaborn compatibility as pass / needs-API / unsupported, and feed the needs-API list back into TRACE priorities (for example `kdeplot`, `regplot`, `heatmap`, `pairplot`)
+- [x] Harvest Seaborn's `examples/` gallery — `tools/harvest_seaborn.py` parses every script and classifies each `sns.*` call against our Matplotlib surface. Seaborn's gallery images are docs build artifacts, so statuses are static capability statements rather than image diffs. The current gallery has no theming-only example: 0 pass, 48 needs-API, 1 unsupported (`clustermap`)
+- [x] Report Seaborn compatibility as pass / needs-API / unsupported, and feed the needs-API list back into TRACE priorities — the report ranks the missing capabilities (`jointplot`/`JointGrid` and `FacetGrid`/`PairGrid` at the top, then `relplot`, `displot`, `lmplot`, `lineplot`, `catplot`, `violinplot`), alongside any `plt.*` call we cannot express
 - [ ] Cover the Seaborn plots that are thin wrappers over API we already have with pixel-diff tests
 
 ### Pandas `.plot()`
