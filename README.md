@@ -55,9 +55,9 @@ The full matrix and methodology are on the
 [benchmark page](https://kassoulet.github.io/matplotvite/benchmarks.html).
 
 Dense line series are simplified to sub-pixel resolution before drawing, dense
-scatter and collection markers are composited into a raster layer for PNG/WebP,
-and hexbin cells and filled-contour interiors are drawn in batches; those keep
-the slow paths bounded by output resolution instead of input size.
+series, scatter and collection markers are composited into a raster layer for
+PNG/WebP, and hexbin cells and filled-contour interiors are drawn in batches;
+those keep the slow paths bounded by output resolution instead of input size.
 
 Measured on a Linux x86_64 host (Python 3.14, matplotlib 3.10.7). Wall-clock
 times vary with machine load and should be reproduced on the target system.
@@ -73,8 +73,15 @@ cargo bench --bench render
 It measures SVG rasterization at three figure sizes plus dense-line and
 filled-polygon fixtures, PNG encoding at fast/default/best compression, lossless
 WebP encoding, and vector PDF conversion. Results are written under
-`target/criterion/`; use `--quick` for a short smoke run. CI runs the quick suite
-and uploads the estimates as workflow artifacts.
+`target/criterion/`; use `--quick` for a short smoke run. CI runs the quick suite,
+checks it against `benches/criterion_baseline.json` with
+`tools/criterion_guard.py` (25% budget), and uploads the estimates as workflow
+artifacts. Refresh the baseline with:
+
+```bash
+cargo bench --bench render -- --quick
+python tools/criterion_guard.py target/criterion benches/criterion_baseline.json --write
+```
 
 ## Dependencies
 
@@ -195,8 +202,11 @@ plt.savefig("contours.png")
   tick labels (`base=` honoured, `symlog` raises)
 
 ### Gridded data
-- `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=)` — 2-D arrays mapped
-  through a colormap, or `(H, W, 3|4)` RGB(A) arrays
+- `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=, interpolation=, alpha=)` —
+  2-D arrays mapped through a colormap, or `(H, W, 3|4)` RGB(A) arrays; supports
+  nearest/antialiased/bilinear interpolation hints and constant opacity
+- `contour(..., linewidths=, alpha=)` / `contourf(..., alpha=)` — style iso-lines and
+  filled bands without changing the geometry
 - `colormaps`, `get_cmap(name)`, `cm` and `set_cmap` — all 182 matplotlib colormap
   names (including every `_r` reversal), with per-colormap lookup tables embedded
   in the wheel so matplotlib is not a runtime dependency
@@ -276,7 +286,12 @@ the page generator and by `tests/test_samples.py`.
 To run the live benchmark suite:
 ```bash
 python tools/benchmark.py
+python tools/visual_compare.py visual --json visual_diff.json
 ```
+
+The visual comparison renders every gallery case through Matplotlib and
+matplotvite and records per-snippet RMS and visibly-different-pixel percentages.
+CI uploads `visual_diff.json` with the side-by-side HTML gallery.
 
 Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
 unchanged figure reuse the previously encoded bytes. CI runs the comparison suite

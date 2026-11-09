@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from tools.benchmark import measure_callable
 from tools.build_pages import build_pages
+from tools.criterion_guard import load_estimates
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -19,6 +20,15 @@ def test_measure_callable():
     elapsed = measure_callable(sample_work, iters=10, warmup=2)
     assert elapsed >= 0.0
     assert counter == 12
+
+
+def test_criterion_estimates_are_read_from_median(tmp_path):
+    case = tmp_path / "rasterize_svg" / "640x480" / "new"
+    case.mkdir(parents=True)
+    (case / "estimates.json").write_text(
+        '{"median": {"point_estimate": 123456.0}}', encoding="utf-8"
+    )
+    assert load_estimates(tmp_path) == {"rasterize_svg/640x480": 123456.0}
 
 
 def test_benchmark_data_structure():

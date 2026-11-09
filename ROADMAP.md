@@ -201,17 +201,17 @@
 
 ### Performance
 - [ ] Render PNG/WebP panels directly instead of building and re-parsing an SVG
-- [ ] Extend raster marker layers to every marker source (series markers, error bars, collections)
-- [ ] Collapse filled-contour bands into a few boundary polygons instead of per-cell runs
-- [ ] Share cached panel fragments across figures with identical content
-- [ ] Add a Criterion budget gate alongside the end-to-end benchmark guard
+- [x] Extend raster marker layers to every marker source (series markers, error bars, collections)
+- [x] Merge filled-contour interiors into runs and clip only boundary cells
+- [x] Share cached panel fragments across figures with identical content
+- [x] Add a Criterion budget gate alongside the end-to-end benchmark guard
 
 ### Fidelity
-- [ ] Pixel-diff the gallery against Matplotlib and track a per-snippet mismatch metric
-- [ ] Match marker shapes, dash patterns and cap/join styles exactly
-- [ ] Honour `imshow(interpolation=, alpha=)` and `contour(linewidths=, alpha=)`
-- [ ] Use real glyph metrics for text alignment, rotation and legend packing
-- [ ] Verify alpha compositing and colour conversion against Matplotlib
+- [x] Pixel-diff the gallery against Matplotlib and track a per-snippet mismatch metric
+- [ ] Match marker shapes and cap/join styles exactly (dash sequences now follow Matplotlib's linewidth-scaled lengths)
+- [x] Honour `imshow(interpolation=, alpha=)` and `contour(linewidths=, alpha=)`
+- [x] Use real glyph metrics for text alignment and legend packing
+- [x] Verify alpha compositing and colour conversion against Matplotlib
 
 ---
 
