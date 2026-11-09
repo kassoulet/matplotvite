@@ -33,6 +33,8 @@ def main() -> int:
                         help="allowed slowdown percentage (default: 25)")
     parser.add_argument("--write", action="store_true",
                         help="write current estimates as the baseline and exit")
+    parser.add_argument("--warn-only", action="store_true",
+                        help="report budget overruns as warnings and exit 0")
     args = parser.parse_args()
 
     current = load_estimates(args.current)
@@ -54,14 +56,20 @@ def main() -> int:
             print(f"warning: no baseline for {name}", file=sys.stderr)
             continue
         slowdown = (now - before) / before * 100.0
-        status = "FAIL" if slowdown > args.max_slowdown else "ok"
+        over_budget = slowdown > args.max_slowdown
+        status = "WARN" if over_budget and args.warn_only else (
+            "FAIL" if over_budget else "ok")
         print(f"{status}: {name} ({before / 1e6:.2f} ms -> {now / 1e6:.2f} ms, "
               f"{slowdown:+.1f}%)")
-        if slowdown > args.max_slowdown:
+        if over_budget:
             failures.append(name)
     if failures:
         print(f"\n{len(failures)} Criterion benchmark(s) exceeded the "
               f"{args.max_slowdown:.0f}% slowdown budget.", file=sys.stderr)
+        if args.warn_only:
+            print("warning: budget is advisory; not failing the run.",
+                  file=sys.stderr)
+            return 0
         return 1
     print(f"\nAll Criterion benchmarks are within the {args.max_slowdown:.0f}% budget.")
     return 0

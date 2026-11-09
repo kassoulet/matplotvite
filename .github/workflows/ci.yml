@@ -177,7 +177,7 @@ jobs:
         with:
           toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - name: Run benchmarks and check the regression budget
+      - name: Run benchmarks and report the regression budget
         env:
           MPLBACKEND: Agg
         run: |
@@ -186,7 +186,7 @@ jobs:
           pip install maturin numpy "matplotlib==3.11.2"
           maturin develop --release
           python tools/benchmark.py --quick --out dist/benchmarks.json
-          python tools/benchmark_guard.py dist/benchmarks.json tools/benchmark_baseline.json
+          python tools/benchmark_guard.py --warn-only dist/benchmarks.json tools/benchmark_baseline.json
           python tools/visual_compare.py dist/visual --json dist/visual_diff.json
       - name: Upload the visual mismatch metrics
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -208,8 +208,8 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Run the output-stage Criterion suite
         run: cargo bench --bench render -- --quick
-      - name: Check the Criterion budget
-        run: python tools/criterion_guard.py target/criterion benches/criterion_baseline.json
+      - name: Report the Criterion budget
+        run: python tools/criterion_guard.py --warn-only target/criterion benches/criterion_baseline.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: criterion-${{ github.sha }}

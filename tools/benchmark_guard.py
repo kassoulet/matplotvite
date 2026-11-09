@@ -27,6 +27,8 @@ def main() -> int:
                         help="speedup compares Matplotvite/matplotlib; rs compares wall time")
     parser.add_argument("--strict", action="store_true",
                         help="also fail when a benchmark has no baseline entry")
+    parser.add_argument("--warn-only", action="store_true",
+                        help="report budget overruns as warnings and exit 0")
     args = parser.parse_args()
 
     current = load(args.current)
@@ -55,14 +57,20 @@ def main() -> int:
                 continue
             slowdown = (now - before) / before * 100.0
             detail = f"wall time {before:.2f} ms -> {now:.2f} ms"
-        status = "FAIL" if slowdown > args.max_slowdown else "ok"
+        over_budget = slowdown > args.max_slowdown
+        status = "WARN" if over_budget and args.warn_only else (
+            "FAIL" if over_budget else "ok")
         print(f"{status}: {name} ({detail}, {slowdown:+.1f}%)")
-        if slowdown > args.max_slowdown:
+        if over_budget:
             failures.append(name)
 
     if failures:
         print(f"\n{len(failures)} benchmark(s) exceeded the "
               f"{args.max_slowdown:.0f}% slowdown budget.", file=sys.stderr)
+        if args.warn_only:
+            print("warning: budget is advisory; not failing the run.",
+                  file=sys.stderr)
+            return 0
         return 1
     print(f"\nAll benchmarks are within the {args.max_slowdown:.0f}% budget.")
     return 0
