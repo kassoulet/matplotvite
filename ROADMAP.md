@@ -300,7 +300,7 @@ Animation (`FuncAnimation`), widgets, `%matplotlib inline`, and non-GPUI GUI bac
 
 - Benchmarks page vs matplotlib — built from the checked-in results; refresh with `tools/benchmark.py`
 - Backend comparison page — every gallery snippet run through Matplotlib Agg with per-snippet timings
-- Gallery page of sample outputs — deployed to GitHub Pages (`tools/build_pages.py`), Geist typography and automatic dark mode
+- Comparison galleries harvested from Matplotlib's `@image_comparison` tests, Matplotlib's examples and Seaborn's examples — regenerated with `pytest -m gallery` (skipped when the checkouts are absent) and published as the `galleries-<sha>` CI artifact, with reference images copied alongside the HTML
 - prek pre-commit hooks: `cargo fmt`, `cargo clippy --deny warnings`, `cargo test`, whitespace/EOF checks, and a commit-msg check that rejects `Co-Authored-By` trailers
 - Mandatory security scan on pre-push and CI: `cargo audit`, Bandit on runtime Python, `pip-audit`, and secret-key detection
 - Python test matrix: 3.9 → 3.14 on every PR (`maturin develop --release`, then `pytest`)

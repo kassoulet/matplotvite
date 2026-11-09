@@ -293,6 +293,33 @@ The visual comparison renders every gallery case through Matplotlib and
 matplotvite and records per-snippet RMS and visibly-different-pixel percentages.
 CI uploads `visual_diff.json` with the side-by-side HTML gallery.
 
+### Harvested comparison galleries
+
+Three more galleries use other projects' own material instead of the sample
+list (build the extension first with `maturin develop --release`):
+
+```bash
+# Matplotlib's @image_comparison cases; needs an sdist or git checkout, because
+# the wheel ships the tests but not their baseline images.
+python tools/harvest_matplotlib.py --out dist/mpl-corpus
+# Matplotlib's gallery examples (a sparse checkout of galleries/examples is enough).
+python tools/harvest_matplotlib.py --examples path/to/matplotlib --out dist/mpl-examples
+# Seaborn's examples, classified pass / needs-API / unsupported.
+python tools/harvest_seaborn.py --out dist/seaborn-gallery
+```
+
+Each writes an `index.html` and a `manifest.json`; the baseline gallery copies its
+reference images alongside the page so it stays browsable when moved. These are
+gitignored build artifacts under `dist/`. To regenerate all three as a check:
+
+```bash
+pytest -m gallery
+```
+
+The `gallery` tests are skipped in the default run (and skip individually when the
+checkouts are missing). CI rebuilds the same galleries and uploads them as the
+`galleries-<sha>` artifact for each commit.
+
 Opaque PNG figures with multiple panels, or at least 1,000 plotted primitives,
 render through a 2× oversampled bitmap backend and skip SVG generation and resvg.
 Small single-panel plots, marker-heavy panels, transparent output, embedded images,
@@ -320,7 +347,13 @@ cargo test --all-targets
 ```
 
 The Python suite includes runner and snippet execution for every gallery example,
-plus a feature-to-example coverage matrix.
+plus a feature-to-example coverage matrix. `pytest -m gallery` additionally
+regenerates the harvested Matplotlib/Seaborn galleries; it is skipped by default
+and when the external checkouts are absent.
+
+The `prek` commit-msg hook rejects `Co-Authored-By` trailers, so keep attribution
+out of commit messages (`python tools/check_commit_message.py <file>` runs the same
+check by hand).
 
 ## Security
 
