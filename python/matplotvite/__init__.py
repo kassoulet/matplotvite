@@ -371,13 +371,26 @@ class _TextLabel:
 
 
 def _span(values):
-    """Same padding rule as the Rust renderer: a flat series gets a unit window."""
-    vals = [float(v) for v in values]
-    vals = [v for v in vals if np.isfinite(v)]
-    if not vals:
-        return (0.0, 1.0)
-    lo, hi = min(vals), max(vals)
-    return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
+    """Same padding rule as the Rust renderer: a flat series gets a unit window.
+
+    Optimized with NumPy vectorized min/max to avoid Python list-comprehension
+    overhead on large series (e.g. 10k-100k points), with fallback for mixed types.
+    """
+    try:
+        arr = np.asarray(values, dtype=float).ravel()
+        arr = arr[np.isfinite(arr)]
+        if not arr.size:
+            return (0.0, 1.0)
+        lo = float(np.min(arr))
+        hi = float(np.max(arr))
+        return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
+    except (TypeError, ValueError):
+        vals = [float(v) for v in values]
+        vals = [v for v in vals if np.isfinite(v)]
+        if not vals:
+            return (0.0, 1.0)
+        lo, hi = min(vals), max(vals)
+        return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 
 
 def _looks_like_categories(values):
