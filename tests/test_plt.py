@@ -1184,8 +1184,10 @@ def test_hexbin_cells_and_mincnt(tmp_path):
     ax = plt.gca()
     coll = ax.hexbin(x, y, gridsize=5, cmap="gray", mincnt=0)
     assert coll.get_array().size == coll.get_offsets().shape[0] > 0
-    assert np.all(coll.get_array() > 0)
+    assert np.any(coll.get_array() > 0)
     assert len(coll.get_facecolor()) == coll.get_array().size
+    occupied = ax.hexbin(x, y, gridsize=5, cmap="gray", mincnt=1)
+    assert np.all(occupied.get_array() >= 1)
     p = tmp_path / "hexbin.svg"
     plt.savefig(p)
     assert p.read_text().upper().count("<POLYGON") >= coll.get_array().size

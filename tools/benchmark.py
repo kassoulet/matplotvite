@@ -195,7 +195,8 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         })
 
     # 5. Cold process startup & execution
-    env = dict(**os.environ, PYTHONPATH=str(ROOT / "python"))
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(ROOT / "python")
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "bench_cold.png"

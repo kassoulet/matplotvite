@@ -2003,12 +2003,40 @@ class Axes:
             ex0, ex1 = ex0 - 0.5, ex1 + 0.5
         if ey1 <= ey0:
             ey0, ey1 = ey0 - 0.5, ey1 + 0.5
-        width = (ex1 - ex0) / nx
-        height = width * np.sqrt(3.0) / 2.0
-        rows = ny or max(int(np.ceil((ey1 - ey0) / height)), 1)
-        rows = max(rows, 1) + 1  # odd columns are offset by half a row
-        centers, cell = _hexbin_cells(x, y, nx, rows, width, height, ex0, ey0)
-        total = nx * rows
+        if ny is None:
+            ny = max(int(nx / np.sqrt(3.0)), 1)
+        ny = max(int(ny), 1)
+        sx = (ex1 - ex0) / nx
+        sy = (ey1 - ey0) / ny
+        nx1, ny1 = nx + 1, ny + 1
+        nx2, ny2 = nx, ny
+        # Two interleaved rectangular grids form a triangular lattice. The
+        # nearest of their centres gives the hexagonal Voronoi cell for a point.
+        centers = np.column_stack([
+            np.concatenate([
+                np.repeat(np.arange(nx1), ny1),
+                np.repeat(np.arange(nx2) + 0.5, ny2),
+            ]) * sx + ex0,
+            np.concatenate([
+                np.tile(np.arange(ny1), nx1),
+                np.tile(np.arange(ny2), nx2) + 0.5,
+            ]) * sy + ey0,
+        ])
+        ix = (x - ex0) / sx
+        iy = (y - ey0) / sy
+        ix1 = np.rint(ix).astype(int)
+        iy1 = np.rint(iy).astype(int)
+        ix2 = np.floor(ix).astype(int)
+        iy2 = np.floor(iy).astype(int)
+        valid1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1)
+        valid2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2)
+        d1 = (ix - ix1) ** 2 + 3.0 * (iy - iy1) ** 2
+        d2 = (ix - ix2 - 0.5) ** 2 + 3.0 * (iy - iy2 - 0.5) ** 2
+        use1 = valid1 & (~valid2 | (d1 <= d2))
+        valid = valid1 | valid2
+        cell = np.where(use1, ix1 * ny1 + iy1, nx1 * ny1 + ix2 * ny2 + iy2)
+        cell = cell[valid]
+        total = nx1 * ny1 + nx2 * ny2
         counts = np.bincount(cell, minlength=total).astype(np.float64)
         if C is None:
             values = counts.copy()
@@ -2016,9 +2044,12 @@ class Axes:
             weights = np.asarray(C, dtype=np.float64).ravel()
             if weights.size != x.size:
                 raise ValueError("C must have one value per point")
-            sums = np.bincount(cell, weights=weights, minlength=total)
+            sums = np.bincount(cell, weights=weights[valid], minlength=total)
             values = np.divide(sums, counts, out=np.zeros(total), where=counts > 0)
-        keep = np.ones(total, dtype=bool) if mincnt is None else counts > float(mincnt)
+        if mincnt is None:
+            keep = np.ones(total, dtype=bool)
+        else:
+            keep = counts >= float(mincnt)
         if not keep.any():
             keep = counts > 0
         shown = np.flatnonzero(keep)
@@ -2031,13 +2062,15 @@ class Axes:
         t = np.clip((values[shown] - float(vmin)) / (float(vmax) - float(vmin)), 0.0, 1.0)
         cmap = _cmap_name(cmap)
         colors = _cmap_colors(cmap, t)
-        radius = width / np.sqrt(3.0)
-        angles = np.deg2rad(90.0 + 60.0 * np.arange(6))
+        polygon = np.array([
+            [0.5, -0.5], [0.5, 0.5], [0.0, 1.0],
+            [-0.5, 0.5], [-0.5, -0.5], [0.0, -1.0],
+        ])
         # Build every hexagon in one array and keep the cells in a single band:
         # one dict per cell dominates hexbin's Python time and cache-key hashing.
         sel = centers[shown]
-        xs = (sel[:, 0:1] + radius * np.cos(angles)).ravel()
-        ys = (sel[:, 1:2] + radius * np.sin(angles)).ravel()
+        xs = (sel[:, 0:1] + sx * polygon[:, 0]).ravel()
+        ys = (sel[:, 1:2] + (sy / 3.0) * polygon[:, 1]).ravel()
         self.bands.append(dict(
             x=np.ascontiguousarray(xs), y=np.ascontiguousarray(ys),
             color="#000000", alpha=None if alpha is None else float(alpha), label="",
@@ -2976,30 +3009,6 @@ def _cmap_colors(cmap, values):
         index = n - 1 - index
     rgb = table[index]
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
-
-
-def _hexbin_cells(x, y, nx, rows, width, height, x0, y0):
-    """Nearest hexagonal cell for every point, plus the cell centres."""
-    cols = np.clip(np.floor((x - x0) / width).astype(int), 0, nx - 1)
-    best = np.zeros(x.size, dtype=int)
-    best_d = np.full(x.size, np.inf)
-    for di in (-1, 0, 1):
-        ci = np.clip(cols + di, 0, nx - 1)
-        offset = 0.5 * (ci % 2)
-        base_row = np.floor((y - y0) / height - 0.5 - offset).astype(int)
-        for dj in (-1, 0, 1):
-            cj = np.clip(base_row + dj, 0, rows - 1)
-            cx = x0 + (ci + 0.5) * width
-            cy = y0 + (cj + 0.5 + offset) * height
-            distance = (x - cx) ** 2 + (y - cy) ** 2
-            better = distance < best_d
-            best_d[better] = distance[better]
-            best[better] = ci[better] * rows + cj[better]
-    ci = np.repeat(np.arange(nx), rows)
-    cj = np.tile(np.arange(rows), nx)
-    centers = np.column_stack([x0 + (ci + 0.5) * width,
-                               y0 + (cj + 0.5 + 0.5 * (ci % 2)) * height])
-    return centers, best
 
 
 def _bar_colors(color, n):

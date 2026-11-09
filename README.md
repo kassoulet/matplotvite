@@ -295,8 +295,9 @@ CI uploads `visual_diff.json` with the side-by-side HTML gallery.
 
 Opaque PNG figures with multiple panels, or at least 1,000 plotted primitives,
 render through a 2× oversampled bitmap backend and skip SVG generation and resvg.
-Small single-panel plots, transparent output, embedded images, WebP, SVG, and PDF
-keep the existing vector path.
+Small single-panel plots, marker-heavy panels, transparent output, embedded images,
+WebP, SVG, and PDF keep the existing vector path; dense markers use its batched
+raster-marker layer instead.
 
 Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
 unchanged figure reuse the previously encoded bytes. CI runs the comparison suite

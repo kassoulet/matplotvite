@@ -173,10 +173,41 @@ fn panel_work(p: &Panel) -> usize {
     count
 }
 
+/// Matches the dense marker-layer threshold in `draw_panel`.
+const DENSE_MARKER_THRESHOLD: usize = 4_096;
+
+/// The SVG path batches dense marker layers into one bitmap overlay. Direct
+/// rendering draws every marker separately at 2x, which is much slower for
+/// scatter-heavy panels, so those stay on the SVG path.
+fn has_dense_markers(p: &Panel) -> bool {
+    let scatter = p
+        .scatter
+        .iter()
+        .map(|sc| sc.x.as_array().len().min(sc.y.as_array().len()))
+        .sum::<usize>();
+    let series = p
+        .series
+        .iter()
+        .filter(|s| !s.marker.is_empty() && s.markersize > 0.0)
+        .map(|s| s.x.as_array().len().min(s.y.as_array().len()))
+        .sum::<usize>();
+    let collections = p
+        .collections
+        .iter()
+        .map(|coll| coll.points.len() / 2)
+        .sum::<usize>();
+    scatter >= DENSE_MARKER_THRESHOLD
+        || series >= DENSE_MARKER_THRESHOLD
+        || collections >= DENSE_MARKER_THRESHOLD
+}
+
 /// Direct bitmap rendering has a fixed oversampling cost, so it pays off on
 /// multi-panel figures and panels with enough primitives to amortise it. Tiny
-/// single-panel plots keep the faster SVG + resvg path.
+/// single-panel plots and marker-heavy panels keep the faster SVG + resvg path.
 pub(crate) fn direct_eligible(panels: &[Panel]) -> bool {
+    if panels.iter().any(has_dense_markers) {
+        return false;
+    }
     panels.len() > 1
         || panels.iter().fold(0usize, |total, panel| {
             total.saturating_add(panel_work(panel))
