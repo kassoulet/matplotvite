@@ -22,8 +22,10 @@ import argparse
 import ast
 import html
 import json
+import os
 import pathlib
 import re
+import tempfile
 import textwrap
 
 import numpy as np
@@ -212,21 +214,29 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
 
 def render(snippet: str, out_path: pathlib.Path) -> str | None:
     """Render a snippet with matplotvite; return an error string or None."""
+    out_path = out_path.resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     namespace = {"plt": matplotvite, "mpl": matplotvite, "np": np,
                  "OUT": str(out_path)}
-    try:
-        matplotvite.close("all")
-        # Each case starts from Matplotlib's defaults, not the previous case's
-        # rcParams edits.
-        matplotvite.rcdefaults()
-        np.random.seed(0)
-        exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
-        if not out_path.exists():
-            return "no figure saved"
-        return None
-    except Exception as exc:  # noqa: BLE001 - the gallery records every failure
-        return f"{type(exc).__name__}: {exc}"
+    # Run inside a scratch directory: some examples write their own PNGs next to
+    # the script's current directory.
+    with tempfile.TemporaryDirectory() as scratch:
+        previous = pathlib.Path.cwd()
+        try:
+            os.chdir(scratch)
+            matplotvite.close("all")
+            # Each case starts from Matplotlib's defaults, not the previous case's
+            # rcParams edits.
+            matplotvite.rcdefaults()
+            np.random.seed(0)
+            exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
+            if not out_path.exists():
+                return "no figure saved"
+            return None
+        except Exception as exc:  # noqa: BLE001 - the gallery records every failure
+            return f"{type(exc).__name__}: {exc}"
+        finally:
+            os.chdir(previous)
 
 
 def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
