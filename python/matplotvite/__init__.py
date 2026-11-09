@@ -388,10 +388,19 @@ class _TextLabel:
     def set_fontsize(self, size): self._fontsize = float(size)
 
 
+def _margin(lo, hi, scale):
+    """Matplotlib's default 5% autoscale margin (in log space for log axes)."""
+    f = np.log10 if scale == "log" else float
+    lo, hi = f(lo), f(hi)
+    pad = (hi - lo) * 0.05
+    lo, hi = lo - pad, hi + pad
+    return (10.0 ** lo, 10.0 ** hi) if scale == "log" else (lo, hi)
+
+
 def _span(values):
     """A flat series is widened so its extent is never degenerate.
 
-    The Rust renderer applies Matplotlib's autoscale margin on top of this.
+    `Axes.get_xlim`/`get_ylim` add Matplotlib's autoscale margin on top of this.
     """
     vals = np.asarray(values, dtype=float).ravel()
     vals = vals[np.isfinite(vals)]
@@ -1168,19 +1177,19 @@ class Axes:
 
     def get_xlim(self):
         extent = self._extent_x()
-        if self._share_x is not None:
-            lo, hi = self._share_x.limits or self._share_x.union("x")
-        else:
-            lo, hi = self.xlim or extent
-        return _log_bounds(lo, hi, self.xscale, extent)
+        group = self._share_x
+        explicit = group.limits if group is not None else self.xlim
+        lo, hi = explicit or (group.union("x") if group is not None else extent)
+        lo, hi = _log_bounds(lo, hi, self.xscale, extent)
+        return (lo, hi) if explicit else _margin(lo, hi, self.xscale)
 
     def get_ylim(self):
         extent = self._extent_y()
-        if self._share_y is not None:
-            lo, hi = self._share_y.limits or self._share_y.union("y")
-        else:
-            lo, hi = self.ylim or extent
-        return _log_bounds(lo, hi, self.yscale, extent)
+        group = self._share_y
+        explicit = group.limits if group is not None else self.ylim
+        lo, hi = explicit or (group.union("y") if group is not None else extent)
+        lo, hi = _log_bounds(lo, hi, self.yscale, extent)
+        return (lo, hi) if explicit else _margin(lo, hi, self.yscale)
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
 

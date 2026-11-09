@@ -642,7 +642,7 @@ def test_axes_limits_and_bounds_track_data():
     plt.figure()
     ax = plt.gca()
     ax.plot([2, 4, 6], [10, 30, 20])
-    assert ax.get_xlim() == (2.0, 6.0) and ax.get_ylim() == (10.0, 30.0)
+    assert ax.get_xlim() == pytest.approx((1.8, 6.2)) and ax.get_ylim() == pytest.approx((9.0, 31.0))
     assert ax.get_xbound() == ax.get_xlim() and ax.get_ybound() == ax.get_ylim()
     ax.set_xlim(0, 10)
     assert ax.get_xlim() == (0.0, 10.0)
@@ -803,7 +803,7 @@ def test_axes_clear_empties_the_figure(tmp_path):
     ax.plot([1, 2], [2, 1])
     ax.text(0, 0, "gone")
     ax.clear()
-    assert ax.get_xlim() == (0.0, 1.0)
+    assert ax.get_xlim() == pytest.approx((-0.05, 1.05))
     with pytest.raises(RuntimeError):
         plt.savefig(tmp_path / "empty.png")
 
@@ -969,8 +969,8 @@ def test_bar_updates_limits():
     plt.figure()
     ax = plt.gca()
     ax.bar([2], [5], width=2, bottom=1)
-    assert ax.get_xlim() == (1.0, 3.0)
-    assert ax.get_ylim() == (1.0, 6.0)
+    assert ax.get_xlim() == pytest.approx((0.9, 3.1))
+    assert ax.get_ylim() == pytest.approx((0.75, 6.25))
 
 
 def test_fill_between_polygon(tmp_path):
@@ -1218,8 +1218,8 @@ def test_quiver_arrows_and_extents(tmp_path):
                   color=["red", "green"], pivot="tail")
     assert q.get_offsets().shape == (2, 2)
     assert np.allclose(q.get_U(), [1, 1]) and np.allclose(q.get_V(), [1, -1])
-    assert ax.get_xlim() == (0.0, 2.0)
-    assert ax.get_ylim() == (-1.0, 1.0)
+    assert ax.get_xlim() == pytest.approx((-0.1, 2.1))
+    assert ax.get_ylim() == pytest.approx((-1.1, 1.1))
     p = tmp_path / "quiver.svg"
     plt.savefig(p)
     s = p.read_text().upper()
@@ -1360,7 +1360,7 @@ def test_log_scales(tmp_path):
     plt.savefig(p)
     s = p.read_text()
     assert "#FF0000" in s.upper()
-    assert re.search(r">\s*10\s*<", s), "decade tick label missing"
+    assert re.search(r">\s*100\s*<", s), "decade tick label missing"
     plt.figure()
     ax = plt.gca()
     ax.loglog(x, 1.0 / x, base=10)
@@ -1745,7 +1745,7 @@ def test_datetime_x_axis_plot(tmp_path):
     plt.plot(dates, np.arange(10))
     ax = plt.gca()
     assert ax._x_date
-    assert ax.get_xlim() == (date(2020, 1, 1).toordinal(), 737695.0)
+    assert ax.get_xlim() == (737411.5, 737708.5)
     panel = ax._panel()
     labels = panel["ticks"]["xticklabels"]
     assert labels and labels[0].startswith("2020-")
@@ -1800,7 +1800,7 @@ def test_datetime_limits_ticks_and_time_labels():
     plt.plot([datetime(2024, 1, 1, 0), datetime(2024, 1, 1, 6),
               datetime(2024, 1, 1, 12)], [0, 1, 0])
     labels = plt.gca()._panel()["ticks"]["xticklabels"]
-    assert any("04:00" in v for v in labels)
+    assert any("03:00" in v for v in labels)
     assert not any("03:59" in v for v in labels)
 
 
