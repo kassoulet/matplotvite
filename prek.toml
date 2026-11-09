@@ -18,6 +18,13 @@ hooks = [
 ]
 
 [[repos]]
+repo = "https://github.com/astral-sh/ruff-pre-commit"
+rev = "v0.17.4"
+hooks = [
+  { id = "ruff-check" },
+]
+
+[[repos]]
 repo = "local"
 hooks = [
   { id = "cargo-fmt", name = "cargo fmt --check", entry = "cargo fmt --all -- --check", language = "system", pass_filenames = false },

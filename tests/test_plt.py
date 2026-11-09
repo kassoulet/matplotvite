@@ -1753,7 +1753,7 @@ def test_colormaps_across_artists_and_rc_default(tmp_path):
 
 
 def test_datetime_x_axis_plot(tmp_path):
-    from datetime import date, datetime, timedelta
+    from datetime import datetime, timedelta
 
     dates = [datetime(2020, 1, 1) + timedelta(days=30 * i) for i in range(10)]
     plt.figure((5, 3))
@@ -2290,7 +2290,7 @@ def test_svg_text_is_escaped():
 def test_images_have_sticky_edges_and_no_default_resampling():
     plt.figure()
     ax = plt.gca()
-    im = ax.imshow(np.zeros((3, 4)))
+    ax.imshow(np.zeros((3, 4)))
     assert ax.get_xlim() == (0.0, 4.0) and ax.get_ylim() == (0.0, 3.0)
     assert ax.images[0]["interpolation"] == "nearest"
     ax.plot([0, 10], [0, 1])

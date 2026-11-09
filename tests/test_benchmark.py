@@ -1,10 +1,13 @@
 """Tests validating the benchmark suite and data integrity."""
 
 import json
+import sys
 from pathlib import Path
 from tools.benchmark import measure_callable
+from tools.benchmark_guard import main as benchmark_guard
 from tools.build_pages import build_pages
 from tools.criterion_guard import load_estimates
+from tools.criterion_guard import main as criterion_guard
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -56,6 +59,39 @@ def test_benchmark_data_structure():
         assert item["rs_ms"] > 0
         assert item["mpl_ms"] > 0
         assert item["speedup"] > 0, f"Expected a positive speedup for {item['name']}"
+
+
+def test_benchmark_guard_warns_unless_fail_is_requested(tmp_path, monkeypatch, capsys):
+    """Budget overruns are advisory by default and only fail with `--fail`."""
+    current = tmp_path / "current.json"
+    baseline = tmp_path / "baseline.json"
+    current.write_text(json.dumps({"results": [{"name": "plot", "speedup": 2.0, "rs_ms": 1.0}]}),
+                       encoding="utf-8")
+    baseline.write_text(json.dumps({"results": [{"name": "plot", "speedup": 4.0, "rs_ms": 1.0}]}),
+                        encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["guard", str(current), str(baseline)])
+    assert benchmark_guard() == 0
+    assert "WARN: plot" in capsys.readouterr().out
+
+    monkeypatch.setattr(sys, "argv", ["guard", str(current), str(baseline), "--fail"])
+    assert benchmark_guard() == 1
+
+
+def test_criterion_guard_warns_unless_fail_is_requested(tmp_path, monkeypatch, capsys):
+    case = tmp_path / "plot" / "new"
+    case.mkdir(parents=True)
+    (case / "estimates.json").write_text(
+        json.dumps({"median": {"point_estimate": 2_000_000.0}}), encoding="utf-8")
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"plot": 1_000_000.0}), encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["guard", str(tmp_path), str(baseline)])
+    assert criterion_guard() == 0
+    assert "WARN: plot" in capsys.readouterr().out
+
+    monkeypatch.setattr(sys, "argv", ["guard", str(tmp_path), str(baseline), "--fail"])
+    assert criterion_guard() == 1
 
 
 def test_build_pages_generation(tmp_path):

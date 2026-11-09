@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Fail when a benchmark is more than a set percentage slower than its baseline."""
+"""Warn when a benchmark is more than a set percentage slower than its baseline.
+
+Advisory by default so benchmark noise never blocks a run; pass `--fail` to make
+budget overruns exit non-zero.
+"""
 
 from __future__ import annotations
 
@@ -26,9 +30,11 @@ def main() -> int:
     parser.add_argument("--metric", choices=("speedup", "rs"), default="speedup",
                         help="speedup compares Matplotvite/matplotlib; rs compares wall time")
     parser.add_argument("--strict", action="store_true",
-                        help="also fail when a benchmark has no baseline entry")
-    parser.add_argument("--warn-only", action="store_true",
-                        help="report budget overruns as warnings and exit 0")
+                        help="also report (or with --fail, fail on) benchmarks without a baseline entry")
+    parser.add_argument("--fail", action="store_true",
+                        help="exit non-zero when the budget is exceeded (default: warn only)")
+    # Kept so existing invocations such as CI's `--warn-only` keep working.
+    parser.add_argument("--warn-only", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     current = load(args.current)
@@ -58,8 +64,8 @@ def main() -> int:
             slowdown = (now - before) / before * 100.0
             detail = f"wall time {before:.2f} ms -> {now:.2f} ms"
         over_budget = slowdown > args.max_slowdown
-        status = "WARN" if over_budget and args.warn_only else (
-            "FAIL" if over_budget else "ok")
+        status = "FAIL" if over_budget and args.fail else (
+            "WARN" if over_budget else "ok")
         print(f"{status}: {name} ({detail}, {slowdown:+.1f}%)")
         if over_budget:
             failures.append(name)
@@ -67,8 +73,8 @@ def main() -> int:
     if failures:
         print(f"\n{len(failures)} benchmark(s) exceeded the "
               f"{args.max_slowdown:.0f}% slowdown budget.", file=sys.stderr)
-        if args.warn_only:
-            print("warning: budget is advisory; not failing the run.",
+        if not args.fail:
+            print("warning: budget is advisory; rerun with --fail to make it blocking.",
                   file=sys.stderr)
             return 0
         return 1

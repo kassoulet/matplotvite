@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Fail when a Criterion output-stage benchmark exceeds its time budget."""
+"""Warn when a Criterion output-stage benchmark exceeds its time budget.
+
+Advisory by default so benchmark noise never blocks a run; pass `--fail` to make
+budget overruns exit non-zero.
+"""
 
 from __future__ import annotations
 
@@ -33,8 +37,10 @@ def main() -> int:
                         help="allowed slowdown percentage (default: 25)")
     parser.add_argument("--write", action="store_true",
                         help="write current estimates as the baseline and exit")
-    parser.add_argument("--warn-only", action="store_true",
-                        help="report budget overruns as warnings and exit 0")
+    parser.add_argument("--fail", action="store_true",
+                        help="exit non-zero when the budget is exceeded (default: warn only)")
+    # Kept so existing invocations such as CI's `--warn-only` keep working.
+    parser.add_argument("--warn-only", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     current = load_estimates(args.current)
@@ -57,8 +63,8 @@ def main() -> int:
             continue
         slowdown = (now - before) / before * 100.0
         over_budget = slowdown > args.max_slowdown
-        status = "WARN" if over_budget and args.warn_only else (
-            "FAIL" if over_budget else "ok")
+        status = "FAIL" if over_budget and args.fail else (
+            "WARN" if over_budget else "ok")
         print(f"{status}: {name} ({before / 1e6:.2f} ms -> {now / 1e6:.2f} ms, "
               f"{slowdown:+.1f}%)")
         if over_budget:
@@ -66,8 +72,8 @@ def main() -> int:
     if failures:
         print(f"\n{len(failures)} Criterion benchmark(s) exceeded the "
               f"{args.max_slowdown:.0f}% slowdown budget.", file=sys.stderr)
-        if args.warn_only:
-            print("warning: budget is advisory; not failing the run.",
+        if not args.fail:
+            print("warning: budget is advisory; rerun with --fail to make it blocking.",
                   file=sys.stderr)
             return 0
         return 1

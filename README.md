@@ -75,7 +75,7 @@ filled-polygon fixtures, PNG encoding at fast/default/best compression, lossless
 WebP encoding, and vector PDF conversion. Results are written under
 `target/criterion/`; use `--quick` for a short smoke run. CI runs the quick suite,
 reports it against `benches/criterion_baseline.json` with
-`tools/criterion_guard.py` (advisory 25% budget), and uploads the estimates as
+`tools/criterion_guard.py` (advisory 25% budget, `--fail` to enforce), and uploads the estimates as
 workflow artifacts. Refresh the baseline with:
 
 ```bash
@@ -303,9 +303,9 @@ Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on
 unchanged figure reuse the previously encoded bytes. CI runs the comparison suite
 against `tools/benchmark_baseline.json` and reports when the matplotlib-normalized
 speedup drops by more than 30% (`tools/benchmark_guard.py`). The wider budget
-accounts for single-run variance on shared CI hosts; the guard job is advisory
-and does not block the workflow. Criterion provides the lower-noise, output-stage
-measurements.
+accounts for single-run variance on shared CI hosts; the guard warns by default
+and only exits non-zero with `--fail`, so benchmark noise never blocks a run.
+Criterion provides the lower-noise, output-stage measurements.
 
 ## Test
 
