@@ -2664,10 +2664,18 @@ def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markers
 def _hash_value(hasher, value):
     """Feed a deterministic representation of nested panel data to `hasher`."""
     if isinstance(value, np.ndarray):
+        array = np.ascontiguousarray(value)
         hasher.update(b"array")
-        hasher.update(value.dtype.str.encode())
-        hasher.update(str(value.shape).encode())
-        hasher.update(np.ascontiguousarray(value).tobytes())
+        hasher.update(array.dtype.str.encode())
+        hasher.update(str(array.shape).encode())
+        # Hash the existing buffer directly; tobytes() copied every array on
+        # every savefig even when the figure had not changed.
+        try:
+            payload = memoryview(array).cast("B")
+        except (TypeError, ValueError):
+            hasher.update(array.tobytes())
+        else:
+            hasher.update(payload)
     elif isinstance(value, dict):
         hasher.update(b"dict")
         for key in sorted(value, key=repr):
