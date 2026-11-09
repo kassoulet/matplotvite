@@ -311,16 +311,19 @@ python tools/harvest_seaborn.py --out dist/seaborn-gallery
 Each writes an `index.html` and a `manifest.json`; the baseline gallery copies its
 reference images alongside the page so it stays browsable when moved. The pixel
 metrics read PNGs through Matplotlib, so without it the corpus gallery still
-renders and records `metrics_error` per case. These are gitignored build
-artifacts under `dist/`. To regenerate all three as a check:
+renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are
+rasterised at the rendered PNG's size when `pypdfium2`, `cairosvg`, and Ghostscript
+respectively are available. These are gitignored build artifacts under `dist/`.
+To regenerate all three as a check:
 
 ```bash
 pytest -m gallery
 ```
 
 The `gallery` tests are skipped in the default run (and skip individually when the
-checkouts are missing). CI rebuilds the same galleries and uploads them as the
-`galleries-<sha>` artifact for each commit.
+checkouts are missing). CI rebuilds the same galleries, uploads them as the
+`galleries-<sha>` artifact for each commit, and writes the per-gallery status
+counts and artifact link into the job summary.
 
 Opaque PNG figures with multiple panels, or at least 1,000 plotted primitives,
 render through a 2× oversampled bitmap backend and skip SVG generation and resvg.

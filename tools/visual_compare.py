@@ -10,6 +10,7 @@ import argparse
 import html
 import json
 import pathlib
+import tempfile
 
 import numpy as np
 import matplotlib
@@ -37,16 +38,54 @@ plt.savefig(OUT)""",
     "stairs": "plt.stairs([1, 2, 3], edges=[0, 1, 2, 3], fill=True); plt.savefig(OUT)",
     "hist_step": "plt.hist(np.random.randn(100), bins=10, histtype='step'); plt.savefig(OUT)",
     "hist_stepfilled": "plt.hist(np.random.randn(100), bins=10, histtype='stepfilled'); plt.savefig(OUT)",
-    "broken_barh": "plt.broken_barh([(0, 1), (2, 0.5)], (2, 0.5), colors='blue'); plt.savefig(OUT)",
+    "broken_barh": "plt.broken_barh([(0, 1), (2, 0.5)], (2, 0.5), color='blue'); plt.savefig(OUT)",
     "errorbar_markers": "plt.errorbar([1, 2, 3], [1, 4, 9], yerr=[0.5, 1.0, 1.5], fmt='ro', capsize=3); plt.savefig(OUT)",
     "imshow_alpha": "plt.imshow(np.linspace(0, 1, 256).reshape(16, 16), cmap='viridis', alpha=0.5); plt.savefig(OUT)",
     "contour_style": "X, Y = np.meshgrid(np.linspace(-2, 2, 40), np.linspace(-2, 2, 40)); Z = np.exp(-(X**2 + Y**2)); plt.contour(X, Y, Z, levels=5, linewidths=3, alpha=0.6); plt.savefig(OUT)",
 }
 
 
+_VECTOR_SUFFIXES = (".pdf", ".svg", ".eps")
+_RASTER_CACHE = pathlib.Path(tempfile.mkdtemp(prefix="matplotvite-compare-"))
+
+
+def rasterise(path: pathlib.Path, like: pathlib.Path) -> pathlib.Path:
+    """Return a PNG version of a vector baseline, sized like `like`.
+
+    Matplotlib keeps some baselines as PDF/SVG (and a few EPS); those cannot be
+    read by `matplotlib.image.imread`. Convert them with an optional converter at
+    the rendered image's pixel size so the same RMS metric still applies.
+    """
+    if path.suffix.lower() not in _VECTOR_SUFFIXES:
+        return path
+    height, width = mimg.imread(like).shape[:2]
+    target = _RASTER_CACHE / f"{path.parent.name}-{path.stem}.png"
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        import pypdfium2 as pdfium
+        page = pdfium.PdfDocument(str(path))[0]
+        page_width, _ = page.get_size()
+        page.render(scale=width / page_width).to_pil().save(target)
+    elif suffix == ".svg":
+        import cairosvg
+        cairosvg.svg2png(url=str(path), write_to=str(target),
+                         output_width=width, output_height=height)
+    else:
+        from PIL import Image
+        with Image.open(path) as image:  # EPS needs Ghostscript on PATH
+            image.convert("RGB").resize((width, height)).save(target)
+    # Converters round page sizes differently; the pixel metric needs equal shapes.
+    from PIL import Image
+    with Image.open(target) as image:
+        if image.size != (width, height):
+            image.resize((width, height)).save(target)
+    return target
+
+
 def compare_images(path_a: pathlib.Path, path_b: pathlib.Path) -> dict[str, float | bool | None]:
     """Per-snippet pixel metrics: RMS error and percent of visibly different pixels."""
-    ia, ib = mimg.imread(path_a)[..., :3], mimg.imread(path_b)[..., :3]
+    ia, ib = (mimg.imread(rasterise(path_a, path_b))[..., :3],
+              mimg.imread(path_b)[..., :3])
     if ia.shape != ib.shape:
         return {"shape_match": False, "rms": None, "mismatch_pct": None}
     diff = np.abs(ia - ib)
