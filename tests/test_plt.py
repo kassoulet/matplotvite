@@ -142,6 +142,25 @@ def test_bad_savefig_kwargs(tmp_path):
         plt.savefig(tmp_path / "x.png", bbox_inches="loose")
 
 
+def test_invalid_and_excessive_dimensions(tmp_path):
+    # Defense against DoS/OOM from invalid or unbounded dimensions
+    plt.figure(); plt.plot([1, 2], [3, 4])
+    for bad_dpi in [-50, 0, float("nan"), float("inf")]:
+        with pytest.raises(ValueError, match="dpi must be positive and finite"):
+            plt.savefig(dpi=bad_dpi)
+
+    with pytest.raises(ValueError, match="exceeds maximum allowed dimension"):
+        plt.savefig(dpi=100_000)
+
+    for bad_size in [(-1, 5), (5, 0), (float("nan"), 4), (float("inf"), 4)]:
+        with pytest.raises(ValueError, match="must be positive and finite"):
+            plt.figure(figsize=bad_size)
+
+    for malformed in ["invalid", (1,), (1, 2, 3)]:
+        with pytest.raises(ValueError, match="figsize must be a sequence of 2 positive numbers"):
+            plt.figure(figsize=malformed)
+
+
 def test_text_annotations(tmp_path):
     fig, ax = plt.subplots()
     ax.plot([0, 1], [0, 1])

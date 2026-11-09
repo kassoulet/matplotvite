@@ -66,6 +66,28 @@ fn render(
     {
         return Err(PyRuntimeError::new_err("nothing to plot"));
     }
+    let (w, h) = size;
+    // Defend against integer overflow and unconstrained allocations (DoS)
+    const MAX_CANVAS_DIM: u32 = 32768;
+    const MAX_CANVAS_AREA: u64 = 268435456; // 2^28 px
+    if w == 0 || h == 0 {
+        return Err(PyValueError::new_err(
+            "size dimensions must be at least 1x1",
+        ));
+    }
+    if w > MAX_CANVAS_DIM || h > MAX_CANVAS_DIM {
+        return Err(PyValueError::new_err(format!(
+            "size {w}x{h} exceeds maximum dimension of {MAX_CANVAS_DIM}px"
+        )));
+    }
+    if (w as u64) * (h as u64) > MAX_CANVAS_AREA {
+        return Err(PyValueError::new_err(format!(
+            "total canvas area of {w}x{h} exceeds maximum allowed pixel count of {MAX_CANVAS_AREA}"
+        )));
+    }
+    if !dpi.is_finite() || dpi <= 0.0 {
+        return Err(PyValueError::new_err("dpi must be positive and finite"));
+    }
     let fmt = format.to_ascii_lowercase();
     if !matches!(fmt.as_str(), "png" | "svg" | "pdf" | "webp") {
         return Err(PyValueError::new_err(format!(
@@ -86,7 +108,6 @@ fn render(
         ));
     }
 
-    let (w, h) = size;
     let background = figure_background(transparent, facecolor.as_deref());
     let title = (!suptitle.is_empty()).then_some(Suptitle {
         text: &suptitle,
