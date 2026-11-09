@@ -40,7 +40,7 @@ out = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "visual"); out.mkdir(ex
 def run(name, code, lib, tag):
     path = out / f"{name}.{tag}.png"
     try:
-        mpl.close("all")
+        lib.close("all")
         exec(code, {"plt": lib, "np": np, "x": x, "OUT": str(path)})
         return path, None
     except Exception as e:

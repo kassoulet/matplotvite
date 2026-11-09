@@ -299,6 +299,9 @@ pub(crate) struct Panel<'py> {
     /// Fingerprint from the Python layer; empty disables the fragment cache.
     #[pyo3(item)]
     pub(crate) cache_key: String,
+    /// Effective output resolution, used to convert point sizes to pixels.
+    #[pyo3(item)]
+    pub(crate) dpi: f64,
     #[pyo3(item)]
     pub(crate) pos: usize, // row-major cell index
     #[pyo3(item)]

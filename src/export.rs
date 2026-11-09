@@ -9,7 +9,7 @@ use plotters::style::IntoFont;
 use rayon::prelude::*;
 
 use crate::color::color;
-use crate::draw::draw_panel;
+use crate::draw::{draw_panel, text_px};
 use crate::fonts::{fontdb, pdf_options};
 use crate::model::{Panel, PngCompression, Suptitle};
 
@@ -145,13 +145,14 @@ fn decoration_fragment(
     size: (u32, u32),
     suptitle: Option<Suptitle>,
     edgecolor: Option<&str>,
+    dpi: f64,
 ) -> Result<String, String> {
     let (w, h) = size;
     let mut svg = String::new();
     {
         let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
         if let Some(s) = suptitle {
-            let style = ("sans-serif", s.size.max(6.0).round() as u32)
+            let style = ("sans-serif", text_px(s.size.max(6.0), dpi).round() as u32)
                 .into_font()
                 .color(&BLACK);
             root.draw(&Text::new(
@@ -195,12 +196,13 @@ pub(crate) fn render_svg(
     background: Option<RGBAColor>,
     edgecolor: Option<&str>,
     suptitle: Option<Suptitle>,
+    dpi: f64,
 ) -> Result<String, String> {
     // A figure title reserves a band at the top so it never overlaps the first
     // row of panels.
     let top_pad = suptitle
         .as_ref()
-        .map(|s| (s.size * 1.6).round() as i32 + 8)
+        .map(|s| (text_px(s.size, dpi.max(1.0)) * 1.6).round() as i32 + 8)
         .unwrap_or(0);
     let fragments: Vec<(String, Vec<String>)> = panels
         .par_iter()
@@ -217,7 +219,7 @@ pub(crate) fn render_svg(
         append_body(&mut svg, &overlay);
     }
     if suptitle.is_some() || edgecolor.is_some() {
-        let decorations = decoration_fragment(size, suptitle, edgecolor)?;
+        let decorations = decoration_fragment(size, suptitle, edgecolor, dpi)?;
         append_body(&mut svg, &decorations);
     }
     Ok(svg)

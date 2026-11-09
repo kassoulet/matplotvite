@@ -186,6 +186,13 @@
 
 ---
 
+## Fidelity follow-ups — static render
+
+- [ ] Default data margins — matplotlib expands autoscaled axes by 5% on each side; matplotvite currently draws the raw data bounds, so curves touch the frame and automatic ticks can omit the zero edge
+- [ ] Legend `loc="best"` — currently aliases upper-right; score candidate corners against the drawn series and pick the least-overlapping one like matplotlib
+
+---
+
 ## 0.6 — 3-D & specialty  *(optional, long-term)*
 
 - [ ] `Axes3D`: `plot_surface`, `scatter3D`, `plot3D`, `contourf3d`

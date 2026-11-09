@@ -2539,6 +2539,7 @@ class Axes:
             xticks = [float(i) for i in range(len(self._categories))]
             xticklabels = list(self._categories)
         return dict(pos=self.pos, series=series, texts=texts, title=self.title,
+                    dpi=float(self._fig.dpi if self._fig is not None else DPI),
                     xlabel=self.xlabel, ylabel=self.ylabel,
                     title_size=self.title_size, xlabel_size=self.xlabel_size,
                     ylabel_size=self.ylabel_size,
@@ -3322,6 +3323,7 @@ class Figure:
         tick = dict(labelsize=10.0, length=3.5, width=1.0, color=None,
                     labelcolor=None, rotation=0.0)
         return dict(pos=1, series=[], texts=[], title="", xlabel="", ylabel="",
+                    dpi=float(self.dpi or DPI),
                     title_size=None, xlabel_size=None, ylabel_size=None,
                     legend=dict(show=False, loc="best", ncol=1, frameon=True,
                                 fontsize=10.0, title="", title_fontsize=11.0,
@@ -3361,6 +3363,9 @@ class Figure:
         panels = [a._panel() for a in self.axes if a.visible and not a._removed]
         if self._colorbar is not None:
             panels.append(self._colorbar_panel())
+        # savefig(dpi=) overrides the figure default, and text sizes scale with it.
+        for panel in panels:
+            panel["dpi"] = dpi
         if transparent:
             # A transparent save drops every patch, like matplotlib.
             for panel in panels:

@@ -1913,7 +1913,7 @@ def test_title_fontsize(tmp_path):
     fig.savefig(p)
     sizes = [float(v) for v in re.findall(r'font-size="([\d.]+)"', p.read_text())]
     assert max(sizes) > 16  # title is the largest text
-    assert any(10.5 < v < 12 for v in sizes)  # xlabel at 14pt
+    assert any(18.5 < v < 20.5 for v in sizes)  # xlabel at 14pt
 
 
 def test_subplots_share_limits_and_hide_inner_labels(tmp_path):

@@ -8,6 +8,12 @@ use crate::image::{base64, image_png};
 use crate::layout::{auto_ticks, panel_ranges, range};
 use crate::model::{Legend, LegendEntry, LegendSwatch, Panel};
 
+/// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
+/// points at `dpi`. Convert once so both land on the same pixel size.
+pub(crate) fn text_px(size: f64, dpi: f64) -> f64 {
+    size * dpi.max(1.0) / 72.0 * 1.24
+}
+
 /// Draw one label. Alignment is approximated: the backend only has a top-left
 /// anchor, so the text width is estimated from the glyph count.
 #[allow(clippy::too_many_arguments)]
@@ -120,8 +126,8 @@ where
     Ok(())
 }
 
-fn rotated_style(size: f64, col: RGBAColor, rotation: f64) -> TextStyle<'static> {
-    let style = ("sans-serif", size.max(6.0).round() as u32)
+fn rotated_style(size: f64, col: RGBAColor, rotation: f64, dpi: f64) -> TextStyle<'static> {
+    let style = ("sans-serif", text_px(size.max(6.0), dpi).round() as u32)
         .into_font()
         .color(&col);
     let deg = rotation.rem_euclid(360.0);
@@ -284,7 +290,7 @@ where
                 xtick_col.stroke_width(xtick_w),
             ))?;
             if !label.is_empty() && !p.ticks.hide_xlabels {
-                let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation)
+                let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation, p.dpi)
                     .pos(Pos::new(HPos::Center, vpos));
                 area.draw(&Text::new(label.clone(), (px, label_y), style))?;
             }
@@ -319,7 +325,7 @@ where
                 ytick_col.stroke_width(ytick_w),
             ))?;
             if !label.is_empty() && !p.ticks.hide_ylabels {
-                let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation)
+                let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation, p.dpi)
                     .pos(Pos::new(hpos, VPos::Center));
                 area.draw(&Text::new(label.clone(), (label_x, py), style))?;
             }
@@ -328,7 +334,7 @@ where
     let fg = color(default_tick);
     if side == "right" && !p.ylabel.is_empty() {
         let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
-        let style = rotated_style(size, fg, 270.0).pos(Pos::new(HPos::Center, VPos::Center));
+        let style = rotated_style(size, fg, 270.0, p.dpi).pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.ylabel.clone(),
             (right + gap - 4, (top + bottom) / 2),
@@ -336,7 +342,7 @@ where
         ))?;
     } else if side == "top" && !p.xlabel.is_empty() {
         let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
-        let style = rotated_style(size, fg, 0.0).pos(Pos::new(HPos::Center, VPos::Center));
+        let style = rotated_style(size, fg, 0.0, p.dpi).pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.xlabel.clone(),
             ((left + right) / 2, top - gap + 10),
@@ -354,6 +360,7 @@ fn draw_legend<DB: DrawingBackend>(
     entries: &[LegendEntry],
     opts: &Legend,
     text: RGBAColor,
+    dpi: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -361,8 +368,8 @@ where
     if entries.is_empty() {
         return Ok(());
     }
-    let fs = opts.fontsize.max(6.0);
-    let title_fs = opts.title_fontsize.max(6.0);
+    let fs = text_px(opts.fontsize.max(6.0), dpi);
+    let title_fs = text_px(opts.title_fontsize.max(6.0), dpi);
     let cols = opts.ncol.max(1);
     let rows = entries.len().div_ceil(cols);
     let col_w = entries
@@ -418,14 +425,14 @@ where
                 (x as i32, y as i32),
                 ((x + box_w) as i32, (y + box_h) as i32),
             ],
-            WHITE.filled(),
+            RGBAColor(255, 255, 255, 0.92).filled(),
         ))?;
         area.draw(&Rectangle::new(
             [
                 (x as i32, y as i32),
                 ((x + box_w) as i32, (y + box_h) as i32),
             ],
-            BLACK.stroke_width(1),
+            RGBColor(200, 200, 200).stroke_width(1),
         ))?;
     }
     if !opts.title.is_empty() {
@@ -829,7 +836,9 @@ where
     }
     // A fixed aspect shrinks the plotting box instead of bending the data limits,
     // like matplotlib's adjustable="box".
-    let title_size = p.title_size.unwrap_or(18.0).max(6.0).round() as u32;
+    let title_size = text_px(p.title_size.unwrap_or(12.0).max(6.0), p.dpi)
+        .max(6.0)
+        .round() as u32;
     let custom_legend = p.legend.show && p.legend.is_custom();
     let mut entries: Vec<LegendEntry> = Vec::new();
     let manual = p.ticks.xticks.is_some()
@@ -844,7 +853,7 @@ where
                 || p.grid.linestyle.is_some()));
     let shrunk_area;
     let mut builder = ChartBuilder::on(area);
-    builder.margin(10);
+    builder.margin(25);
     if twin_side == "y" {
         builder.margin_right(10 + twin_gap_px);
     } else if twin_side == "x" {
@@ -852,8 +861,8 @@ where
     }
     let mut chart = builder
         .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
-        .x_label_area_size(40)
-        .y_label_area_size(55)
+        .x_label_area_size(35)
+        .y_label_area_size(45)
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
@@ -869,7 +878,7 @@ where
             if dw > 0 || dh > 0 {
                 shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
                 let mut rb = ChartBuilder::on(&shrunk_area);
-                rb.margin(10);
+                rb.margin(25);
                 if twin_side == "y" {
                     rb.margin_right(10 + twin_gap_px);
                 } else if twin_side == "x" {
@@ -877,8 +886,8 @@ where
                 }
                 chart = rb
                     .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
-                    .x_label_area_size(40)
-                    .y_label_area_size(55)
+                    .x_label_area_size(35)
+                    .y_label_area_size(45)
                     .build_cartesian_2d(x0..x1, y0..y1)?;
             }
         }
@@ -905,13 +914,15 @@ where
                 tick_label(*v)
             }
         };
-        let label_size = p.ticks.xstyle.labelsize.max(6.0).round() as u32;
-        let desc_size = p
-            .xlabel_size
-            .unwrap_or(10.0)
-            .max(p.ylabel_size.unwrap_or(10.0))
-            .max(6.0)
-            .round() as u32;
+        let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), p.dpi).round() as u32;
+        let desc_size = text_px(
+            p.xlabel_size
+                .unwrap_or(10.0)
+                .max(p.ylabel_size.unwrap_or(10.0))
+                .max(6.0),
+            p.dpi,
+        )
+        .round() as u32;
         let mut mesh = chart.configure_mesh();
         if !p.grid.show {
             mesh.disable_mesh();
@@ -946,11 +957,25 @@ where
         mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
             .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
             .axis_style(fg.stroke_width(1))
+            .x_labels(6)
+            .y_labels(6)
             .x_desc(x_desc)
             .y_desc(y_desc)
             .x_label_formatter(&x_fmt)
             .y_label_formatter(&y_fmt)
             .draw()?;
+        // Plotters only strokes the left/bottom axes; matplotlib draws a full box.
+        {
+            let base = area.get_base_pixel();
+            let pa = chart.plotting_area();
+            let tl = pa.map_coordinate(&(x0, y1));
+            let br = pa.map_coordinate(&(x1, y0));
+            let frame = [
+                (tl.0 - base.0, tl.1 - base.1),
+                (br.0 - base.0, br.1 - base.1),
+            ];
+            area.draw(&Rectangle::new(frame, fg.stroke_width(1)))?;
+        }
         if manual {
             let axis_side = match twin_side {
                 "y" => "right",
@@ -1555,7 +1580,7 @@ where
         let base = area.get_base_pixel();
         for (x, y, s, c, size, ha, va) in &p.texts {
             let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
-            draw_label(area, base, pos, s, color(c), *size, ha, va)?;
+            draw_label(area, base, pos, s, color(c), text_px(*size, p.dpi), ha, va)?;
         }
         for (text, xy, xytext, c, size) in &p.annotations {
             let target = chart_area.map_coordinate(&(tx(xy.0), ty(xy.1)));
@@ -1572,7 +1597,7 @@ where
                 anchor,
                 text,
                 color(c),
-                *size,
+                text_px(*size, p.dpi),
                 "left",
                 "baseline",
             )?;
@@ -1608,6 +1633,7 @@ where
             &entries,
             &p.legend,
             fg,
+            p.dpi,
         )?;
     } else if p.legend.show {
         let loc = p.legend.loc.as_str();
@@ -1623,11 +1649,16 @@ where
             _ => SeriesLabelPosition::UpperRight,
         };
         let mut labels = chart.configure_series_labels();
-        labels
-            .position(position)
-            .label_font(("sans-serif", p.legend.fontsize.max(6.0).round() as u32));
+        labels.position(position).label_font((
+            "sans-serif",
+            text_px(p.legend.fontsize.max(6.0), p.dpi).round() as u32,
+        ));
         if p.legend.frameon {
-            labels.background_style(WHITE.mix(0.8)).border_style(BLACK);
+            labels
+                .background_style(RGBAColor(255, 255, 255, 0.92))
+                .border_style(RGBColor(200, 200, 200))
+                .margin(12)
+                .legend_area_size(24);
         } else {
             labels
                 .background_style(TRANSPARENT)

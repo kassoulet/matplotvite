@@ -94,8 +94,16 @@ fn render(
         x: suptitle_x,
         y: suptitle_y,
     });
-    let svg = render_svg(size, grid, &panels, background, edgecolor.as_deref(), title)
-        .map_err(|e| err(&e))?;
+    let svg = render_svg(
+        size,
+        grid,
+        &panels,
+        background,
+        edgecolor.as_deref(),
+        title,
+        dpi,
+    )
+    .map_err(|e| err(&e))?;
     if fmt == "svg" || fmt == "pdf" {
         let svg = match if tight {
             rasterize(&svg, w, h, transparent)
