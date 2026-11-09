@@ -159,7 +159,14 @@ def main() -> int:
               "are build artifacts) or pass --source.")
         return 1
     cases = harvest(root)
-    args.out.mkdir(parents=True, exist_ok=True)
+    write_gallery(cases, args.out)
+    return 0
+
+
+def write_gallery(cases: list[dict[str, object]],
+                  out: pathlib.Path) -> collections.Counter[str]:
+    """Write the classified gallery and manifest; return the per-status counts."""
+    out.mkdir(parents=True, exist_ok=True)
 
     features: collections.Counter[str] = collections.Counter()
     rows: list[str] = []
@@ -180,19 +187,19 @@ def main() -> int:
     needs_table = "".join(
         f"<li>{html.escape(feature)} ({count} example{'s' if count != 1 else ''})</li>"
         for feature, count in features.most_common())
-    (args.out / "index.html").write_text(
+    (out / "index.html").write_text(
         f"<p>{len(cases)} Seaborn examples: {summary['pass']} pass, "
         f"{summary['needs-api']} needs-API, {summary['unsupported']} unsupported.</p>"
         f"<h2>Missing Matplotlib capabilities</h2><ul>{needs_table}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>status</th>"
         "<th>needs</th><th>Seaborn calls</th></tr>" + "".join(rows) + "</table>",
         encoding="utf-8")
-    (args.out / "manifest.json").write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
+    (out / "manifest.json").write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     print(f"{len(cases)} examples: {summary['pass']} pass, {summary['needs-api']} needs-API, "
-          f"{summary['unsupported']} unsupported; gallery: {args.out / 'index.html'}")
+          f"{summary['unsupported']} unsupported; gallery: {out / 'index.html'}")
     for feature, count in features.most_common(8):
         print(f"{count:3}  {feature}")
-    return 0
+    return summary
 
 
 if __name__ == "__main__":

@@ -241,7 +241,10 @@ def render(snippet: str, out_path: pathlib.Path) -> str | None:
 
 def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
     """RMS and visibly-different percentage against the baseline PNG."""
-    from visual_compare import compare_images  # local tool, same metric as the gallery
+    try:  # same metric as the gallery tool; importable both as a script and as a package
+        from visual_compare import compare_images
+    except ModuleNotFoundError:
+        from tools.visual_compare import compare_images
 
     if not baseline.exists():
         return {"error": f"missing baseline {baseline}"}
@@ -251,28 +254,11 @@ def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", type=pathlib.Path,
-                        help="Matplotlib checkout or sdist root")
-    parser.add_argument("--examples", type=pathlib.Path,
-                        help="render the gallery scripts under this checkout instead")
-    parser.add_argument("--out", type=pathlib.Path, default=None)
-    parser.add_argument("--json", type=pathlib.Path, dest="json_out", default=None)
-    args = parser.parse_args()
-    default_out = "dist/mpl-examples" if args.examples else "dist/mpl-corpus"
-    args.out = args.out or pathlib.Path(default_out)
-    args.json_out = args.json_out or args.out / "manifest.json"
-    if args.examples:
-        return harvest_examples_gallery(args.examples, args.out, args.json_out)
-
-    tests_root = find_tests_root(args.source)
-    if tests_root is None:
-        print("No Matplotlib baseline images found. Point --source at a checkout or "
-              "run `pip download --no-binary :all: matplotlib`; the wheel omits them.")
-        return 1
+def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
+                    manifest_path: pathlib.Path) -> dict[str, int]:
+    """Render every baseline case and write the side-by-side gallery."""
     cases = harvest(tests_root)
-    args.out.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
 
     rows: list[str] = []
     rendered = 0
@@ -294,7 +280,7 @@ def main() -> int:
         elif case["snippet"] is None:
             entry["error"] = "not standalone"
         else:
-            ours = args.out / f"{slug}.png"
+            ours = out / f"{slug}.png"
             error = render(str(case["snippet"]), ours)
             if error is None:
                 entry["status"] = "rendered"
@@ -325,16 +311,42 @@ def main() -> int:
         case["mismatch_pct"] = entry.get("mismatch_pct")
         print(f"{case_id:44} {entry['status']:9} {entry['error'] or ''}".rstrip())
 
-    (args.out / "index.html").write_text(
+    (out / "index.html").write_text(
         "<table border=1 cellpadding=6><tr><th>case</th><th>matplotlib baseline</th>"
         "<th>matplotvite</th></tr>" + "".join(rows)
         + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
-    args.json_out.parent.mkdir(parents=True, exist_ok=True)
-    args.json_out.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     statuses = [str(case["status"]) for case in cases]
     print(f"\n{len(cases)} baseline cases: {rendered} rendered, "
           f"{statuses.count('failed')} failed, {statuses.count('unsupported')} "
-          f"unsupported; gallery: {args.out / 'index.html'}")
+          f"unsupported; gallery: {out / 'index.html'}")
+    return {"cases": len(cases), "rendered": rendered,
+            "failed": statuses.count("failed"),
+            "unsupported": statuses.count("unsupported")}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--source", type=pathlib.Path,
+                        help="Matplotlib checkout or sdist root")
+    parser.add_argument("--examples", type=pathlib.Path,
+                        help="render the gallery scripts under this checkout instead")
+    parser.add_argument("--out", type=pathlib.Path, default=None)
+    parser.add_argument("--json", type=pathlib.Path, dest="json_out", default=None)
+    args = parser.parse_args()
+    default_out = "dist/mpl-examples" if args.examples else "dist/mpl-corpus"
+    args.out = args.out or pathlib.Path(default_out)
+    args.json_out = args.json_out or args.out / "manifest.json"
+    if args.examples:
+        return harvest_examples_gallery(args.examples, args.out, args.json_out)
+
+    tests_root = find_tests_root(args.source)
+    if tests_root is None:
+        print("No Matplotlib baseline images found. Point --source at a checkout or "
+              "run `pip download --no-binary :all: matplotlib`; the wheel omits them.")
+        return 1
+    harvest_gallery(tests_root, args.out, args.json_out)
     return 0
 
 
