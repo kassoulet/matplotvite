@@ -1457,7 +1457,9 @@ class Axes:
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None):
         """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
-        (H, W, 3|4) RGB(A) floats in 0-1."""
+        (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
+        `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
+        image's opacity."""
         a = _as_image(X)
         h, w = a.shape[:2]
         if origin == "lower":
@@ -1468,8 +1470,17 @@ class Axes:
             extent = (0.0, float(w), 0.0, float(h))
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
+        interp = "antialiased" if interpolation is None else str(interpolation).lower()
+        if interp == "auto":
+            interp = "antialiased"
+        if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
+            raise ValueError(f"unsupported interpolation: {interpolation!r}")
+        opacity = 1.0 if alpha is None else float(alpha)
+        if not np.isfinite(opacity):
+            raise ValueError("alpha must be finite")
         entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
-                     extent=tuple(float(v) for v in extent))
+                     extent=tuple(float(v) for v in extent),
+                     alpha=float(np.clip(opacity, 0.0, 1.0)), interpolation=interp)
         self.images.append(entry)
         # matplotlib's image.aspect default is "equal".
         self.set_aspect("equal" if aspect is None else aspect)
@@ -2134,17 +2145,30 @@ class Axes:
 
     def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
         """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
-        followed by `levels`."""
-        return self._add_contour(args, levels, colors, cmap, False)
+        followed by `levels`. `linewidths` and `alpha` style every iso-line."""
+        return self._add_contour(args, levels, colors, cmap, False, linewidths, alpha)
 
-    def contourf(self, *args, levels=None, colors=None, cmap=None, alpha=None):
+    def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
         """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
-        return self._add_contour(args, levels, colors, cmap, True)
+        return self._add_contour(args, levels, colors, cmap, True, linewidths, alpha)
 
-    def _add_contour(self, args, levels, colors, cmap, filled):
+    def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None, alpha=None):
         x, y, z, levels = _contour_args(args, levels)
-        entry = dict(x=x, y=y, z=z, levels=_levels(z, levels),
-                     colors=_colors(colors), cmap=_cmap_name(cmap), filled=filled)
+        levels = _levels(z, levels)
+        if linewidths is None:
+            widths = []
+        elif np.isscalar(linewidths):
+            widths = [float(linewidths)]
+        else:
+            widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
+        if widths and len(widths) not in (1, len(levels)):
+            raise ValueError("linewidths must be a scalar or match the number of levels")
+        opacity = 1.0 if alpha is None else float(alpha)
+        if not np.isfinite(opacity):
+            raise ValueError("alpha must be finite")
+        entry = dict(x=x, y=y, z=z, levels=levels, linewidths=widths,
+                     colors=_colors(colors), cmap=_cmap_name(cmap), filled=filled,
+                     alpha=float(np.clip(opacity, 0.0, 1.0)))
         self.contours.append(entry)
         return ContourSet(entry)
 
@@ -2547,8 +2571,9 @@ class Axes:
                    for e in self.scatter_pts]
         arrows = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
                   for e in self.arrows]
-        contours = [(c["x"], c["y"], c["z"], c["levels"],
-                     [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"])
+        contours = [(c["x"], c["y"], c["z"], c["levels"], c["linewidths"],
+                     [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"],
+                     c["alpha"])
                     for c in self.contours]
         font = float(rcParams.get("font.size", 10.0))
         legend_font = (float(self.legend_fontsize) if self.legend_fontsize is not None
@@ -2604,7 +2629,8 @@ class Axes:
                     foreground=_norm_color(rcParams.get("text.color")),
                     bounds=self._pos_override, twin=self._twin, twin_gap=self._twin_gap,
                     patches=patches, collections=collections,
-                    images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True)
+                    images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True,
+                             e["alpha"], e["interpolation"])
                             for e in self.images])
 
     def _resolve_text(self, t, x0, x1, y0, y1):

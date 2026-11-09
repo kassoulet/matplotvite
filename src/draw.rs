@@ -31,7 +31,7 @@ where
     DB::ErrorType: 'static,
 {
     let fs = size.max(1.0);
-    let w = s.chars().count() as f64 * fs * 0.55;
+    let w = crate::fonts::text_width(s, fs);
     let dx = match ha {
         "center" => -w / 2.0,
         "right" => -w,
@@ -374,11 +374,8 @@ where
     let rows = entries.len().div_ceil(cols);
     let col_w = entries
         .iter()
-        .map(|e| e.label.chars().count())
-        .max()
-        .unwrap_or(0) as f64
-        * fs
-        * 0.58
+        .map(|e| crate::fonts::text_width(&e.label, fs))
+        .fold(0.0, f64::max)
         + 36.0;
     let row_h = fs * 1.6;
     let title_h = if opts.title.is_empty() {
@@ -479,9 +476,9 @@ where
 /// Map a matplotlib linestyle name onto a dash/gap length in pixels.
 fn dash_pattern(linestyle: &str) -> Option<(f64, f64)> {
     match linestyle {
-        "--" | "dashed" => Some((6.0, 4.0)),
-        ":" | "dotted" => Some((1.0, 3.0)),
-        "-." | "dashdot" => Some((6.0, 3.0)),
+        "--" | "dashed" => Some((3.7, 1.6)),
+        ":" | "dotted" => Some((1.0, 1.65)),
+        "-." | "dashdot" => Some((6.4, 1.6)),
         _ => None,
     }
 }
@@ -1167,10 +1164,11 @@ where
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
-        for (x, y, z, levels, colors, cmap, filled) in &p.contours {
+        for (x, y, z, levels, _linewidths, colors, cmap, filled, alpha) in &p.contours {
             if !*filled || levels.len() < 2 {
                 continue;
             }
+            let opacity = alpha.clamp(0.0, 1.0);
             let xs: Vec<f64> = x.as_array().iter().copied().collect();
             let ys: Vec<f64> = y.as_array().iter().copied().collect();
             let zs: Vec<f64> = z.as_array().iter().copied().collect();
@@ -1181,12 +1179,13 @@ where
             let bands = levels.len() - 1;
             for band in 0..bands {
                 let (lo, hi) = (levels[band], levels[band + 1]);
-                let col = if colors.is_empty() {
+                let col = (if colors.is_empty() {
                     let c = colormap(cmap, (band as f64 + 0.5) / bands as f64);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     color(&colors[band % colors.len()])
-                };
+                })
+                .mix(opacity);
                 let map = |px: f64, py: f64| {
                     let (ax, ay) = chart_area.map_coordinate(&(tx(px), ty(py)));
                     (ax - base.0, ay - base.1)
@@ -1575,6 +1574,19 @@ where
             ));
         }
     }
+    let marker_total = p
+        .series
+        .iter()
+        .filter(|s| !s.marker.is_empty() && s.markersize > 0.0)
+        .map(|s| s.x.as_array().len().min(s.y.as_array().len()))
+        .sum::<usize>();
+    let series_base = area.get_base_pixel();
+    let mut series_marker_layer = if raster_scatter && marker_total >= 4096 {
+        let (w, h) = area.dim_in_pixel();
+        tiny_skia::Pixmap::new(w.max(1), h.max(1))
+    } else {
+        None
+    };
     for s in &p.series {
         let base = area.get_base_pixel();
         let xs = s.x.as_array();
@@ -1613,10 +1625,12 @@ where
             None => color(&s.color).mix(1.0),
         };
         if matches!(s.linestyle.as_str(), ":" | "--" | "-.") {
+            let lw = s.linewidth.max(1.0);
+            // Matplotlib scales its dash sequences by line width.
             let (dash, gap) = match s.linestyle.as_str() {
-                ":" => (2.0, 4.0),
-                "--" => (9.0, 5.0),
-                _ => (7.0, 3.0),
+                ":" => (lw, lw * 1.65),
+                "--" => (lw * 3.7, lw * 1.6),
+                _ => (lw * 6.4, lw * 1.6),
             };
             let px: Vec<(i32, i32)> = {
                 let chart_area = chart.plotting_area();
@@ -1675,9 +1689,27 @@ where
             let chart_area = chart.plotting_area();
             for (xv, yv) in xs.iter().zip(ys.iter()) {
                 let (px, py) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
-                draw_marker(area, base, (px, py), r, mc, stroke, &s.marker)?;
+                if let Some(layer) = series_marker_layer.as_mut() {
+                    draw_marker_raster(layer, series_base, (px, py), r, mc, stroke, &s.marker);
+                } else {
+                    draw_marker(area, base, (px, py), r, mc, stroke, &s.marker)?;
+                }
             }
         }
+    }
+    if let Some(layer) = series_marker_layer {
+        let (w, h) = area.dim_in_pixel();
+        let png = crate::export::encode_png(&layer, PngCompression::Fast, false)
+            .map_err(|e| e.to_string())?;
+        overlays.push(format!(
+            "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
+             preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
+            series_base.0,
+            series_base.1,
+            w,
+            h,
+            base64(&png)
+        ));
     }
     // Error bars: one segment per point plus optional caps, in canvas pixels.
     {
@@ -1829,10 +1861,11 @@ where
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
-        for (x, y, z, levels, colors, cmap, filled) in &p.contours {
+        for (x, y, z, levels, linewidths, colors, cmap, filled, alpha) in &p.contours {
             if *filled || levels.is_empty() {
                 continue;
             }
+            let opacity = alpha.clamp(0.0, 1.0);
             let xs: Vec<f64> = x.as_array().iter().copied().collect();
             let ys: Vec<f64> = y.as_array().iter().copied().collect();
             let zs: Vec<f64> = z.as_array().iter().copied().collect();
@@ -1842,19 +1875,26 @@ where
             }
             let n = levels.len() as f64;
             for (li, level) in levels.iter().enumerate() {
-                let col = if colors.is_empty() {
+                let col = (if colors.is_empty() {
                     let t = if n > 1.0 { li as f64 / (n - 1.0) } else { 0.5 };
                     let c = colormap(cmap, t);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     color(&colors[li % colors.len()])
-                };
+                })
+                .mix(opacity);
+                let width = linewidths
+                    .get(li)
+                    .or_else(|| linewidths.first())
+                    .copied()
+                    .unwrap_or(2.0)
+                    .clamp(0.25, 64.0);
                 for (a, b) in contour_segments(&xs, &ys, &zs, *level) {
                     let (ax, ay) = chart_area.map_coordinate(&(tx(a.0), ty(a.1)));
                     let (bx, by) = chart_area.map_coordinate(&(tx(b.0), ty(b.1)));
                     area.draw(&PathElement::new(
                         vec![(ax - base.0, ay - base.1), (bx - base.0, by - base.1)],
-                        col.stroke_width(2),
+                        col.stroke_width(width.round().max(1.0) as u32),
                     ))?;
                 }
             }
@@ -1929,10 +1969,15 @@ where
             if iw == 0 || ih == 0 {
                 continue;
             }
+            let hint = if matches!(item.7.as_str(), "none" | "nearest") {
+                " style=\"image-rendering:pixelated\""
+            } else {
+                ""
+            };
             // Embedded into the root SVG, so this stays in canvas pixels.
             overlays.push(format!(
                 "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
-                 preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
+                 preserveAspectRatio=\"none\"{hint} href=\"data:image/png;base64,{}\"/>",
                 ax.min(zx),
                 ay.min(zy),
                 iw,

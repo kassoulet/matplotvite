@@ -178,7 +178,8 @@ pub(crate) struct Series {
 /// (x, y, text, color, font size, horizontal align, vertical align).
 pub(crate) type TextItem = (f64, f64, String, String, f64, String, String);
 
-/// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper).
+/// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper,
+/// opacity, interpolation).
 pub(crate) type ImageItem = (
     OwnedArrayD,
     String,
@@ -186,6 +187,8 @@ pub(crate) type ImageItem = (
     Option<f64>,
     (f64, f64, f64, f64),
     bool,
+    f64,
+    String,
 );
 
 /// (text, xy, xytext, color, font size).
@@ -253,15 +256,17 @@ pub(crate) struct Arrow {
     pub(crate) headlength: f64,
 }
 
-/// (x, y, z, levels, colors, colormap, filled).
+/// (x, y, z, levels, linewidths, colors, colormap, filled, opacity).
 pub(crate) type ContourItem = (
     OwnedArray1,
     OwnedArray1,
     OwnedArray2,
     Vec<f64>,
+    Vec<f64>,
     Vec<String>,
     String,
     bool,
+    f64,
 );
 
 #[derive(FromPyObject)]

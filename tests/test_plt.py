@@ -320,6 +320,30 @@ def test_contourf_fills(tmp_path):
     assert p.read_text().count("<polygon") > 10
 
 
+def test_contour_linewidths_and_alpha(tmp_path):
+    x, y, z = _bump()
+    plt.figure((4, 3))
+    plt.contour(x, y, z, levels=[0.2, 0.6], linewidths=4, alpha=0.5)
+    p = tmp_path / "cw.svg"
+    plt.savefig(p)
+    s = p.read_text()
+    assert re.search(r'stroke-width="4"', s)
+    assert re.search(r'opacity="0\.5', s)
+
+    plt.figure((4, 3))
+    plt.contourf(x, y, z, levels=[0.2, 0.6], alpha=0.25)
+    p2 = tmp_path / "cfa.svg"
+    plt.savefig(p2)
+    assert re.search(r'opacity="0\.25', p2.read_text())
+
+
+def test_contour_linewidths_validation():
+    z = np.add.outer(np.arange(6.0), np.arange(6.0))
+    plt.figure()
+    with pytest.raises(ValueError):
+        plt.contour(z, levels=[1, 2, 3], linewidths=[1, 2])
+
+
 def test_contour_meshgrid_png(tmp_path):
     X, Y = np.meshgrid(np.linspace(-1, 1, 12), np.linspace(-1, 1, 12))
     plt.figure()
@@ -540,6 +564,29 @@ def test_imshow_vmin_changes_pixels(tmp_path):
         plt.savefig(p)
         uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text()).group(1))
     assert uris[0] != uris[1]
+
+
+def test_imshow_alpha_and_interpolation(tmp_path):
+    z = np.linspace(0, 1, 64).reshape(8, 8)
+    uris = []
+    for alpha in (1.0, 0.5, 0.0):
+        plt.figure((3, 3))
+        plt.imshow(z, cmap="gray", alpha=alpha)
+        p = tmp_path / f"alpha_{alpha}.svg"
+        plt.savefig(p)
+        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text()).group(1))
+    assert len(set(uris)) == 3
+
+    plt.figure((3, 3))
+    plt.imshow(z, interpolation="nearest")
+    p = tmp_path / "nearest.svg"
+    plt.savefig(p)
+    assert "image-rendering:pixelated" in p.read_text()
+
+    with pytest.raises(ValueError):
+        plt.imshow(z, interpolation="spline16")
+    with pytest.raises(ValueError):
+        plt.imshow(z, alpha=float("nan"))
 
 
 def test_aspect_numeric_halves_the_box(tmp_path):

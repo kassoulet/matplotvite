@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use crate::color::colormap;
 use crate::model::ImageItem;
 
@@ -5,6 +7,9 @@ use crate::model::ImageItem;
 /// it a huge array could ask `Pixmap::new` for an allocation that aborts the
 /// process instead of raising a Python exception.
 const MAX_IMAGE_PIXELS: usize = 1 << 28;
+
+/// Below this size, Rayon's scheduling overhead costs more than it saves.
+const PARALLEL_IMAGE_PIXELS: usize = 16_384;
 
 pub(crate) fn base64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -32,9 +37,15 @@ pub(crate) fn base64(data: &[u8]) -> String {
     out
 }
 
+/// Scale an 8-bit alpha channel by the constant image opacity.
+fn scaled_alpha(value: f64, opacity: f64) -> u8 {
+    (value * opacity.clamp(0.0, 1.0)).round().clamp(0.0, 255.0) as u8
+}
+
 /// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
 pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
-    let (arr, cmap, vmin, vmax, _, _) = item;
+    let (arr, cmap, vmin, vmax, _, _, opacity, _interpolation) = item;
+    let opacity = opacity.clamp(0.0, 1.0);
     let a = arr.as_array();
     let shape = a.shape();
     let (h, w) = match shape {
@@ -76,20 +87,51 @@ pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
     let span = if hi > lo { hi - lo } else { 1.0 };
     let mut pm = tiny_skia::Pixmap::new(width, height).ok_or("failed to allocate image")?;
     let pixels = pm.pixels_mut();
+    let parallel = pixel_count >= PARALLEL_IMAGE_PIXELS;
     if let Some(src) = a.as_slice() {
         // Contiguous arrays can be walked in memory order, avoiding an
-        // `a[[y, x]]` bounds check for every channel of every pixel.
+        // `a[[y, x]]` bounds check for every channel of every pixel. Large
+        // images are converted a row at a time across the Rayon pool.
         if rgb {
             let channels = shape[2];
-            for (dst, chunk) in pixels.iter_mut().zip(src.chunks_exact(channels)) {
-                let ch = |i: usize| (chunk[i].clamp(0.0, 1.0) * 255.0).round() as u8;
-                let alpha = if channels == 4 { ch(3) } else { 255 };
-                *dst = tiny_skia::ColorU8::from_rgba(ch(0), ch(1), ch(2), alpha).premultiply();
+            let write_row = |dst: &mut [tiny_skia::PremultipliedColorU8], row: &[f64]| {
+                for (dst, chunk) in dst.iter_mut().zip(row.chunks_exact(channels)) {
+                    let ch = |i: usize| (chunk[i].clamp(0.0, 1.0) * 255.0).round() as u8;
+                    let alpha = if channels == 4 {
+                        scaled_alpha(ch(3) as f64, opacity)
+                    } else {
+                        scaled_alpha(255.0, opacity)
+                    };
+                    *dst = tiny_skia::ColorU8::from_rgba(ch(0), ch(1), ch(2), alpha).premultiply();
+                }
+            };
+            if parallel {
+                pixels
+                    .par_chunks_mut(w)
+                    .zip(src.par_chunks(w * channels))
+                    .for_each(|(dst, row)| write_row(dst, row));
+            } else {
+                for (dst, row) in pixels.chunks_mut(w).zip(src.chunks_exact(w * channels)) {
+                    write_row(dst, row);
+                }
             }
         } else {
-            for (dst, &v) in pixels.iter_mut().zip(src) {
-                let c = colormap(cmap, (v - lo) / span);
-                *dst = tiny_skia::ColorU8::from_rgba(c[0], c[1], c[2], c[3]).premultiply();
+            let write_row = |dst: &mut [tiny_skia::PremultipliedColorU8], row: &[f64]| {
+                for (dst, &v) in dst.iter_mut().zip(row) {
+                    let c = colormap(cmap, (v - lo) / span);
+                    let alpha = scaled_alpha(c[3] as f64, opacity);
+                    *dst = tiny_skia::ColorU8::from_rgba(c[0], c[1], c[2], alpha).premultiply();
+                }
+            };
+            if parallel {
+                pixels
+                    .par_chunks_mut(w)
+                    .zip(src.par_chunks(w))
+                    .for_each(|(dst, row)| write_row(dst, row));
+            } else {
+                for (dst, row) in pixels.chunks_mut(w).zip(src.chunks_exact(w)) {
+                    write_row(dst, row);
+                }
             }
         }
     } else {
@@ -98,10 +140,16 @@ pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
             for x in 0..w {
                 let c = if rgb {
                     let ch = |i: usize| (a[[y, x, i]].clamp(0.0, 1.0) * 255.0).round() as u8;
-                    let alpha = if shape[2] == 4 { ch(3) } else { 255 };
+                    let alpha = if shape[2] == 4 {
+                        scaled_alpha(ch(3) as f64, opacity)
+                    } else {
+                        scaled_alpha(255.0, opacity)
+                    };
                     [ch(0), ch(1), ch(2), alpha]
                 } else {
-                    colormap(cmap, (a[[y, x]] - lo) / span)
+                    let mut c = colormap(cmap, (a[[y, x]] - lo) / span);
+                    c[3] = scaled_alpha(c[3] as f64, opacity);
+                    c
                 };
                 pixels[y * w + x] =
                     tiny_skia::ColorU8::from_rgba(c[0], c[1], c[2], c[3]).premultiply();

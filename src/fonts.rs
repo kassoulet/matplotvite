@@ -1,11 +1,25 @@
 use std::sync::{Arc, OnceLock};
 
+use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use plotters::style::FontStyle;
 
 // Geist (OFL, see assets/fonts/LICENSE_GEIST_OFL.txt)
 static FONT_SANS: &[u8] = include_bytes!("../assets/fonts/Geist-Regular.ttf");
 static FONT_SERIF: &[u8] = include_bytes!("../assets/fonts/GeistSerif-Regular.ttf");
 static FONT_MONO: &[u8] = include_bytes!("../assets/fonts/GeistMono-Regular.ttf");
+
+/// Advance width of `text` at `px`, using the embedded Geist Sans metrics.
+/// Falls back to the old character-count estimate if the font cannot load.
+pub(crate) fn text_width(text: &str, px: f64) -> f64 {
+    let px = px.max(1.0) as f32;
+    let Ok(font) = FontRef::try_from_slice(FONT_SANS) else {
+        return text.chars().count() as f64 * px as f64 * 0.55;
+    };
+    let scaled = font.as_scaled(PxScale::from(px));
+    text.chars()
+        .map(|ch| scaled.h_advance(font.glyph_id(ch)) as f64)
+        .sum()
+}
 
 /// Register fonts into plotters (for SVG text element names) — called once.
 pub(crate) fn register_plotters_fonts() {

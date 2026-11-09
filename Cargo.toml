@@ -24,6 +24,7 @@ tiny-skia = "0.12.0"
 svg2pdf = "0.13"
 webp = "0.3"
 rayon = "1.10"
+ab_glyph = "0.2"
 
 [dev-dependencies]
 criterion = { version = "0.8.2", features = ["html_reports"] }
