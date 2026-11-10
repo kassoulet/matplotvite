@@ -6,6 +6,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # svg2pdf pins pdf-writer's major version; update them together.
+      - dependency-name: "pdf-writer"
 
   - package-ecosystem: "pip"
     directory: "/"
