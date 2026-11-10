@@ -154,6 +154,16 @@ def test_render_returns_the_failure_reason(tmp_path):
     assert render("plt.plot([0, 1])\n", out) == "no figure saved"
 
 
+def test_render_records_ignored_shim_calls(tmp_path):
+    out = tmp_path / "out.png"
+    ignored = []
+    snippet = ("plt.plot([0, 1], [1, 0])\n"
+               "plt.gca().set_frame_on(False)\n"
+               "plt.savefig(OUT, dpi=100)\n")
+    assert render(snippet, out, ignored=ignored) is None
+    assert "Axes.set_frame_on" in ignored
+
+
 def test_render_exposes_local_example_modules(tmp_path, monkeypatch):
     (tmp_path / "helper.py").write_text("VALUE = 2\n", encoding="utf-8")
     out = tmp_path / "out" / "case.png"
@@ -186,6 +196,7 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     rendered = {case["id"]: case for case in manifest}["test_demo/test_grid"]
     assert rendered["status"] == "rendered"
+    assert rendered["ignored"] == 0
     # The pixel metric reads PNGs through Matplotlib, which the CI test jobs do
     # not install; the case still counts as rendered and explains the gap.
     if rendered.get("metrics_error") is None:

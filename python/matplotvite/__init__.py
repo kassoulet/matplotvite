@@ -4,6 +4,7 @@ import hashlib as _hashlib
 import math as _math
 import os
 import re as _re
+import warnings
 from contextlib import contextmanager
 
 import numpy as np
@@ -42,6 +43,20 @@ _TAB10 = {"tab:blue": "#1f77b4", "tab:orange": "#ff7f0e", "tab:green": "#2ca02c"
           "tab:red": "#d62728", "tab:purple": "#9467bd", "tab:brown": "#8c564b",
           "tab:pink": "#e377c2", "tab:gray": "#7f7f7f", "tab:grey": "#7f7f7f",
           "tab:olive": "#bcbd22", "tab:cyan": "#17becf"}
+
+# Compatibility shims that cannot affect the renderer record their calls here.
+# The gallery reads and resets this list per case; direct users get one warning
+# per shim instead of a warning on every artist mutation.
+_IGNORED_CALLS: list[str] = []
+_IGNORED_WARNED: set[str] = set()
+
+
+def _ignored(name):
+    _IGNORED_CALLS.append(name)
+    if name not in _IGNORED_WARNED:
+        _IGNORED_WARNED.add(name)
+        warnings.warn(f"{name} is accepted but ignored by matplotvite",
+                      RuntimeWarning, stacklevel=3)
 
 
 def _norm_color(c):
@@ -396,14 +411,14 @@ class Affine2D:
     """No-op affine transform accepted by annotation and locator helpers."""
 
     def __init__(self, *args, **kwargs): pass
-    def transform(self, points): return np.asarray(points, dtype=np.float64)
+    def transform(self, points): _ignored("Affine2D.transform"); return np.asarray(points, dtype=np.float64)
     def inverted(self): return self
     def __add__(self, other): return self
     def __radd__(self, other): return self
-    def translate(self, *args, **kwargs): return self
-    def rotate_deg(self, *args, **kwargs): return self
-    def scale(self, *args, **kwargs): return self
-    def skew_deg(self, *args, **kwargs): return self
+    def translate(self, *args, **kwargs): _ignored("Affine2D.translate"); return self
+    def rotate_deg(self, *args, **kwargs): _ignored("Affine2D.rotate_deg"); return self
+    def scale(self, *args, **kwargs): _ignored("Affine2D.scale"); return self
+    def skew_deg(self, *args, **kwargs): _ignored("Affine2D.skew_deg"); return self
     def get_matrix(self): return np.eye(3)
 
 
@@ -416,7 +431,7 @@ class Path:
 
     def get_vertices(self): return self.vertices
     def get_codes(self): return self.codes
-    def transformed(self, transform): return self
+    def transformed(self, transform): _ignored("Path.transformed"); return self
     def __iter__(self): return iter((self.vertices, self.codes))
 
 
@@ -469,7 +484,7 @@ class _Bbox:
     def get_extents(self): return (self.x0, self.y0, self.x1, self.y1)
     def expanded(self, sw, sh):
         return _Bbox(self.x0 - sw, self.y0 - sh, self.x1 + sw, self.y1 + sh)
-    def transformed(self, transform): return self
+    def transformed(self, transform): _ignored("Bbox.transformed"); return self
     def contains(self, x, y): return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
     def containsx(self, x): return self.x0 <= x <= self.x1
     def containsy(self, y): return self.y0 <= y <= self.y1
@@ -507,16 +522,16 @@ class _TextLabel:
     def set_rotation(self, rotation): self._rotation = float(rotation)
     def get_color(self): return self._color
     def set_color(self, color): self._color = color
-    def set_ha(self, value): return None
-    def set_va(self, value): return None
-    def set_fontweight(self, value): return None
-    def set_fontstyle(self, value): return None
-    def set_fontfamily(self, value): return None
-    def set_fontname(self, value): return None
-    def set_fontproperties(self, value): return None
-    def set_multialignment(self, value): return None
-    def set_linespacing(self, value): return None
-    def set_wrap(self, value): return None
+    def set_ha(self, value): _ignored("Text.set_ha")
+    def set_va(self, value): _ignored("Text.set_va")
+    def set_fontweight(self, value): _ignored("Text.set_fontweight")
+    def set_fontstyle(self, value): _ignored("Text.set_fontstyle")
+    def set_fontfamily(self, value): _ignored("Text.set_fontfamily")
+    def set_fontname(self, value): _ignored("Text.set_fontname")
+    def set_fontproperties(self, value): _ignored("Text.set_fontproperties")
+    def set_multialignment(self, value): _ignored("Text.set_multialignment")
+    def set_linespacing(self, value): _ignored("Text.set_linespacing")
+    def set_wrap(self, value): _ignored("Text.set_wrap")
     def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
 
 
@@ -1127,10 +1142,10 @@ class Patch:
         return self
 
     def set_transform(self, transform): self._transform = transform
-    def set_clip_on(self, clip): return None
-    def set_clip_path(self, path, transform=None): return None
-    def set_clip_box(self, box): return None
-    def set_path_effects(self, effects): return None
+    def set_clip_on(self, clip): _ignored("Patch.set_clip_on")
+    def set_clip_path(self, path, transform=None): _ignored("Patch.set_clip_path")
+    def set_clip_box(self, box): _ignored("Patch.set_clip_box")
+    def set_path_effects(self, effects): _ignored("Patch.set_path_effects")
     def set_antialiased(self, value): return None
     def set_antialiaseds(self, value): return None
     def set_joinstyle(self, value): return None
@@ -1422,6 +1437,7 @@ class _FlexibleStyleNamespace:
     def __getattr__(self, name):
         if name.startswith("__"):
             raise AttributeError(name)
+        _ignored(f"patches.{name}")
         return type(name, (), {"__init__": lambda self, *args, **kwargs: None})
 
 
@@ -1567,10 +1583,10 @@ class Line2D:
     def set_label(self, label): self._series["label"] = str(label)
     def get_drawstyle(self): return self._series["drawstyle"]
     def set_drawstyle(self, drawstyle): self._series["drawstyle"] = str(drawstyle)
-    def set_path_effects(self, effects): return self
+    def set_path_effects(self, effects): _ignored("Line2D.set_path_effects"); return self
     def set_zorder(self, zorder): self._series["zorder"] = int(zorder)
     def get_zorder(self): return self._series.get("zorder", 2)
-    def set_visible(self, visible): return None
+    def set_visible(self, visible): _ignored("Line2D.set_visible")
 
 
 class _Spine:
@@ -2209,22 +2225,22 @@ class Axes:
     def get_box_aspect(self): return self._box_aspect
     def set_axes_locator(self, locator): self._axes_locator = locator
     def get_axes_locator(self): return self._axes_locator
-    def set_autoscale_on(self, value): return None
-    def set_autoscalex_on(self, value): return None
-    def set_autoscaley_on(self, value): return None
-    def set_axisbelow(self, value): return None
-    def set_frame_on(self, value): return None
-    def set_xmargin(self, value): return None
-    def set_ymargin(self, value): return None
+    def set_autoscale_on(self, value): _ignored("Axes.set_autoscale_on")
+    def set_autoscalex_on(self, value): _ignored("Axes.set_autoscalex_on")
+    def set_autoscaley_on(self, value): _ignored("Axes.set_autoscaley_on")
+    def set_axisbelow(self, value): _ignored("Axes.set_axisbelow")
+    def set_frame_on(self, value): _ignored("Axes.set_frame_on")
+    def set_xmargin(self, value): _ignored("Axes.set_xmargin")
+    def set_ymargin(self, value): _ignored("Axes.set_ymargin")
     def get_frame_on(self): return True
-    def label_outer(self, **kwargs): return None
-    def locator_params(self, *args, **kwargs): return None
+    def label_outer(self, **kwargs): _ignored("Axes.label_outer")
+    def locator_params(self, *args, **kwargs): _ignored("Axes.locator_params")
     def set_rmax(self, value): return None
     def set_rmin(self, value): return None
     def set_rlim(self, *args, **kwargs): return None
     def clabel(self, *args, **kwargs): return []
-    def secondary_xaxis(self, *args, **kwargs): return self
-    def secondary_yaxis(self, *args, **kwargs): return self
+    def secondary_xaxis(self, *args, **kwargs): _ignored("Axes.secondary_xaxis"); return self
+    def secondary_yaxis(self, *args, **kwargs): _ignored("Axes.secondary_yaxis"); return self
     def get_aux_axes(self, *args, **kwargs): return self
     def barbs(self, *args, **kwargs): return self.quiver(*args, **kwargs)
 
@@ -4318,16 +4334,16 @@ class AxesImage:
     def get_interpolation(self): return self._e["interpolation"]
     def set_alpha(self, value): self._e["alpha"] = float(value)
     def get_alpha(self): return self._e["alpha"]
-    def set_rasterized(self, value): return None
-    def set_agg_filter(self, value): return None
-    def set_path_effects(self, value): return None
-    def set_url(self, value): return None
-    def set_gid(self, value): return None
-    def set_zorder(self, value): return None
-    def set_clip_on(self, value): return None
-    def set_clip_path(self, *args, **kwargs): return None
-    def set_transform(self, value): return None
-    def set_visible(self, value): return None
+    def set_rasterized(self, value): _ignored("AxesImage.set_rasterized")
+    def set_agg_filter(self, value): _ignored("AxesImage.set_agg_filter")
+    def set_path_effects(self, value): _ignored("AxesImage.set_path_effects")
+    def set_url(self, value): _ignored("AxesImage.set_url")
+    def set_gid(self, value): _ignored("AxesImage.set_gid")
+    def set_zorder(self, value): _ignored("AxesImage.set_zorder")
+    def set_clip_on(self, value): _ignored("AxesImage.set_clip_on")
+    def set_clip_path(self, *args, **kwargs): _ignored("AxesImage.set_clip_path")
+    def set_transform(self, value): _ignored("AxesImage.set_transform")
+    def set_visible(self, value): _ignored("AxesImage.set_visible")
     def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
 
     def set_clim(self, vmin=None, vmax=None):
@@ -5126,6 +5142,7 @@ class GridSpecFromSubplotSpec(GridSpec):
 
 
 def _offset_copy(trans, fig=None, x=0, y=0, units="inches", **kwargs):
+    _ignored("mtransforms.offset_copy")
     return _Transform()
 
 

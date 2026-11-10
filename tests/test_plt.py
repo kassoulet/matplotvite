@@ -2538,6 +2538,12 @@ def test_patch_classes_and_axes_compatibility_shims(tmp_path):
     assert p.stat().st_size > 0
 
 
+def test_ignored_shim_warns_once():
+    label = plt.figure().gca().xaxis.label
+    with pytest.warns(RuntimeWarning, match="accepted but ignored"):
+        label.set_wrap(True)
+
+
 def test_matplotlib_namespace_and_cycler_shims():
     assert plt.rcParams["axes.prop_cycle"].by_key()["color"]
     assert plt.colors.to_rgb("red") == (1.0, 0.0, 0.0)

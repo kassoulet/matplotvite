@@ -28,6 +28,7 @@ import re
 import shutil
 import sys
 import tempfile
+import warnings
 import textwrap
 
 import numpy as np
@@ -248,8 +249,13 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
 
 
 def render(snippet: str, out_path: pathlib.Path,
-           extra_path: pathlib.Path | None = None) -> str | None:
-    """Render a snippet with matplotvite; return an error string or None."""
+           extra_path: pathlib.Path | None = None,
+           ignored: list[str] | None = None) -> str | None:
+    """Render a snippet with matplotvite; return an error string or None.
+
+    When `ignored` is provided, append the names of compatibility shims that
+    accepted arguments without affecting the rendered output.
+    """
     out_path = out_path.resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     namespace = {"plt": matplotvite, "mpl": matplotvite, "matplotlib": matplotvite,
@@ -259,6 +265,7 @@ def render(snippet: str, out_path: pathlib.Path,
     namespace.update({name: getattr(matplotvite, name)
                       for name in sorted(getattr(matplotvite, "__all__", ()), key=str)
                       if hasattr(matplotvite, name)})
+    ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)
     # Resolve helper paths before the scratch-directory change.
     added_path = str(extra_path.resolve()) if extra_path is not None else None
     # Run inside a scratch directory: some examples write their own PNGs next to
@@ -273,14 +280,20 @@ def render(snippet: str, out_path: pathlib.Path,
             # Each case starts from Matplotlib's defaults, not the previous case's
             # rcParams edits.
             matplotvite.rcdefaults()
+            if ignored_calls is not None:
+                ignored_calls.clear()
             np.random.seed(0)
-            exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
             if not out_path.exists():
                 return "no figure saved"
             return None
         except Exception as exc:  # noqa: BLE001 - the gallery records every failure
             return f"{type(exc).__name__}: {exc}"
         finally:
+            if ignored is not None and ignored_calls is not None:
+                ignored.extend(ignored_calls)
             if added_path is not None:
                 sys.path.remove(added_path)
             os.chdir(previous)
@@ -324,6 +337,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             "images": case["images"],
             "status": "unsupported",
             "error": None,
+            "ignored": 0,
         }
         baseline = pathlib.Path(str(case["images"][0]))
         if case["params"]:
@@ -332,7 +346,9 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             entry["error"] = "not standalone"
         else:
             ours = out / f"{slug}.png"
-            error = render(str(case["snippet"]), ours)
+            ignored: list[str] = []
+            error = render(str(case["snippet"]), ours, ignored=ignored)
+            entry["ignored"] = len(ignored)
             if error is None:
                 entry["status"] = "rendered"
                 rendered += 1
@@ -367,6 +383,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             f"<td>{baseline_cell}</td><td>{ours_cell}</td></tr>")
         case["status"] = entry["status"]
         case["error"] = entry["error"]
+        case["ignored"] = entry["ignored"]
         case["ours"] = entry.get("ours")
         case["shape_match"] = entry.get("shape_match")
         case["rms"] = entry.get("rms")
@@ -428,13 +445,17 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         slug = str(case["id"]).replace("/", "_")
         entry = dict(case)
         entry["error"] = None
+        entry["ignored"] = 0
         if case["snippet"] is None:
             entry["status"] = "unsupported"
             entry["error"] = "interactive or unparseable"
         else:
             ours = out / f"{slug}.png"
+            ignored: list[str] = []
             entry["error"] = render(str(case["snippet"]), ours,
-                                    pathlib.Path(str(case["path"])).parent)
+                                    pathlib.Path(str(case["path"])).parent,
+                                    ignored=ignored)
+            entry["ignored"] = len(ignored)
             entry["status"] = "rendered" if entry["error"] is None else "failed"
             if entry["error"] is None:
                 entry["ours"] = str(ours)
