@@ -331,6 +331,11 @@ checkouts are missing). CI rebuilds the same galleries, uploads them as the
 `galleries-<sha>` artifact for each commit, and writes the per-gallery status
 counts and artifact link into the job summary.
 
+These harvested snippets run in-process with the same filesystem and network
+permissions as the caller. Only run them against the pinned Matplotlib and Seaborn
+versions used by CI, never an unpinned checkout. The rendered counts are an upper
+bound: helper code imported from those projects can do part of the work.
+
 Opaque PNG figures with multiple panels, or at least 1,000 plotted primitives,
 render through a 2× oversampled bitmap backend and skip SVG generation and resvg.
 Small single-panel plots, marker-heavy panels, transparent output, embedded images,
@@ -377,6 +382,12 @@ cargo install cargo-audit --locked
 pip install "bandit>=1.9" "pip-audit>=2.9" numpy
 python tools/security_audit.py
 ```
+
+`cargo audit` currently reports two unmaintained-crate warnings, `rustybuzz` and
+`ttf-parser`, both pulled in indirectly by `svg2pdf 0.13`'s pinned `usvg 0.45`
+dependency. That is the latest `svg2pdf` release; there are no known
+vulnerabilities. Revisit when `svg2pdf`/`usvg` update. The tight-PDF tests gate
+those upgrades, so the hand-assembled PDF path is not changed independently.
 
 ## License
 
