@@ -16,9 +16,9 @@ __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
     "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
-    "Annulus", "Affine2D", "Path", "patches", "mpatches", "mpath", "mtransforms",
-    "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "patheffects",
-    "cm", "colormaps",
+    "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
+    "mtransforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
@@ -368,6 +368,12 @@ class _PropCycler:
 
     def __repr__(self):
         return f"Cycler(color={self._colors!r})"
+
+
+class _CycleList(list):
+    """A prop-cycle list that also supports matplotlib's `by_key()` API."""
+
+    def by_key(self): return {"color": list(self)}
 
 
 class _CoordTransform:
@@ -1412,6 +1418,18 @@ for _patch_name in ("Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc",
     setattr(patches, _patch_name, globals()[_patch_name])
 
 
+class _FlexibleStyleNamespace:
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return type(name, (), {"__init__": lambda self, *args, **kwargs: None})
+
+
+patches.ArrowStyle = _FlexibleStyleNamespace()
+patches.BoxStyle = _FlexibleStyleNamespace()
+patches.ConnectionStyle = _FlexibleStyleNamespace()
+
+
 def _patch_entry(artist):
     """Reduce a Rectangle/Circle/Polygon-like object, or return None."""
     kind = None
@@ -1549,6 +1567,10 @@ class Line2D:
     def set_label(self, label): self._series["label"] = str(label)
     def get_drawstyle(self): return self._series["drawstyle"]
     def set_drawstyle(self, drawstyle): self._series["drawstyle"] = str(drawstyle)
+    def set_path_effects(self, effects): return self
+    def set_zorder(self, zorder): self._series["zorder"] = int(zorder)
+    def get_zorder(self): return self._series.get("zorder", 2)
+    def set_visible(self, visible): return None
 
 
 class _Spine:
@@ -4960,7 +4982,7 @@ rcParams = {
     "axes.titlesize": 12.0,
     "figure.titlesize": 14.0,
     "legend.fontsize": 10.0,
-    "axes.prop_cycle": list(_CYCLE),
+    "axes.prop_cycle": _CycleList(_CYCLE),
     "image.cmap": "viridis",
     "figure.facecolor": "#ffffff",
     "axes.facecolor": "#ffffff",
@@ -5037,6 +5059,7 @@ class _MColors:
     ListedColormap = _ListedColormap
     LinearSegmentedColormap = _ListedColormap
     TABLEAU_COLORS = dict(_TAB10)
+    BASE_COLORS = {name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
     cnames = _CSS_COLORS
 
@@ -5094,23 +5117,40 @@ class _PathEffects:
     def withSimplePatchShadow(*args, **kwargs): return _PathEffects.SimplePatchShadow()
 
 
+class GridSpecFromSubplotSpec(GridSpec):
+    """A GridSpec rooted at an existing SubplotSpec."""
+
+    def __init__(self, nrows, ncols, subplot_spec=None, **kwargs):
+        super().__init__(nrows, ncols, **kwargs)
+        self.subplot_spec = subplot_spec
+
+
+def _offset_copy(trans, fig=None, x=0, y=0, units="inches", **kwargs):
+    return _Transform()
+
+
 mcolors = _MColors()
 colors = mcolors
 mpatches = patches
 mpath = _Namespace(Path=Path)
-mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox)
+mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
+                         offset_copy=_offset_copy)
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_NoopLocator, FixedLocator=_NoopLocator,
     LinearLocator=_NoopLocator, LogLocator=_NoopLocator, MaxNLocator=_NoopLocator,
-    AutoMinorLocator=_NoopLocator, Formatter=_NoopFormatter,
+    NullLocator=_NoopLocator, AutoMinorLocator=_NoopLocator, Formatter=_NoopFormatter,
     FuncFormatter=_NoopFormatter, FormatStrFormatter=_NoopFormatter,
     StrMethodFormatter=_NoopFormatter, ScalarFormatter=_NoopFormatter,
     LogFormatter=_NoopFormatter, NullFormatter=_NoopFormatter,
 )
 ticker = mticker
-gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec)
+gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
+                      GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)
 patheffects = _PathEffects()
+path_effects = patheffects
+color_sequences = {"tableau": list(_CYCLE), "petroff": ["#000000", "#1f77b4", "#2ca02c",
+                                                        "#d62728", "#9467bd", "#8c564b"]}
 
 
 def rc(group=None, **kwargs):

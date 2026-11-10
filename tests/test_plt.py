@@ -2519,3 +2519,16 @@ def test_patch_classes_and_axes_compatibility_shims(tmp_path):
     p = tmp_path / "patches.png"
     fig.savefig(p)
     assert p.stat().st_size > 0
+
+
+def test_matplotlib_namespace_and_cycler_shims():
+    assert plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    assert plt.colors.to_rgb("red") == (1.0, 0.0, 0.0)
+    assert plt.mpatches.ArrowStyle.CurveFilledB() is not None
+    assert plt.gridspec.GridSpecFromSubplotSpec(1, 1) is not None
+    assert plt.mticker.NullLocator() is not None
+    assert plt.mtransforms.offset_copy(None) is not None
+    assert plt.path_effects.withStroke(linewidth=1) is not None
+    line = plt.Line2D([0, 1], [1, 0])
+    line.set_path_effects([plt.path_effects.withStroke()])
+    assert line.get_zorder() == 2
