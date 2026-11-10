@@ -1,45 +1,52 @@
-# Review: performance and security
+# Review: performance and security (update 2)
 
-Scope: commit `d1859eb`. Rust core (`src/lib.rs`, `export.rs`, `raster.rs`, `image.rs`, `fonts.rs`, `model.rs`), the Python `savefig`/caching path, `draw.rs` hot spots (contours, polyline simplification, text measurement) and the CI/release workflows.
+Scope: local `main` at `d0a191e` (now `65824ff` after the rebase). This re-checks every finding from the first review (written against `d1859eb`) and covers the code added since: bounded allocations, contour polylines, parallel downsampling, direct image drawing, the PDF rewrite, trusted publishing and pinned CI dependencies.
 
-Not covered: a line-by-line read of all 2,092 lines of `draw.rs` and all 3,900 lines of `python/matplotvite/__init__.py`. Nothing below was profiled, so the performance items are estimates from reading the code. `bandit` and `pip-audit` were not run. `cargo audit` was run.
+Not covered: a line-by-line read of all of `draw.rs` and `python/matplotvite/__init__.py`. Nothing was profiled or benchmarked, and I did not rebuild or run the test suites for this update, so "fixed" below means "the code now does the right thing", not "measured". `cargo audit` was re-run. `bandit` and `pip-audit` were not.
+
+Note on git: local `main` had diverged from a rewritten `origin/main`. It was rebased onto `origin/main` (conflicts in `export.rs`, `lib.rs` and `visual_compare.py` resolved by keeping origin's `FigureDecorations` refactor), so the hashes above refer to the pre-rebase commits. The merged tree builds and passes the Python tests (243 passed, 3 skipped).
 
 ## Summary
 
-The codebase is in good shape. There is no `unsafe` and no `unwrap`/`expect`/`panic!` outside tests. There is no `eval`, `exec`, `pickle` or `subprocess` in the shipped Python. The SVG overlays only contain numbers and base64. GitHub Actions are pinned by SHA and run with minimal permissions. `cargo audit` reports no vulnerabilities.
+All the actionable findings from the first review are fixed. The new code is sound, and I found no new security issues. There are two minor correctness differences (X1, X2) and a few small leftovers.
 
-The real issues are memory ceilings that are high for untrusted input, and some avoidable repeated work in the save path.
+## Status of the first review
 
-## Security
+| # | Finding | Status | Evidence |
+|---|---------|--------|----------|
+| S1 | High memory ceilings | **Fixed** | Canvas and image budgets are now 2^26 px in `lib.rs:75`, `raster.rs:19`, `image.rs:9` and Python `_MAX_CANVAS_AREA`. |
+| S2 | Unbounded bins and gridsize | **Mostly fixed** | `_validate_bins` caps bins at 4096, bin cells at 4M and edge arrays at 100k. `hexbin` is also capped. Gaps: see L1. |
+| S3 | No SVG-injection test | **Fixed** | `test_svg_text_is_escaped` covers the title, xlabel, tick labels and legend with a hostile payload. |
+| S4 | Long-lived PyPI token | **Fixed** | `publish.yml` now uses `id-token: write` (trusted publishing) and no secret. |
+| S5 | Unpinned CI installs | **Mostly fixed** | `.github/requirements-ci.txt` pins exact versions and every `pip install` uses `-c`. Left: `pip install --upgrade pip` and `ruff` are unconstrained and nothing is hash-pinned. |
+| S6 | `cargo audit` warnings | **Unchanged** | No vulnerabilities. Two "unmaintained" warnings: `rustybuzz` (RUSTSEC-2026-0206) and `ttf-parser` (RUSTSEC-2026-0192), both indirect. The new `pdf-writer` dependency raised no advisory. |
+| P1 | Data hashed twice per save | **Fixed** | The figure key now hashes the per-panel `cache_key` strings (`__init__.py:~3638-3643`), not the arrays again. |
+| P2 | One SVG element per contour segment | **Fixed** | `contour_polylines` joins segments into polylines. Shared endpoints match exactly because adjacent cells interpolate the same pair of values in the same order. |
+| P3 | Single-threaded downsample | **Fixed** | `downsample` runs over rows with rayon, with a 2×2 fast path. |
+| P4 | Cache hits clone fragments | **Fixed** | The panel cache stores `Arc<PanelFragment>`. There is still no single-flight (two identical panels rendered at once are both computed). |
+| P5 | Tight PDF parsed the SVG twice | **Fixed** | `render_pdf` measures bounds in its single parse (`d0a191e`). Tight SVG still parses once with usvg, which is unavoidable. |
+| P6 | Font re-parsed per call | **Fixed** | `text_width` uses a cached `OnceLock<Option<FontRef>>`. |
+| P7 | Images always took the SVG path | **Fixed, with caveat** | Large images (≥ 512×512) are now drawn straight into the bitmap. See X1. |
+| P8 | `insert_str` shifts the SVG once | **Open, negligible** | `export.rs:454` is unchanged. Not worth touching without a profile. |
+
+## New findings
 
 | # | Severity | Finding |
 |---|----------|---------|
-| S1 | Medium (only if parameters come from untrusted users) | **Memory ceilings are high.** `lib.rs:74-90` allows a canvas of up to 2^28 px (1 GiB as RGBA). The direct PNG path adds a 3 B/px buffer, a downsampled pixmap and the output pixmap on top of that, so peak memory is roughly 2.5-3 GiB. `image.rs:9` allows images of 2^28 px. An image that large is encoded to PNG, base64'd (+33%), embedded in the SVG string and decoded again by resvg, so peak memory is several GiB. Fine for a local library. For a service that renders user-supplied sizes or images, lower both budgets (for example 2^26) or make them configurable. |
-| S2 | Low | **No upper bound on binning parameters.** `hexbin(gridsize=...)` builds `centers` arrays of roughly `2·nx·ny` rows (`__init__.py` hexbin). `hist2d` and `hist` bins are likewise unchecked. A huge value allocates until the process dies. This only matters if those arguments are user-controlled. |
-| S3 | Low | **SVG injection is not covered by a test.** Overlays (`draw.rs:1610, 1748, 1877, 2022`) interpolate only numbers and base64, and colours are parsed to RGBA, so these are safe. Text goes through plotters' SVG backend. I did not verify that every text and attribute path escapes `<`, `&` and `"`. Add one test that renders a title, label, tick label and legend entry containing `</text><image href="file:///etc/passwd"/>` and asserts that the SVG has no stray elements. This matters because usvg can resolve `href` paths from disk if a raw element ever slips in. |
-| S4 | Low | **Release uses a long-lived token.** `publish.yml:31` uses `secrets.PYPI_API_TOKEN`. PyPI trusted publishing (OIDC, `id-token: write`, no secret) removes the token. The `environment: pypi` gate is already there, which is good. |
-| S5 | Low | **Unpinned CI installs.** `pip install maturin numpy pandas pytest` and `pip install "matplotlib==3.11.2"` (`ci.yml`, `pages.yml`) are not hash-pinned or version-pinned (except matplotlib). Pin them with a constraints or requirements file. `Cargo.lock` is already used. |
-| S6 | Info | **`cargo audit`: no vulnerabilities, 2 warnings.** `rustybuzz` (RUSTSEC-2026-0206) and `ttf-parser` (RUSTSEC-2026-0192) are flagged unmaintained. Both are transitive via resvg/usvg. Track them. Nothing to do now. |
-| S7 | Info | **Handled well.** Canvas dimension and area are validated in both Python and Rust. `dpi` must be finite and positive. The panel cache is bounded (256 entries, 64 MiB) and keyed by a 128-bit digest. `savefig` writes only to the path the caller gives it, like Matplotlib. |
+| X1 | Low (correctness) | **Large images ignore `interpolation`.** `image_rgb` (`image.rs`) always samples nearest-neighbour. Images under 512×512 still go through the SVG path, where `bilinear`, `bicubic` and `antialiased` are honoured by resvg. So the same call gives different output on either side of the size cutoff. Also, large images shown smaller than their source alias, since nearest sampling does not average. This is consistent with the new `nearest` default, but not with an explicit `interpolation="bilinear"`. Either route explicit non-nearest interpolation to the SVG path in `direct_eligible`, or implement bilinear in `image_rgb`. |
+| X2 | Low (correctness) | **PDF background drops alpha.** `render_pdf` fills the page with `bg.0/.1/.2` only (`export.rs`, `content.set_fill_rgb`). A `facecolor` with alpha is painted opaque in PDF, but blended over white in PNG (`background_pixel`). Rare, easy to fix by pre-blending with white as `background_pixel` does. |
+| X3 | Low (maintainability) | **PDF output depends on svg2pdf internals.** The page is assembled by hand from `svg2pdf::to_chunk` plus `pdf-writer`, assuming the returned XObject is a 1×1 unit square. There is also a workaround for a usvg 0.45 image-bounds bug (`pdf_node_bounds`). Both are likely to break silently on an svg2pdf or usvg upgrade. The tests added in `d0a191e` cover the crop. Keep them as the upgrade gate and note the coupling in the Dependabot PR checklist. |
+| X4 | Low (performance) | **`image_rgb` is single-threaded.** It samples with per-pixel `u64` divisions over the display size. It is only used for images ≥ 512×512, which is exactly where parallelism pays. Row-parallel rayon and hoisting the `x * sw / width` column map would remove most of the cost. |
+| X5 | Info | **`contour_polylines` uses `Vec::insert(0, …)`** when extending backwards, which is O(n) per insert, so O(n²) on very long open contours. Closed loops (the common case) never hit it. At realistic sizes this is milliseconds. Only change it if a profile points here. |
+| L1 | Low | **Bin validation gaps.** Two-element lists of edge arrays (`hist2d(bins=[xedges, yedges])`) skip `_validate_bins`, because the array is ragged or has object dtype. String bins such as `"auto"` pass through unchecked (NumPy bounds those by the data). Edge-array length is only checked for 1-D input. Cheap to extend if S2 matters for your threat model. |
+| L2 | Info (behaviour) | **1-D `hist` is now capped at 4096 bins**, where Matplotlib has no cap. Reasonable, but it is a compatibility difference worth a line in the README. |
 
-## Performance
+## Still good
 
-Ordered by expected payoff.
-
-| # | Impact | Finding and suggested fix |
-|---|--------|---------------------------|
-| P1 | Medium on large data | **Every array is hashed twice per `savefig`.** `_panel_cache_key` hashes each panel in full (`__init__.py:~3582`). Then `_hash_value(hasher, (..., panels, options))` hashes the same panels again (`~3600`). The arrays are then copied a third time on the way into Rust (`model.rs:30, 55`, `to_owned`; this copy is needed because the GIL is released). Fix: hash the per-panel `cache_key` strings plus `options` for the figure key instead of re-walking the data. |
-| P2 | Medium for contour-heavy plots | **Contours emit one SVG element per segment.** `draw.rs:1936-1943` draws every marching-squares segment as its own `PathElement` and never joins them into polylines. A 200×200 grid with 10 levels gives tens of thousands of elements. Chain segments into polylines per level. This also gives proper line joins at segment ends. |
-| P3 | Medium for single-panel PNGs | **`raster::downsample` is single-threaded and per-pixel.** `raster.rs:85-118` uses nested loops with `u64` arithmetic and a bounds-checked write per pixel. It is called once per panel, and figures with one panel get no parallelism. Use rayon over rows and specialise the 2×2 case. The background fill in `render_panel` (`raster.rs:129`) is also a per-pixel 3-byte copy. A `Vec` filled by repeating a pattern is faster. |
-| P4 | Low-Medium | **Cache hits clone whole fragments.** `export.rs:189-191` returns `fragment.clone()`, a multi-MB `String` plus overlays for dense plots. Store `Arc<PanelFragment>` instead. Identical concurrent panels are also computed twice, since there is no single-flight. |
-| P5 | Low-Medium | **Tight SVG/PDF bounds parse the document up to twice.** `svg_bounds` (`export.rs:323`) runs a full usvg parse, including decoding embedded base64 images, only to measure bounds. PDF output then parses again in `render_pdf`. For figures with images this is noticeable. |
-| P6 | Low | **`text_width` re-parses the font on every call.** `fonts.rs:15` calls `FontRef::try_from_slice` each time. It is called per text line and per legend entry (`draw.rs:40, 404`). Cache the `FontRef` in a `OnceLock`. |
-| P7 | Opportunity | **Images always take the SVG path.** `lib.rs:135` excludes any panel with images from direct PNG rendering. An `imshow` therefore goes colormap → PNG encode → base64 → SVG → resvg decode → raster. Drawing the image straight into the pixmap with tiny-skia would skip four steps. This is the biggest speed-up available for `imshow`/`pcolormesh`/`hist2d`, but it is also the biggest change. |
-| P8 | Low | **Full-document `insert_str`.** `export.rs:316` inserts the background after the root tag, which shifts the whole SVG string once. Cheap next to rendering. Build the background first, or write it into the string before the body, if profiling ever points here. |
+No `unsafe`. No `unwrap`/`expect`/`panic!` outside tests (the only ones are in the PNG decode test helper in `lib.rs`). No `eval`, `exec`, `pickle` or `subprocess` in the shipped Python. SVG overlays contain only numbers and base64. Actions are pinned by SHA with minimal permissions, and publishing is OIDC-based.
 
 ## Suggested order
 
-1. S3 (one test), then P1 (small change, helps every save of a large figure).
-2. S1/S2 (decide limits if untrusted input is in scope), P3, P6.
-3. P2, P4.
-4. S4/S5 housekeeping. P7 only if `imshow` speed matters.
+1. X1 (decide: route non-nearest interpolation to the SVG path, or implement bilinear). This is the only one that changes visible output.
+2. X2 (one-line blend), then X4 if large `imshow` speed matters.
+3. L1/L2 and the S5 leftovers when convenient. S6 and X3 are watch items.
