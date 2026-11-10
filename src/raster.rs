@@ -260,7 +260,10 @@ pub(crate) fn direct_eligible(panels: &[Panel]) -> bool {
         panel.images.iter().any(|image| {
             let array = image.0.as_array();
             let shape = array.shape();
+            // The direct bitmap path samples nearest-neighbour only. Keep
+            // explicit smoothing on the SVG path, where resvg honours it.
             shape[0].saturating_mul(shape[1]) < DIRECT_IMAGE_MIN_PIXELS
+                || !matches!(image.7.as_str(), "nearest" | "none")
         })
     }) {
         return false;
