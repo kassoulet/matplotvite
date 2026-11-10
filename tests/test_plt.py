@@ -2499,10 +2499,29 @@ def test_images_have_sticky_edges_and_no_default_resampling():
     plt.figure()
     ax = plt.gca()
     ax.imshow(np.zeros((3, 4)))
-    assert ax.get_xlim() == (0.0, 4.0) and ax.get_ylim() == (0.0, 3.0)
+    assert ax.get_xlim() == (-0.5, 3.5) and ax.get_ylim() == (2.5, -0.5)
+    assert ax.yaxis_inverted()
     assert ax.images[0]["interpolation"] == "nearest"
     ax.plot([0, 10], [0, 1])
-    assert ax.get_xlim() == pytest.approx((0.0, 10.5))
+    assert ax.get_xlim() == pytest.approx((-0.5, 10.525))
+
+
+def test_imshow_origin_and_explicit_extent():
+    plt.figure()
+    ax = plt.gca()
+    ax.imshow(np.zeros((3, 4)), origin="lower")
+    assert ax.get_xlim() == (-0.5, 3.5) and ax.get_ylim() == (-0.5, 2.5)
+    assert not ax.yaxis_inverted()
+
+    plt.figure()
+    ax = plt.gca()
+    ax.imshow(np.zeros((3, 4)), extent=(-2, 2, -1, 1))
+    assert ax.get_xlim() == (-2.0, 2.0) and ax.get_ylim() == (-1.0, 1.0)
+
+    ax.set_ylim(10, 0)
+    assert ax.get_ylim() == (10.0, 0.0) and ax.yaxis_inverted()
+    ax.set_ylim(0, 10)
+    assert ax.get_ylim() == (0.0, 10.0) and not ax.yaxis_inverted()
 
 
 def test_figure_accepts_number_and_positional_figsize():

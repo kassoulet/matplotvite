@@ -1460,7 +1460,7 @@ where
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
-        let ratio = (x1 - x0) / (y1 - y0) / scale;
+        let ratio = (x1 - x0).abs() / (y1 - y0).abs() / scale;
         let mut target: Option<DrawingArea<DB, plotters::coord::Shift>> = None;
         if pw > 8 && ph > 8 && ratio.is_finite() && ratio > 0.0 {
             let mut dw = 0i32;

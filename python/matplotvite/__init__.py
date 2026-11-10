@@ -2582,11 +2582,12 @@ class Axes:
         explicit = group.limits if group is not None else self.xlim
         lo, hi = explicit or (group.union("x") if group is not None else extent)
         lo, hi = _log_bounds(lo, hi, self.xscale, extent)
-        if explicit:
-            return (lo, hi)
-        sticky = [e for im in self.images for e in (im["extent"][0], im["extent"][1])]
-        sticky += self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)]
-        return _margin(lo, hi, self.xscale, sticky)
+        bounds = (lo, hi) if explicit else _margin(
+            lo, hi, self.xscale,
+            [e for im in self.images for e in (im["extent"][0], im["extent"][1])]
+            + self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)],
+        )
+        return (bounds[1], bounds[0]) if self._inverted[0] else bounds
 
     def get_ylim(self):
         extent = self._extent_y()
@@ -2594,11 +2595,12 @@ class Axes:
         explicit = group.limits if group is not None else self.ylim
         lo, hi = explicit or (group.union("y") if group is not None else extent)
         lo, hi = _log_bounds(lo, hi, self.yscale, extent)
-        if explicit:
-            return (lo, hi)
-        sticky = [e for im in self.images for e in (im["extent"][2], im["extent"][3])]
-        sticky += self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)]
-        return _margin(lo, hi, self.yscale, sticky)
+        bounds = (lo, hi) if explicit else _margin(
+            lo, hi, self.yscale,
+            [e for im in self.images for e in (im["extent"][2], im["extent"][3])]
+            + self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)],
+        )
+        return (bounds[1], bounds[0]) if self._inverted[1] else bounds
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
 
@@ -2608,12 +2610,8 @@ class Axes:
     def yaxis_inverted(self): return self._inverted[1]
 
     def _limits(self):
-        (x0, x1), (y0, y1) = self.get_xlim(), self.get_ylim()
-        if self._inverted[0]:
-            x0, x1 = x1, x0
-        if self._inverted[1]:
-            y0, y1 = y1, y0
-        return (x0, x1), (y0, y1)
+        """Drawing limits; the getters already apply axis inversion."""
+        return self.get_xlim(), self.get_ylim()
 
     def get_visible(self): return self.visible
     def set_visible(self, visible): self.visible = bool(visible)
@@ -3012,7 +3010,12 @@ class Axes:
         elif origin != "upper":
             raise ValueError(f"unsupported origin: {origin!r}")
         if extent is None:
-            extent = (0.0, float(w), 0.0, float(h))
+            # Matplotlib centres pixels on integer data coordinates. An upper
+            # origin puts row 0 at the top, which requires a descending y axis.
+            extent = (-0.5, float(w) - 0.5, -0.5, float(h) - 0.5)
+            self._inverted[1] = origin == "upper"
+            if origin == "upper":
+                extent = (extent[0], extent[1], extent[3], extent[2])
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
         # No resampling by default: pixels are drawn as-is.
@@ -3991,10 +3994,12 @@ class Axes:
         left = current[0] if left is None else left
         right = current[1] if right is None else right
         values = _as_f64(self._xdate((left, right)))
-        limits = self.xlim = (float(values[0]), float(values[1]))
+        lo, hi = sorted((float(values[0]), float(values[1])))
+        limits = self.xlim = (lo, hi)
+        self._inverted[0] = float(values[0]) > float(values[1])
         if self._share_x is not None:
             self._share_x.limits = limits
-        return limits
+        return self.get_xlim()
 
     def set_ylim(self, bottom=None, top=None, **kwargs):
         """Set the y limits; accepts `bottom`/`top` or `ymin`/`ymax`."""
@@ -4008,10 +4013,12 @@ class Axes:
         bottom = current[0] if bottom is None else bottom
         top = current[1] if top is None else top
         values = _as_f64((bottom, top))
-        limits = self.ylim = (float(values[0]), float(values[1]))
+        lo, hi = sorted((float(values[0]), float(values[1])))
+        limits = self.ylim = (lo, hi)
+        self._inverted[1] = float(values[0]) > float(values[1])
         if self._share_y is not None:
             self._share_y.limits = limits
-        return limits
+        return self.get_ylim()
 
     def legend(self, *args, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
                title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
