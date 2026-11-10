@@ -35,7 +35,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install maturin numpy pandas "matplotlib==3.11.2"
+          pip install -c .github/requirements-ci.txt maturin numpy pandas "matplotlib==3.11.2"
           maturin develop --release
           python tools/build_pages.py --out dist
 

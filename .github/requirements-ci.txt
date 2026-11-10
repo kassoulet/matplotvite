@@ -1,0 +1,11 @@
+# Constraints for CI's ad-hoc pip installs. Keep these exact-version pins in
+# sync with the supported Python matrix (3.9 through 3.14).
+maturin==1.16.0
+numpy==2.0.2; python_version < "3.12"
+numpy==2.5.4; python_version >= "3.12"
+pandas==2.2.3; python_version < "3.12"
+pandas==3.1.1; python_version >= "3.12"
+pytest==8.4.2
+matplotlib==3.11.2
+bandit==1.9.4
+pip-audit==2.10.1
