@@ -234,23 +234,10 @@ jobs:
           python tools/harvest_matplotlib.py --out dist/mpl-corpus
           python tools/harvest_matplotlib.py --examples dist/mpl-src --out dist/mpl-examples
           python tools/harvest_seaborn.py --out dist/seaborn-gallery
-      - name: Upload the galleries
-        id: upload-galleries
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: galleries-${{ github.sha }}
-          path: |
-            dist/mpl-corpus
-            dist/mpl-examples
-            dist/seaborn-gallery
-          retention-days: 90
       - name: Summarise the galleries
-        env:
-          ARTIFACT_URL: ${{ steps.upload-galleries.outputs.artifact-url }}
         run: |
           . .venv/bin/activate
-          python tools/gallery_summary.py --out dist --artifact-url "$ARTIFACT_URL" \
-            >> "$GITHUB_STEP_SUMMARY"
+          python tools/gallery_summary.py --out dist >> "$GITHUB_STEP_SUMMARY"
 
   criterion:
     name: criterion output benchmarks
