@@ -51,7 +51,6 @@ jobs:
           python-version: "3.13"
       - name: Run dependency and static security checks
         run: |
-          python -m pip install --upgrade pip
           python -m pip install -c .github/requirements-ci.txt "bandit>=1.9" "pip-audit>=2.9" numpy
           python tools/security_audit.py
 
@@ -159,7 +158,6 @@ jobs:
           merge-multiple: true
       - name: Install the built wheel
         run: |
-          python -m pip install --upgrade pip
           python -m pip install -c .github/requirements-ci.txt numpy pytest
           python -m pip install --no-index --find-links dist matplotvite
       - name: Verify the installed wheel
@@ -215,7 +213,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install maturin numpy "matplotlib==3.11.2" pypdfium2 cairosvg
+          pip install -c .github/requirements-ci.txt maturin numpy "matplotlib==3.11.2" pypdfium2 cairosvg
           maturin develop --release
       - name: Fetch the harvested sources
         run: |
@@ -225,7 +223,7 @@ jobs:
           git clone --depth 1 --filter=blob:none --sparse -b v3.11.2 \
             https://github.com/matplotlib/matplotlib dist/mpl-src
           git -C dist/mpl-src sparse-checkout set galleries/examples
-          git clone --depth 1 --filter=blob:none --sparse \
+          git clone --depth 1 --filter=blob:none --sparse -b v0.13.2 \
             https://github.com/mwaskom/seaborn dist/sns-src
           git -C dist/sns-src sparse-checkout set examples
       - name: Regenerate the galleries
