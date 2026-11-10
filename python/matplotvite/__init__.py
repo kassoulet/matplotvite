@@ -719,7 +719,22 @@ def _validate_bins(bins, name="bins", max_cells=None):
         if max_cells is not None and n * n > max_cells:
             raise ValueError(f"{name}={n} creates too many bins ({n * n} > {max_cells})")
     elif isinstance(bins, (tuple, list, np.ndarray)):
-        arr = np.asarray(bins)
+        if isinstance(bins, (tuple, list)) and len(bins) == 2:
+            try:
+                edges = [np.asarray(edge) for edge in bins]
+            except (TypeError, ValueError):
+                edges = []
+            if edges and all(edge.ndim == 1 for edge in edges):
+                if any(edge.size > _MAX_EDGES for edge in edges):
+                    raise ValueError(
+                        f"{name} has too many edges "
+                        f"({max(edge.size for edge in edges)} > {_MAX_EDGES})"
+                    )
+                return bins
+        try:
+            arr = np.asarray(bins)
+        except (TypeError, ValueError):
+            return bins
         if arr.ndim == 1 and arr.size in (1, 2) and np.issubdtype(arr.dtype, np.integer):
             ns = [int(v) for v in arr.ravel()]
             if any(n < 1 for n in ns):

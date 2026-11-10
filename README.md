@@ -166,7 +166,7 @@ plt.savefig("contours.png")
   when labelled
 - `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars
 - `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar` (or as a `step`/`stepfilled` outline),
-  returning `(counts, edges, handles)`
+  returning `(counts, edges, handles)`; for safety, a 1-D histogram is capped at 4096 bins (Matplotlib has no such cap)
 - `step(x, y, where="pre"|"post"|"mid")` and `stairs(values, edges=, baseline=, fill=)` —
   staircase lines, with optional fill to a baseline
   (`where="mid"` places corners at interval midpoints)

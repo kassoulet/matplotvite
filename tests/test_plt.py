@@ -2544,6 +2544,11 @@ def test_ignored_shim_warns_once():
         label.set_wrap(True)
 
 
+def test_hist2d_rejects_oversized_edge_arrays():
+    with pytest.raises(ValueError, match="too many edges"):
+        plt.hist2d([0, 1], [0, 1], bins=[np.arange(100_002), np.arange(3)])
+
+
 def test_matplotlib_namespace_and_cycler_shims():
     assert plt.rcParams["axes.prop_cycle"].by_key()["color"]
     assert plt.colors.to_rgb("red") == (1.0, 0.0, 0.0)
