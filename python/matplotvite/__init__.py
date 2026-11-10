@@ -585,6 +585,17 @@ class _BboxPatch:
         return self
 
 
+class _TextEntry(tuple):
+    """Stored text record with the accessors Matplotlib text artists expose."""
+
+    def get_position(self): return (self[0], self[1])
+    def get_text(self): return self[2]
+    def get_color(self): return self[3]
+    def get_fontsize(self): return self[4]
+    def get_ha(self): return self[5]
+    def get_va(self): return self[6]
+
+
 class _TextArt:
     """Return value for text creation; carries the mutable bbox patch."""
 
@@ -2354,6 +2365,10 @@ class Axes:
     def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
         self.aspect = _norm_aspect(aspect)
 
+    def set_forward_navigation_events(self, visible): return None
+    def get_forward_navigation_events(self): return "auto"
+    def set_navigate(self, visible): return None
+
     def get_aspect(self): return self.aspect
 
     # -- introspection / compatibility surface --------------------------------
@@ -2589,6 +2604,10 @@ class Axes:
     def set_visible(self, visible): self.visible = bool(visible)
     def set_axis_off(self): self._axis_off = True
     def set_axis_on(self): self._axis_off = False
+
+    def axis(self, *args, **kwargs):
+        """Class-level hook so `Axes.axis` is discoverable; instances use `_AxisAccessor`."""
+        return self._axis(*args, **kwargs)
 
     def _axis(self, arg=None, **kwargs):
         if arg is None:
@@ -2952,7 +2971,8 @@ class Axes:
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         x = _as_f64(self._xdate(x) if kind == "data" else x)
         y = _as_f64(y)
-        self.texts.append((float(x[0]), float(y[0]), _mathtext(s), _norm_color(colour), size, ha, va, kind))
+        self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s),
+                                      _norm_color(colour), size, ha, va, kind)))
         return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
@@ -5145,6 +5165,14 @@ class GridSpec:
     def __len__(self):
         return self.nrows * self.ncols
 
+    def update(self, **kwargs):
+        for key in ("left", "right", "bottom", "top", "wspace", "hspace"):
+            if kwargs.get(key) is not None:
+                setattr(self, key, float(kwargs[key]))
+        return self
+
+    def tight_layout(self, *args, **kwargs): return None
+
     def _bounds(self, rows, cols):
         r0, r1 = rows
         c0, c1 = cols
@@ -5256,14 +5284,27 @@ class Figure:
         if isinstance(nrows, int) and 111 <= nrows <= 999 and ncols == 1 and index == 1:
             # `subplot(121)` is shorthand for `subplot(1, 2, 1)`.
             nrows, ncols, index = divmod(nrows, 100)[0], *divmod(nrows % 100, 10)
-        if (nrows, ncols) != self.grid:
-            if self.axes:
-                raise ValueError("mixed subplot grids are not supported yet")
+        changed = (nrows, ncols) != self.grid
+        if changed:
+            old_rows, old_cols = self.grid
+            for existing in self.axes:
+                if existing._pos_override is None:
+                    row, col = divmod(existing.pos, old_cols)
+                    existing._pos_override = GridSpec(
+                        old_rows, old_cols, figure=self)._bounds((row, row), (col, col))
+                    existing._bounds_are_axes = False
             self.grid = (nrows, ncols)
+        mixed = bool(self.axes) and (
+            changed or any(a._pos_override is not None for a in self.axes))
         ax = next((a for a in self.axes if a.pos == index - 1), None) or Axes(index - 1)
         if ax not in self.axes:
             self.axes.append(ax)
         ax._fig = self
+        if mixed:
+            row, col = divmod(index - 1, ncols)
+            ax._pos_override = GridSpec(
+                nrows, ncols, figure=self)._bounds((row, row), (col, col))
+            ax._bounds_are_axes = False
         self._cur = ax
         return ax
 
@@ -5278,6 +5319,13 @@ class Figure:
 
     def add_gridspec(self, nrows=1, ncols=1, **kwargs):
         return GridSpec(nrows, ncols, figure=self, **kwargs)
+
+    def subplot2grid(self, shape, loc, rowspan=1, colspan=1, **kwargs):
+        rows, cols = (int(v) for v in shape)
+        row, col = (int(v) for v in loc)
+        gs = GridSpec(rows, cols, figure=self)
+        return self.add_subplot(SubplotSpec(
+            gs, (row, row + int(rowspan) - 1), (col, col + int(colspan) - 1)))
 
     def subplot_mosaic(self, mosaic, empty_sentinel=".", **kwargs):
         """Create one axes per mosaic label from a string or list-of-lists grid."""
@@ -5595,6 +5643,11 @@ def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
 def subplot(*args, **kwargs):
     """`subplot(nrows, ncols, index)` or `subplot(gs[row, col])`."""
     return gcf().add_subplot(*args)
+
+
+def subplot2grid(shape, loc, rowspan=1, colspan=1, fig=None, **kwargs):
+    return (fig or gcf()).subplot2grid(shape, loc, rowspan=rowspan,
+                                      colspan=colspan, **kwargs)
 
 
 def subplot_mosaic(mosaic, empty_sentinel=".", figsize=(6.4, 4.8), dpi=None,

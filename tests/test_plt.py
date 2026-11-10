@@ -351,8 +351,8 @@ def test_text_only_figure(tmp_path):
 def test_single_subplots_returns_axes_and_pyplot_targets_current(tmp_path):
     fig, ax = plt.subplots()
     assert isinstance(ax, plt.Axes)
-    with pytest.raises(ValueError):
-        plt.subplot(1, 2, 2)
+    second = plt.subplot(1, 2, 2)
+    assert second in fig.axes
     plt.title("via pyplot"); ax.plot([1, 2]); plt.savefig(tmp_path / "s.svg")
     assert "via pyplot" in (tmp_path / "s.svg").read_text()
 
@@ -2702,3 +2702,31 @@ def test_gallery_subfigures_have_independent_grids():
     assert axs_right[0, 0].get_position()[1] > axs_right[1, 0].get_position()[1]
     left.suptitle("left")
     assert left.get_zorder() == 0
+
+
+def test_gallery_mixed_subplots_and_text_accessors():
+    fig = plt.figure()
+    bottom = fig.add_subplot(2, 1, 2)
+    top_left = fig.add_subplot(2, 2, 1)
+    assert bottom.get_position()[1] < top_left.get_position()[1]
+
+    bottom.text(0.25, 0.5, "label")
+    label = bottom.texts[-1]
+    assert label.get_position() == (0.25, 0.5)
+    assert label.get_text() == "label"
+    assert callable(bottom.axis)
+
+
+def test_gallery_subplot2grid_and_gridspec_updates():
+    fig = plt.figure()
+    wide = plt.subplot2grid((3, 3), (0, 0), colspan=2)
+    tall = fig.subplot2grid((3, 3), (1, 2), rowspan=2)
+    assert wide.get_position()[2] > tall.get_position()[2]
+
+    fig.axes[0].set_forward_navigation_events(False)
+    assert fig.axes[0].get_forward_navigation_events() == "auto"
+
+    gs = fig.add_gridspec(3, 1)
+    gs.update(top=0.8)
+    assert gs.top == 0.8
+    gs.tight_layout(fig)
