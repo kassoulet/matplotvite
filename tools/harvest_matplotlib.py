@@ -38,6 +38,10 @@ import matplotvite
 # Matplotlib internals, or interactive backends.
 SKIP_RE = re.compile(r"pytest\.|check_figures_equal\(|\binput\(|themes\.|savefig\(")
 
+# Imports the renderer supplies itself or never needs: pytest is a test-only
+# dependency, and bodies that use it are skipped by SKIP_RE.
+STRIPPED_IMPORTS = ("matplotlib", "numpy", "pytest")
+
 
 def find_tests_root(source: pathlib.Path | None) -> pathlib.Path | None:
     """Locate the `matplotlib/tests` directory inside a checkout or an sdist."""
@@ -98,14 +102,14 @@ class _ExampleStripper(ast.NodeTransformer):
 
     def visit_Import(self, node: ast.Import):
         kept = [alias for alias in node.names
-                if alias.name.split(".")[0] not in ("matplotlib", "numpy")]
+                if alias.name.split(".")[0] not in STRIPPED_IMPORTS]
         if not kept:
             return None
         node.names = kept
         return node
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
-        if (node.module or "").split(".")[0] in ("matplotlib", "numpy"):
+        if (node.module or "").split(".")[0] in STRIPPED_IMPORTS:
             return None
         return node
 

@@ -12,6 +12,7 @@ from tools.harvest_matplotlib import (_resolve_baseline, find_examples_root,
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
 
 @image_comparison([f"grid_{i}.png" for i in range(1, 3)], style="mpl20")
@@ -44,8 +45,9 @@ def test_harvest_reads_image_comparison_cases(tmp_path):
     assert cases[0]["baselines"] == ["grid_1.png", "grid_2.png"]
     assert cases[0]["params"] == []
     assert cases[1]["params"] == ["n"]
-    # The snippet drops matplotlib/numpy imports and saves the figure itself.
+    # The snippet drops matplotlib/numpy/pytest imports and saves the figure itself.
     assert "import matplotlib" not in cases[0]["snippet"]
+    assert "pytest" not in cases[0]["snippet"]
     assert cases[0]["snippet"].endswith("plt.savefig(OUT, dpi=100)\n")
 
 
@@ -74,6 +76,15 @@ def test_prepare_body_skips_unrenderable_bodies():
                  "    pytest.raises(ValueError, plt.plot)\n",
                  "    assert True\n"):
         assert prepare_body(body) is None
+
+
+def test_prepare_body_drops_test_only_imports():
+    cleaned = prepare_body(
+        "    import pytest\n"
+        "    from pytest import raises\n"
+        "    plt.plot([1])\n")
+    assert cleaned.startswith("plt.plot([1])")
+    assert "pytest" not in cleaned
 
 
 def test_resolve_baseline_fills_in_png_suffix(tmp_path):
