@@ -558,6 +558,9 @@ class _Bbox:
     def contains(self, x, y): return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
     def containsx(self, x): return self.x0 <= x <= self.x1
     def containsy(self, y): return self.y0 <= y <= self.y1
+    def __len__(self): return 4
+    def __iter__(self): return iter(self.bounds)
+    def __getitem__(self, index): return self.bounds[index]
 
     def __repr__(self):
         return f"Bbox({self.x0:g}, {self.y0:g}, {self.x1:g}, {self.y1:g})"
@@ -572,6 +575,41 @@ class _Transform:
     def transform(self, points): return np.asarray(points, dtype=np.float64)
 
     def inverted(self): return self
+
+
+class _BboxPatch:
+    """Stand-in for the optional patch behind a text annotation."""
+
+    def set_path_effects(self, effects):
+        _ignored("Patch.set_path_effects")
+        return self
+
+
+class _TextArt:
+    """Return value for text creation; carries the mutable bbox patch."""
+
+    def __init__(self):
+        self._bbox_patch = _BboxPatch()
+
+    def set_path_effects(self, effects):
+        _ignored("Text.set_path_effects")
+        return self
+
+    def get_bbox_patch(self): return self._bbox_patch
+
+
+class Text(_TextArt):
+    """Constructible text artist used by code that imports `matplotlib.text`."""
+
+    def __init__(self, x=0, y=0, text="", **kwargs):
+        super().__init__()
+        self._x, self._y, self._text = x, y, str(text)
+        self._axes = kwargs.get("axes")
+
+    def get_text(self): return self._text
+    def set_text(self, text): self._text = str(text); return self
+    def get_position(self): return (self._x, self._y)
+    def set_position(self, xy): self._x, self._y = xy; return self
 
 
 class _TextLabel:
@@ -1687,6 +1725,8 @@ class Collection:
     def set_norm(self, norm): return self
     def set_cmap(self, cmap): return self
     def set_sizes(self, sizes): return self
+    def set_capstyle(self, value): _ignored("Collection.set_capstyle"); return self
+    def set_joinstyle(self, value): _ignored("Collection.set_joinstyle"); return self
     def set_path_effects(self, effects): _ignored("Collection.set_path_effects")
     def set_clip_on(self, value): _ignored("Collection.set_clip_on")
     def set_clip_path(self, *args, **kwargs): _ignored("Collection.set_clip_path")
@@ -2074,6 +2114,35 @@ class _Callbacks:
     def disconnect(self, *args, **kwargs): return None
 
 
+class _Timer:
+    """Headless timer accepted by Matplotlib's animation event sources."""
+
+    def __init__(self, interval=1000, callbacks=None, **kwargs):
+        self.interval = interval
+        self.callbacks = []
+        self._running = False
+        for callback in callbacks or ():
+            self.add_callback(callback)
+
+    def add_callback(self, func, *args, **kwargs):
+        self.callbacks.append((func, args, kwargs))
+        return len(self.callbacks)
+
+    def remove_callback(self, func):
+        self.callbacks = [item for item in self.callbacks if item[0] is not func]
+
+    def start(self, interval=None):
+        if interval is not None:
+            self.interval = interval
+        self._running = True
+
+    def stop(self):
+        self._running = False
+
+    def single_shot(self, func, *args, **kwargs):
+        self.add_callback(func, *args, **kwargs)
+
+
 class _Manager:
     def __init__(self, canvas): self.canvas = canvas
     def set_window_title(self, *args, **kwargs): return None
@@ -2105,7 +2174,8 @@ class _Canvas:
     def blit(self, *args, **kwargs): return None
     def restore_region(self, *args, **kwargs): return None
     def copy_from_bbox(self, *args, **kwargs): return None
-    def new_timer(self, *args, **kwargs): return None
+    def new_timer(self, interval=1000, callbacks=None, **kwargs):
+        return _Timer(interval, callbacks, **kwargs)
     def set_window_title(self, *args, **kwargs): return None
     def start_event_loop(self, *args, **kwargs): return None
     def stop_event_loop(self, *args, **kwargs): return None
@@ -2632,7 +2702,14 @@ class Axes:
     def get_aux_axes(self, *args, **kwargs): return self
     def barbs(self, *args, **kwargs): return self.quiver(*args, **kwargs)
 
-    def add_artist(self, artist): self.artists.append(artist); return artist
+    def add_artist(self, artist):
+        if isinstance(artist, Text):
+            self.text(artist._x, artist._y, artist._text)
+        elif isinstance(artist, Line2D):
+            self.lines.append(artist._series)
+        else:
+            self.artists.append(artist)
+        return artist
     def set_anchor(self, anchor, **kwargs):
         self._anchor = anchor
         return None
@@ -2648,7 +2725,12 @@ class Axes:
         self.artists.append(collection)
         self.collections.append(collection)
         return collection
-    def add_line(self, line): self.artists.append(line); return line
+    def add_line(self, line):
+        if isinstance(line, Line2D):
+            self.lines.append(line._series)
+        else:
+            self.artists.append(line)
+        return line
     def get_children(self): return list(self.artists) + [self]
     def update(self, *args, **kwargs): return None
 
@@ -2868,9 +2950,10 @@ class Axes:
             raise ValueError(f"unsupported text transform: {transform!r}")
         size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         colour = colour if colour is not None else rcParams.get("text.color", "black")
-        if kind == "data":
-            x = self._xdate(x)
-        self.texts.append((float(x), float(y), _mathtext(s), _norm_color(colour), size, ha, va, kind))
+        x = _as_f64(self._xdate(x) if kind == "data" else x)
+        y = _as_f64(y)
+        self.texts.append((float(x[0]), float(y[0]), _mathtext(s), _norm_color(colour), size, ha, va, kind))
+        return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None, clim=None, **kwargs):
@@ -3369,7 +3452,7 @@ class Axes:
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
-        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
+        x = _as_f64(self._xdate(x))
         n = x.size
         h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
         if align not in ("center", "edge"):
@@ -3429,7 +3512,7 @@ class Axes:
     def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
              align="center", alpha=None, linewidth=None, **kwargs):
         """Horizontal bars, stored as the same rectangles as `bar`."""
-        y = np.asarray(y, dtype=np.float64).ravel()
+        y = _as_f64(y)
         n = y.size
         w, h, l = _fill(width, n), _fill(height, n), _fill(left, n)
         if align not in ("center", "edge"):
@@ -3455,7 +3538,7 @@ class Axes:
 
     def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
                       **kwargs):
-        y = np.asarray(y, dtype=np.float64).ravel()
+        y = _as_f64(y)
         a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
         c = color or self._next_color()
         for ys, xa, xb in _runs(y, a, b, where):
@@ -3479,6 +3562,7 @@ class Axes:
     def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
         """Horizontal line at data `y`, spanning an axes-fraction x range."""
+        y = _as_f64(y)[0]
         self._hline_refs.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
@@ -3486,7 +3570,7 @@ class Axes:
     def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
         """Vertical line at data `x`, spanning an axes-fraction y range."""
-        x = self._xdate(x)
+        x = _as_f64(self._xdate(x))[0]
         self._vline_refs.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
@@ -3494,13 +3578,14 @@ class Axes:
     def axhspan(self, ymin, ymax, xmin=0.0, xmax=1.0, color=None, alpha=None, label="",
                 **kwargs):
         """Horizontal band between two data y values, over an axes-fraction x range."""
+        ymin, ymax = _as_f64((ymin, ymax))
         self.hspans.append(dict(ymin=float(ymin), ymax=float(ymax), xmin=float(xmin),
                                 xmax=float(xmax), color=color, alpha=alpha, label=str(label)))
 
     def axvspan(self, xmin, xmax, ymin=0.0, ymax=1.0, color=None, alpha=None, label="",
                 **kwargs):
         """Vertical band between two data x values, over an axes-fraction y range."""
-        values = self._xdate((xmin, xmax))
+        values = _as_f64(self._xdate((xmin, xmax)))
         self.vspans.append(dict(xmin=float(values[0]), xmax=float(values[1]), ymin=float(ymin),
                                 ymax=float(ymax), color=color, alpha=alpha, label=str(label)))
 
@@ -3672,6 +3757,8 @@ class Axes:
         size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         color = color or kwargs.get("color") or rcParams.get("text.color", "black")
         xytext = kwargs.get("xytext", xytext)
+        xy = _as_f64(xy)
+        xytext = None if xytext is None else _as_f64(xytext)
         self.annotations.append((_mathtext(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size))
@@ -3685,8 +3772,8 @@ class Axes:
             y = data[y] if isinstance(y, str) else y
         if not label and getattr(y, "name", None) is not None:
             label = str(y.name)
-        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
+        x = _as_f64(self._xdate(x))
+        y = _as_f64(y)
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
         n = y.size
@@ -3790,8 +3877,8 @@ class Axes:
                  capsize=None, label="", color=None, **kwargs):
         """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
         error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
-        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
+        x = _as_f64(self._xdate(x))
+        y = _as_f64(y)
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
         n = y.size
@@ -3862,10 +3949,14 @@ class Axes:
         """Set the x limits; accepts `left`/`right` or Matplotlib's `xmin`/`xmax`."""
         left = kwargs.pop("xmin", left)
         right = kwargs.pop("xmax", right)
+        if right is None and left is not None:
+            candidate = np.asarray(left)
+            if candidate.ndim == 1 and candidate.size == 2:
+                left, right = candidate
         current = self.get_xlim()
         left = current[0] if left is None else left
         right = current[1] if right is None else right
-        values = self._xdate((left, right))
+        values = _as_f64(self._xdate((left, right)))
         limits = self.xlim = (float(values[0]), float(values[1]))
         if self._share_x is not None:
             self._share_x.limits = limits
@@ -3875,10 +3966,15 @@ class Axes:
         """Set the y limits; accepts `bottom`/`top` or `ymin`/`ymax`."""
         bottom = kwargs.pop("ymin", bottom)
         top = kwargs.pop("ymax", top)
+        if top is None and bottom is not None:
+            candidate = np.asarray(bottom)
+            if candidate.ndim == 1 and candidate.size == 2:
+                bottom, top = candidate
         current = self.get_ylim()
         bottom = current[0] if bottom is None else bottom
         top = current[1] if top is None else top
-        limits = self.ylim = (float(bottom), float(top))
+        values = _as_f64((bottom, top))
+        limits = self.ylim = (float(values[0]), float(values[1]))
         if self._share_y is not None:
             self._share_y.limits = limits
         return limits
@@ -4380,8 +4476,7 @@ def _as_image(X):
 
 def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markersize=6.0,
             mfc=None, mec=None, mew=1.0, alpha=None, drawstyle="default"):
-    return dict(x=np.ascontiguousarray(x, dtype=np.float64),
-                y=np.ascontiguousarray(y, dtype=np.float64),
+    return dict(x=_as_f64(x), y=_as_f64(y),
                 label=str(label), color=_norm_color(color), linestyle=str(linestyle),
                 linewidth=float(linewidth), marker=str(marker), markersize=float(markersize),
                 mfc=_norm_color(mfc), mec=_norm_color(mec), mew=float(mew),
@@ -4588,8 +4683,18 @@ def _as_f64(v):
     arr = np.asarray(v)
     if arr.dtype.kind == "O":
         def number(item):
+            if item is None or np.ma.is_masked(item):
+                return np.nan
+            if isinstance(item, (np.datetime64, _datetime.date)):
+                return _datetime_to_num(item)
+            if hasattr(item, "_seconds") and hasattr(item, "frame"):
+                return float(item._seconds)
             if hasattr(item, "_jd"):
-                return float(item._jd + item._seconds / 86400.0)
+                return float(item._jd + getattr(item, "_seconds", 0.0) / 86400.0)
+            if hasattr(item, "get_value"):
+                value = item.get_value()
+                if np.isscalar(value):
+                    return float(value)
             if hasattr(item, "_value"):
                 return float(item._value)
             if hasattr(item, "value"):
@@ -4645,7 +4750,7 @@ def _runs(x, y1, y2, where):
 
 
 def _fill(values, n):
-    a = np.asarray(values, dtype=np.float64).ravel()
+    a = _as_f64(values)
     if a.size == 1:
         return np.full(n, float(a[0]))
     if a.size != n:
@@ -4717,6 +4822,11 @@ def _bar_colors(color, n):
         return [_norm_color(color)]
     if _is_rgb(color):
         return [_norm_color(color)]
+    array = np.asarray(color)
+    if array.ndim == 2 and array.shape[1] in (3, 4):
+        vals = [_norm_color(row) for row in array]
+        if len(vals) in (1, n):
+            return vals
     vals = [_norm_color(v) for v in np.asarray(color, dtype=object).ravel()]
     if len(vals) not in (1, n):
         raise ValueError("color must be a single colour or one per bar")
@@ -5010,9 +5120,19 @@ class GridSpec:
             raise ValueError("GridSpec ratios must be positive and finite")
 
     def __getitem__(self, key):
-        rows, cols = key if isinstance(key, tuple) else (key, key)
-        return SubplotSpec(self, _span_index(rows, self.nrows),
-                           _span_index(cols, self.ncols))
+        if isinstance(key, tuple):
+            rows, cols = key
+            return SubplotSpec(self, _span_index(rows, self.nrows),
+                               _span_index(cols, self.ncols))
+        # A single index is flat, row-major, matching Matplotlib's GridSpec.
+        index = int(key)
+        size = self.nrows * self.ncols
+        if index < 0:
+            index += size
+        if not 0 <= index < size:
+            raise IndexError("GridSpec index out of range")
+        row, col = divmod(index, self.ncols)
+        return SubplotSpec(self, (row, row), (col, col))
 
     def get_geometry(self):
         return self.nrows, self.ncols
@@ -5123,9 +5243,10 @@ class Figure:
             raise ValueError(f"unsupported va: {va!r}")
         size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         colour = colour if colour is not None else rcParams.get("text.color", "black")
-        self._figure_texts.append((float(x), float(y), _mathtext(s),
+        values = _as_f64((x, y))
+        self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s),
                                    _norm_color(colour), size, ha, va))
-        return None
+        return _TextArt()
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
         """index is 1-based, row-major (matplotlib convention); a `SubplotSpec`
@@ -5197,6 +5318,12 @@ class Figure:
 
     def add_axes(self, rect=None, **kwargs):
         """Add an axes whose figure-fraction rectangle is the plotting area."""
+        if isinstance(rect, Axes):
+            ax = rect
+            ax._fig = self
+            self.axes.append(ax)
+            self._cur = ax
+            return ax
         ax = Axes(len(self.axes) + 1000)
         ax._fig = self
         ax.set_position(rect if rect is not None else (0.0, 0.0, 1.0, 1.0))
@@ -5431,6 +5558,7 @@ def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fonts
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
 def title(text, fontsize=None, **kwargs): gca().set_title(text, fontsize=fontsize)
 def text(*args, **kwargs): return gca().text(*args, **kwargs)
+text.Text = Text
 def xticks(ticks=None, labels=None, **kwargs):
     return gca().xticks(ticks, labels=labels, **kwargs)
 def yticks(ticks=None, labels=None, **kwargs):
@@ -5737,6 +5865,8 @@ class _PathEffects:
     class SimpleLineShadow:
         def __init__(self, *args, **kwargs): pass
     class Stroke:
+        def __init__(self, *args, **kwargs): pass
+    class PathPatchEffect:
         def __init__(self, *args, **kwargs): pass
 
     @staticmethod

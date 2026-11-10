@@ -2644,3 +2644,50 @@ def test_gallery_collection_and_pie_handles():
     assert pie.wedges and pie.texts is not None
     legend = ax.legend()
     assert legend.legendPatch is not None
+
+
+def test_gallery_animation_gridspec_and_numeric_inputs():
+    from datetime import datetime
+
+    class UnitValue:
+        def __init__(self, value):
+            self._value = value
+
+    class TaggedValue:
+        def __init__(self, value):
+            self.value = value
+
+    fig = plt.figure()
+    timer = fig.canvas.new_timer(interval=25)
+    assert timer.interval == 25
+    assert timer.add_callback(lambda: None) == 1
+    timer.start()
+    timer.stop()
+
+    gs = fig.add_gridspec(1, 2)
+    right = gs[1]
+    assert right.rows == (0, 0) and right.cols == (1, 1)
+    nested = right.subgridspec(2, 2)
+    assert nested[3].rows == (1, 1) and nested[3].cols == (1, 1)
+
+    ax = fig.add_subplot(gs[0])
+    ax.plot([0, 1], [None, 2])
+    ax.plot([UnitValue(0), UnitValue(1)], [TaggedValue(0), TaggedValue(1)])
+    ax.bar([UnitValue(0), UnitValue(1)], [UnitValue(2), UnitValue(3)])
+    ax.bar([1, 2], [1, 2],
+           color=np.array([[1, 0, 0, 1], [0, 0, 1, 1]], dtype=float))
+    ax.set_xlim([-1, 2])
+    ax.set_ylim([-2, 3])
+    ax.axhline(datetime(2024, 1, 2))
+    ax.axhspan(datetime(2024, 1, 1), datetime(2024, 1, 3))
+    assert len(ax.get_position()) == 4
+
+    text = ax.text(0, 0, "text")
+    assert text.set_path_effects([]) is text
+    assert text.get_bbox_patch().set_path_effects([]) is not None
+    assert fig.text(0.5, 0.5, "figure").set_path_effects([]) is not None
+
+    other = plt.figure()
+    added = plt.Axes(other, [0.1, 0.1, 0.5, 0.5])
+    assert other.add_axes(added) is added
+    assert other.axes[-1] is added
