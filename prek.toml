@@ -27,6 +27,7 @@ hooks = [
 [[repos]]
 repo = "local"
 hooks = [
+  { id = "bandit", name = "bandit", entry = "python -m bandit -q -r python/matplotvite", language = "python", additional_dependencies = ["bandit>=1.9"], pass_filenames = false },
   { id = "cargo-fmt", name = "cargo fmt --check", entry = "cargo fmt --all -- --check", language = "system", pass_filenames = false },
   { id = "cargo-clippy", name = "cargo clippy", entry = "cargo clippy --all-targets -- -D warnings", language = "system", pass_filenames = false },
   { id = "cargo-test", name = "cargo test", entry = "cargo test --all-targets", language = "system", pass_filenames = false },

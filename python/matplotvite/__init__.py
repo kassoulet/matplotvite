@@ -3961,7 +3961,6 @@ class Axes:
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
 
     @staticmethod
-    @staticmethod
     def _size_or(value, key):
         return _font_size(value, rcParams.get(key, rcParams.get("font.size", 10.0)))
 

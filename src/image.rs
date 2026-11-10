@@ -197,7 +197,7 @@ pub(crate) fn image_rgb(
         .for_each(|(y, row)| {
             let sy = (y as u64 * sh as u64 / height as u64) as usize;
             let src_row = sy * sw as usize * 4;
-            for (x, dst) in row.chunks_exact_mut(3).enumerate() {
+            for (x, dst) in row.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                 let src_i = src_row + columns[x] * 4;
                 let alpha = src[src_i + 3] as u32;
                 for c in 0..3 {
