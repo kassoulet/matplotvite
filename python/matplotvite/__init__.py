@@ -15,6 +15,7 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
+    "ScalarMappable",
     "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
@@ -1048,6 +1049,47 @@ class _QuiverHandle:
     def get_U(self): return self._e["u"]
     def get_V(self): return self._e["v"]
     def get_facecolor(self): return list(self._e["colors"])
+
+
+class _ScatterHandle:
+    """Handle for one scatter collection, including its color scale."""
+
+    def __init__(self, entry, axes=None):
+        self._e = entry
+        self.axes = axes
+
+    def get_offsets(self):
+        return np.column_stack([self._e["x"], self._e["y"]])
+
+    def get_sizes(self): return self._e["sizes"]
+    def get_array(self): return self._e["values"]
+    def get_cmap(self): return self._e["cmap"]
+
+    def get_clim(self):
+        clim = self._e["clim"]
+        return tuple(clim) if clim is not None else (None, None)
+
+    def set_clim(self, vmin=None, vmax=None):
+        if vmin is not None or vmax is not None:
+            self._e["clim"] = (vmin, vmax)
+        return self
+
+    def _colorbar_spec(self):
+        values = self._e["values"]
+        if values is None:
+            raise ValueError("scatter needs numeric c values for a colorbar")
+        vals = np.asarray(values, dtype=float).ravel()
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            raise ValueError("scatter has no finite c values for a colorbar")
+        clim = self._e["clim"]
+        lo, hi = (float(vals.min()), float(vals.max())) if clim is None else clim
+        lo = float(vals.min()) if lo is None else float(lo)
+        hi = float(vals.max()) if hi is None else float(hi)
+        if not hi > lo:
+            lo, hi = lo - 0.5, lo + 0.5
+        return dict(cmap=self._e["cmap"] or rcParams.get("image.cmap", "viridis"),
+                    vmin=lo, vmax=hi)
 
 
 class _HexbinHandle:
@@ -3816,12 +3858,14 @@ class Axes:
             raise ValueError("x and y must have the same length")
         n = y.size
         values, colors = _scatter_colors(c if c is not None else self._next_color(), n)
-        self.scatter_pts.append(dict(
+        entry = dict(
             x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
             values=values, cmap=_cmap_name(cmap),
             clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
             marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
-            label=str(label)))
+            label=str(label))
+        self.scatter_pts.append(entry)
+        return _ScatterHandle(entry, self)
 
     def quiver(self, *args, U=None, V=None, C=None, color=None, angles="xy",
                scale=None, scale_units=None, units="width", width=None,
@@ -5471,6 +5515,9 @@ class Figure:
         """Reserve a strip beside `mappable`'s axes showing its scale."""
         if not self.axes:
             raise ValueError("colorbar needs at least one axes")
+        cax = kwargs.get("cax")
+        if cax is not None:
+            ax = cax
         if isinstance(ax, (list, tuple, np.ndarray)):
             candidates = np.asarray(ax, dtype=object).ravel()
             ax = next((item for item in candidates
@@ -5484,7 +5531,8 @@ class Figure:
                 owner = next((a for a in self.axes
                               if entry is not None
                               and (any(item is entry for item in a.images)
-                                   or any(item is entry for item in a.contours))), None)
+                                   or any(item is entry for item in a.contours)
+                                   or any(item is entry for item in a.scatter_pts))), None)
                 axes = owner or axes
         else:
             axes = ax
@@ -5970,6 +6018,42 @@ class _MColors:
         return value if keep_alpha or value in (None, "none") else value[:7]
 
 
+class ScalarMappable:
+    """Minimal `matplotlib.cm.ScalarMappable` for standalone colorbars."""
+
+    def __init__(self, norm=None, cmap=None):
+        self.norm = norm if norm is not None else _Normalize()
+        self.cmap = _cmap_name(cmap)
+        self._array = None
+
+    def set_array(self, values):
+        self._array = None if values is None else np.asarray(values, dtype=float)
+        return self
+
+    def get_array(self): return self._array
+
+    def set_clim(self, vmin=None, vmax=None):
+        self.norm.vmin = vmin
+        self.norm.vmax = vmax
+        return self
+
+    def get_clim(self): return (self.norm.vmin, self.norm.vmax)
+    def get_cmap(self): return self.cmap
+
+    def _colorbar_spec(self):
+        lo, hi = self.norm.vmin, self.norm.vmax
+        if self._array is not None and (lo is None or hi is None):
+            values = self._array[np.isfinite(self._array)]
+            if values.size:
+                lo = float(values.min()) if lo is None else lo
+                hi = float(values.max()) if hi is None else hi
+        lo = 0.0 if lo is None else float(lo)
+        hi = 1.0 if hi is None else float(hi)
+        if not hi > lo:
+            lo, hi = lo - 0.5, lo + 0.5
+        return dict(cmap=self.cmap, vmin=lo, vmax=hi)
+
+
 class _NoopLocator:
     def __init__(self, *args, **kwargs): pass
     def __call__(self): return []
@@ -6018,6 +6102,8 @@ def _offset_copy(trans, fig=None, x=0, y=0, units="inches", **kwargs):
 
 
 mcolors = _MColors()
+mcolors.ScalarMappable = ScalarMappable
+cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches
 mpath = _Namespace(Path=Path)

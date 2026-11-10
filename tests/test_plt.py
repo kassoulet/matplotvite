@@ -600,6 +600,40 @@ def test_colorbar_from_explicit_mappable(tmp_path):
     assert re.search(r">\s*0\s*</text>", s) and re.search(r">\s*1\s*</text>", s)
 
 
+def test_colorbar_from_scatter_and_scalar_mappable(tmp_path):
+    fig, ax = plt.subplots(figsize=(6, 3))
+    sc = ax.scatter([1, 2, 3, 4, 5], [1, 4, 9, 16, 25],
+                    c=[0.0, 0.5, 1.0, 2.0, 3.0], cmap="viridis")
+    assert sc.get_array().size == 5
+    cb = fig.colorbar(sc, ax=ax, label="value")
+    assert cb.get_label() == "value"
+    assert ax._panel()["colorbar"] is not None
+    p = tmp_path / "scatter_cb.svg"
+    fig.savefig(p)
+    assert "value" in p.read_text()
+
+    fig, ax = plt.subplots(figsize=(6, 3))
+    sm = plt.ScalarMappable(cmap="magma")
+    sm.set_array([2.0, 4.0, 8.0])
+    fig.colorbar(sm, ax=ax, label="standalone")
+    assert ax._panel()["colorbar"][:3] == ("magma", 2.0, 8.0)
+
+    fig, (ax, cax) = plt.subplots(1, 2, figsize=(6, 3))
+    sc = ax.scatter([1, 2], [1, 2], c=[0.0, 1.0])
+    fig.colorbar(sc, cax=cax)
+    assert cax._panel()["colorbar"] is not None
+
+
+def test_colorbar_uses_nice_ticks():
+    fig, ax = plt.subplots(figsize=(6, 3))
+    im = ax.imshow(np.linspace(0.0, 1.0, 100).reshape(10, 10))
+    ax.set_axis_off()
+    fig.colorbar(im, ax=ax)
+    svg = fig.savefig(None, format="svg").decode()
+    assert re.search(r">\s*0\.2\s*</text>", svg) and re.search(r">\s*0\.8\s*</text>", svg)
+    assert not re.search(r">\s*0\.5\s*</text>", svg)
+
+
 def test_colorbar_on_multiple_axes(tmp_path):
     fig, axs = plt.subplots(1, 2, figsize=(6, 3))
     for ax, offset in zip(axs, (0.0, 10.0)):

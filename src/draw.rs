@@ -994,16 +994,6 @@ where
     Ok(())
 }
 
-fn num(v: f64) -> String {
-    let s = format!("{v:.4}");
-    let s = s.trim_end_matches('0').trim_end_matches('.').to_string();
-    if s.is_empty() || s == "-0" {
-        "0".to_string()
-    } else {
-        s
-    }
-}
-
 /// A vertical gradient strip with min/mid/max ticks and an optional axis label.
 /// `plot` is the main chart's plotting rectangle in panel-local pixels; the
 /// strip spans exactly that vertical range, like a matplotlib colorbar.
@@ -1036,23 +1026,25 @@ where
     }
     let frame = RGBColor(90, 90, 90);
     area.draw(&Rectangle::new([(x0, y0), (x1, y1)], frame.stroke_width(1)))?;
-    let mid = (vmin + vmax) / 2.0;
-    for (t, v) in [(0.0, vmin), (0.5, mid), (1.0, vmax)] {
-        let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
-        area.draw(&PathElement::new(
-            vec![(x0 - 4, y), (x0, y)],
-            frame.stroke_width(1),
-        ))?;
-        draw_label(
-            area,
-            (0, 0),
-            (x1 + 6, y),
-            &num(v),
-            RGBAColor(0, 0, 0, 1.0),
-            13.0,
-            "left",
-            "center",
-        )?;
+    if vmax > vmin {
+        for v in auto_ticks(vmin, vmax, false) {
+            let t = (v - vmin) / (vmax - vmin);
+            let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
+            area.draw(&PathElement::new(
+                vec![(x0 - 4, y), (x0, y)],
+                frame.stroke_width(1),
+            ))?;
+            draw_label(
+                area,
+                (0, 0),
+                (x1 + 6, y),
+                &tick_label(v),
+                RGBAColor(0, 0, 0, 1.0),
+                13.0,
+                "left",
+                "center",
+            )?;
+        }
     }
     if !label.is_empty() {
         draw_label(
