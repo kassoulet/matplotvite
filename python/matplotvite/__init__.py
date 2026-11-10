@@ -230,16 +230,22 @@ class Colormap:
     def __call__(self, X, alpha=None, bytes=False):
         arr = np.asarray(X, dtype=np.float64)
         scalar = arr.ndim == 0
-        t = np.clip(arr, 0.0, 1.0)
+        missing = ~np.isfinite(arr)
+        t = np.clip(np.where(missing, 0.0, arr), 0.0, 1.0)
         index = np.minimum((t * self.N).astype(int), self.N - 1)
         if self._reverse:
             index = self.N - 1 - index
-        rgb = self._rgb[index]
+        rgb = self._rgb[index].copy()
+        # Matplotlib maps non-finite samples to the fully transparent "bad"
+        # colour rather than casting NaN to an out-of-range array index.
+        if np.any(missing):
+            rgb[missing] = 0.0
         if alpha is None:
-            alpha_arr = np.ones(rgb.shape[:-1], dtype=np.float64)
+            alpha_arr = np.where(missing, 0.0, 1.0)
         else:
             alpha_arr = np.broadcast_to(np.asarray(alpha, dtype=np.float64),
-                                        rgb.shape[:-1])
+                                        rgb.shape[:-1]).copy()
+            alpha_arr[missing] = 0.0
         rgba = np.concatenate([rgb, alpha_arr[..., None]], axis=-1)
         if bytes:
             rgba = np.round(rgba * 255.0).astype(np.uint8)
@@ -1043,6 +1049,8 @@ class Axes:
         self._cycle_pos = 0
         self._twin, self._twin_gap, self._twin_of = "", 0.0, None
         self._fig = None
+        self._colorbar = None
+        self._bounds_are_axes = False
 
     def _next_color(self):
         cycle = self._prop_cycle or _CYCLE
@@ -1138,6 +1146,56 @@ class Axes:
 
     def set_position(self, pos):
         self._pos_override = tuple(float(v) for v in pos)
+        self._bounds_are_axes = True
+
+    def _render_bounds(self, dpi=None):
+        """Expand an axes rectangle by the renderer's label margins.
+
+        Matplotlib's `add_axes`/`set_position` rectangle is the axes box, not
+        the outer panel; the fixed tick, label and title margins live outside
+        it. The renderer takes a panel rectangle, so add those margins back
+        before drawing.
+        """
+        if self._pos_override is None:
+            return None
+        if not getattr(self, "_bounds_are_axes", False) or self._fig is None:
+            return self._pos_override
+        dpi = float(self._fig.get_dpi() if dpi is None else dpi)
+        fw, fh = self._fig.get_size_inches()
+        width, height = fw * dpi, fh * dpi
+        if width <= 0.0 or height <= 0.0:
+            return self._pos_override
+        left, right, bottom = 70.0 / width, 25.0 / width, 60.0 / height
+        title_pad = 0.0
+        if self.title:
+            title_size = float(self.title_size or rcParams.get("axes.titlesize", 12.0))
+            title_pad = title_size * dpi / 72.0 * 1.24 * 1.45 + 4.0
+        top = (25.0 + title_pad) / height
+        x, y, w, h = self._pos_override
+        x0, y0 = max(0.0, x - left), max(0.0, y - bottom)
+        x1, y1 = min(1.0, x + w + right), min(1.0, y + h + top)
+        return (x0, y0, max(x1 - x0, 0.01), max(y1 - y0, 0.01))
+
+    def inset_axes(self, bounds, *, transform=None, zorder=5, **kwargs):
+        """Place a child axes inside this one, in axes-fraction coordinates."""
+        if self._fig is None:
+            raise RuntimeError("inset_axes needs an axes attached to a figure")
+        kind = getattr(transform, "kind", "axes") if transform is not None else "axes"
+        if kind != "axes":
+            raise NotImplementedError("inset_axes only supports axes-fraction bounds")
+        if len(bounds) != 4:
+            raise ValueError("inset_axes bounds must be (x, y, width, height)")
+        x, y, w, h = (float(v) for v in bounds)
+        box = self.get_position()
+        child = Axes(len(self._fig.axes))
+        child._fig = self._fig
+        child._pos_override = (box.x0 + x * box.width, box.y0 + y * box.height,
+                               w * box.width, h * box.height)
+        child._bounds_are_axes = True
+        child.zorder = int(zorder)
+        self._fig.axes.append(child)
+        self._fig._cur = child
+        return child
 
     def twinx(self):
         """A second axes sharing the x axis, with its own y axis on the right."""
@@ -1159,10 +1217,12 @@ class Axes:
             gap = 50.0 / (fig.figsize[1] * fig.get_dpi())
             base = (box.x0, box.y0, box.width, max(box.height - gap, 0.05))
         self._pos_override = base
+        self._bounds_are_axes = False
         twin = Axes(self.pos)
         twin._fig, twin._twin, twin._twin_gap = fig, axis, gap
         twin._twin_of = self
         twin._pos_override = box.bounds
+        twin._bounds_are_axes = False
         twin.facecolor = "none"
         if axis == "y":
             group = self._share_x or _Share()
@@ -2680,7 +2740,7 @@ class Axes:
     def set_in_layout(self, b): self.in_layout = bool(b)
     def get_in_layout(self): return getattr(self, "in_layout", True)
 
-    def _panel(self):
+    def _panel(self, dpi=None):
         (x0, x1), (y0, y1) = self._limits()
         dx, dy = x1 - x0, y1 - y0
         # Reference lines and bands are axes-fraction based, so they are resolved
@@ -2793,15 +2853,14 @@ class Axes:
                              for e in scatter],
                     arrows=arrows,
                     colorbar=(
-                        (self._fig._colorbar["cmap"], self._fig._colorbar["vmin"],
-                         self._fig._colorbar["vmax"], self._fig._colorbar["label"])
-                        if self._fig is not None and self._fig._colorbar is not None
-                        and self is self._fig.axes[0] else None
+                        (self._colorbar["cmap"], self._colorbar["vmin"],
+                         self._colorbar["vmax"], self._colorbar["label"])
+                        if self._colorbar is not None else None
                     ),
                     axis_off=self._axis_off,
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
                     foreground=_norm_color(rcParams.get("text.color")),
-                    bounds=self._pos_override, twin=self._twin, twin_gap=self._twin_gap,
+                    bounds=self._render_bounds(dpi), twin=self._twin, twin_gap=self._twin_gap,
                     patches=patches, collections=collections,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True,
                              e["alpha"], e["interpolation"])
@@ -3144,7 +3203,8 @@ def _kde(values, points=100, bw_method=None):
 def _cmap_colors(cmap, values):
     """Map normalised values through any registered colormap to hex colours."""
     _, table, reverse = _cmap_lookup(cmap)
-    t = np.clip(np.asarray(values, dtype=np.float64).ravel(), 0.0, 1.0)
+    arr = np.asarray(values, dtype=np.float64).ravel()
+    t = np.clip(np.where(np.isfinite(arr), arr, 0.0), 0.0, 1.0)
     n = table.shape[0]
     index = np.minimum((t * n).astype(int), n - 1)
     if reverse:
@@ -3385,7 +3445,8 @@ class GridSpec:
     """Irregular row/column layout; index it to get a `SubplotSpec`."""
 
     def __init__(self, nrows, ncols, figure=None, left=0.0, right=1.0,
-                 bottom=0.0, top=1.0, wspace=None, hspace=None):
+                 bottom=0.0, top=1.0, wspace=None, hspace=None,
+                 width_ratios=None, height_ratios=None):
         if int(nrows) < 1 or int(ncols) < 1:
             raise ValueError("GridSpec needs at least one row and one column")
         self.nrows, self.ncols = int(nrows), int(ncols)
@@ -3394,6 +3455,16 @@ class GridSpec:
         self.bottom, self.top = float(bottom), float(top)
         self.wspace = 0.2 if wspace is None else float(wspace)
         self.hspace = 0.2 if hspace is None else float(hspace)
+        self.width_ratios = ([1.0] * self.ncols if width_ratios is None
+                             else [float(v) for v in width_ratios])
+        self.height_ratios = ([1.0] * self.nrows if height_ratios is None
+                              else [float(v) for v in height_ratios])
+        if len(self.width_ratios) != self.ncols:
+            raise ValueError("width_ratios must have one value per column")
+        if len(self.height_ratios) != self.nrows:
+            raise ValueError("height_ratios must have one value per row")
+        if any(not np.isfinite(v) or v <= 0.0 for v in self.width_ratios + self.height_ratios):
+            raise ValueError("GridSpec ratios must be positive and finite")
 
     def __getitem__(self, key):
         rows, cols = key if isinstance(key, tuple) else (key, key)
@@ -3406,20 +3477,22 @@ class GridSpec:
     def _bounds(self, rows, cols):
         r0, r1 = rows
         c0, c1 = cols
-        cell_w = (self.right - self.left) / self.ncols
-        cell_h = (self.top - self.bottom) / self.nrows
-        x0 = self.left + c0 * cell_w
-        x1 = self.left + (c1 + 1) * cell_w
-        y1 = self.top - r0 * cell_h
-        y0 = self.top - (r1 + 1) * cell_h
+        width = self.right - self.left
+        height = self.top - self.bottom
+        cell_w = width / sum(self.width_ratios)
+        cell_h = height / sum(self.height_ratios)
+        x0 = self.left + sum(self.width_ratios[:c0]) * cell_w
+        x1 = self.left + sum(self.width_ratios[:c1 + 1]) * cell_w
+        y1 = self.top - sum(self.height_ratios[:r0]) * cell_h
+        y0 = self.top - sum(self.height_ratios[:r1 + 1]) * cell_h
         if c0 > 0:
-            x0 += self.wspace * cell_w / 2.0
+            x0 += self.wspace * (width / self.ncols) / 2.0
         if c1 < self.ncols - 1:
-            x1 -= self.wspace * cell_w / 2.0
+            x1 -= self.wspace * (width / self.ncols) / 2.0
         if r0 > 0:
-            y1 -= self.hspace * cell_h / 2.0
+            y1 -= self.hspace * (height / self.nrows) / 2.0
         if r1 < self.nrows - 1:
-            y0 += self.hspace * cell_h / 2.0
+            y0 += self.hspace * (height / self.nrows) / 2.0
         return (x0, y0, max(x1 - x0, 0.01), max(y1 - y0, 0.01))
 
 
@@ -3491,6 +3564,7 @@ class Figure:
         ax = Axes(len(self.axes))
         ax._fig = self
         ax._pos_override = spec.gridspec._bounds(spec.rows, spec.cols)
+        ax._bounds_are_axes = False
         self.axes.append(ax)
         self._cur = ax
         return ax
@@ -3535,10 +3609,11 @@ class Figure:
         return self._cur or self.add_subplot()
 
     def add_axes(self, rect=None, **kwargs):
-        """Compatibility shim: `rect` is stored but layout stays on the grid."""
+        """Add an axes whose figure-fraction rectangle is the plotting area."""
         rows, cols = self.grid
         ax = self.add_subplot(rows, cols, len(self.axes) + 1)
         ax.set_position(rect if rect is not None else (0.0, 0.0, 1.0, 1.0))
+        ax._bounds_are_axes = True
         return ax
 
     def draw_without_rendering(self): return None
@@ -3562,10 +3637,22 @@ class Figure:
         self.figsize = _validate_figsize((width, height))
 
     def colorbar(self, mappable=None, ax=None, label=""):
-        """Reserve a strip beside the single axes showing `mappable`'s scale."""
-        if self.grid != (1, 1) or len(self.axes) != 1:
-            raise NotImplementedError("colorbar needs a figure with a single axes")
-        axes = ax or self.axes[0]
+        """Reserve a strip beside `mappable`'s axes showing its scale."""
+        if not self.axes:
+            raise ValueError("colorbar needs at least one axes")
+        if isinstance(ax, (list, tuple, np.ndarray)):
+            raise NotImplementedError("colorbar needs a single axes")
+        if ax is None:
+            axes = self._cur or self.axes[0]
+            if mappable is not None:
+                entry = getattr(mappable, "_e", None)
+                owner = next((a for a in self.axes
+                              if entry is not None
+                              and (any(item is entry for item in a.images)
+                                   or any(item is entry for item in a.contours))), None)
+                axes = owner or axes
+        else:
+            axes = ax
         if mappable is not None:
             spec = mappable._colorbar_spec()
         elif axes.contours:
@@ -3574,9 +3661,11 @@ class Figure:
             spec = AxesImage(axes.images[-1])._colorbar_spec()
         else:
             raise ValueError("colorbar needs an image or contour to describe")
-        self._colorbar = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
-                              vmax=float(spec["vmax"]), label=str(label))
-        return Colorbar(self._colorbar)
+        entry = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
+                     vmax=float(spec["vmax"]), label=str(label))
+        axes._colorbar = entry
+        self._colorbar = entry
+        return Colorbar(entry)
 
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
@@ -3610,7 +3699,7 @@ class Figure:
                 f"total figure pixel count ({rw * rh}) exceeds maximum allowed ({_MAX_CANVAS_AREA}px)"
             )
         w, h = rw, rh
-        panels = [a._panel() for a in self.axes if a.visible and not a._removed]
+        panels = [a._panel(dpi) for a in self.axes if a.visible and not a._removed]
         # savefig(dpi=) overrides the figure default, and text sizes scale with it.
         for panel in panels:
             panel["dpi"] = dpi

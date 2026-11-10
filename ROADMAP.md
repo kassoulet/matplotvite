@@ -142,12 +142,12 @@
 - [x] `pie(x, labels=, autopct=, colors=, explode=, startangle=, normalize=)` — wedges as filled polygons with equal aspect, axis off, returns `(wedges, texts, autotexts)`; `shadow` ignored
 - [x] `boxplot(x, notch=, vert=, patch_artist=, labels=)` — boxes, whiskers, caps, medians and fliers from 1.5-IQR statistics; notched outlines, horizontal orientation, optional filled boxes and per-dataset labels
 - [x] `violinplot(dataset, positions=, vert=, widths=)` — Gaussian KDE per dataset drawn as a filled violin, with optional mean/median/extrema lines, one-sided bodies and quantile markers
-- [x] `imshow(X, cmap=, vmin=, vmax=, origin=, extent=, aspect=)` — 2-D arrays via colormap and RGB(A) arrays, embedded as PNG data URIs; `interpolation`/`alpha` accepted but ignored
+- [x] `imshow(X, cmap=, vmin=, vmax=, origin=, extent=, aspect=)` — 2-D arrays via colormap and RGB(A) arrays, embedded as fast PNG data URIs; `interpolation`/`alpha` honoured
 - [x] `set_aspect('equal' | 'auto' | <number>)` — shrinks the plotting box to fix the data scale (matplotlib's `adjustable="box"`)
 - [x] `contour(X, Y, Z, levels=, colors=, cmap=)` — marching-squares iso-lines (`linewidths`/`alpha` accepted but ignored)
 - [x] `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands by clipping each grid triangle against the level pair (`alpha` accepted but ignored)
 - [x] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
-- [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks in a reserved grid cell (single-axes figures)
+- [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes (including multi-panel figures)
 - [x] `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` / `pcolor` / `pcolorfast` — cells rasterised through the image path, edges or centres accepted (`shading`/`norm` accepted but ignored)
 - [x] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)` — 2-D histograms through the image path and hexagonal binning with colormap-mapped cells, including `C=`, `mincnt=` and per-axis `bins`
 - [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` (`baseline="zero"` and `"sym"`)

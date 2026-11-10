@@ -197,6 +197,28 @@ def test_imshow_renders(tmp_path):
     assert (tmp_path / "im.png").stat().st_size > 0
 
 
+def test_colormap_maps_nan_to_transparent():
+    cmap = plt.get_cmap("viridis")
+    assert cmap(np.nan) == (0.0, 0.0, 0.0, 0.0)
+    rgba = cmap([0.0, np.nan, 1.0])
+    assert np.allclose(rgba[0], cmap(0.0))
+    assert np.array_equal(rgba[1], [0.0, 0.0, 0.0, 0.0])
+    assert np.allclose(rgba[2], cmap(1.0))
+
+
+def test_text_newline_draws_separate_lines(tmp_path):
+    plt.figure((4, 3))
+    plt.text(0.1, 0.5, "first\nsecond")
+    p = tmp_path / "multiline.svg"
+    plt.savefig(p)
+    ys = {}
+    for name in ("first", "second"):
+        match = re.search(rf'<text x="-?\d+" y="(\d+)"[^>]*>\s*{name}', p.read_text())
+        assert match is not None
+        ys[name] = int(match.group(1))
+    assert ys["first"] != ys["second"]
+
+
 def test_imshow_rgb_handle_and_errors(tmp_path):
     plt.figure((4, 3))
     ax = plt.gca()
@@ -520,12 +542,18 @@ def test_colorbar_from_explicit_mappable(tmp_path):
     assert re.search(r">\s*0\s*</text>", s) and re.search(r">\s*1\s*</text>", s)
 
 
-def test_colorbar_rejects_multiple_axes():
+def test_colorbar_on_multiple_axes(tmp_path):
     fig, axs = plt.subplots(1, 2, figsize=(6, 3))
-    axs[0].plot([1, 2])
-    axs[1].plot([2, 1])
-    with pytest.raises(NotImplementedError):
-        fig.colorbar()
+    for ax, offset in zip(axs, (0.0, 10.0)):
+        im = ax.imshow(np.arange(12.0).reshape(3, 4) + offset)
+        fig.colorbar(im, ax=ax, label=f"z{offset:g}")
+    assert axs[0]._panel()["colorbar"] is not None
+    assert axs[1]._panel()["colorbar"] is not None
+    assert axs[0]._panel()["colorbar"][3] == "z0"
+    assert axs[1]._panel()["colorbar"][3] == "z10"
+    p = tmp_path / "multi_cb.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_scatter_stroke_and_dot_markers(tmp_path):
@@ -832,6 +860,38 @@ def test_figure_introspection_and_add_axes(tmp_path):
     fig.savefig(p)
     b = p.read_bytes()
     assert (int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")) == (600, 300)
+
+
+def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
+    fig = plt.figure((4, 3))
+    ax = fig.add_axes([0.2, 0.2, 0.6, 0.6])
+    ax.set_facecolor("red")
+    ax.plot([0, 1], [0, 1])
+    p = tmp_path / "plot_area.svg"
+    fig.savefig(p)
+    match = re.search(
+        r'<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" '
+        r'opacity="1" fill="#FF0000"',
+        p.read_text(),
+    )
+    assert match is not None
+    x, y, w, h = (int(v) for v in match.groups())
+    assert abs(x - 80) <= 2 and abs(y - 60) <= 2
+    assert abs(w - 240) <= 2 and abs(h - 180) <= 2
+
+
+def test_inset_axes_is_placed_in_axes_fraction(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    inset = ax.inset_axes([0.5, 0.5, 0.4, 0.3])
+    inset.plot([0, 1], [1, 0], color="red")
+    parent, child = ax.get_position(), inset.get_position()
+    assert child.x0 == pytest.approx(parent.x0 + 0.5 * parent.width)
+    assert child.y0 == pytest.approx(parent.y0 + 0.5 * parent.height)
+    assert inset in fig.get_axes()
+    p = tmp_path / "inset.svg"
+    fig.savefig(p)
+    assert "#FF0000" in p.read_text().upper()
 
 
 def test_plot_linestyles_and_width(tmp_path):
@@ -2147,6 +2207,21 @@ def test_window_extent_accounts_for_labels_and_title():
     ax.axis("off")
     bare_axes = ax.get_window_extent()
     assert bare_axes.width < titled.width and bare_axes.height < titled.height
+
+
+def test_gridspec_ratios_control_cell_sizes(tmp_path):
+    fig = plt.figure((6, 4))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1, 2], height_ratios=[1, 3])
+    top_left = fig.add_subplot(gs[0, 0])
+    top_right = fig.add_subplot(gs[0, 1])
+    bottom_left = fig.add_subplot(gs[1, 0])
+    for ax in (top_left, top_right, bottom_left):
+        ax.plot([0, 1], [0, 1])
+    assert top_right.get_position().width / top_left.get_position().width == pytest.approx(2, rel=0.15)
+    assert bottom_left.get_position().height / top_left.get_position().height == pytest.approx(3.5, rel=0.1)
+    with pytest.raises(ValueError):
+        fig.add_gridspec(2, 2, width_ratios=[1])
+    fig.savefig(tmp_path / "ratios.png")
 
 
 def test_gridspec_spans_multiple_cells(tmp_path):

@@ -1,7 +1,7 @@
 use rayon::prelude::*;
 
 use crate::color::colormap;
-use crate::model::ImageItem;
+use crate::model::{ImageItem, PngCompression};
 
 /// Upper bound on `imshow` pixels, matching the figure-canvas budget. Without
 /// it a huge array could ask `Pixmap::new` for an allocation that aborts the
@@ -156,5 +156,8 @@ pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
             }
         }
     }
-    pm.encode_png().map_err(|e| e.to_string())
+    // The default encoder level dominates save time for full-resolution
+    // images; fast compression keeps the embedded PNG cheap to produce.
+    let opaque = opacity >= 1.0 && (!rgb || shape[2] == 3);
+    crate::export::encode_png(&pm, PngCompression::Fast, opaque).map_err(|e| e.to_string())
 }

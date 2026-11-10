@@ -31,24 +31,49 @@ where
     DB::ErrorType: 'static,
 {
     let fs = size.max(1.0);
-    let w = crate::fonts::text_width(s, fs);
+    let lines: Vec<&str> = s
+        .split('\n')
+        .map(|line| line.trim_end_matches('\r'))
+        .collect();
+    let w = lines
+        .iter()
+        .map(|line| crate::fonts::text_width(line, fs))
+        .fold(0.0, f64::max);
     let dx = match ha {
         "center" => -w / 2.0,
         "right" => -w,
         _ => 0.0,
     };
-    let dy = match va {
-        "top" => 0.0,
-        "center" => -fs / 2.0,
-        "bottom" => -fs,
-        _ => -fs * 0.8, // baseline
+    let line_h = fs * 1.2;
+    let dy = if lines.len() == 1 {
+        match va {
+            "top" => 0.0,
+            "center" => -fs / 2.0,
+            "bottom" => -fs,
+            _ => -fs * 0.8, // baseline
+        }
+    } else {
+        match va {
+            "top" => 0.0,
+            "center" => -line_h * lines.len() as f64 / 2.0,
+            "bottom" => -line_h * lines.len() as f64,
+            _ => -fs * 0.8,
+        }
     };
     let style = ("sans-serif", fs.round() as u32).into_font().color(&col);
-    area.draw(&Text::new(
-        s,
-        (pos.0 - base.0 + dx as i32, pos.1 - base.1 + dy as i32),
-        style,
-    ))?;
+    for (index, line) in lines.iter().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        area.draw(&Text::new(
+            *line,
+            (
+                pos.0 - base.0 + dx as i32,
+                pos.1 - base.1 + (dy + index as f64 * line_h) as i32,
+            ),
+            style.clone(),
+        ))?;
+    }
     Ok(())
 }
 
@@ -1359,11 +1384,12 @@ where
     }
     // An equal-aspect panel may rebuild its chart after measuring the plotting
     // area. Leave the caption empty for that probe so it cannot be drawn twice.
+    // An empty caption still reserves a title band in plotters, which shifts
+    // untitled panels down and breaks axes-rectangle placement.
+    if p.aspect.is_none() && !p.title.is_empty() {
+        builder.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
+    }
     let mut chart = builder
-        .caption(
-            if p.aspect.is_some() { "" } else { &p.title },
-            ("sans-serif", title_size).into_font().color(&fg),
-        )
         .x_label_area_size(35)
         .y_label_area_size(45)
         .build_cartesian_2d(x0..x1, y0..y1)?;
@@ -1396,8 +1422,10 @@ where
         } else if twin_side == "x" {
             rb.margin_top(10 + twin_gap_px);
         }
+        if !p.title.is_empty() {
+            rb.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
+        }
         chart = rb
-            .caption(&p.title, ("sans-serif", title_size).into_font().color(&fg))
             .x_label_area_size(35)
             .y_label_area_size(45)
             .build_cartesian_2d(x0..x1, y0..y1)?;

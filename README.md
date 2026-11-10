@@ -218,7 +218,7 @@ plt.savefig("contours.png")
   the image path; returns `(counts, xedges, yedges, image)`
 - `hexbin(x, y, gridsize=, C=, cmap=, mincnt=)` — hexagonal binning with
   colormap-mapped cells; returns a collection of counts and cell centres
-- `colorbar(mappable, label=)` — gradient strip with min/mid/max ticks
+- `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes
 
 ### Axes and layout
 - `figure(figsize=, dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through,
@@ -232,7 +232,8 @@ plt.savefig("contours.png")
   mark styling
 - `grid(visible, axis="both", linestyle=, linewidth=, alpha=, color=)` — styled gridlines
 - `text(x, y, s, color=, fontsize=, ha=, va=, transform=)` — data, `ax.transAxes` or
-  `fig.transFigure` coordinates; `annotate(text, xy, xytext=)` adds a straight arrow
+  `fig.transFigure` coordinates, with `\n` line breaks; `annotate(text, xy, xytext=)`
+  adds a straight arrow
 - `set_aspect("equal" | "auto" | <number>)` — shrinks the plotting box, like
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `savefig(path | file-like | None, format=, dpi=, bbox_inches="tight", transparent=,
@@ -240,6 +241,10 @@ plt.savefig("contours.png")
   the page is sized from `figsize`) and lossless WebP; no path returns `bytes`. PNG
   compression is `"fast"` (default), `"default"`, or `"best"`
 - `GridSpec` and `SubplotSpec` via `fig.add_gridspec(...)`, including row/column spans
+  and `width_ratios`/`height_ratios`
+- `ax.inset_axes([x, y, w, h])` for child axes placed in parent-axes fractions
+- `fig.add_axes([x, y, w, h])` where the rectangle is the plotting area, not a panel
+  that includes tick and label margins
 - `subplot_mosaic(...)` with named panels and empty cells
 - `twinx()` / `twiny()` for independent scales on a shared panel
 - `fig.suptitle(...)` and `fig.subplots(..., sharex=, sharey=, squeeze=)`
@@ -261,7 +266,6 @@ positions/labels are honoured by the renderer.
 
 ### Not supported
 
-- colorbars on figures with multiple axes
 - `streamplot`, polar plots, 3-D axes, and other specialised matplotlib modules
 - interactive display (planned for a future GPUI-based version)
 
