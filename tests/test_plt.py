@@ -2592,3 +2592,26 @@ def test_matplotlib_namespace_and_cycler_shims():
     line = plt.Line2D([0, 1], [1, 0])
     line.set_path_effects([plt.path_effects.withStroke()])
     assert line.get_zorder() == 2
+
+
+def test_colormap_registry_and_spine_selections():
+    names = plt.colormaps()
+    assert "viridis" in names
+    assert plt.colormaps["viridis"].name == "viridis"
+    assert plt.colormaps["viridis"].resampled(8).N == 8
+
+    fig, ax = plt.subplots()
+    ax.spines[:].set_visible(False)
+    assert not ax.spines["left"].get_visible()
+    ax.spines[["top", "right"]].set_visible(True)
+    assert ax.spines["top"].get_visible()
+    ax.axis["x"].set_axis_direction("left")
+    assert ax.axis["x"].label is not None
+
+    gs = plt.gridspec.GridSpec(2, 2)
+    assert len(list(gs)) == 4
+
+    fig2, axs = plt.subplots(1, 2)
+    image = axs[0].imshow([[1, 2], [3, 4]])
+    fig2.colorbar(image, ax=axs)
+    assert fig2.axes[0]._colorbar is not None

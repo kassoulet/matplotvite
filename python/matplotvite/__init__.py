@@ -281,6 +281,9 @@ class Colormap:
             return get_cmap(self.name[:-2])
         return get_cmap(self.name + "_r")
 
+    def resampled(self, lut): return get_cmap(self.name, lut)
+    def with_extremes(self, **kwargs): return self
+
     def __repr__(self):
         return f"<Colormap {self.name!r}>"
 
@@ -299,9 +302,34 @@ def get_cmap(name=None, lut=None):
     return cmap
 
 
-def colormaps():
-    """Sorted names of every registered colormap, including `_r` variants."""
+def _colormap_names():
     return sorted([*_CMAP_DATA, *(f"{name}_r" for name in _CMAP_DATA)])
+
+
+class _ColormapRegistry:
+    """Matplotlib's colormap registry: iterable, callable and name-indexable."""
+
+    def __call__(self): return _colormap_names()
+    def __getitem__(self, name): return get_cmap(name)
+    def __iter__(self): return iter(_colormap_names())
+    def __len__(self): return len(_CMAP_DATA) * 2
+    def __contains__(self, name):
+        try:
+            _cmap_lookup(name)
+            return True
+        except ValueError:
+            return False
+    def keys(self): return _colormap_names()
+    def values(self): return [get_cmap(name) for name in self]
+    def items(self): return [(name, get_cmap(name)) for name in self]
+    def get(self, name, default=None):
+        try:
+            return get_cmap(name)
+        except ValueError:
+            return default
+
+
+colormaps = _ColormapRegistry()
 
 
 class _CmapNamespace:
@@ -1496,6 +1524,11 @@ class _FlexibleStyleNamespace:
         _ignored(f"patches.{name}")
         return type(name, (), {"__init__": lambda self, *args, **kwargs: None})
 
+    def get_styles(self):
+        return {name: type(name, (), {"__init__": lambda self, *args, **kwargs: None})
+                for name in ("circle", "darrow", "larrow", "rarrow", "round",
+                             "round4", "roundtooth", "sawtooth", "square")}
+
 
 patches.ArrowStyle = _FlexibleStyleNamespace()
 patches.BoxStyle = _FlexibleStyleNamespace()
@@ -1824,6 +1857,22 @@ class _Spine:
     def set_path_effects(self, effects): return None
 
 
+class _SpineSelection:
+    """A group of spines selected with `spines[:]` or `spines[[...]]`."""
+
+    def __init__(self, spines): self._spines = tuple(spines)
+    def __iter__(self): return iter(self._spines)
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        def apply(*args, **kwargs):
+            for spine in self._spines:
+                getattr(spine, name)(*args, **kwargs)
+            return self
+        return apply
+
+
 class _Spines:
     """The four axes spines, addressable as a mapping or as attributes."""
 
@@ -1833,11 +1882,56 @@ class _Spines:
         self.bottom = _Spine()
         self.top = _Spine()
 
-    def __getitem__(self, name): return getattr(self, name)
+    def __getitem__(self, name):
+        if isinstance(name, slice):
+            names = ("left", "right", "bottom", "top")[name]
+            return _SpineSelection(getattr(self, item) for item in names)
+        if isinstance(name, (list, tuple)):
+            return _SpineSelection(getattr(self, str(item)) for item in name)
+        return getattr(self, name)
     def __iter__(self): return iter(("left", "right", "bottom", "top"))
     def keys(self): return ("left", "right", "bottom", "top")
     def values(self): return (self.left, self.right, self.bottom, self.top)
     def items(self): return ((name, getattr(self, name)) for name in self)
+
+
+class _AxisArtistProxy:
+    """Small stand-in for the floating-axis artists used by axisartist."""
+
+    def __init__(self):
+        self.label = _TextLabel()
+        self._visible = True
+
+    def set_visible(self, visible): self._visible = bool(visible)
+    def get_visible(self): return self._visible
+    def toggle(self, **kwargs):
+        for key, value in kwargs.items():
+            if key == "label": self.label.set_visible(value)
+        return self
+    def set_axisline_style(self, *args, **kwargs): return self
+    def set_axis_direction(self, *args, **kwargs): return self
+    def set_axislabel_direction(self, *args, **kwargs): return self
+    def set_ticklabel_direction(self, *args, **kwargs): return self
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return lambda *args, **kwargs: self
+
+
+class _AxisAccessor:
+    """`ax.axis` is both callable and subscriptable (axisartist)."""
+
+    def __init__(self, axes):
+        self._axes = axes
+        self._artists = {}
+
+    def __call__(self, *args, **kwargs): return self._axes._axis(*args, **kwargs)
+    def __getitem__(self, key):
+        if isinstance(key, (slice, list, tuple, np.ndarray)):
+            return self._axes.spines[key]
+        return self._artists.setdefault(str(key), _AxisArtistProxy())
+    def __setitem__(self, key, value): self._artists[str(key)] = value
+    def __getattr__(self, name): return getattr(self._axes, name)
 
 
 class _Axis:
@@ -2035,6 +2129,7 @@ class Axes:
         self.xaxis = _Axis(self, "x")
         self.yaxis = _Axis(self, "y")
         self.spines = _Spines()
+        self.axis = _AxisAccessor(self)
         self.patches = []
         self.collections = []
         self.callbacks = _Callbacks()
@@ -2362,7 +2457,7 @@ class Axes:
     def set_axis_off(self): self._axis_off = True
     def set_axis_on(self): self._axis_off = False
 
-    def axis(self, arg=None, **kwargs):
+    def _axis(self, arg=None, **kwargs):
         if arg is None:
             return (self.get_xlim(), self.get_ylim())
         if isinstance(arg, str):
@@ -2383,6 +2478,12 @@ class Axes:
             raise ValueError("axis expects 'off'/'equal' or four limits")
         self.set_xlim(vals[0], vals[1])
         self.set_ylim(vals[2], vals[3])
+
+    def new_floating_axis(self, nth_coord, value, axis_direction="bottom", **kwargs):
+        return _AxisArtistProxy()
+
+    def new_fixed_axis(self, loc, offset=None, axis_direction="bottom", **kwargs):
+        return _AxisArtistProxy()
 
     def remove(self): self._removed = True
 
@@ -4759,6 +4860,14 @@ class GridSpec:
     def get_geometry(self):
         return self.nrows, self.ncols
 
+    def __iter__(self):
+        for row in range(self.nrows):
+            for col in range(self.ncols):
+                yield SubplotSpec(self, (row, row), (col, col))
+
+    def __len__(self):
+        return self.nrows * self.ncols
+
     def _bounds(self, rows, cols):
         r0, r1 = rows
         c0, c1 = cols
@@ -4994,7 +5103,9 @@ class Figure:
         if not self.axes:
             raise ValueError("colorbar needs at least one axes")
         if isinstance(ax, (list, tuple, np.ndarray)):
-            raise NotImplementedError("colorbar needs a single axes")
+            candidates = np.asarray(ax, dtype=object).ravel()
+            ax = next((item for item in candidates
+                       if isinstance(item, Axes) and item.visible), None)
         if ax is None:
             ax = kwargs.get("cax")
         if ax is None:

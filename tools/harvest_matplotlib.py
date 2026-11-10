@@ -306,16 +306,41 @@ def render(snippet: str, out_path: pathlib.Path,
         from matplotlib.testing import _gen_multi_font_text as mpl_font_text
     except Exception:  # noqa: BLE001
         mpl_font_text = None
+    try:
+        from matplotlib import animation as mpl_animation
+    except Exception:  # noqa: BLE001
+        mpl_animation = None
+    try:
+        from matplotlib import tri as mpl_tri
+    except Exception:  # noqa: BLE001
+        mpl_tri = None
+    try:
+        from matplotlib.testing import jpl_units as mpl_units
+    except Exception:  # noqa: BLE001
+        mpl_units = None
+    try:
+        from matplotlib.projections.polar import PolarAxes as mpl_polar_axes
+    except Exception:  # noqa: BLE001
+        mpl_polar_axes = None
+
+    mpl_helpers = {name: value for name, value in (
+        ("animation", mpl_animation), ("tri", mpl_tri), ("mtri", mpl_tri),
+        ("units", mpl_units), ("PolarAxes", mpl_polar_axes),
+        ("Triangulation", getattr(mpl_tri, "Triangulation", None)),
+    ) if value is not None}
 
     class _MplProxy:
         def __getattr__(self, name):
             if name == "cbook" and mpl_cbook is not None:
                 return mpl_cbook
+            if name in mpl_helpers:
+                return mpl_helpers[name]
             return getattr(matplotvite, name)
 
     mpl_namespace = matplotvite if mpl_cbook is None else _MplProxy()
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
+    namespace.update(mpl_helpers)
     # Imports such as `from matplotlib.patches import Circle` are stripped from
     # gallery snippets, so expose the compatibility classes as bare names.
     namespace.update({name: getattr(matplotvite, name)
