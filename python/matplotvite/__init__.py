@@ -2039,6 +2039,9 @@ class _Canvas:
         return self.figure.savefig(filename, **kwargs)
     def mpl_connect(self, *args, **kwargs): return 1
     def mpl_disconnect(self, *args, **kwargs): return None
+    def add_callback(self, *args, **kwargs): return 1
+    def remove_callback(self, *args, **kwargs): return None
+    def supports_blit(self): return False
     def blit(self, *args, **kwargs): return None
     def restore_region(self, *args, **kwargs): return None
     def copy_from_bbox(self, *args, **kwargs): return None
@@ -2853,12 +2856,63 @@ class Axes:
 
     def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
-             label=None, alpha=None, edgecolor=None, stacked=False, **kwargs):
+             label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
         """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
         if histtype not in ("bar", "step", "stepfilled"):
             raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
-        data = np.asarray(x, dtype=np.float64).ravel()
+        if data is not None and isinstance(x, str):
+            x = data[x]
         bins = _validate_bins(bins)
+        datasets = None
+        if isinstance(x, (list, tuple)) and x:
+            try:
+                candidate = np.asarray(x, dtype=np.float64)
+                if candidate.ndim == 2:
+                    datasets = [candidate[i] for i in range(candidate.shape[0])]
+                elif candidate.ndim == 1:
+                    datasets = [candidate]
+            except (TypeError, ValueError):
+                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
+        elif isinstance(x, np.ndarray) and x.ndim == 2:
+            datasets = [x[i] for i in range(x.shape[0])]
+        if datasets is not None and len(datasets) > 1 and stacked:
+            edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
+            counts_list = []
+            for dataset in datasets:
+                count, _ = np.histogram(dataset, bins=edges, density=bool(density))
+                if cumulative:
+                    count = np.cumsum(count)
+                counts_list.append(np.asarray(count, dtype=np.float64))
+            widths = np.diff(edges)
+            bar_align = "edge" if align in ("left", "edge") else "center"
+            centers = edges[:-1] if bar_align == "edge" else (edges[:-1] + edges[1:]) / 2.0
+            handles = []
+            running = np.zeros(counts_list[0].size)
+            for i, count in enumerate(counts_list):
+                colour = color[i] if isinstance(color, (list, tuple)) else color
+                label_i = label[i] if isinstance(label, (list, tuple)) else label
+                text = "" if label_i is None else str(label_i)
+                if histtype == "bar":
+                    if orientation == "horizontal":
+                        raise NotImplementedError("stacked hist bars need orientation='vertical'")
+                    handles.append(self.bar(centers, count, width=widths, bottom=running,
+                                            align=bar_align, color=colour,
+                                            edgecolor=edgecolor, alpha=alpha, label=text))
+                elif orientation != "vertical":
+                    raise NotImplementedError("stacked hist steps need orientation='vertical'")
+                else:
+                    sx = np.empty(2 * count.size)
+                    sx[0::2], sx[1::2] = edges[:-1], edges[1:]
+                    if histtype == "stepfilled":
+                        self.fill_between(sx, np.repeat(running, 2),
+                                          np.repeat(running + count, 2),
+                                          color=colour, alpha=alpha)
+                    handles.append(self.plot(sx, np.repeat(running + count, 2),
+                                             color=colour, label=text)[0])
+                running = running + count
+            return counts_list, edges, handles
+        data = (datasets[0] if datasets is not None and len(datasets) == 1
+                else np.asarray(x, dtype=np.float64).ravel())
         counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
                                      density=bool(density))
         if cumulative:
@@ -3417,9 +3471,12 @@ class Axes:
         return self.pcolormesh(*args, **kwargs)
 
     def hist2d(self, x, y, bins=10, range=None, density=False, weights=None,
-               cmin=None, cmax=None, cmap=None, **kwargs):
+               cmin=None, cmax=None, cmap=None, data=None, **kwargs):
         """2-D histogram rasterised through `imshow`; returns
         `(counts, xedges, yedges, image)`."""
+        if data is not None:
+            x = data[x] if isinstance(x, str) else x
+            y = data[y] if isinstance(y, str) else y
         x = np.asarray(x, dtype=np.float64).ravel()
         y = np.asarray(y, dtype=np.float64).ravel()
         if x.size != y.size:
@@ -3437,8 +3494,12 @@ class Axes:
     def hexbin(self, x, y, C=None, gridsize=100, bins=None, xscale="linear",
                yscale="linear", extent=None, cmap=None, norm=None, vmin=None,
                vmax=None, alpha=None, linewidths=None, edgecolors="face",
-               reduce_C_function=None, mincnt=None, marginals=False, **kwargs):
+               reduce_C_function=None, mincnt=None, marginals=False, data=None, **kwargs):
         """Hexagonal binning: one coloured hexagon per occupied grid cell."""
+        if data is not None:
+            x = data[x] if isinstance(x, str) else x
+            y = data[y] if isinstance(y, str) else y
+            C = data[C] if isinstance(C, str) else C
         x = np.asarray(x, dtype=np.float64).ravel()
         y = np.asarray(y, dtype=np.float64).ravel()
         if x.size != y.size:
@@ -4339,8 +4400,8 @@ def _resolve_data_args(args, data, x, y):
 
     if len(args) == 1:
         return with_index(pick(args[0]))
-    if len(args) == 2:
-        return (pick(args[0]), pick(args[1]))
+    if len(args) >= 2:
+        return (pick(args[0]), pick(args[1]), *args[2:])
     return args
 
 
@@ -4638,8 +4699,28 @@ def _mesh_args(args):
     rows, cols = z.shape
     if x is None:
         return np.arange(cols + 1.0), np.arange(rows + 1.0), z, True
-    x = np.asarray(x, dtype=np.float64).ravel()
-    y = np.asarray(y, dtype=np.float64).ravel()
+    if _looks_like_dates(x):
+        x = _date_to_num(x)
+    if _looks_like_dates(y):
+        y = _date_to_num(y)
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    if x.ndim == 2 or y.ndim == 2:
+        if x.ndim != 2 or y.ndim != 2 or x.shape != y.shape:
+            raise ValueError("pcolormesh 2-D X and Y must have the same shape")
+        if x.shape == (rows + 1, cols + 1):
+            if not (np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1])):
+                return (np.array([float(x.min()), float(x.max())]),
+                        np.array([float(y.min()), float(y.max())]), z, True)
+            x, y = x[0, :], y[:, 0]
+        elif x.shape == z.shape:
+            if not (np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1])):
+                return (np.array([float(x.min()), float(x.max())]),
+                        np.array([float(y.min()), float(y.max())]), z, True)
+            x, y = x[0, :], y[:, 0]
+        else:
+            raise ValueError("2-D X and Y must match Z's shape or have one extra edge")
+    x, y = x.ravel(), y.ravel()
     edges = x.size == cols + 1 and y.size == rows + 1
     if not edges and (x.size != cols or y.size != rows):
         raise ValueError("expected len(X) == Z.shape[1] and len(Y) == Z.shape[0], "
@@ -4709,6 +4790,10 @@ def _contour_args(args, levels):
     rows, cols = z.shape
     if x is None:
         x, y = np.arange(cols, dtype=np.float64), np.arange(rows, dtype=np.float64)
+    if _looks_like_dates(x):
+        x = _date_to_num(x)
+    if _looks_like_dates(y):
+        y = _date_to_num(y)
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
     if x.ndim == 2 or y.ndim == 2:
@@ -5097,6 +5182,13 @@ class Figure:
         if height is None:
             width, height = width
         self.figsize = _validate_figsize((width, height))
+
+    def autofmt_xdate(self, bottom=0.2, rotation=30, ha="right", **kwargs):
+        for axes in self.axes:
+            for label in axes.get_xticklabels():
+                label.set_rotation(rotation)
+                if hasattr(label, "set_ha"):
+                    label.set_ha(ha)
 
     def colorbar(self, mappable=None, ax=None, label="", **kwargs):
         """Reserve a strip beside `mappable`'s axes showing its scale."""

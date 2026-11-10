@@ -2615,3 +2615,20 @@ def test_colormap_registry_and_spine_selections():
     image = axs[0].imshow([[1, 2], [3, 4]])
     fig2.colorbar(image, ax=axs)
     assert fig2.axes[0]._colorbar is not None
+
+
+def test_gallery_2d_data_and_stacked_hist():
+    import datetime as dt
+
+    fig, ax = plt.subplots()
+    x, y = np.meshgrid(np.arange(3), np.arange(2))
+    ax.pcolormesh(x, y, np.arange(6).reshape(2, 3))
+    dates = np.array([dt.date(2020, 1, 1), dt.date(2020, 1, 2),
+                      dt.date(2020, 1, 3)])
+    ax.contour(dates, np.arange(3), np.arange(9).reshape(3, 3))
+
+    ax.hist((np.arange(3), np.arange(5)), stacked=True)
+    ax.plot("a", "a", "o", data={"a": [1]})
+    ax.hexbin("x", "y", data={"x": [0, 1], "y": [0, 1]})
+    ax.hist2d("x", "y", data={"x": [0, 1], "y": [0, 1]})
+    assert ax.bars
