@@ -129,6 +129,23 @@ def test_tight_pdf_with_image(tmp_path):
     assert 0 < w < 288 and 0 < h < 216
 
 
+def test_pdf_background_alpha_is_blended_over_white(tmp_path):
+    fig = plt.figure((2, 2), facecolor=(1.0, 0.0, 0.0, 0.5))
+    fig.gca().plot([0, 1], [1, 0])
+    p = tmp_path / "alpha.pdf"
+    fig.savefig(p)
+    assert re.search(rb"1 0\.498\d* 0\.498\d* rg", p.read_bytes())
+
+
+def test_large_image_with_smoothing_interpolation_renders(tmp_path):
+    z = np.linspace(0, 1, 600 * 600).reshape(600, 600)
+    plt.figure((3, 3))
+    plt.imshow(z, cmap="gray", interpolation="bilinear")
+    p = tmp_path / "large-bilinear.png"
+    plt.savefig(p)
+    assert p.stat().st_size > 0
+
+
 def test_tight_bbox_with_colored_background(tmp_path):
     fig = plt.figure((4, 3), facecolor="red")
     fig.gca().plot([1, 2, 3])

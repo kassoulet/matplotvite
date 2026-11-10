@@ -76,12 +76,10 @@ pub(crate) fn render_pdf(
     // The SVG is embedded as a 1x1 XObject, so scale it to the full figure and
     // then shift the requested crop to the page origin. PDF y grows upwards.
     let mut content = Content::new();
-    if let Some(bg) = background {
-        content.set_fill_rgb(
-            bg.0 as f32 / 255.0,
-            bg.1 as f32 / 255.0,
-            bg.2 as f32 / 255.0,
-        );
+    if let Some([r, g, b, _]) = background.and_then(|bg| background_pixel(Some(bg))) {
+        // PDF has no figure transparency; match the PNG path by pre-blending
+        // the background colour over white.
+        content.set_fill_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
         content.rect(0.0, 0.0, page_w, page_h);
         content.fill_nonzero();
     }
