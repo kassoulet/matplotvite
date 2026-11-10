@@ -186,20 +186,25 @@ pub(crate) fn image_rgb(
     let pm = image_pixmap(item)?;
     let (sw, sh) = (pm.width(), pm.height());
     let src = pm.data();
+    // The source column depends only on x, so compute it once instead of doing
+    // two 64-bit divisions per output pixel.
+    let columns: Vec<usize> = (0..width)
+        .map(|x| (x as u64 * sw as u64 / width as u64) as usize)
+        .collect();
     let mut out = vec![0u8; width as usize * height as usize * 3];
-    for y in 0..height {
-        let sy = (y as u64 * sh as u64 / height as u64) as u32;
-        for x in 0..width {
-            let sx = (x as u64 * sw as u64 / width as u64) as u32;
-            let src_i = ((sy * sw + sx) * 4) as usize;
-            let dst_i = ((y * width + x) * 3) as usize;
-            let alpha = src[src_i + 3] as u32;
-            for c in 0..3 {
-                out[dst_i + c] = (src[src_i + c] as u32
-                    + background[c] as u32 * (255 - alpha) / 255)
-                    .min(255) as u8;
+    out.par_chunks_mut(width as usize * 3)
+        .enumerate()
+        .for_each(|(y, row)| {
+            let sy = (y as u64 * sh as u64 / height as u64) as usize;
+            let src_row = sy * sw as usize * 4;
+            for (x, dst) in row.chunks_exact_mut(3).enumerate() {
+                let src_i = src_row + columns[x] * 4;
+                let alpha = src[src_i + 3] as u32;
+                for c in 0..3 {
+                    dst[c] = (src[src_i + c] as u32 + background[c] as u32 * (255 - alpha) / 255)
+                        .min(255) as u8;
+                }
             }
-        }
-    }
+        });
     Ok(out)
 }
