@@ -1156,7 +1156,9 @@ fn contour_polylines(segments: Vec<((f64, f64), (f64, f64))>) -> Vec<Vec<(f64, f
             let far = if key(c) == tail { d } else { c };
             line.push(far);
         }
-        // Extend backward from the current head.
+        // Extend backward from the current head. Collect the prefix first so
+        // long open contours do not pay Vec::insert(0, ..) on every segment.
+        let mut prefix = Vec::new();
         while let Some(head_point) = line.first() {
             let head = key(*head_point);
             let Some(previous) = incident
@@ -1168,7 +1170,12 @@ fn contour_polylines(segments: Vec<((f64, f64), (f64, f64))>) -> Vec<Vec<(f64, f
             used[previous] = true;
             let (c, d) = segments[previous];
             let far = if key(c) == head { d } else { c };
-            line.insert(0, far);
+            prefix.push(far);
+        }
+        if !prefix.is_empty() {
+            prefix.reverse();
+            prefix.extend(line);
+            line = prefix;
         }
         if line.len() > 1 {
             lines.push(line);
