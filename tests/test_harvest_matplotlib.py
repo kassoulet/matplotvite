@@ -49,6 +49,23 @@ def test_harvest_reads_image_comparison_cases(tmp_path):
     assert cases[0]["snippet"].endswith("plt.savefig(OUT, dpi=100)\n")
 
 
+def test_harvest_includes_referenced_helpers_and_imports(tmp_path):
+    root = tmp_path / "tests"
+    (root / "baseline_images" / "test_demo").mkdir(parents=True)
+    (root / "test_demo.py").write_text(
+        "from datetime import datetime\n"
+        "import matplotlib.pyplot as plt\n"
+        "def helper(x):\n"
+        "    return datetime(2020, 1, 1).year + x\n"
+        "@image_comparison(['helper.png'])\n"
+        "def test_helper():\n"
+        "    plt.plot([0, helper(1)])\n", encoding="utf-8")
+    case = harvest(root)[0]
+    assert "def helper" in case["snippet"]
+    assert "from datetime import datetime" in case["snippet"]
+    assert "import matplotlib" not in case["snippet"]
+
+
 def test_prepare_body_skips_unrenderable_bodies():
     cleaned = prepare_body("    import matplotlib.pyplot as plt\n    plt.plot([1])\n")
     assert cleaned.startswith("plt.plot([1])")

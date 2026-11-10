@@ -216,6 +216,44 @@ def prepare_body(source: str) -> str | None:
     return code + "\nplt.savefig(OUT, dpi=100)\n"
 
 
+def _loaded_names(node: ast.AST) -> set[str]:
+    return {item.id for item in ast.walk(node)
+            if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)}
+
+
+def _module_context(module: ast.Module, text: str, func: ast.FunctionDef) -> str:
+    """Imports and referenced helper definitions for one test function.
+
+    Test bodies often call a module-level helper such as `example_plot`; without
+    that helper the snippet fails with a misleading NameError instead of exposing
+    a real renderer gap. Keep the module imports as well so stdlib names such as
+    `datetime` remain available. Matplotlib/NumPy imports are stripped later by
+    `prepare_body`, which leaves the compatibility namespace in charge.
+    """
+    imports: list[str] = []
+    definitions: dict[str, ast.AST] = {}
+    for node in module.body:
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            source = ast.get_source_segment(text, node)
+            if source:
+                imports.append(source)
+        elif (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+              and not node.name.startswith("test_") and not node.decorator_list):
+            definitions[node.name] = node
+
+    needed: set[str] = set()
+    pending = _loaded_names(func)
+    while pending:
+        name = pending.pop()
+        helper = definitions.get(name)
+        if helper is not None and name not in needed:
+            needed.add(name)
+            pending |= _loaded_names(helper)
+    helpers = [ast.get_source_segment(text, definitions[name]) or ""
+               for name in sorted(needed, key=lambda n: definitions[n].lineno)]
+    return "\n\n".join(part for part in imports + helpers if part)
+
+
 def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
     """Extract every image-comparison case from the test modules."""
     cases: list[dict[str, object]] = []
@@ -233,8 +271,10 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
                 continue
             images = [_resolve_baseline(tests_root, module_path.stem, name)
                       for name in baselines]
-            source = textwrap.dedent("\n".join(
+            body = textwrap.dedent("\n".join(
                 ast.get_source_segment(text, node) or "" for node in func.body))
+            context = _module_context(module, text, func)
+            source = "\n\n".join(part for part in (context, body) if part)
             cases.append({
                 "id": f"{module_path.stem}/{func.name}",
                 "module": module_path.name,
@@ -258,13 +298,38 @@ def render(snippet: str, out_path: pathlib.Path,
     """
     out_path = out_path.resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    namespace = {"plt": matplotvite, "mpl": matplotvite, "matplotlib": matplotvite,
+    try:
+        from matplotlib import cbook as mpl_cbook
+    except Exception:  # noqa: BLE001 - gallery tests may run without Matplotlib
+        mpl_cbook = None
+    try:
+        from matplotlib.testing import _gen_multi_font_text as mpl_font_text
+    except Exception:  # noqa: BLE001
+        mpl_font_text = None
+
+    class _MplProxy:
+        def __getattr__(self, name):
+            if name == "cbook" and mpl_cbook is not None:
+                return mpl_cbook
+            return getattr(matplotvite, name)
+
+    mpl_namespace = matplotvite if mpl_cbook is None else _MplProxy()
+    namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
     # Imports such as `from matplotlib.patches import Circle` are stripped from
     # gallery snippets, so expose the compatibility classes as bare names.
     namespace.update({name: getattr(matplotvite, name)
                       for name in sorted(getattr(matplotvite, "__all__", ()), key=str)
                       if hasattr(matplotvite, name)})
+    namespace.update({
+        "assert_array_almost_equal": np.testing.assert_array_almost_equal,
+        "assert_array_equal": np.testing.assert_array_equal,
+    })
+    if mpl_cbook is not None:
+        namespace["cbook"] = mpl_cbook
+        namespace["get_sample_data"] = mpl_cbook.get_sample_data
+    if mpl_font_text is not None:
+        namespace["_gen_multi_font_text"] = mpl_font_text
     ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)
     # Resolve helper paths before the scratch-directory change.
     added_path = str(extra_path.resolve()) if extra_path is not None else None

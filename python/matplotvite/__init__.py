@@ -20,7 +20,7 @@ __all__ = (
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
     "mtransforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
-    "mcollections", "ConnectionPatch",
+    "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
@@ -427,6 +427,13 @@ class Affine2D:
 class Path:
     """Minimal path container used by `PathPatch`."""
 
+    STOP = 0
+    MOVETO = 1
+    LINETO = 2
+    CURVE3 = 3
+    CURVE4 = 4
+    CLOSEPOLY = 79
+
     def __init__(self, vertices, codes=None, **kwargs):
         self.vertices = np.asarray(vertices, dtype=float).reshape(-1, 2)
         self.codes = codes
@@ -435,6 +442,38 @@ class Path:
     def get_codes(self): return self.codes
     def transformed(self, transform): _ignored("Path.transformed"); return self
     def __iter__(self): return iter((self.vertices, self.codes))
+
+    @classmethod
+    def unit_regular_polygon(cls, numVertices):
+        n = int(numVertices)
+        angles = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False) + np.pi / 2.0
+        vertices = np.column_stack([np.cos(angles), np.sin(angles)])
+        codes = np.full(n, cls.LINETO, dtype=np.uint8)
+        codes[0] = cls.MOVETO
+        codes[-1] = cls.CLOSEPOLY
+        return cls(vertices, codes)
+
+    @classmethod
+    def unit_circle(cls):
+        angles = np.linspace(0.0, 2.0 * np.pi, 65)
+        vertices = np.column_stack([np.cos(angles), np.sin(angles)])
+        codes = np.full(vertices.shape[0], cls.LINETO, dtype=np.uint8)
+        codes[0] = cls.MOVETO
+        codes[-1] = cls.CLOSEPOLY
+        return cls(vertices, codes)
+
+    @classmethod
+    def unit_regular_star(cls, numVertices, innerCircle=0.5):
+        n = int(numVertices)
+        angles = np.linspace(0.0, 2.0 * np.pi, 2 * n, endpoint=False) + np.pi / 2.0
+        radii = np.empty(2 * n)
+        radii[0::2] = 1.0
+        radii[1::2] = float(innerCircle)
+        vertices = np.column_stack([radii * np.cos(angles), radii * np.sin(angles)])
+        codes = np.full(2 * n, cls.LINETO, dtype=np.uint8)
+        codes[0] = cls.MOVETO
+        codes[-1] = cls.CLOSEPOLY
+        return cls(vertices, codes)
 
 
 class _Bbox:
@@ -1646,17 +1685,46 @@ class PatchCollection(LineCollection):
 
 class EventCollection(LineCollection):
     def __init__(self, positions, orientation="horizontal", lineoffset=0, linelength=1, **kwargs):
-        positions = np.asarray(positions, dtype=float).ravel()
-        if orientation in ("horizontal", "vertical"):
-            if orientation == "horizontal":
-                segs = [[(p, lineoffset - linelength / 2), (p, lineoffset + linelength / 2)]
-                        for p in positions]
-            else:
-                segs = [[(lineoffset - linelength / 2, p), (lineoffset + linelength / 2, p)]
-                        for p in positions]
-        else:
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        super().__init__(segs, **kwargs)
+        self._positions = np.asarray(positions, dtype=float).ravel().copy()
+        self._orientation = orientation
+        self._lineoffset = float(lineoffset)
+        self._linelength = float(linelength)
+        super().__init__(self._event_segments(), **kwargs)
+
+    def _event_segments(self):
+        if self._orientation not in ("horizontal", "vertical"):
+            raise ValueError(f"unsupported orientation: {self._orientation!r}")
+        if self._orientation == "horizontal":
+            return [[(p, self._lineoffset - self._linelength / 2),
+                     (p, self._lineoffset + self._linelength / 2)] for p in self._positions]
+        return [[(self._lineoffset - self._linelength / 2, p),
+                 (self._lineoffset + self._linelength / 2, p)] for p in self._positions]
+
+    def _refresh(self):
+        self._segments = self._event_segments()
+        return self
+
+    def get_positions(self): return self._positions.copy()
+    def set_positions(self, positions):
+        self._positions = np.asarray(positions, dtype=float).ravel().copy()
+        return self._refresh()
+    def append_positions(self, positions):
+        self._positions = np.append(self._positions, np.asarray(positions, dtype=float).ravel())
+        return self._refresh()
+    def extend_positions(self, positions): return self.append_positions(positions)
+    def set_orientation(self, orientation):
+        self._orientation = orientation
+        return self._refresh()
+    def switch_orientation(self):
+        self._orientation = ("vertical" if self._orientation == "horizontal"
+                             else "horizontal")
+        return self._refresh()
+    def set_lineoffset(self, lineoffset):
+        self._lineoffset = float(lineoffset)
+        return self._refresh()
+    def set_linelength(self, linelength):
+        self._linelength = float(linelength)
+        return self._refresh()
 
 
 class ConnectionPatch(FancyArrowPatch):
@@ -1899,7 +1967,13 @@ class _SubplotPars:
 
 
 class Axes:
-    def __init__(self, pos):
+    def __init__(self, pos=0, *args, **kwargs):
+        # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
+        # when one is supplied; normal pyplot paths pass a single index.
+        fig_arg = pos if args else None
+        rect_arg = args[0] if args else None
+        if args:
+            pos = 0
         self.pos, self.lines, self.texts = pos, [], []
         self.images, self.annotations = [], []
         self.contours = []
@@ -1947,6 +2021,9 @@ class Axes:
         self._categories = []
         self._inverted = [False, False]
         self._pos_override = None
+        if rect_arg is not None and len(rect_arg) == 4:
+            self._pos_override = tuple(float(v) for v in rect_arg)
+        self._fig = fig_arg
         self._share_x = self._share_y = None
         self.hide_xticklabels = self.hide_yticklabels = False
         self._prop_cycle = list(rcParams.get("axes.prop_cycle", _CYCLE))
@@ -2123,6 +2200,10 @@ class Axes:
     def twiny(self):
         """A second axes sharing the y axis, with its own x axis on top."""
         return self._make_twin("x")
+
+    def twin(self):
+        """Alias used by some axes-grid examples."""
+        return self.twinx()
 
     def _make_twin(self, axis):
         if self._fig is None:
@@ -2388,6 +2469,13 @@ class Axes:
     def barbs(self, *args, **kwargs): return self.quiver(*args, **kwargs)
 
     def add_artist(self, artist): self.artists.append(artist); return artist
+    def set_anchor(self, anchor, **kwargs):
+        self._anchor = anchor
+        return None
+    def matshow(self, Z, **kwargs):
+        kwargs.setdefault("origin", "upper")
+        kwargs.setdefault("aspect", "equal")
+        return self.imshow(Z, **kwargs)
     def add_patch(self, patch):
         self.artists.append(patch)
         self.patches.append(patch)
@@ -2847,6 +2935,103 @@ class Axes:
         if manage_ticks:
             shown = ([str(v) for v in labels] if labels is not None
                      else [f"{v:g}" for v in pos])
+            if orientation == "vertical":
+                self.set_xticks(pos, labels=shown)
+            else:
+                self.set_yticks(pos, labels=shown)
+        return out
+
+    def bxp(self, bxpstats, positions=None, widths=None, vert=None, orientation=None,
+            patch_artist=False, shownotches=False, showmeans=False, showcaps=True,
+            showbox=True, showfliers=True, boxprops=None, whiskerprops=None,
+            flierprops=None, medianprops=None, meanprops=None, meanline=False,
+            manage_ticks=True, zorder=2, **kwargs):
+        """Draw precomputed boxplot statistics, as returned by `cbook.boxplot_stats`."""
+        stats = list(bxpstats)
+        if not stats:
+            raise ValueError("bxp needs at least one statistics entry")
+        if orientation is None:
+            orientation = "vertical" if (vert is None or vert) else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        n = len(stats)
+        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
+        wid = _fill(0.5 if widths is None else widths, n)
+        box_style = dict(boxprops or {})
+        median_style = dict(medianprops or {})
+        whisker_style = dict(whiskerprops or {})
+        flier_style = dict(flierprops or {})
+        mean_style = dict(meanprops or {})
+        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
+        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), box_color)
+        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
+        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
+        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), box_color)
+        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.5)
+        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
+        flier_color = _single_color(
+            flier_style.get("markerfacecolor", flier_style.get("mfc",
+                             flier_style.get("color", flier_style.get("c")))),
+            "black")
+        flier_marker = str(flier_style.get("marker", "o"))
+        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
+        for i, stat in enumerate(stats):
+            q1 = float(stat.get("q1", 0.0))
+            q3 = float(stat.get("q3", q1))
+            med = float(stat.get("med", 0.5 * (q1 + q3)))
+            lo = float(stat.get("whislo", q1))
+            hi = float(stat.get("whishi", q3))
+            loc, half = float(pos[i]), float(wid[i]) / 2.0
+            if showbox:
+                if orientation == "vertical":
+                    bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
+                                    color=box_color if patch_artist else "none",
+                                    edgecolor=box_edge, label=str(stat.get("label", "")) if i == 0 else "")
+                else:
+                    bars = self.barh([loc], [q3 - q1], height=wid[i], left=q1,
+                                     color=box_color if patch_artist else "none",
+                                     edgecolor=box_edge, label=str(stat.get("label", "")) if i == 0 else "")
+                out["boxes"].append(bars[0])
+            if orientation == "vertical":
+                out["medians"].append(self._stats_line(
+                    [loc - half, loc + half], [med, med], median_color, median_width))
+                for y0, y1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [loc, loc], [y0, y1], whisker_color, whisker_width))
+                    if showcaps:
+                        out["caps"].append(self._stats_line(
+                            [loc - half, loc + half], [y1, y1], whisker_color, whisker_width))
+            else:
+                out["medians"].append(self._stats_line(
+                    [med, med], [loc - half, loc + half], median_color, median_width))
+                for x0, x1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [x0, x1], [loc, loc], whisker_color, whisker_width))
+                    if showcaps:
+                        out["caps"].append(self._stats_line(
+                            [x1, x1], [loc - half, loc + half], whisker_color, whisker_width))
+            if showmeans and stat.get("mean") is not None:
+                mean = float(stat["mean"])
+                if orientation == "vertical":
+                    out["means"].append(self._stats_line(
+                        [loc - half, loc + half], [mean, mean], mean_color))
+                else:
+                    out["means"].append(self._stats_line(
+                        [mean, mean], [loc - half, loc + half], mean_color))
+            fliers = np.asarray(stat.get("fliers", []), dtype=float).ravel()
+            if showfliers and fliers.size:
+                if orientation == "vertical":
+                    self.scatter(np.full(fliers.size, loc), fliers, s=36,
+                                 c=flier_color, marker=flier_marker)
+                else:
+                    self.scatter(fliers, np.full(fliers.size, loc), s=36,
+                                 c=flier_color, marker=flier_marker)
+                out["fliers"].append(self.scatter_pts[-1])
+            else:
+                out["fliers"].append(None)
+        if manage_ticks:
+            labels = [str(stat.get("label", "")) for stat in stats]
+            shown = labels if any(labels) else [f"{v:g}" for v in pos]
             if orientation == "vertical":
                 self.set_xticks(pos, labels=shown)
             else:
@@ -4642,6 +4827,8 @@ class Figure:
         self.edgecolor = _norm_color(edgecolor)
         self._suptitle = None
         self._figure_texts = []
+        self.artists = []
+        self.patches = []
         self._render_cache = None
         self.transFigure = _CoordTransform("figure")
         self.transSubfigure = self.transFigure
@@ -4750,13 +4937,19 @@ class Figure:
         ax._bounds_are_axes = True
         return ax
 
+    def add_artist(self, artist):
+        self.artists.append(artist)
+        if isinstance(artist, Patch):
+            self.patches.append(artist)
+        return artist
+
     def draw_without_rendering(self): return None
     def draw(self, *args, **kwargs): return None
 
     # Layout requests are accepted but ignored: panels always fill their gridspec
     # cells, so there are no margins to negotiate.
     def tight_layout(self, **kwargs): return None
-    def subplots_adjust(self, **kwargs): return None
+    def subplots_adjust(self, *args, **kwargs): return None
     def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
     def get_layout_engine(self): return getattr(self, "layout_engine", None)
     def get_axes(self): return list(self.axes)
@@ -5296,6 +5489,7 @@ mpath = _Namespace(Path=Path)
 mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           PolyCollection=PolyCollection, PatchCollection=PatchCollection,
                           EventCollection=EventCollection, PathCollection=LineCollection)
+collections = mcollections
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          offset_copy=_offset_copy)
 mticker = _Namespace(

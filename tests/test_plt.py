@@ -2538,6 +2538,25 @@ def test_patch_classes_and_axes_compatibility_shims(tmp_path):
     assert p.stat().st_size > 0
 
 
+def test_path_codes_and_regular_shapes():
+    assert plt.Path.MOVETO == 1 and plt.Path.CLOSEPOLY == 79
+    assert len(plt.Path.unit_regular_star(5).vertices) == 10
+    assert len(plt.Path.unit_regular_polygon(6).vertices) == 6
+    assert len(plt.Path.unit_circle().vertices) == 65
+
+
+def test_bxp_accepts_precomputed_statistics(tmp_path):
+    stats = [dict(med=1.0, q1=0.5, q3=1.5, whislo=0.0, whishi=2.0,
+                  fliers=[3.0], mean=1.1, label="A")]
+    fig, ax = plt.subplots()
+    result = ax.bxp(stats, showmeans=True)
+    assert len(result["boxes"]) == 1
+    assert len(result["medians"]) == 1
+    p = tmp_path / "bxp.png"
+    fig.savefig(p)
+    assert p.stat().st_size > 0
+
+
 def test_collection_and_connection_patch_shims(tmp_path):
     fig, ax = plt.subplots()
     ax.add_collection(plt.mcollections.LineCollection(
