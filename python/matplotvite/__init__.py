@@ -3611,7 +3611,7 @@ class Axes:
         """Fill between two curves; `where` masks split the area into runs."""
         x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         a, b = _fill(y1, x.size), _fill(y2, x.size)
-        c = color or self._next_color()
+        c = color if color is not None else self._next_color()
         for xs, ya, yb in _runs(x, a, b, where):
             self.bands.append(_band(np.concatenate([xs, xs[::-1]]),
                                     np.concatenate([ya, yb[::-1]]), c, alpha, label))
@@ -3620,14 +3620,14 @@ class Axes:
                       **kwargs):
         y = _as_f64(y)
         a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
-        c = color or self._next_color()
+        c = color if color is not None else self._next_color()
         for ys, xa, xb in _runs(y, a, b, where):
             self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
                                     np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
     def fill(self, *args, color=None, alpha=None, label="", **kwargs):
         """Closed polygon: `fill(x, y)` or `fill(x1, y1, x2, y2)`."""
-        c = color or self._next_color()
+        c = color if color is not None else self._next_color()
         if len(args) == 2:
             self.bands.append(_band(_as_f64(self._xdate(args[0])), _as_f64(args[1]),
                                     c, alpha, label))

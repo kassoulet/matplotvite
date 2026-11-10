@@ -479,6 +479,28 @@ def test_errorbar_rejects_bad_yerr():
         plt.errorbar([1, 2], [3, 4], yerr=[1, 2, 3])
 
 
+def test_fill_between_color_does_not_advance_the_cycle():
+    fig, ax = plt.subplots()
+    ax.fill_between([0, 1], [0, 1], color="red")
+    ax.plot([0, 1], [1, 0])
+    assert ax.lines[-1]["color"] == plt.rcParams["axes.prop_cycle"].by_key()["color"][0]
+
+
+def test_legend_orders_lines_before_patches_and_collections(tmp_path):
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.bar([0, 1], [1, 2], label="bars")
+    ax.fill_between([0, 1], [1, 2], label="band")
+    ax.plot([0, 1], [2, 1], label="line", marker="+")
+    ax.scatter([0, 1], [1, 2], label="dots")
+    ax.legend()
+    p = tmp_path / "legend_order.svg"
+    fig.savefig(p)
+    s = p.read_text()
+    order = [re.search(rf">\s*{name}\s*<", s).start()
+             for name in ("line", "bars", "band", "dots")]
+    assert order == sorted(order)
+
+
 def test_colorbar_strip(tmp_path):
     plt.figure((6, 3))
     plt.contourf(np.add.outer(np.arange(20.0), np.arange(20.0)), levels=[0, 10, 20, 30])

@@ -323,7 +323,9 @@ pub(crate) struct Ticks {
 /// One collected legend row; icons match the artist that registered it.
 pub(crate) enum LegendSwatch {
     Line(RGBAColor, u32),
+    LineMarker(RGBAColor, u32, String),
     Rect(RGBAColor),
+    Collection(RGBAColor),
     Circle(RGBAColor),
 }
 

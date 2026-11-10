@@ -622,7 +622,22 @@ where
                 vec![(cx as i32, cy as i32), ((cx + 20.0) as i32, cy as i32)],
                 c.stroke_width(*w),
             ))?,
-            LegendSwatch::Rect(c) => area.draw(&Rectangle::new(
+            LegendSwatch::LineMarker(c, w, marker) => {
+                area.draw(&PathElement::new(
+                    vec![(cx as i32, cy as i32), ((cx + 20.0) as i32, cy as i32)],
+                    c.stroke_width(*w),
+                ))?;
+                draw_marker(
+                    area,
+                    (0, 0),
+                    ((cx + 10.0) as i32, cy as i32),
+                    4.0,
+                    *c,
+                    1,
+                    marker,
+                )?;
+            }
+            LegendSwatch::Rect(c) | LegendSwatch::Collection(c) => area.draw(&Rectangle::new(
                 [
                     ((cx + 2.0) as i32, (cy - 5.0) as i32),
                     ((cx + 22.0) as i32, (cy + 5.0) as i32),
@@ -1744,7 +1759,7 @@ where
         for (label, col) in legend_bands {
             entries.push(LegendEntry {
                 label: label.clone(),
-                swatch: LegendSwatch::Rect(col),
+                swatch: LegendSwatch::Collection(col),
             });
             if !custom_legend {
                 let series = chart.draw_series(std::iter::once(Rectangle::new(
@@ -2074,7 +2089,11 @@ where
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
-                    swatch: LegendSwatch::Line(col, width),
+                    swatch: if s.marker.is_empty() {
+                        LegendSwatch::Line(col, width)
+                    } else {
+                        LegendSwatch::LineMarker(col, width, s.marker.clone())
+                    },
                 });
                 if !custom_legend {
                     chart
@@ -2106,7 +2125,11 @@ where
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
-                    swatch: LegendSwatch::Line(col, width),
+                    swatch: if s.marker.is_empty() {
+                        LegendSwatch::Line(col, width)
+                    } else {
+                        LegendSwatch::LineMarker(col, width, s.marker.clone())
+                    },
                 });
             }
         }
@@ -2557,6 +2580,14 @@ where
     } else {
         LegendObstacles::default()
     };
+    if p.legend.show {
+        // Matplotlib collects line handles before patches and collections.
+        entries.sort_by_key(|entry| match &entry.swatch {
+            LegendSwatch::Line(..) | LegendSwatch::LineMarker(..) => 0,
+            LegendSwatch::Rect(_) => 1,
+            LegendSwatch::Collection(_) | LegendSwatch::Circle(_) => 2,
+        });
+    }
     if p.legend.show && custom_legend {
         let base = area.get_base_pixel();
         let pa = chart.plotting_area();
