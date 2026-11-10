@@ -13,6 +13,7 @@ only Python runtime dependency.
 
 - [Example gallery](https://kassoulet.github.io/matplotvite/)
 - [Performance measurements](https://kassoulet.github.io/matplotvite/benchmarks.html)
+- [Architecture](architecture.md)
 - [Supported API](#whats-supported)
 
 ## Build from source
