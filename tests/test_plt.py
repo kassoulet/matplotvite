@@ -159,6 +159,10 @@ def test_invalid_and_excessive_dimensions(tmp_path):
     with pytest.raises(ValueError, match="exceeds maximum allowed dimension"):
         plt.savefig(dpi=100_000)
 
+    plt.figure(figsize=(300, 300))
+    with pytest.raises(ValueError, match="total figure pixel count"):
+        plt.savefig(tmp_path / "area.png")
+
     for bad_size in [(-1, 5), (5, 0), (float("nan"), 4), (float("inf"), 4)]:
         with pytest.raises(ValueError, match="must be positive and finite"):
             plt.figure(figsize=bad_size)
@@ -339,7 +343,9 @@ def test_contour_lines(tmp_path):
     p = tmp_path / "c.svg"
     plt.savefig(p)
     s = p.read_text()
-    assert s.count("<polyline") >= 30 and "</svg>" in s
+    # Marching-squares cells are joined into one polyline per contour rather
+    # than emitting an element for every cell.
+    assert 3 <= s.count("<polyline") < 30 and "</svg>" in s
 
 
 def test_contourf_fills(tmp_path):
@@ -1133,6 +1139,16 @@ def test_hist_counts_and_edges(tmp_path):
     s = p.read_text().upper()
     assert s.count("<RECT") >= 9  # background plus one per bin
     assert "#FF7F0E" in s
+
+
+def test_excessive_binning_is_rejected():
+    plt.figure()
+    with pytest.raises(ValueError, match="bins=5000 exceeds maximum"):
+        plt.hist([1, 2], bins=5000)
+    with pytest.raises(ValueError, match="too many bins"):
+        plt.hist2d([1, 2], [1, 2], bins=[3000, 3000])
+    with pytest.raises(ValueError, match="too many hexagons"):
+        plt.hexbin([1, 2], [1, 2], gridsize=(2000, 2000))
 
 
 def test_hist_orientation_density_and_validation(tmp_path):
@@ -2389,14 +2405,36 @@ def test_figure_and_savefig_colors_and_bytes(tmp_path):
     assert buf.getvalue().startswith(b"<svg")
 
 
+def test_savefig_hashes_panel_arrays_once(monkeypatch):
+    array_ids = []
+    original = plt._hash_value
+
+    def counting_hash(hasher, value):
+        if isinstance(value, np.ndarray):
+            array_ids.append(id(value))
+        return original(hasher, value)
+
+    monkeypatch.setattr(plt, "_hash_value", counting_hash)
+    plt.figure()
+    plt.plot(np.arange(100.0), np.arange(100.0) ** 2)
+    plt.savefig(None, format="svg")
+    # The figure key reuses the per-panel digest; it must not walk the same
+    # series array a second time.
+    assert array_ids and len(array_ids) == len(set(array_ids))
+
+
 def test_svg_text_is_escaped():
     plt.figure((4, 3))
-    plt.plot([0, 1], [0, 1], label='</text><script>alert("label")</script>&')
-    plt.title('<script>alert("title")</script>')
+    payload = '</text><image href="file:///etc/passwd"/>'
+    plt.plot([0, 1], [0, 1], label=payload)
+    plt.title(f'<script>alert("title")</script>{payload}')
     plt.xlabel('a & b')
+    plt.xticks([0, 1], [payload, "safe"])
     plt.legend()
     svg = plt.savefig(None, format="svg").decode()
     assert "<script" not in svg.lower()
+    assert "<image" not in svg.lower()
+    assert "&lt;/text&gt;" in svg
     assert "&lt;" in svg and "&amp;" in svg
 
 

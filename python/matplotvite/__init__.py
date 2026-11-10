@@ -589,7 +589,39 @@ DPI = 100
 _FORMATS = ("png", "svg", "pdf", "webp")
 _COMPRESSIONS = ("fast", "default", "best")
 _MAX_CANVAS_DIM = 32768
-_MAX_CANVAS_AREA = 268435456  # 2^28 pixels (~1 GB RGBA raw buffer limit)
+_MAX_CANVAS_AREA = 67108864  # 2^26 pixels (~256 MiB RGBA raw buffer limit)
+_MAX_BINS = 4096
+_MAX_BIN_CELLS = 4_000_000
+_MAX_EDGES = 100_000
+
+
+def _validate_bins(bins, name="bins", max_cells=None):
+    """Reject bin counts that would allocate unbounded arrays."""
+    if isinstance(bins, (int, np.integer)) and not isinstance(bins, bool):
+        n = int(bins)
+        if n < 1:
+            raise ValueError(f"{name} must be at least 1")
+        if n > _MAX_BINS:
+            raise ValueError(f"{name}={n} exceeds maximum allowed ({_MAX_BINS})")
+        if max_cells is not None and n * n > max_cells:
+            raise ValueError(f"{name}={n} creates too many bins ({n * n} > {max_cells})")
+    elif isinstance(bins, (tuple, list, np.ndarray)):
+        arr = np.asarray(bins)
+        if arr.ndim == 1 and arr.size in (1, 2) and np.issubdtype(arr.dtype, np.integer):
+            ns = [int(v) for v in arr.ravel()]
+            if any(n < 1 for n in ns):
+                raise ValueError(f"{name} values must be at least 1")
+            if any(n > _MAX_BINS for n in ns):
+                raise ValueError(f"{name} values exceed maximum allowed ({_MAX_BINS})")
+            if (max_cells is not None and len(ns) == 2
+                    and ns[0] * ns[1] > max_cells):
+                raise ValueError(
+                    f"{name}={ns} creates too many bins "
+                    f"({ns[0] * ns[1]} > {max_cells})"
+                )
+        elif arr.ndim == 1 and arr.size > _MAX_EDGES:
+            raise ValueError(f"{name} has too many edges ({arr.size} > {_MAX_EDGES})")
+    return bins
 
 
 def _validate_dimension(val, name):
@@ -1677,6 +1709,7 @@ class Axes:
         if histtype not in ("bar", "step", "stepfilled"):
             raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
         data = np.asarray(x, dtype=np.float64).ravel()
+        bins = _validate_bins(bins)
         counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
                                      density=bool(density))
         if cumulative:
@@ -2134,6 +2167,7 @@ class Axes:
         y = np.asarray(y, dtype=np.float64).ravel()
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
+        bins = _validate_bins(bins, max_cells=_MAX_BIN_CELLS)
         counts, xedges, yedges = np.histogram2d(
             x, y, bins=bins, range=range, density=bool(density), weights=weights)
         image = self.imshow(counts.T, cmap=_cmap_name(cmap), vmin=cmin, vmax=cmax,
@@ -2154,6 +2188,7 @@ class Axes:
             raise ValueError("x and y must have the same length")
         if x.size == 0:
             raise ValueError("hexbin needs at least one point")
+        gridsize = _validate_bins(gridsize, name="gridsize")
         if isinstance(gridsize, (tuple, list, np.ndarray)):
             nx, ny = (max(int(v), 1) for v in np.asarray(gridsize).ravel()[:2])
         else:
@@ -2169,6 +2204,11 @@ class Axes:
         if ny is None:
             ny = max(int(nx / np.sqrt(3.0)), 1)
         ny = max(int(ny), 1)
+        if nx * ny > _MAX_BIN_CELLS // 2:
+            raise ValueError(
+                f"gridsize=({nx}, {ny}) creates too many hexagons "
+                f"({nx * ny} > {_MAX_BIN_CELLS // 2})"
+            )
         sx = (ex1 - ex0) / nx
         sy = (ey1 - ey0) / ny
         nx1, ny1 = nx + 1, ny + 1
@@ -3725,9 +3765,12 @@ class Figure:
         }
         # An unchanged figure reuses its last encoded bytes. The key covers both
         # the panel payload and every render option, so any edit invalidates it.
+        panel_keys = [panel.get("cache_key", "") for panel in panels]
         try:
+            if any(not panel_key for panel_key in panel_keys):
+                raise TypeError("panel data is not hashable")
             hasher = _hashlib.blake2b(digest_size=16)
-            _hash_value(hasher, ((w, h), self.grid, panels, options))
+            _hash_value(hasher, ((w, h), self.grid, panel_keys, options))
             key = hasher.digest()
         except (TypeError, ValueError):
             key = None

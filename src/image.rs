@@ -6,7 +6,7 @@ use crate::model::{ImageItem, PngCompression};
 /// Upper bound on `imshow` pixels, matching the figure-canvas budget. Without
 /// it a huge array could ask `Pixmap::new` for an allocation that aborts the
 /// process instead of raising a Python exception.
-const MAX_IMAGE_PIXELS: usize = 1 << 28;
+const MAX_IMAGE_PIXELS: usize = 1 << 26;
 
 /// Below this size, Rayon's scheduling overhead costs more than it saves.
 const PARALLEL_IMAGE_PIXELS: usize = 16_384;
@@ -42,8 +42,8 @@ fn scaled_alpha(value: f64, opacity: f64) -> u8 {
     (value * opacity.clamp(0.0, 1.0)).round().clamp(0.0, 255.0) as u8
 }
 
-/// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
-pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
+/// Convert an `imshow` array into premultiplied RGBA pixels.
+pub(crate) fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String> {
     let (arr, cmap, vmin, vmax, _, _, opacity, _interpolation) = item;
     let opacity = opacity.clamp(0.0, 1.0);
     let a = arr.as_array();
@@ -156,8 +156,50 @@ pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
             }
         }
     }
+    Ok(pm)
+}
+
+/// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
+pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
+    let (arr, _, _, _, _, _, opacity, _) = item;
+    let array = arr.as_array();
+    let shape = array.shape();
+    let opaque = *opacity >= 1.0 && (shape.len() != 3 || shape[2] == 3);
+    let pm = image_pixmap(item)?;
     // The default encoder level dominates save time for full-resolution
     // images; fast compression keeps the embedded PNG cheap to produce.
-    let opaque = opacity >= 1.0 && (!rgb || shape[2] == 3);
     crate::export::encode_png(&pm, PngCompression::Fast, opaque).map_err(|e| e.to_string())
+}
+
+/// Flatten an image into opaque RGB at the requested size, blending its alpha
+/// over the axes background. The direct bitmap path uses this instead of
+/// encoding a PNG and handing it to resvg.
+pub(crate) fn image_rgb(
+    item: &ImageItem,
+    width: u32,
+    height: u32,
+    background: [u8; 3],
+) -> Result<Vec<u8>, String> {
+    if width == 0 || height == 0 {
+        return Ok(Vec::new());
+    }
+    let pm = image_pixmap(item)?;
+    let (sw, sh) = (pm.width(), pm.height());
+    let src = pm.data();
+    let mut out = vec![0u8; width as usize * height as usize * 3];
+    for y in 0..height {
+        let sy = (y as u64 * sh as u64 / height as u64) as u32;
+        for x in 0..width {
+            let sx = (x as u64 * sw as u64 / width as u64) as u32;
+            let src_i = ((sy * sw + sx) * 4) as usize;
+            let dst_i = ((y * width + x) * 3) as usize;
+            let alpha = src[src_i + 3] as u32;
+            for c in 0..3 {
+                out[dst_i + c] = (src[src_i + c] as u32
+                    + background[c] as u32 * (255 - alpha) / 255)
+                    .min(255) as u8;
+            }
+        }
+    }
+    Ok(out)
 }

@@ -16,7 +16,7 @@ use crate::scale::ScaleBackend;
 const OVERSAMPLE: u32 = 2;
 
 /// Match the figure-canvas budget in `lib.rs`.
-const MAX_CANVAS_AREA: u64 = 268_435_456;
+const MAX_CANVAS_AREA: u64 = 67_108_864;
 
 #[derive(Clone, Copy)]
 struct PanelRect {
@@ -90,30 +90,70 @@ fn downsample(
 ) -> Result<tiny_skia::Pixmap, String> {
     let mut pixmap =
         tiny_skia::Pixmap::new(width, height).ok_or("failed to allocate panel pixmap")?;
-    let samples = (scale * scale) as u64;
-    for y in 0..height {
-        for x in 0..width {
-            let (mut r, mut g, mut b) = (0u64, 0u64, 0u64);
-            for sy in 0..scale {
-                for sx in 0..scale {
-                    let px = x * scale + sx;
-                    let py = y * scale + sy;
-                    let offset = (py * width * scale + px) as usize * 3;
-                    r += rgb[offset] as u64;
-                    g += rgb[offset + 1] as u64;
-                    b += rgb[offset + 2] as u64;
+    let row_len = width as usize;
+    let source_stride = row_len * scale as usize * 3;
+
+    // The common path is exactly 2x2. Compute four source pixels at a time
+    // and write whole rows in parallel over the destination pixmap.
+    if scale == 2 {
+        pixmap
+            .pixels_mut()
+            .par_chunks_mut(row_len)
+            .enumerate()
+            .for_each(|(y, row)| {
+                let top = y * source_stride;
+                let bottom = top + source_stride;
+                for (x, dst) in row.iter_mut().enumerate() {
+                    let left = x * 6;
+                    let mut r = 0u32;
+                    let mut g = 0u32;
+                    let mut b = 0u32;
+                    for offset in [top + left, top + left + 3, bottom + left, bottom + left + 3] {
+                        r += rgb[offset] as u32;
+                        g += rgb[offset + 1] as u32;
+                        b += rgb[offset + 2] as u32;
+                    }
+                    if let Some(px) = tiny_skia::PremultipliedColorU8::from_rgba(
+                        (r / 4) as u8,
+                        (g / 4) as u8,
+                        (b / 4) as u8,
+                        255,
+                    ) {
+                        *dst = px;
+                    }
                 }
-            }
-            pixmap.pixels_mut()[(y * width + x) as usize] =
-                tiny_skia::PremultipliedColorU8::from_rgba(
+            });
+        return Ok(pixmap);
+    }
+
+    let samples = (scale * scale) as u64;
+    pixmap
+        .pixels_mut()
+        .par_chunks_mut(row_len)
+        .enumerate()
+        .for_each(|(y, row)| {
+            for (x, dst) in row.iter_mut().enumerate() {
+                let (mut r, mut g, mut b) = (0u64, 0u64, 0u64);
+                for sy in 0..scale {
+                    for sx in 0..scale {
+                        let px = x * scale as usize + sx as usize;
+                        let py = y * scale as usize + sy as usize;
+                        let offset = (py * width as usize * scale as usize + px) * 3;
+                        r += rgb[offset] as u64;
+                        g += rgb[offset + 1] as u64;
+                        b += rgb[offset + 2] as u64;
+                    }
+                }
+                if let Some(px) = tiny_skia::PremultipliedColorU8::from_rgba(
                     (r / samples) as u8,
                     (g / samples) as u8,
                     (b / samples) as u8,
                     255,
-                )
-                .ok_or("invalid downsampled pixel")?;
-        }
-    }
+                ) {
+                    *dst = px;
+                }
+            }
+        });
     Ok(pixmap)
 }
 
@@ -135,7 +175,8 @@ fn render_panel(
         let mut overlays = Vec::new();
         // `text_px` compensates for the SVG backend's 1.24 font divisor; the
         // bitmap backend applies the font size directly.
-        draw_panel(&area, p, &mut overlays, 0, false, p.dpi / 1.24).map_err(|e| e.to_string())?;
+        draw_panel(&area, p, &mut overlays, 0, false, true, p.dpi / 1.24)
+            .map_err(|e| e.to_string())?;
         area.present().map_err(|e| e.to_string())?;
     }
     downsample(&rgb, pw, ph, scale)
@@ -170,11 +211,18 @@ fn panel_work(p: &Panel) -> usize {
             count = count.saturating_add(segment.len() / 2);
         }
     }
+    for image in &p.images {
+        count = count.saturating_add(image.0.as_array().len() / 3);
+    }
     count
 }
 
 /// Matches the dense marker-layer threshold in `draw_panel`.
 const DENSE_MARKER_THRESHOLD: usize = 4_096;
+
+/// The direct path pays off for large images, where it avoids PNG encoding,
+/// base64 and a resvg decode. Small images are cheaper through the SVG path.
+const DIRECT_IMAGE_MIN_PIXELS: usize = 512 * 512;
 
 /// The SVG path batches dense marker layers into one bitmap overlay. Direct
 /// rendering draws every marker separately at 2x, which is much slower for
@@ -206,6 +254,15 @@ fn has_dense_markers(p: &Panel) -> bool {
 /// single-panel plots and marker-heavy panels keep the faster SVG + resvg path.
 pub(crate) fn direct_eligible(panels: &[Panel]) -> bool {
     if panels.iter().any(has_dense_markers) {
+        return false;
+    }
+    if panels.iter().any(|panel| {
+        panel.images.iter().any(|image| {
+            let array = image.0.as_array();
+            let shape = array.shape();
+            shape[0].saturating_mul(shape[1]) < DIRECT_IMAGE_MIN_PIXELS
+        })
+    }) {
         return false;
     }
     panels.len() > 1

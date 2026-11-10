@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use plotters::coord::types::RangedCoordf64;
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
 
 use crate::color::{color, colormap};
-use crate::image::{base64, image_png};
+use crate::image::{base64, image_png, image_rgb};
 use crate::layout::{auto_ticks, axis_bounds, panel_ranges, range};
 use crate::model::{Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression};
 
@@ -1120,6 +1122,61 @@ fn contour_segments(x: &[f64], y: &[f64], z: &[f64], level: f64) -> Vec<((f64, f
     out
 }
 
+/// Join marching-squares segments that share an endpoint into polylines.
+fn contour_polylines(segments: Vec<((f64, f64), (f64, f64))>) -> Vec<Vec<(f64, f64)>> {
+    if segments.is_empty() {
+        return Vec::new();
+    }
+    let key = |p: (f64, f64)| (p.0.to_bits(), p.1.to_bits());
+    let mut incident: HashMap<(u64, u64), Vec<usize>> = HashMap::new();
+    for (i, (a, b)) in segments.iter().enumerate() {
+        incident.entry(key(*a)).or_default().push(i);
+        incident.entry(key(*b)).or_default().push(i);
+    }
+    let mut used = vec![false; segments.len()];
+    let mut lines = Vec::new();
+    for i in 0..segments.len() {
+        if used[i] {
+            continue;
+        }
+        used[i] = true;
+        let (a, b) = segments[i];
+        let mut line = vec![a, b];
+        // Extend forward from the current tail.
+        while let Some(tail_point) = line.last() {
+            let tail = key(*tail_point);
+            let Some(next) = incident
+                .get(&tail)
+                .and_then(|ids| ids.iter().copied().find(|&j| !used[j]))
+            else {
+                break;
+            };
+            used[next] = true;
+            let (c, d) = segments[next];
+            let far = if key(c) == tail { d } else { c };
+            line.push(far);
+        }
+        // Extend backward from the current head.
+        while let Some(head_point) = line.first() {
+            let head = key(*head_point);
+            let Some(previous) = incident
+                .get(&head)
+                .and_then(|ids| ids.iter().copied().find(|&j| !used[j]))
+            else {
+                break;
+            };
+            used[previous] = true;
+            let (c, d) = segments[previous];
+            let far = if key(c) == head { d } else { c };
+            line.insert(0, far);
+        }
+        if line.len() > 1 {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
 /// Clip a triangle (x, y, value) to `lo <= value <= hi`.
 fn clip_band(tri: &[(f64, f64, f64); 3], lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
     let poly = clip_value(tri.to_vec(), lo, true);
@@ -1313,6 +1370,7 @@ pub(crate) fn draw_panel<DB: DrawingBackend>(
     overlays: &mut Vec<String>,
     twin_gap_px: i32,
     raster_scatter: bool,
+    draw_images: bool,
     dpi: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -2269,11 +2327,16 @@ where
                     .copied()
                     .unwrap_or(2.0)
                     .clamp(0.25, 64.0);
-                for (a, b) in contour_segments(&xs, &ys, &zs, *level) {
-                    let (ax, ay) = chart_area.map_coordinate(&(tx(a.0), ty(a.1)));
-                    let (bx, by) = chart_area.map_coordinate(&(tx(b.0), ty(b.1)));
+                for line in contour_polylines(contour_segments(&xs, &ys, &zs, *level)) {
+                    let points: Vec<(i32, i32)> = line
+                        .iter()
+                        .map(|(x, y)| {
+                            let (px, py) = chart_area.map_coordinate(&(tx(*x), ty(*y)));
+                            (px - base.0, py - base.1)
+                        })
+                        .collect();
                     area.draw(&PathElement::new(
-                        vec![(ax - base.0, ay - base.1), (bx - base.0, by - base.1)],
+                        points,
                         col.stroke_width(width.round().max(1.0) as u32),
                     ))?;
                 }
@@ -2347,6 +2410,24 @@ where
             let (zx, zy) = chart_area.map_coordinate(&(tx(r), ty(b)));
             let (iw, ih) = ((ax - zx).abs(), (ay - zy).abs());
             if iw == 0 || ih == 0 {
+                continue;
+            }
+            if draw_images {
+                let bg = p
+                    .facecolor
+                    .as_deref()
+                    .map(color)
+                    .map(|c| [c.0, c.1, c.2])
+                    .unwrap_or([255, 255, 255]);
+                let (x, y) = (ax.min(zx) - base.0, ay.min(zy) - base.1);
+                let rgb = image_rgb(item, iw as u32, ih as u32, bg)?;
+                if let Some(elem) = plotters::element::BitMapElement::with_owned_buffer(
+                    (x, y),
+                    (iw as u32, ih as u32),
+                    rgb,
+                ) {
+                    area.draw(&elem)?;
+                }
                 continue;
             }
             let hint = if matches!(item.7.as_str(), "none" | "nearest") {

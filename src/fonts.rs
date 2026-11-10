@@ -12,7 +12,11 @@ static FONT_MONO: &[u8] = include_bytes!("../assets/fonts/GeistMono-Regular.ttf"
 /// Falls back to the old character-count estimate if the font cannot load.
 pub(crate) fn text_width(text: &str, px: f64) -> f64 {
     let px = px.max(1.0) as f32;
-    let Ok(font) = FontRef::try_from_slice(FONT_SANS) else {
+    static SANS_FONT: OnceLock<Option<FontRef<'static>>> = OnceLock::new();
+    let Some(font) = SANS_FONT
+        .get_or_init(|| FontRef::try_from_slice(FONT_SANS).ok())
+        .as_ref()
+    else {
         return text.chars().count() as f64 * px as f64 * 0.55;
     };
     let scaled = font.as_scaled(PxScale::from(px));

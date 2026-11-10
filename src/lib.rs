@@ -74,7 +74,7 @@ fn render(
     let (w, h) = size;
     // Defend against integer overflow and unconstrained allocations (DoS)
     const MAX_CANVAS_DIM: u32 = 32768;
-    const MAX_CANVAS_AREA: u64 = 268435456; // 2^28 px
+    const MAX_CANVAS_AREA: u64 = 67_108_864; // 2^26 px (~256 MiB RGBA)
     if w == 0 || h == 0 {
         return Err(PyValueError::new_err(
             "size dimensions must be at least 1x1",
@@ -134,11 +134,7 @@ fn render(
     // The direct bitmap path skips SVG generation and resvg. It currently
     // covers opaque PNGs without embedded images or figure decorations; the
     // vector path remains the fallback for everything else.
-    let direct = fmt == "png"
-        && !transparent
-        && decorations.is_empty()
-        && panels.iter().all(|p| p.images.is_empty())
-        && direct_eligible(&panels);
+    let direct = fmt == "png" && !transparent && decorations.is_empty() && direct_eligible(&panels);
     let direct_background =
         background_pixel(background).map(|pixel| [pixel[0], pixel[1], pixel[2]]);
 

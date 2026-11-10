@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
@@ -64,7 +64,7 @@ type PanelFragment = (String, Vec<String>);
 /// alone is not a useful bound. Evict oldest insertions once either the entry
 /// or byte budget is reached; one oversized fragment is simply not cached.
 struct PanelCache {
-    entries: HashMap<String, PanelFragment>,
+    entries: HashMap<String, Arc<PanelFragment>>,
     order: VecDeque<String>,
     bytes: usize,
 }
@@ -81,11 +81,11 @@ impl PanelCache {
         }
     }
 
-    fn get(&self, key: &str) -> Option<&PanelFragment> {
-        self.entries.get(key)
+    fn get(&self, key: &str) -> Option<Arc<PanelFragment>> {
+        self.entries.get(key).cloned()
     }
 
-    fn insert(&mut self, key: String, fragment: PanelFragment) {
+    fn insert(&mut self, key: String, fragment: Arc<PanelFragment>) {
         let bytes = fragment_bytes(&fragment);
         if bytes > Self::MAX_BYTES {
             return;
@@ -144,7 +144,7 @@ fn panel_fragment(
                 let right = (w as f64 - (x + pw) * w as f64).round() as i32;
                 let bottom = (y * h as f64).round() as i32;
                 let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
-                draw_panel(&area, p, &mut overlays, gap, raster_scatter, p.dpi)
+                draw_panel(&area, p, &mut overlays, gap, raster_scatter, false, p.dpi)
                     .map_err(|e| e.to_string())?;
             }
             None => draw_panel(
@@ -153,6 +153,7 @@ fn panel_fragment(
                 &mut overlays,
                 gap,
                 raster_scatter,
+                false,
                 p.dpi,
             )
             .map_err(|e| e.to_string())?,
@@ -192,20 +193,20 @@ fn cached_panel_fragment(
     p: &Panel,
     top_pad: i32,
     raster_scatter: bool,
-) -> Result<PanelFragment, String> {
+) -> Result<Arc<PanelFragment>, String> {
     if p.cache_key.is_empty() {
-        return panel_fragment(size, grid, p, top_pad, raster_scatter);
+        return panel_fragment(size, grid, p, top_pad, raster_scatter).map(Arc::new);
     }
     let key = fragment_key(size, grid, p, top_pad, raster_scatter);
     let cache = PANEL_CACHE.get_or_init(|| Mutex::new(PanelCache::new()));
     if let Ok(guard) = cache.lock() {
         if let Some(fragment) = guard.get(&key) {
-            return Ok(fragment.clone());
+            return Ok(fragment);
         }
     }
-    let fragment = panel_fragment(size, grid, p, top_pad, raster_scatter)?;
+    let fragment = Arc::new(panel_fragment(size, grid, p, top_pad, raster_scatter)?);
     if let Ok(mut guard) = cache.lock() {
-        guard.insert(key, fragment.clone());
+        guard.insert(key, Arc::clone(&fragment));
     }
     Ok(fragment)
 }
@@ -312,12 +313,10 @@ pub(crate) fn render_svg(
         .as_ref()
         .map(|s| (text_px(s.size, dpi.max(1.0)) * 1.6).round() as i32 + 8)
         .unwrap_or(0);
-    let fragments: Vec<(String, Vec<String>)> = panels
+    let fragments: Vec<Arc<PanelFragment>> = panels
         .par_iter()
         .map(|p| cached_panel_fragment(size, grid, p, top_pad, output.raster))
         .collect::<Result<_, String>>()?;
-    let (bodies, overlays): (Vec<String>, Vec<Vec<String>>) = fragments.into_iter().unzip();
-    let overlays: Vec<String> = overlays.into_iter().flatten().collect();
     let decoration_svg = if decorations.is_empty() {
         None
     } else {
@@ -328,19 +327,40 @@ pub(crate) fn render_svg(
     // `</svg>` shifted the whole tail once per panel and overlay. The figure
     // background is added after measuring so it cannot hide the content bounds.
     let body = background_fragment(size, None)?;
+    // Tight bounds must be measured without the full-page background; all
+    // other output can write the background in place instead of shifting the
+    // completed document once.
+    let background_body = if background.is_some() && !output.tight_bounds {
+        Some(background_fragment(size, background)?)
+    } else {
+        None
+    };
     let insert_at = body
         .rfind("</svg>")
         .ok_or("rendered SVG has no closing tag")?;
-    let extra = bodies.iter().map(String::len).sum::<usize>()
-        + overlays.iter().map(String::len).sum::<usize>()
+    let overlay_count = fragments.iter().map(|f| f.1.len()).sum::<usize>();
+    let extra = fragments.iter().map(|f| fragment_bytes(f)).sum::<usize>()
         + decoration_svg.as_ref().map_or(0, String::len)
-        + bodies.len()
-        + overlays.len()
+        + fragments.len()
+        + overlay_count
         + if decoration_svg.is_some() { 1 } else { 0 };
     let mut svg = String::with_capacity(body.len() + extra);
     svg.push_str(&body[..insert_at]);
-    for part in bodies.iter().chain(&overlays).chain(decoration_svg.iter()) {
-        svg.push_str(part);
+    if let Some(background_body) = &background_body {
+        svg.push_str(svg_body(background_body));
+    }
+    for fragment in &fragments {
+        svg.push_str(&fragment.0);
+        svg.push('\n');
+    }
+    for fragment in &fragments {
+        for overlay in &fragment.1 {
+            svg.push_str(overlay);
+            svg.push('\n');
+        }
+    }
+    if let Some(decoration) = &decoration_svg {
+        svg.push_str(decoration);
         svg.push('\n');
     }
     svg.push_str(&body[insert_at..]);
@@ -349,7 +369,7 @@ pub(crate) fn render_svg(
     } else {
         None
     };
-    if background.is_some() {
+    if output.tight_bounds && background.is_some() {
         let background = background_fragment(size, background)?;
         let background = svg_body(&background);
         let root_end = svg.find('>').ok_or("rendered SVG has no root tag")? + 1;
