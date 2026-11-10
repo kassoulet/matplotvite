@@ -1,3 +1,5 @@
+# PDF output assembles svg2pdf/usvg chunks by hand. When either crate changes,
+# run the tight-PDF tests in tests/test_plt.py before merging the update.
 version: 2
 updates:
   - package-ecosystem: "cargo"

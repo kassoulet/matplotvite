@@ -263,6 +263,8 @@ positions/labels are honoured by the renderer.
 
 `show`, `draw`, `pause`, `ion`, `ioff`, `update`, `margins`, `autoscale`,
 `set_clip_on`, and `set_path_effects` are accepted for source compatibility.
+Shims that cannot affect the renderer emit a one-time `RuntimeWarning`, and the
+harvested gallery manifests count ignored calls per case.
 
 ### Not supported
 
