@@ -2538,6 +2538,19 @@ def test_patch_classes_and_axes_compatibility_shims(tmp_path):
     assert p.stat().st_size > 0
 
 
+def test_collection_and_connection_patch_shims(tmp_path):
+    fig, ax = plt.subplots()
+    ax.add_collection(plt.mcollections.LineCollection(
+        [[(0, 0), (1, 1)], [(0, 1), (1, 0)]], colors=["red", "blue"]))
+    ax.add_collection(plt.PolyCollection([[(0, 0), (1, 0), (0, 1)]]))
+    ax.add_collection(plt.PatchCollection([plt.Rectangle((0, 0), 1, 1)]))
+    ax.add_collection(plt.EventCollection([0.2, 0.8]))
+    ax.add_patch(plt.mpatches.ConnectionPatch((0, 0), (1, 1)))
+    p = tmp_path / "collections.png"
+    fig.savefig(p)
+    assert p.stat().st_size > 0
+
+
 def test_ignored_shim_warns_once():
     label = plt.figure().gca().xaxis.label
     with pytest.warns(RuntimeWarning, match="accepted but ignored"):

@@ -19,6 +19,8 @@ __all__ = (
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
     "mtransforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
+    "mcollections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
@@ -1540,6 +1542,132 @@ def _collection_entry(artist):
                 alpha=1.0 if alpha is None else alpha,
                 linewidth=_number(_call(artist, "get_linewidth"), 1.5),
                 label=str(_call(artist, "get_label") or ""))
+
+
+class Collection:
+    """Base compatibility object for Matplotlib collection artists."""
+
+    def __init__(self, colors=None, facecolor=None, edgecolor=None, linewidths=None,
+                 alpha=None, label="", zorder=1, **kwargs):
+        self._colors = colors
+        self._facecolor = facecolor if facecolor is not None else colors
+        self._edgecolor = edgecolor if edgecolor is not None else colors
+        self._linewidth = linewidths if linewidths is not None else kwargs.get("lw", 1.5)
+        self._alpha = alpha
+        self._label = str(label)
+        self._zorder = zorder
+        self._visible = True
+        self._array = None
+
+    def get_facecolor(self): return self._facecolor
+    def get_edgecolor(self): return self._edgecolor
+    def get_colors(self): return self._colors
+    def get_alpha(self): return self._alpha
+    def get_linewidth(self):
+        return float(np.asarray(self._linewidth).ravel()[0]) if self._linewidth is not None else 1.5
+    def get_label(self): return self._label
+    def get_zorder(self): return self._zorder
+    def get_visible(self): return self._visible
+    def set_color(self, color):
+        self._colors = color
+        self._facecolor = color
+        return self
+    def set_facecolor(self, color): self._facecolor = color; return self
+    def set_edgecolor(self, color): self._edgecolor = color; return self
+    def set_alpha(self, alpha): self._alpha = alpha; return self
+    def set_linewidth(self, width): self._linewidth = width; return self
+    def set_linewidths(self, width): self._linewidth = width; return self
+    def set_label(self, label): self._label = str(label); return self
+    def set_zorder(self, zorder): self._zorder = zorder; return self
+    def set_visible(self, visible): self._visible = bool(visible); return self
+    def set_array(self, values): self._array = values; return self
+    def set_clim(self, *args, **kwargs): return self
+    def set_norm(self, norm): return self
+    def set_cmap(self, cmap): return self
+    def set_sizes(self, sizes): return self
+    def set_path_effects(self, effects): _ignored("Collection.set_path_effects")
+    def set_clip_on(self, value): _ignored("Collection.set_clip_on")
+    def set_clip_path(self, *args, **kwargs): _ignored("Collection.set_clip_path")
+    def set_offset_transform(self, value): return self
+    def set_transform(self, value): return self
+
+
+class LineCollection(Collection):
+    def __init__(self, segments, colors=None, linewidths=None, label="", **kwargs):
+        super().__init__(colors=colors, linewidths=linewidths, label=label, **kwargs)
+        self._segments = [np.asarray(seg, dtype=float).reshape(-1, 2) for seg in segments]
+
+    def get_segments(self): return self._segments
+    def set_segments(self, segments):
+        self._segments = [np.asarray(seg, dtype=float).reshape(-1, 2) for seg in segments]
+        return self
+    def get_offsets(self): return None
+
+
+class PolyCollection(LineCollection):
+    def __init__(self, verts, colors=None, **kwargs):
+        loops = []
+        for vert in verts:
+            points = np.asarray(vert, dtype=float).reshape(-1, 2)
+            loops.append(np.vstack([points, points[:1]]) if len(points) else points)
+        super().__init__(loops, colors=colors, **kwargs)
+
+    def set_verts(self, verts, closed=True):
+        self._segments = [np.vstack([np.asarray(v, dtype=float).reshape(-1, 2),
+                                      np.asarray(v, dtype=float).reshape(-1, 2)[:1]])
+                          for v in verts]
+        return self
+
+
+class PatchCollection(LineCollection):
+    def __init__(self, patches, colors=None, **kwargs):
+        self._patches = list(patches)
+        super().__init__([], colors=colors, **kwargs)
+
+    def get_segments(self):
+        out = []
+        for patch in self._patches:
+            entry = _patch_entry(patch)
+            if entry is None:
+                continue
+            if entry["kind"] == "rect":
+                x, y, w, h = entry["x"], entry["y"], entry["width"], entry["height"]
+                pts = np.array([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]])
+                out.append(pts)
+            elif entry["points"]:
+                pts = np.asarray(entry["points"], dtype=float).reshape(-1, 2)
+                out.append(np.vstack([pts, pts[:1]]))
+        return out
+
+    def set_paths(self, patches):
+        self._patches = list(patches)
+        return self
+
+
+class EventCollection(LineCollection):
+    def __init__(self, positions, orientation="horizontal", lineoffset=0, linelength=1, **kwargs):
+        positions = np.asarray(positions, dtype=float).ravel()
+        if orientation in ("horizontal", "vertical"):
+            if orientation == "horizontal":
+                segs = [[(p, lineoffset - linelength / 2), (p, lineoffset + linelength / 2)]
+                        for p in positions]
+            else:
+                segs = [[(lineoffset - linelength / 2, p), (lineoffset + linelength / 2, p)]
+                        for p in positions]
+        else:
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        super().__init__(segs, **kwargs)
+
+
+class ConnectionPatch(FancyArrowPatch):
+    def __init__(self, xyA, xyB, coordsA="data", coordsB="data", axesA=None, axesB=None,
+                 **kwargs):
+        super().__init__(posA=xyA, posB=xyB, **kwargs)
+        self.coordsA, self.coordsB = coordsA, coordsB
+        self.axesA, self.axesB = axesA, axesB
+
+
+patches.ConnectionPatch = ConnectionPatch
 
 
 class Line2D:
@@ -5165,6 +5293,9 @@ mcolors = _MColors()
 colors = mcolors
 mpatches = patches
 mpath = _Namespace(Path=Path)
+mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
+                          PolyCollection=PolyCollection, PatchCollection=PatchCollection,
+                          EventCollection=EventCollection, PathCollection=LineCollection)
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          offset_copy=_offset_copy)
 mticker = _Namespace(
