@@ -230,7 +230,9 @@ fn encode_pdf(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::from_parameter(format!("{width}x{height}")),
             &svg,
-            |b, svg| b.iter(|| bench::svg_to_pdf(black_box(svg), 100.0).unwrap()),
+            |b, svg| {
+                b.iter(|| bench::svg_to_pdf(black_box(svg), 100.0, (width, height), false).unwrap())
+            },
         );
     }
     group.finish();

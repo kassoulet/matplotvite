@@ -646,6 +646,7 @@ dependencies = [
  "ab_glyph",
  "criterion",
  "numpy",
+ "pdf-writer",
  "plotters",
  "plotters-backend",
  "png 0.18.1",

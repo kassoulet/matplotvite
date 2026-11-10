@@ -128,7 +128,9 @@ fn render(
     let output = RenderOutput {
         dpi,
         raster: matches!(fmt.as_str(), "png" | "webp"),
-        tight_bounds: tight && matches!(fmt.as_str(), "svg" | "pdf"),
+        // PDF measures its own bounds while embedding the SVG, so only SVG
+        // needs the extra usvg pass here.
+        tight_bounds: tight && fmt == "svg",
     };
 
     // The direct bitmap path skips SVG generation and resvg. It currently
@@ -159,8 +161,13 @@ fn render(
             return encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast), true)
                 .map_err(|e| e.to_string());
         }
-        let (svg, bounds) = render_svg(size, grid, &panels, background, decorations, output)?;
-        if fmt == "svg" || fmt == "pdf" {
+        // PDF receives an unbacked SVG so its single parse can measure the
+        // drawn content; it paints the background onto the cropped page.
+        let svg_background = if fmt == "pdf" { None } else { background };
+        let (svg, bounds) = render_svg(size, grid, &panels, svg_background, decorations, output)?;
+        if fmt == "pdf" {
+            render_pdf(&svg, dpi, size, tight, background)
+        } else if fmt == "svg" {
             let svg = match if tight {
                 bounds.and_then(|bbox| svg_tight(&svg, bbox))
             } else {
@@ -169,11 +176,7 @@ fn render(
                 Some(svg) => svg,
                 None => svg,
             };
-            if fmt == "pdf" {
-                render_pdf(&svg, dpi)
-            } else {
-                Ok(svg.into_bytes())
-            }
+            Ok(svg.into_bytes())
         } else {
             let pixmap = rasterize(&svg, w, h, transparent)?;
             let pixmap = match if tight {

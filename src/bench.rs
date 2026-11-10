@@ -29,6 +29,6 @@ pub fn encode_webp_bytes(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String> 
 }
 
 /// Convert SVG markup into a vector PDF.
-pub fn svg_to_pdf(svg: &str, dpi: f64) -> Result<Vec<u8>, String> {
-    render_pdf(svg, dpi)
+pub fn svg_to_pdf(svg: &str, dpi: f64, size: (u32, u32), tight: bool) -> Result<Vec<u8>, String> {
+    render_pdf(svg, dpi, size, tight, None)
 }

@@ -107,6 +107,27 @@ def test_tight_bbox_crops_whitespace(tmp_path):
     plt.savefig(svg, bbox_inches="tight")
     assert 'viewBox="0 0 400 300"' not in svg.read_text()
 
+    pdf = tmp_path / "tight.pdf"
+    plt.savefig(pdf, bbox_inches="tight")
+    b = pdf.read_bytes()
+    m = re.search(rb"MediaBox \[0 0 ([\d.]+) ([\d.]+)\]", b)
+    assert m, "missing MediaBox"
+    w, h = (float(v) for v in m.groups())
+    assert w < 288 and h < 216
+
+
+def test_tight_pdf_with_image(tmp_path):
+    plt.figure((4, 3))
+    plt.imshow(np.linspace(0, 1, 100).reshape(10, 10))
+    p = tmp_path / "image.pdf"
+    plt.savefig(p, bbox_inches="tight")
+    b = p.read_bytes()
+    assert b[:5] == b"%PDF-"
+    m = re.search(rb"MediaBox \[0 0 ([\d.]+) ([\d.]+)\]", b)
+    assert m, "missing MediaBox"
+    w, h = (float(v) for v in m.groups())
+    assert 0 < w < 288 and 0 < h < 216
+
 
 def test_tight_bbox_with_colored_background(tmp_path):
     fig = plt.figure((4, 3), facecolor="red")

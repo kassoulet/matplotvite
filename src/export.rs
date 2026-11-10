@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use pdf_writer::{Content, Finish, Name, Pdf, Rect, Ref};
 use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
@@ -26,11 +27,128 @@ impl FigureDecorations<'_> {
 
 /// Convert SVG markup into a single-page vector PDF. `dpi` sets the physical
 /// page size: the SVG's pixel dimensions are treated as `dpi` pixels per inch.
-pub(crate) fn render_pdf(svg: &str, dpi: f64) -> Result<Vec<u8>, String> {
-    let opts = pdf_options();
-    let tree = svg2pdf::usvg::Tree::from_str(svg, &opts).map_err(|e| e.to_string())?;
-    let page = svg2pdf::PageOptions { dpi: dpi as f32 };
-    svg2pdf::to_pdf(&tree, svg2pdf::ConversionOptions::default(), page).map_err(|e| e.to_string())
+/// Tight output crops the page in the same parse that builds the content.
+pub(crate) fn render_pdf(
+    svg: &str,
+    dpi: f64,
+    size: (u32, u32),
+    tight: bool,
+    background: Option<RGBAColor>,
+) -> Result<Vec<u8>, String> {
+    let tree = svg2pdf::usvg::Tree::from_str(svg, &pdf_options()).map_err(|e| e.to_string())?;
+    let scale = (72.0 / dpi) as f32;
+    let (crop_x, crop_y, crop_w, crop_h) = if tight {
+        pdf_bounds(&tree, size).unwrap_or((0, 0, size.0, size.1))
+    } else {
+        (0, 0, size.0, size.1)
+    };
+    let full_w = size.0 as f32 * scale;
+    let full_h = size.1 as f32 * scale;
+    let page_w = crop_w as f32 * scale;
+    let page_h = crop_h as f32 * scale;
+
+    let mut alloc = Ref::new(1);
+    let catalog_id = alloc.bump();
+    let page_tree_id = alloc.bump();
+    let page_id = alloc.bump();
+    let content_id = alloc.bump();
+    let svg_name = Name(b"S1");
+
+    let (svg_chunk, svg_id) = svg2pdf::to_chunk(&tree, svg2pdf::ConversionOptions::default())
+        .map_err(|e| e.to_string())?;
+    let mut map = HashMap::new();
+    let svg_chunk = svg_chunk.renumber(|old| *map.entry(old).or_insert_with(|| alloc.bump()));
+    let svg_id = *map.get(&svg_id).ok_or("failed to remap embedded SVG")?;
+
+    let mut pdf = Pdf::new();
+    pdf.catalog(catalog_id).pages(page_tree_id);
+    pdf.pages(page_tree_id).kids([page_id]).count(1);
+
+    let mut page = pdf.page(page_id);
+    page.media_box(Rect::new(0.0, 0.0, page_w, page_h));
+    page.parent(page_tree_id);
+    page.contents(content_id);
+    let mut resources = page.resources();
+    resources.x_objects().pair(svg_name, svg_id);
+    resources.finish();
+    page.finish();
+
+    // The SVG is embedded as a 1x1 XObject, so scale it to the full figure and
+    // then shift the requested crop to the page origin. PDF y grows upwards.
+    let mut content = Content::new();
+    if let Some(bg) = background {
+        content.set_fill_rgb(
+            bg.0 as f32 / 255.0,
+            bg.1 as f32 / 255.0,
+            bg.2 as f32 / 255.0,
+        );
+        content.rect(0.0, 0.0, page_w, page_h);
+        content.fill_nonzero();
+    }
+    content
+        .transform([
+            full_w,
+            0.0,
+            0.0,
+            full_h,
+            -(crop_x as f32) * scale,
+            -((size.1 - crop_y - crop_h) as f32) * scale,
+        ])
+        .x_object(svg_name);
+    pdf.stream(content_id, &content.finish());
+    pdf.extend(&svg_chunk);
+    Ok(pdf.finish())
+}
+
+/// Geometric bounds for the PDF copy of `usvg`, rounded outwards to whole
+/// canvas pixels so the page is not clipped by fractional geometry.
+fn pdf_bounds(tree: &svg2pdf::usvg::Tree, (w, h): (u32, u32)) -> Option<Bbox> {
+    let (x0, y0, x1, y1) = pdf_group_bounds(tree.root())?;
+    if !x0.is_finite() || !y0.is_finite() || !x1.is_finite() || !y1.is_finite() {
+        return None;
+    }
+    let x0 = x0.floor().clamp(0.0, w as f32);
+    let y0 = y0.floor().clamp(0.0, h as f32);
+    let x1 = x1.ceil().clamp(0.0, w as f32);
+    let y1 = y1.ceil().clamp(0.0, h as f32);
+    if x1 <= x0 || y1 <= y0 {
+        return None;
+    }
+    Some((x0 as u32, y0 as u32, (x1 - x0) as u32, (y1 - y0) as u32))
+}
+
+/// usvg 0.45 applies an image's viewBox transform to its bounding box twice,
+/// so an image group reports a huge rectangle. Rebuild image bounds from the
+/// intrinsic image size and its absolute transform instead.
+fn pdf_node_bounds(node: &svg2pdf::usvg::Node) -> Option<(f32, f32, f32, f32)> /* left, top, right, bottom */
+{
+    match node {
+        svg2pdf::usvg::Node::Group(group) => pdf_group_bounds(group),
+        svg2pdf::usvg::Node::Image(image) => {
+            let size = image.size();
+            let rect = svg2pdf::usvg::Rect::from_xywh(0.0, 0.0, size.width(), size.height())?;
+            let rect = rect.transform(image.abs_transform())?;
+            Some((rect.left(), rect.top(), rect.right(), rect.bottom()))
+        }
+        _ => {
+            let rect = node.abs_stroke_bounding_box();
+            Some((rect.left(), rect.top(), rect.right(), rect.bottom()))
+        }
+    }
+}
+
+fn pdf_group_bounds(group: &svg2pdf::usvg::Group) -> Option<(f32, f32, f32, f32)> {
+    let mut bounds: Option<(f32, f32, f32, f32)> = None;
+    for child in group.children() {
+        let Some((l, t, r, b)) = pdf_node_bounds(child) else {
+            continue;
+        };
+        bounds = Some(match bounds {
+            Some((bl, bt, br, bb)) => (bl.min(l), bt.min(t), br.max(r), bb.max(b)),
+            None => (l, t, r, b),
+        });
+    }
+    bounds
 }
 
 /// The fill used by the rasterised and vector figure background. `None` keeps
