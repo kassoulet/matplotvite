@@ -825,6 +825,21 @@ _MAX_CANVAS_AREA = 67108864  # 2^26 pixels (~256 MiB RGBA raw buffer limit)
 _MAX_BINS = 4096
 _MAX_BIN_CELLS = 4_000_000
 _MAX_EDGES = 100_000
+_MAX_GRID_CELLS = 10_000
+
+
+def _validate_grid_shape(nrows, ncols):
+    """Reject grids that would allocate one Python object per requested cell."""
+    try:
+        rows, cols = int(nrows), int(ncols)
+    except (TypeError, ValueError):
+        raise ValueError("grid dimensions must be integers") from None
+    if rows < 1 or cols < 1:
+        raise ValueError("grid needs at least one row and one column")
+    cells = rows * cols
+    if cells > _MAX_GRID_CELLS:
+        raise ValueError(f"grid has too many cells ({cells} > {_MAX_GRID_CELLS})")
+    return rows, cols
 
 
 def _validate_bins(bins, name="bins", max_cells=None):
@@ -5119,9 +5134,7 @@ class GridSpec:
     def __init__(self, nrows, ncols, figure=None, left=0.0, right=1.0,
                  bottom=0.0, top=1.0, wspace=None, hspace=None,
                  width_ratios=None, height_ratios=None):
-        if int(nrows) < 1 or int(ncols) < 1:
-            raise ValueError("GridSpec needs at least one row and one column")
-        self.nrows, self.ncols = int(nrows), int(ncols)
+        self.nrows, self.ncols = _validate_grid_shape(nrows, ncols)
         self.figure = figure
         self.left, self.right = float(left), float(right)
         self.bottom, self.top = float(bottom), float(top)
@@ -5283,6 +5296,7 @@ class Figure:
         if isinstance(nrows, int) and 111 <= nrows <= 999 and ncols == 1 and index == 1:
             # `subplot(121)` is shorthand for `subplot(1, 2, 1)`.
             nrows, ncols, index = divmod(nrows, 100)[0], *divmod(nrows % 100, 10)
+        nrows, ncols = _validate_grid_shape(nrows, ncols)
         changed = (nrows, ncols) != self.grid
         if changed:
             old_rows, old_cols = self.grid
@@ -5353,6 +5367,7 @@ class Figure:
 
     def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True,
                  **kwargs):
+        nrows, ncols = _validate_grid_shape(nrows, ncols)
         axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
         if len(axs) == 1 and squeeze:
@@ -5415,6 +5430,7 @@ class Figure:
 
     def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
         """Create independent subfigure views that place their own axes."""
+        nrows, ncols = _validate_grid_shape(nrows, ncols)
         if nrows * ncols == 1:
             return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
         out = np.empty((nrows, ncols), dtype=object)
@@ -5576,6 +5592,7 @@ class _SubFigure:
 
     def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False,
                  squeeze=True, **kwargs):
+        nrows, ncols = _validate_grid_shape(nrows, ncols)
         x, y, width, height = self._bounds
         gs = GridSpec(nrows, ncols, figure=self.figure,
                       left=x, right=x + width, bottom=y, top=y + height)

@@ -367,6 +367,20 @@ def test_subplot_three_digit_shorthand():
     assert [a.pos for a in fig.axes] == [0, 1]
 
 
+def test_grid_dimensions_are_capped():
+    fig = plt.figure()
+    with pytest.raises(ValueError, match="too many cells"):
+        fig.subplots(200, 200)
+    with pytest.raises(ValueError, match="too many cells"):
+        fig.subfigures(200, 200)
+    with pytest.raises(ValueError, match="too many cells"):
+        fig.add_gridspec(200, 200)
+    with pytest.raises(ValueError, match="too many cells"):
+        fig.add_subplot(200, 200, 1)
+    with pytest.raises(ValueError, match="too many cells"):
+        fig.subfigures().subplots(200, 200)
+
+
 def _bump(n=30):
     x = np.linspace(-2, 2, n)
     y = np.linspace(-2, 2, n)
