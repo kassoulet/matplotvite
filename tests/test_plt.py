@@ -2691,3 +2691,14 @@ def test_gallery_animation_gridspec_and_numeric_inputs():
     added = plt.Axes(other, [0.1, 0.1, 0.5, 0.5])
     assert other.add_axes(added) is added
     assert other.axes[-1] is added
+
+
+def test_gallery_subfigures_have_independent_grids():
+    fig = plt.figure()
+    left, right = fig.subfigures(1, 2)
+    ax_left = left.subplots()
+    axs_right = right.subplots(2, 2)
+    assert ax_left.get_position()[0] < axs_right[0, 0].get_position()[0]
+    assert axs_right[0, 0].get_position()[1] > axs_right[1, 0].get_position()[1]
+    left.suptitle("left")
+    assert left.get_zorder() == 0

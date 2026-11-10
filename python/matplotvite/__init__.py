@@ -5363,13 +5363,19 @@ class Figure:
 
     def legend(self, *args, **kwargs): return _LegendHandle()
     def figimage(self, *args, **kwargs): return None
-    def add_subfigure(self, *args, **kwargs): return self
+    def add_subfigure(self, *args, **kwargs):
+        return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
+
     def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
-        """Compatibility shim: each subfigure is this figure, sharing its canvas."""
+        """Create independent subfigure views that place their own axes."""
         if nrows * ncols == 1:
-            return self
+            return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
         out = np.empty((nrows, ncols), dtype=object)
-        out.fill(self)
+        for row in range(nrows):
+            for col in range(ncols):
+                out[row, col] = _SubFigure(
+                    self, (col / ncols, 1.0 - (row + 1) / nrows,
+                           1.0 / ncols, 1.0 / nrows))
         return out.squeeze() if squeeze else out
     def get_children(self): return list(self.axes)
     def get_tightbbox(self, renderer=None, *args, **kwargs): return None
@@ -5507,6 +5513,52 @@ class Figure:
         with open(os.fspath(filepath), "wb") as fh:
             fh.write(data)
         return None
+
+
+class _SubFigure:
+    """A rectangular view of a figure with its own subplot grid."""
+
+    def __init__(self, figure, bounds):
+        self.figure = figure
+        self._bounds = tuple(bounds)
+        self._zorder = 0
+
+    def get_position(self):
+        x, y, width, height = self._bounds
+        return _Bbox(x, y, x + width, y + height)
+
+    def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False,
+                 squeeze=True, **kwargs):
+        x, y, width, height = self._bounds
+        gs = GridSpec(nrows, ncols, figure=self.figure,
+                      left=x, right=x + width, bottom=y, top=y + height)
+        axs = [self.figure.add_subplot(gs[i]) for i in range(nrows * ncols)]
+        _share_axes(axs, (nrows, ncols), sharex, sharey)
+        if len(axs) == 1 and squeeze:
+            return axs[0]
+        out = np.array(axs, dtype=object).reshape(nrows, ncols)
+        return out.squeeze() if squeeze else out
+
+    def add_subplot(self, *args, **kwargs):
+        if args and isinstance(args[0], SubplotSpec):
+            return self.figure.add_subplot(*args, **kwargs)
+        x, y, width, height = self._bounds
+        gs = GridSpec(1, 1, figure=self.figure, left=x, right=x + width,
+                      bottom=y, top=y + height)
+        return self.figure.add_subplot(gs[0])
+
+    def colorbar(self, *args, **kwargs): return self.figure.colorbar(*args, **kwargs)
+    def text(self, *args, **kwargs): return self.figure.text(*args, **kwargs)
+
+    def suptitle(self, text, x=0.5, y=0.98, fontsize=None, **kwargs):
+        left, bottom, width, height = self._bounds
+        size = _font_size(fontsize, rcParams.get("figure.titlesize", 14.0))
+        return self.figure.text(left + x * width, bottom + y * height, text,
+                                ha="center", va="top", fontsize=size)
+
+    def set_facecolor(self, color): return self
+    def set_zorder(self, zorder): self._zorder = int(zorder); return self
+    def get_zorder(self): return self._zorder
 
 
 _fig = None
