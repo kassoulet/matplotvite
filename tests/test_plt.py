@@ -665,8 +665,13 @@ def test_imshow_alpha_and_interpolation(tmp_path):
     plt.savefig(p)
     assert "image-rendering:pixelated" in p.read_text()
 
+    plt.figure((3, 3))
+    plt.imshow(z, interpolation="spline16")
+    p = tmp_path / "spline16.svg"
+    plt.savefig(p)
+    assert p.stat().st_size > 0
     with pytest.raises(ValueError):
-        plt.imshow(z, interpolation="spline16")
+        plt.imshow(z, interpolation="not-a-real-filter")
     with pytest.raises(ValueError):
         plt.imshow(z, alpha=float("nan"))
 
@@ -982,7 +987,7 @@ def test_plot_multiple_data_sets_and_line_handles():
 
 
 def test_plot_step_drawstyles(tmp_path):
-    for style in ("steps-pre", "steps-post"):
+    for style in ("steps", "steps-pre", "steps-mid", "steps-post"):
         plt.figure()
         plt.plot([0, 1, 2], [0, 2, 1], drawstyle=style)
         p = tmp_path / f"{style}.png"
@@ -2467,3 +2472,50 @@ def test_images_have_sticky_edges_and_no_default_resampling():
     assert ax.images[0]["interpolation"] == "nearest"
     ax.plot([0, 10], [0, 1])
     assert ax.get_xlim() == pytest.approx((0.0, 10.5))
+
+
+def test_figure_accepts_number_and_positional_figsize():
+    assert plt.figure(1).get_size_inches() == pytest.approx((6.4, 4.8))
+    assert plt.figure(1, (4, 3)).get_size_inches() == pytest.approx((4, 3))
+    assert plt.figure(2, figsize=(5, 4)).get_size_inches() == pytest.approx((5, 4))
+
+
+def test_quiver_broadcasts_coordinate_axes(tmp_path):
+    x, y = np.arange(3.0), np.arange(2.0)
+    u, v = np.meshgrid(x, y)
+    plt.figure()
+    plt.quiver(x, y, u, v)
+    p = tmp_path / "quiver.png"
+    plt.savefig(p)
+    assert p.stat().st_size > 0
+
+
+def test_violinplot_accepts_per_dataset_quantiles(tmp_path):
+    plt.figure()
+    plt.violinplot([np.arange(10.0), np.arange(10.0)[::-1]],
+                   positions=[1, 2], quantiles=[[0.1], [0.9]])
+    p = tmp_path / "violin.png"
+    plt.savefig(p)
+    assert p.stat().st_size > 0
+
+
+def test_patch_classes_and_axes_compatibility_shims(tmp_path):
+    fig, ax = plt.subplots()
+    for patch in (plt.Rectangle((0, 0), 1, 2, facecolor="red"),
+                  plt.Circle((2, 3), 1, facecolor="blue"),
+                  plt.Ellipse((4, 5), 2, 1, angle=30),
+                  plt.Polygon([[0, 0], [1, 1], [0, 1]])):
+        ax.add_patch(patch)
+    ax.set_xlim(right=10)
+    ax.set_ylim(top=10)
+    assert ax.get_xlim()[1] == 10 and ax.get_ylim()[1] == 10
+    ax.spines["top"].set_visible(False)
+    ax.xaxis.set_label_text("x")
+    ax.text(0.5, 0.5, "note", rotation=45, size="large", va="center_baseline")
+    assert ax.get_xlabel() == "x"
+    assert ax.get_figure(root=True) is fig
+    assert fig.canvas.get_width_height()[0] > 0
+    fig.canvas.draw()
+    p = tmp_path / "patches.png"
+    fig.savefig(p)
+    assert p.stat().st_size > 0

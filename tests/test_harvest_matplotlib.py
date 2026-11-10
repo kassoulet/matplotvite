@@ -87,6 +87,25 @@ def test_find_examples_root_prefers_the_gallery_directory(tmp_path):
     assert find_examples_root(tmp_path) is None
 
 
+def test_prepare_body_removes_multiline_asserts():
+    cleaned = prepare_body(
+        "    plt.plot([0, 1])\n"
+        "    assert plt.gca().get_xlim() == (0, 1), (\n"
+        "        'unexpected limits')\n")
+    assert cleaned.startswith("plt.plot([0, 1])")
+    assert "assert" not in cleaned
+
+
+def test_prepare_example_prunes_empty_blocks():
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "if True:\n"
+        "    plt.show()\n"
+        "plt.plot([0, 1])\n")
+    assert "if" not in snippet
+    assert "plt.plot([0, 1])" in snippet
+
+
 def test_prepare_example_strips_imports_and_interactive_tail():
     snippet = prepare_example(
         '"""Demo gallery example."""\n'
@@ -133,6 +152,16 @@ def test_render_returns_the_failure_reason(tmp_path):
     out = tmp_path / "out.png"
     assert render("raise ValueError('boom')\n", out) == "ValueError: boom"
     assert render("plt.plot([0, 1])\n", out) == "no figure saved"
+
+
+def test_render_exposes_local_example_modules(tmp_path, monkeypatch):
+    (tmp_path / "helper.py").write_text("VALUE = 2\n", encoding="utf-8")
+    out = tmp_path / "out" / "case.png"
+    snippet = ("from helper import VALUE\nplt.plot([0, VALUE])\n"
+               "plt.savefig(OUT, dpi=100)\n")
+    monkeypatch.chdir(tmp_path)
+    assert render(snippet, out, Path(".")) is None
+    assert out.exists()
 
 
 def test_harvest_gallery_writes_index_and_manifest(tmp_path):

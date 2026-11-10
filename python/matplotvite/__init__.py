@@ -14,7 +14,11 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
-    "SubplotSpec", "cm", "colormaps",
+    "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
+    "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
+    "Annulus", "Affine2D", "Path", "patches", "mpatches", "mpath", "mtransforms",
+    "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "patheffects",
+    "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
@@ -128,7 +132,7 @@ _IGNORED_TEXT_KWARGS = frozenset(
     "family figure font fontfamily fontname fontproperties font_properties "
     "fontstretch fontstyle fontvariant fontweight gid in_layout linespacing ma "
     "math_fontfamily multialignment parse_math path_effects picker rasterized "
-    "rotation rotation_mode sketch_params snap url usetex verticalalignment "
+    "rotation rotation_mode sketch_params snap style url usetex verticalalignment "
     "visible weight wrap zorder".split()
 )
 
@@ -372,12 +376,64 @@ class _CoordTransform:
     def __init__(self, kind):
         self.kind = kind
 
+    def transform(self, points): return np.asarray(points, dtype=np.float64)
+    def inverted(self): return self
+    def __add__(self, other): return self
+    def __radd__(self, other): return self
+    def translate(self, *args, **kwargs): return self
+    def rotate_deg(self, *args, **kwargs): return self
+    def scale(self, *args, **kwargs): return self
+    def skew_deg(self, *args, **kwargs): return self
+
+
+class Affine2D:
+    """No-op affine transform accepted by annotation and locator helpers."""
+
+    def __init__(self, *args, **kwargs): pass
+    def transform(self, points): return np.asarray(points, dtype=np.float64)
+    def inverted(self): return self
+    def __add__(self, other): return self
+    def __radd__(self, other): return self
+    def translate(self, *args, **kwargs): return self
+    def rotate_deg(self, *args, **kwargs): return self
+    def scale(self, *args, **kwargs): return self
+    def skew_deg(self, *args, **kwargs): return self
+    def get_matrix(self): return np.eye(3)
+
+
+class Path:
+    """Minimal path container used by `PathPatch`."""
+
+    def __init__(self, vertices, codes=None, **kwargs):
+        self.vertices = np.asarray(vertices, dtype=float).reshape(-1, 2)
+        self.codes = codes
+
+    def get_vertices(self): return self.vertices
+    def get_codes(self): return self.codes
+    def transformed(self, transform): return self
+    def __iter__(self): return iter((self.vertices, self.codes))
+
 
 class _Bbox:
     """Minimal Bbox with the attribute names matplotlib tests reach for."""
 
     def __init__(self, x0, y0, x1, y1):
         self.x0, self.y0, self.x1, self.y1 = float(x0), float(y0), float(x1), float(y1)
+
+    @classmethod
+    def from_bounds(cls, x0, y0, width, height):
+        return cls(x0, y0, x0 + width, y0 + height)
+
+    @classmethod
+    def from_extents(cls, *args):
+        vals = [float(v) for v in args]
+        return cls(min(vals[0::2]), min(vals[1::2]), max(vals[0::2]), max(vals[1::2]))
+
+    @classmethod
+    def union(cls, boxes):
+        boxes = list(boxes)
+        return cls(min(b.x0 for b in boxes), min(b.y0 for b in boxes),
+                   max(b.x1 for b in boxes), max(b.y1 for b in boxes))
 
     @property
     def width(self): return self.x1 - self.x0
@@ -394,10 +450,29 @@ class _Bbox:
     @property
     def p1(self): return (self.x1, self.y1)
 
+    @property
+    def size(self): return (self.width, self.height)
+
+    @property
+    def intervalx(self): return (self.x0, self.x1)
+
+    @property
+    def intervaly(self): return (self.y0, self.y1)
+
     def get_points(self): return [[self.x0, self.y0], [self.x1, self.y1]]
+    def get_extents(self): return (self.x0, self.y0, self.x1, self.y1)
+    def expanded(self, sw, sh):
+        return _Bbox(self.x0 - sw, self.y0 - sh, self.x1 + sw, self.y1 + sh)
+    def transformed(self, transform): return self
+    def contains(self, x, y): return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
+    def containsx(self, x): return self.x0 <= x <= self.x1
+    def containsy(self, y): return self.y0 <= y <= self.y1
 
     def __repr__(self):
         return f"Bbox({self.x0:g}, {self.y0:g}, {self.x1:g}, {self.y1:g})"
+
+
+Bbox = _Bbox
 
 
 class _Transform:
@@ -413,13 +488,30 @@ class _TextLabel:
 
     def __init__(self, text=""):
         self._text, self._visible, self._fontsize = str(text), True, 12.0
+        self._rotation = 0.0
+        self._color = "black"
 
     def get_text(self): return self._text
     def set_text(self, text): self._text = str(text)
     def get_visible(self): return self._visible
     def set_visible(self, visible): self._visible = bool(visible)
     def get_fontsize(self): return self._fontsize
-    def set_fontsize(self, size): self._fontsize = float(size)
+    def set_fontsize(self, size): self._fontsize = _font_size(size, self._fontsize)
+    def get_rotation(self): return self._rotation
+    def set_rotation(self, rotation): self._rotation = float(rotation)
+    def get_color(self): return self._color
+    def set_color(self, color): self._color = color
+    def set_ha(self, value): return None
+    def set_va(self, value): return None
+    def set_fontweight(self, value): return None
+    def set_fontstyle(self, value): return None
+    def set_fontfamily(self, value): return None
+    def set_fontname(self, value): return None
+    def set_fontproperties(self, value): return None
+    def set_multialignment(self, value): return None
+    def set_linespacing(self, value): return None
+    def set_wrap(self, value): return None
+    def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
 
 
 def _margin(lo, hi, scale, sticky=()):
@@ -777,6 +869,12 @@ class _HexbinHandle:
     def set_clim(self, vmin=None, vmax=None):
         return None
 
+    def _colorbar_spec(self):
+        vals = self._values[np.isfinite(self._values)]
+        lo = float(vals.min()) if vals.size else 0.0
+        hi = float(vals.max()) if vals.size else 1.0
+        return dict(cmap=self._cmap, vmin=lo, vmax=hi)
+
 
 class _ViolinBody:
     """Handle for one filled violin polygon."""
@@ -859,6 +957,25 @@ def _number(value, default):
         return default
 
 
+_FONT_SIZE_NAMES = {
+    "xx-small": 6.0, "x-small": 8.0, "small": 10.0, "medium": 12.0,
+    "large": 14.0, "x-large": 18.0, "xx-large": 24.0,
+    "larger": 14.0, "smaller": 8.0,
+}
+
+
+def _font_size(value, default=10.0):
+    """Resolve numeric and named font sizes accepted by matplotlib."""
+    if value is None:
+        return float(default)
+    if isinstance(value, str):
+        return _FONT_SIZE_NAMES.get(value.lower(), float(default))
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
 def _numbers(value):
     if value is None:
         return []
@@ -910,32 +1027,419 @@ def _color_list(value):
     return []
 
 
+class Patch:
+    """Base class for matplotlib-style patches accepted by `add_patch`."""
+
+    def __init__(self, **kwargs):
+        fill = kwargs.pop("fill", True)
+        color = kwargs.pop("color", None)
+        self._facecolor = None if fill is False else (
+            kwargs.pop("facecolor", kwargs.pop("fc", None))
+            or color or _CYCLE[0])
+        self._edgecolor = kwargs.pop("edgecolor", kwargs.pop("ec", None)) or color
+        self._linewidth = float(kwargs.pop("linewidth", kwargs.pop("lw", 1.0)))
+        self._alpha = kwargs.pop("alpha", None)
+        self._label = str(kwargs.pop("label", ""))
+        self._fill = bool(fill)
+        self._visible = bool(kwargs.pop("visible", True))
+        self._zorder = int(kwargs.pop("zorder", 1))
+        self._linestyle = kwargs.pop("linestyle", kwargs.pop("ls", "-"))
+        self._hatch = kwargs.pop("hatch", None)
+        self._transform = kwargs.pop("transform", None)
+        self._kwargs = kwargs
+
+    def get_facecolor(self):
+        return "none" if not self._fill or self._facecolor is None else _norm_color(self._facecolor)
+
+    def get_edgecolor(self):
+        return None if self._edgecolor is None else _norm_color(self._edgecolor)
+
+    def get_color(self): return self.get_facecolor()
+    def get_linewidth(self): return self._linewidth
+    def get_lw(self): return self._linewidth
+    def get_linestyle(self): return self._linestyle
+    def get_alpha(self): return self._alpha
+    def get_label(self): return self._label
+    def get_visible(self): return self._visible
+    def get_zorder(self): return self._zorder
+    def get_fill(self): return self._fill
+    def get_hatch(self): return self._hatch
+    def get_transform(self): return self._transform or _Transform()
+    def get_patch_transform(self): return self.get_transform()
+
+    def set_facecolor(self, color):
+        self._facecolor = color
+        self._fill = color is not None and str(color).lower() != "none"
+        return self
+
+    def set_fc(self, color): return self.set_facecolor(color)
+
+    def set_color(self, color):
+        self._facecolor = color
+        self._edgecolor = color
+        self._fill = str(color).lower() != "none"
+        return self
+
+    def set_edgecolor(self, color):
+        self._edgecolor = color
+        return self
+
+    def set_ec(self, color): return self.set_edgecolor(color)
+
+    def set_linewidth(self, width):
+        self._linewidth = float(width)
+        return self
+
+    def set_lw(self, width): return self.set_linewidth(width)
+
+    def set_linestyle(self, style):
+        self._linestyle = str(style)
+        return self
+
+    def set_alpha(self, alpha):
+        self._alpha = None if alpha is None else float(alpha)
+        return self
+
+    def set_label(self, label):
+        self._label = str(label)
+        return self
+
+    def set_visible(self, visible):
+        self._visible = bool(visible)
+        return self
+
+    def set_zorder(self, zorder):
+        self._zorder = int(zorder)
+        return self
+
+    def set_fill(self, fill):
+        self._fill = bool(fill)
+        return self
+
+    def set_hatch(self, hatch):
+        self._hatch = hatch
+        return self
+
+    def set_transform(self, transform): self._transform = transform
+    def set_clip_on(self, clip): return None
+    def set_clip_path(self, path, transform=None): return None
+    def set_clip_box(self, box): return None
+    def set_path_effects(self, effects): return None
+    def set_antialiased(self, value): return None
+    def set_antialiaseds(self, value): return None
+    def set_joinstyle(self, value): return None
+    def set_capstyle(self, value): return None
+    def set_rasterized(self, value): return None
+    def set_url(self, value): return None
+    def set_gid(self, value): return None
+    def set_sketch_params(self, *args, **kwargs): return None
+    def set_snap(self, value): return None
+    def set_in_layout(self, value): return None
+    def remove(self): self._visible = False
+    def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
+    def contains(self, mouseevent=None): return False, {}
+
+    def __repr__(self):
+        return f"<{type(self).__name__} at {hex(id(self))}>"
+
+
+class Rectangle(Patch):
+    """Axis-aligned (or rotated) rectangle in data coordinates."""
+
+    def __init__(self, xy, width, height, angle=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self._x, self._y = float(xy[0]), float(xy[1])
+        self._width, self._height = float(width), float(height)
+        self.angle = float(angle)
+
+    def get_x(self): return self._x
+    def get_y(self): return self._y
+    def get_width(self): return self._width
+    def get_height(self): return self._height
+    def get_angle(self): return self.angle
+    def get_xy(self): return (self._x, self._y)
+    def set_x(self, x): self._x = float(x)
+    def set_y(self, y): self._y = float(y)
+    def set_width(self, width): self._width = float(width)
+    def set_height(self, height): self._height = float(height)
+    def set_angle(self, angle): self.angle = float(angle)
+    def set_xy(self, xy): self._x, self._y = float(xy[0]), float(xy[1])
+    def get_bbox(self): return _Bbox(self._x, self._y, self._x + self._width, self._y + self._height)
+
+
+class Circle(Patch):
+    def __init__(self, xy, radius=5, **kwargs):
+        super().__init__(**kwargs)
+        self._center = (float(xy[0]), float(xy[1]))
+        self._radius = float(radius)
+
+    def get_center(self): return self._center
+    def get_radius(self): return self._radius
+    def set_center(self, xy): self._center = (float(xy[0]), float(xy[1]))
+    def set_radius(self, radius): self._radius = float(radius)
+
+    @property
+    def center(self): return self._center
+
+    @center.setter
+    def center(self, value): self.set_center(value)
+
+
+class Ellipse(Patch):
+    def __init__(self, xy, width, height, angle=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self._center = (float(xy[0]), float(xy[1]))
+        self._width, self._height = float(width), float(height)
+        self.angle = float(angle)
+
+    def get_center(self): return self._center
+    def get_width(self): return self._width
+    def get_height(self): return self._height
+    def get_angle(self): return self.angle
+    def set_center(self, xy): self._center = (float(xy[0]), float(xy[1]))
+    def set_width(self, width): self._width = float(width)
+    def set_height(self, height): self._height = float(height)
+    def set_angle(self, angle): self.angle = float(angle)
+
+    def get_xy(self):
+        t = np.linspace(0.0, 2.0 * np.pi, 73)
+        x = 0.5 * self._width * np.cos(t)
+        y = 0.5 * self._height * np.sin(t)
+        a = np.deg2rad(self.angle)
+        return np.column_stack([
+            self._center[0] + x * np.cos(a) - y * np.sin(a),
+            self._center[1] + x * np.sin(a) + y * np.cos(a),
+        ])
+
+
+class Polygon(Patch):
+    def __init__(self, xy, closed=True, **kwargs):
+        super().__init__(**kwargs)
+        self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+        self._closed = bool(closed)
+
+    def get_xy(self): return self._xy
+    def get_closed(self): return self._closed
+    def set_xy(self, xy): self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+    def set_closed(self, closed): self._closed = bool(closed)
+
+
+class Arc(Patch):
+    def __init__(self, xy, width, height, angle=0.0, theta1=0.0, theta2=360.0, **kwargs):
+        kwargs.setdefault("fill", False)
+        kwargs.setdefault("facecolor", "none")
+        super().__init__(**kwargs)
+        self._center = (float(xy[0]), float(xy[1]))
+        self._width, self._height = float(width), float(height)
+        self.angle = float(angle)
+        self.theta1, self.theta2 = float(theta1), float(theta2)
+
+    def get_center(self): return self._center
+    def get_width(self): return self._width
+    def get_height(self): return self._height
+    def get_angle(self): return self.angle
+    def get_theta1(self): return self.theta1
+    def get_theta2(self): return self.theta2
+
+    def get_xy(self):
+        t = np.deg2rad(np.linspace(self.theta1, self.theta2, 73))
+        x = 0.5 * self._width * np.cos(t)
+        y = 0.5 * self._height * np.sin(t)
+        a = np.deg2rad(self.angle)
+        return np.column_stack([
+            self._center[0] + x * np.cos(a) - y * np.sin(a),
+            self._center[1] + x * np.sin(a) + y * np.cos(a),
+        ])
+
+
+class Wedge(Patch):
+    def __init__(self, center, r, theta1, theta2, width=None, **kwargs):
+        super().__init__(**kwargs)
+        self._center = (float(center[0]), float(center[1]))
+        self._r = float(r)
+        self.theta1, self.theta2 = float(theta1), float(theta2)
+        self._width = None if width is None else float(width)
+
+    def get_center(self): return self._center
+    def get_radius(self): return self._r
+    def get_theta1(self): return self.theta1
+    def get_theta2(self): return self.theta2
+
+    def get_xy(self):
+        t = np.deg2rad(np.linspace(self.theta1, self.theta2, 49))
+        outer = np.column_stack([
+            self._center[0] + self._r * np.cos(t),
+            self._center[1] + self._r * np.sin(t),
+        ])
+        if self._width is None:
+            return np.vstack([self._center, outer, self._center])
+        inner = np.column_stack([
+            self._center[0] + (self._r - self._width) * np.cos(t),
+            self._center[1] + (self._r - self._width) * np.sin(t),
+        ])
+        return np.vstack([outer, inner[::-1]])
+
+
+class RegularPolygon(Patch):
+    def __init__(self, xy, numVertices, radius=5, orientation=0, **kwargs):
+        super().__init__(**kwargs)
+        self._center = (float(xy[0]), float(xy[1]))
+        self.numvertices = int(numVertices)
+        self._radius = float(radius)
+        self.orientation = float(orientation)
+
+    def get_center(self): return self._center
+    def get_radius(self): return self._radius
+    def get_numvertices(self): return self.numvertices
+
+    def get_xy(self):
+        t = (np.arange(self.numvertices) / self.numvertices * 2.0 * np.pi
+             + np.deg2rad(self.orientation))
+        return np.column_stack([
+            self._center[0] + self._radius * np.cos(t),
+            self._center[1] + self._radius * np.sin(t),
+        ])
+
+
+class FancyArrow(Patch):
+    def __init__(self, x, y, dx, dy, width=0.001, length_includes_head=False,
+                 head_width=None, head_length=None, **kwargs):
+        super().__init__(**kwargs)
+        self.x, self.y, self.dx, self.dy = map(float, (x, y, dx, dy))
+        self.width = float(width)
+        self.head_width = float(head_width if head_width is not None else 3.0 * width)
+        self.head_length = float(head_length if head_length is not None else 3.0 * width)
+
+    def get_xy(self):
+        x0, y0, dx, dy = self.x, self.y, self.dx, self.dy
+        length = _math.hypot(dx, dy)
+        if length == 0.0:
+            return np.array([[x0, y0]])
+        ux, uy = dx / length, dy / length
+        px, py = -uy, ux
+        head = min(self.head_length, length * 0.5)
+        hw = self.head_width * 0.5
+        ww = self.width * 0.5
+        return np.array([
+            [x0 + px * ww, y0 + py * ww],
+            [x0 + ux * (length - head) + px * ww, y0 + uy * (length - head) + py * ww],
+            [x0 + ux * (length - head) + px * hw, y0 + uy * (length - head) + py * hw],
+            [x0 + dx, y0 + dy],
+            [x0 + ux * (length - head) - px * hw, y0 + uy * (length - head) - py * hw],
+            [x0 + ux * (length - head) - px * ww, y0 + uy * (length - head) - py * ww],
+            [x0 - px * ww, y0 - py * ww],
+        ])
+
+
+class FancyArrowPatch(Patch):
+    def __init__(self, posA=None, posB=None, arrowstyle="-", mutation_scale=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.posA, self.posB = posA, posB
+        self.arrowstyle = arrowstyle
+        self.mutation_scale = float(mutation_scale)
+
+    def get_xy(self):
+        if self.posA is None or self.posB is None:
+            return np.empty((0, 2))
+        a = np.asarray(self.posA, dtype=float)
+        b = np.asarray(self.posB, dtype=float)
+        if "-" == str(self.arrowstyle):
+            return np.vstack([a, b])
+        return FancyArrow(a[0], a[1], b[0] - a[0], b[1] - a[1],
+                          width=self.mutation_scale * 0.002,
+                          head_width=self.mutation_scale * 0.02,
+                          head_length=self.mutation_scale * 0.02).get_xy()
+
+    def set_positions(self, posA, posB):
+        self.posA, self.posB = posA, posB
+
+
+class FancyBboxPatch(Patch):
+    def __init__(self, xy, width, height, boxstyle="round", mutation_scale=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self._x, self._y = float(xy[0]), float(xy[1])
+        self._width, self._height = float(width), float(height)
+        self.boxstyle = boxstyle
+        self.mutation_scale = float(mutation_scale)
+
+    def get_x(self): return self._x
+    def get_y(self): return self._y
+    def get_width(self): return self._width
+    def get_height(self): return self._height
+    def get_xy(self): return (self._x, self._y)
+    def set_bounds(self, x, y, width, height):
+        self._x, self._y = float(x), float(y)
+        self._width, self._height = float(width), float(height)
+
+
+class PathPatch(Patch):
+    def __init__(self, path, **kwargs):
+        super().__init__(**kwargs)
+        self._path = path
+
+    def get_path(self): return self._path
+    def set_path(self, path): self._path = path
+
+    def get_xy(self):
+        vertices = getattr(self._path, "vertices", None)
+        return np.empty((0, 2)) if vertices is None else np.asarray(vertices, dtype=float)
+
+
+class Annulus(Patch):
+    def __init__(self, xy, r, width, angle=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self._center = (float(xy[0]), float(xy[1]))
+        self._r, self._width = float(r), float(width)
+        self.angle = float(angle)
+
+    def get_xy(self):
+        t = np.linspace(0.0, 2.0 * np.pi, 97)
+        outer = np.column_stack([self._center[0] + self._r * np.cos(t),
+                                 self._center[1] + self._r * np.sin(t)])
+        inner = np.column_stack([self._center[0] + (self._r - self._width) * np.cos(t),
+                                 self._center[1] + (self._r - self._width) * np.sin(t)])
+        return np.vstack([outer, inner[::-1]])
+
+
+class _PatchesNamespace:
+    pass
+
+
+patches = _PatchesNamespace()
+for _patch_name in ("Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc",
+                    "Wedge", "RegularPolygon", "FancyArrow", "FancyArrowPatch",
+                    "FancyBboxPatch", "PathPatch", "Annulus"):
+    setattr(patches, _patch_name, globals()[_patch_name])
+
+
 def _patch_entry(artist):
     """Reduce a Rectangle/Circle/Polygon-like object, or return None."""
     kind = None
     x = y = w = h = 0.0
     points = []
-    xy = _call(artist, "get_xy")
-    if xy is not None:
-        try:
-            pts = np.asarray(xy, dtype=float)
-            if pts.ndim == 2 and pts.shape[1] >= 2:
-                pts = pts[np.isfinite(pts[:, :2]).all(axis=1)]
-                if len(pts) >= 2:
-                    kind, points = "polygon", pts[:, :2].ravel().tolist()
-        except (TypeError, ValueError):
-            points = []
+    if not getattr(artist, "get_visible", lambda: True)():
+        return None
+    vals = [_call(artist, name) for name in
+            ("get_x", "get_y", "get_width", "get_height")]
+    if all(v is not None for v in vals):
+        kind = "rect"
+        x, y, w, h = (float(v) for v in vals)
     if kind is None and _call(artist, "get_radius") is not None:
         center = _call(artist, "get_center")
         if center is not None:
             kind, x, y = "circle", float(center[0]), float(center[1])
             w = float(_call(artist, "get_radius"))
     if kind is None:
-        vals = [_call(artist, name) for name in
-                ("get_x", "get_y", "get_width", "get_height")]
-        if all(v is not None for v in vals):
-            kind = "rect"
-            x, y, w, h = (float(v) for v in vals)
+        xy = _call(artist, "get_xy")
+        if xy is not None:
+            try:
+                pts = np.asarray(xy, dtype=float)
+                if pts.ndim == 2 and pts.shape[1] >= 2:
+                    pts = pts[np.isfinite(pts[:, :2]).all(axis=1)]
+                    if len(pts) >= 2:
+                        kind, points = "polygon", pts[:, :2].ravel().tolist()
+            except (TypeError, ValueError):
+                points = []
     if kind is None:
         return None
     return dict(kind=kind, x=x, y=y, width=w, height=h, points=points,
@@ -996,8 +1500,27 @@ class Line2D:
     `line.set_color(...)` behaves like Matplotlib.
     """
 
-    def __init__(self, series):
+    def __init__(self, series, ydata=None, **kwargs):
+        if ydata is not None:
+            series = _series(np.arange(len(series)), series,
+                             kwargs.get("label", ""), kwargs.get("color", _CYCLE[0]),
+                             linestyle=kwargs.get("linestyle", kwargs.get("ls", "-")),
+                             linewidth=kwargs.get("linewidth", kwargs.get("lw", 1.5)))
         self._series = series
+
+    def __getitem__(self, key):
+        return self._series[key]
+
+    def __setitem__(self, key, value):
+        self._series[key] = value
+
+    def __iter__(self): return iter(self._series)
+    def __len__(self): return len(self._series)
+
+    def update_from(self, other):
+        if getattr(other, "_series", None) is not None:
+            self._series.update(other._series)
+        return self
 
     def get_xdata(self): return self._series["x"]
     def get_ydata(self): return self._series["y"]
@@ -1026,6 +1549,172 @@ class Line2D:
     def set_label(self, label): self._series["label"] = str(label)
     def get_drawstyle(self): return self._series["drawstyle"]
     def set_drawstyle(self, drawstyle): self._series["drawstyle"] = str(drawstyle)
+
+
+class _Spine:
+    """Compatibility stand-in for one axes spine."""
+
+    def __init__(self):
+        self._visible = True
+        self._color = None
+        self._linewidth = 1.0
+        self._position = ""
+
+    def set_visible(self, visible): self._visible = bool(visible)
+    def get_visible(self): return self._visible
+    def set_color(self, color): self._color = color
+    def get_color(self): return self._color
+    def get_edgecolor(self): return self._color
+    def set_linewidth(self, width): self._linewidth = float(width)
+    def get_linewidth(self): return self._linewidth
+    def set_position(self, position): self._position = position
+    def get_position(self): return self._position
+    def set_bounds(self, *args): return None
+    def set_smart_bounds(self, *args): return None
+    def set_zorder(self, zorder): return None
+    def set_path_effects(self, effects): return None
+
+
+class _Spines:
+    """The four axes spines, addressable as a mapping or as attributes."""
+
+    def __init__(self):
+        self.left = _Spine()
+        self.right = _Spine()
+        self.bottom = _Spine()
+        self.top = _Spine()
+
+    def __getitem__(self, name): return getattr(self, name)
+    def __iter__(self): return iter(("left", "right", "bottom", "top"))
+    def keys(self): return ("left", "right", "bottom", "top")
+    def values(self): return (self.left, self.right, self.bottom, self.top)
+    def items(self): return ((name, getattr(self, name)) for name in self)
+
+
+class _Axis:
+    """Stand-in for `ax.xaxis` / `ax.yaxis` with tick and label shims."""
+
+    def __init__(self, parent, axis):
+        self._parent, self._axis = parent, axis
+        self.label = _TextLabel()
+        self.offsetText = _TextLabel()
+        self._visible = True
+        self._locator = None
+        self._formatter = None
+
+    def _labels(self):
+        return (self._parent.get_xticklabels() if self._axis == "x"
+                else self._parent.get_yticklabels())
+
+    def _ticks(self):
+        return (self._parent.get_xticks() if self._axis == "x"
+                else self._parent.get_yticks())
+
+    def set_visible(self, visible): self._visible = bool(visible)
+    def get_visible(self): return self._visible
+    def get_label(self): return self.label
+    def get_offset_text(self): return self.offsetText
+
+    def set_label_text(self, label, fontdict=None, **kwargs):
+        if self._axis == "x":
+            self._parent.set_xlabel(label, fontsize=kwargs.get("fontsize", kwargs.get("size")))
+        else:
+            self._parent.set_ylabel(label, fontsize=kwargs.get("fontsize", kwargs.get("size")))
+        self.label.set_text(label)
+        return self.label
+
+    def set_label_coords(self, x, y, transform=None): return None
+    def set_label_position(self, position): return None
+    def set_ticks_position(self, position): return None
+    def tick_top(self): return None
+    def tick_bottom(self): return None
+    def tick_left(self): return None
+    def tick_right(self): return None
+    def set_tick_params(self, **kwargs): self._parent._tick_style(self._axis, **kwargs)
+    def set_ticks(self, ticks, labels=None, **kwargs):
+        if self._axis == "x": self._parent.set_xticks(ticks, labels=labels, **kwargs)
+        else: self._parent.set_yticks(ticks, labels=labels, **kwargs)
+    def get_ticklocs(self): return self._ticks()
+    def get_ticklabels(self, *args, **kwargs): return self._labels()
+    def get_majorticklabels(self): return self._labels()
+    def get_minorticklabels(self): return []
+    def get_major_ticks(self): return []
+    def get_minor_ticks(self): return []
+    def set_ticklabels(self, labels, **kwargs):
+        if self._axis == "x": self._parent.set_xticklabels(labels, **kwargs)
+        else: self._parent.set_yticklabels(labels, **kwargs)
+    def set_major_locator(self, locator): self._locator = locator
+    def set_minor_locator(self, locator): return None
+    def set_major_formatter(self, formatter): self._formatter = formatter
+    def set_minor_formatter(self, formatter): return None
+    def get_major_locator(self): return self._locator
+    def get_major_formatter(self): return self._formatter
+    def set_units(self, units): return None
+    def get_units(self): return None
+    def update_units(self, data): return None
+    def set_inverted(self, inverted):
+        target = self._parent._inverted[0 if self._axis == "x" else 1]
+        if bool(inverted) != target:
+            if self._axis == "x": self._parent.invert_xaxis()
+            else: self._parent.invert_yaxis()
+    def get_inverted(self): return self._parent._inverted[0 if self._axis == "x" else 1]
+    def get_transform(self): return _Transform()
+    def get_scale(self): return self._parent.get_xscale() if self._axis == "x" else self._parent.get_yscale()
+    def set_scale(self, value, **kwargs):
+        if self._axis == "x": self._parent.set_xscale(value, **kwargs)
+        else: self._parent.set_yscale(value, **kwargs)
+    def grid(self, visible=None, **kwargs): self._parent.grid(visible, axis=self._axis, **kwargs)
+
+
+class _Callbacks:
+    def connect(self, *args, **kwargs): return 1
+    def disconnect(self, *args, **kwargs): return None
+
+
+class _Manager:
+    def __init__(self, canvas): self.canvas = canvas
+    def set_window_title(self, *args, **kwargs): return None
+    def get_window_title(self): return ""
+    def destroy(self): return None
+
+
+class _Canvas:
+    """Headless canvas stand-in for code that calls draw or print_figure."""
+
+    def __init__(self, figure):
+        self.figure = figure
+        self.manager = _Manager(self)
+    def draw(self, *args, **kwargs): return None
+    def draw_idle(self, *args, **kwargs): return None
+    def flush_events(self): return None
+    def get_renderer(self, *args, **kwargs): return None
+    def get_width_height(self):
+        w, h = self.figure.get_size_inches()
+        dpi = self.figure.get_dpi()
+        return int(w * dpi), int(h * dpi)
+    def print_figure(self, filename, **kwargs):
+        return self.figure.savefig(filename, **kwargs)
+    def mpl_connect(self, *args, **kwargs): return 1
+    def mpl_disconnect(self, *args, **kwargs): return None
+    def blit(self, *args, **kwargs): return None
+    def restore_region(self, *args, **kwargs): return None
+    def copy_from_bbox(self, *args, **kwargs): return None
+    def new_timer(self, *args, **kwargs): return None
+    def set_window_title(self, *args, **kwargs): return None
+    def start_event_loop(self, *args, **kwargs): return None
+    def stop_event_loop(self, *args, **kwargs): return None
+
+
+class _SubplotPars:
+    def __init__(self):
+        self.left, self.right, self.bottom, self.top = 0.125, 0.9, 0.11, 0.88
+        self.wspace, self.hspace = 0.2, 0.2
+
+    def update(self, **kwargs):
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+        return self
 
 
 class Axes:
@@ -1068,6 +1757,8 @@ class Axes:
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.transAxes = _CoordTransform("axes")
         self.transData = _CoordTransform("data")
+        self.patch = Rectangle((0, 0), 1, 1, transform=self.transAxes,
+                               facecolor=self.get_facecolor(), edgecolor="none")
         self._axlines = []
         self._xticks = self._yticks = None
         self._xticklabels = self._yticklabels = None
@@ -1083,6 +1774,14 @@ class Axes:
         self._fig = None
         self._colorbar = None
         self._bounds_are_axes = False
+        self.xaxis = _Axis(self, "x")
+        self.yaxis = _Axis(self, "y")
+        self.spines = _Spines()
+        self.patches = []
+        self.collections = []
+        self.callbacks = _Callbacks()
+        self._box_aspect = None
+        self._axes_locator = None
 
     def _next_color(self):
         cycle = self._prop_cycle or _CYCLE
@@ -1125,7 +1824,9 @@ class Axes:
         `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
         `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
         args = _resolve_data_args(args, data, x, y)
-        if drawstyle not in ("default", "steps-pre", "steps-post"):
+        if drawstyle == "steps":
+            drawstyle = "steps-pre"
+        if drawstyle not in ("default", "steps-pre", "steps-mid", "steps-post"):
             raise ValueError(f"unsupported drawstyle: {drawstyle!r}")
         handles = []
         for index, (gx, gy, gfmt) in enumerate(_plot_args(args, fmt)):
@@ -1147,14 +1848,19 @@ class Axes:
                     gmarker = f_marker
             line_color = gcolor or self._next_color()
             edge = markeredgecolor or mec
+            xvals = self._xdate(gx)
+            series_style = drawstyle
+            if drawstyle == "steps-mid":
+                xvals, gy = _mid_steps(xvals, gy)
+                series_style = "steps-post"
             handle = _series(
-                self._xdate(gx), gy, glabel, line_color, linestyle=style,
+                xvals, gy, glabel, line_color, linestyle=style,
                 linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
                 marker=gmarker or "",
                 markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
                 mfc=markerfacecolor or mfc, mec=edge,
                 mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
-                alpha=alpha, drawstyle=drawstyle)
+                alpha=alpha, drawstyle=series_style)
             self.lines.append(handle)
             handles.append(Line2D(handle))
         return handles
@@ -1167,7 +1873,7 @@ class Axes:
     # -- introspection / compatibility surface --------------------------------
     def draw(self, *args, **kwargs): return None
 
-    def get_position(self):
+    def get_position(self, original=False):
         """Figure-fraction box: the grid cell, or whatever `set_position` stored."""
         if self._pos_override is not None:
             x, y, w, h = self._pos_override
@@ -1426,6 +2132,26 @@ class Axes:
     def set_alpha(self, alpha): self.alpha = None if alpha is None else float(alpha)
 
     def get_transform(self): return _Transform()
+    @property
+    def bbox(self): return self.get_window_extent()
+    def get_xticklines(self): return []
+    def get_yticklines(self): return []
+    def get_legend(self): return None
+    def get_legend_handles_labels(self):
+        handles, labels = [], []
+        for entry in self.lines:
+            if entry.get("label"):
+                handles.append(Line2D(entry))
+                labels.append(entry["label"])
+        return handles, labels
+
+    def specgram(self, *args, **kwargs): return None
+    def psd(self, *args, **kwargs): return None
+    def magnitude_spectrum(self, *args, **kwargs): return None
+    def set_rorigin(self, value): return None
+    def set_rlabel_position(self, value): return None
+    def set_thetalim(self, *args, **kwargs): return None
+    def pie_label(self, *args, **kwargs): return None
 
     def get_window_extent(self, renderer=None):
         """Pixel box covering the axes plus the space its labels and title use."""
@@ -1446,12 +2172,48 @@ class Axes:
                      b.y1 * h * dpi + top_pad * scale)
 
     def get_tightbbox(self, renderer=None): return self.get_window_extent(renderer)
-    def get_figure(self): return self._fig
+    def get_figure(self, root=None): return self._fig
+
+    @property
+    def figure(self): return self._fig
+
+    @figure.setter
+    def figure(self, value): self._fig = value
+
+    def get_xaxis_transform(self, which="grid"): return _Transform()
+    def get_yaxis_transform(self, which="grid"): return _Transform()
+    def get_gridspec(self): return getattr(self._fig, "_gridspec", None)
+    def set_box_aspect(self, aspect, **kwargs): self._box_aspect = aspect
+    def get_box_aspect(self): return self._box_aspect
+    def set_axes_locator(self, locator): self._axes_locator = locator
+    def get_axes_locator(self): return self._axes_locator
+    def set_autoscale_on(self, value): return None
+    def set_autoscalex_on(self, value): return None
+    def set_autoscaley_on(self, value): return None
+    def set_axisbelow(self, value): return None
+    def set_frame_on(self, value): return None
+    def set_xmargin(self, value): return None
+    def set_ymargin(self, value): return None
+    def get_frame_on(self): return True
+    def label_outer(self, **kwargs): return None
+    def locator_params(self, *args, **kwargs): return None
+    def set_rmax(self, value): return None
+    def set_rmin(self, value): return None
+    def set_rlim(self, *args, **kwargs): return None
+    def clabel(self, *args, **kwargs): return []
+    def secondary_xaxis(self, *args, **kwargs): return self
+    def secondary_yaxis(self, *args, **kwargs): return self
+    def get_aux_axes(self, *args, **kwargs): return self
+    def barbs(self, *args, **kwargs): return self.quiver(*args, **kwargs)
 
     def add_artist(self, artist): self.artists.append(artist); return artist
-    def add_patch(self, patch): self.artists.append(patch); return patch
+    def add_patch(self, patch):
+        self.artists.append(patch)
+        self.patches.append(patch)
+        return patch
     def add_collection(self, collection, autolim=True):
         self.artists.append(collection)
+        self.collections.append(collection)
         return collection
     def add_line(self, line): self.artists.append(line); return line
     def get_children(self): return list(self.artists) + [self]
@@ -1488,6 +2250,8 @@ class Axes:
         self.hspans.clear()
         self.vspans.clear()
         self.artists.clear()
+        self.patches.clear()
+        self.collections.clear()
         self.title = self.xlabel = self.ylabel = ""
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.show_legend, self.xlim, self.ylim = False, None, None
@@ -1648,6 +2412,10 @@ class Axes:
             else:
                 setter = getattr(self, f"set_{key}", None)
                 if setter is None:
+                    if key in {"frame_on", "xmargin", "ymargin", "axisbelow",
+                               "autoscale_on", "autoscalex_on", "autoscaley_on",
+                               "xbound", "ybound"}:
+                        continue
                     raise AttributeError(f"Axes.set() does not support {key!r}")
                 setter(value)
 
@@ -1658,23 +2426,34 @@ class Axes:
         transform, fontsize, colour, ha, va = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
+        if va == "center_baseline":
+            va = "center"
         if va not in ("baseline", "bottom", "center", "top"):
             raise ValueError(f"unsupported va: {va!r}")
         kind = getattr(transform, "kind", "data") if transform is not None else "data"
         if kind not in ("data", "axes", "figure"):
             raise ValueError(f"unsupported text transform: {transform!r}")
-        size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
+        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         if kind == "data":
             x = self._xdate(x)
         self.texts.append((float(x), float(y), _mathtext(s), _norm_color(colour), size, ha, va, kind))
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
-               interpolation=None, aspect=None, alpha=None):
+               interpolation=None, aspect=None, alpha=None, clim=None, **kwargs):
         """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
         (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
         `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
-        image's opacity."""
+        image's opacity. `clim` and Matplotlib's extra artist kwargs are accepted."""
+        if clim is not None:
+            vmin, vmax = clim
+        if interpolation is not None:
+            interpolation = {
+                "spline16": "bicubic", "spline36": "bicubic", "hanning": "bilinear",
+                "hamming": "bilinear", "hermite": "bicubic", "kaiser": "bicubic",
+                "quadric": "bicubic", "catrom": "bicubic", "gaussian": "bicubic",
+                "lanczos": "bicubic", "blackman": "bilinear", "sinc": "bicubic",
+            }.get(str(interpolation).lower(), interpolation)
         a = _as_image(X)
         h, w = a.shape[:2]
         if origin == "lower":
@@ -1700,7 +2479,7 @@ class Axes:
         self.images.append(entry)
         # matplotlib's image.aspect default is "equal".
         self.set_aspect("equal" if aspect is None else aspect)
-        return AxesImage(entry)
+        return AxesImage(entry, self)
 
     def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
@@ -1924,6 +2703,14 @@ class Axes:
         out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
         if quantiles is not None:
             out["cquantiles"] = []
+        per_group_quantiles = None
+        if quantiles is not None and isinstance(quantiles, (list, tuple)):
+            if len(quantiles) == n and any(
+                    isinstance(q, (list, tuple, np.ndarray)) for q in quantiles):
+                per_group_quantiles = [
+                    np.atleast_1d(np.asarray(q, dtype=np.float64)).ravel()
+                    for q in quantiles
+                ]
         for i, raw in enumerate(groups):
             vals = np.asarray(raw, dtype=np.float64).ravel()
             vals = vals[np.isfinite(vals)]
@@ -1987,7 +2774,10 @@ class Axes:
                 self._stats_line(
                     [loc - half, loc + half], [median, median], "black")
             if quantiles is not None:
-                for q in np.atleast_1d(np.asarray(quantiles, dtype=np.float64)).ravel():
+                q_values = (per_group_quantiles[i] if per_group_quantiles is not None
+                            else np.atleast_1d(
+                                np.asarray(quantiles, dtype=np.float64)).ravel())
+                for q in q_values:
                     value = float(np.percentile(vals, q))
                     out["cquantiles"].append(self._stats_line(
                         [value, value], [loc - half, loc + half], "black")
@@ -2284,10 +3074,16 @@ class Axes:
         self._sticky_y += [ey0, ey1]
         return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
-    def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
-        """Text at `xytext` with an arrow pointing at `xy`."""
-        size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
-        color = color if color is not None else rcParams.get("text.color", "black")
+    def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None,
+                 **kwargs):
+        """Text at `xytext` with an arrow pointing at `xy`.
+
+        `xycoords`/`textcoords`, alignment and box keywords are accepted; the
+        renderer currently treats both coordinate systems as data coordinates.
+        """
+        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
+        color = color or kwargs.get("color") or rcParams.get("text.color", "black")
+        xytext = kwargs.get("xytext", xytext)
         self.annotations.append((_mathtext(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size))
@@ -2337,18 +3133,38 @@ class Axes:
                 y = np.zeros(ua.size)
             u, v = ua.ravel(), va.ravel()
         elif len(args) >= 4:
-            x = np.asarray(self._xdate(args[0]), dtype=np.float64).ravel()
-            y, u, v = (np.asarray(a, dtype=np.float64).ravel() for a in args[1:4])
+            xa = np.asarray(self._xdate(args[0]), dtype=np.float64)
+            ya = np.asarray(args[1], dtype=np.float64)
+            ua = np.asarray(args[2], dtype=np.float64)
+            va = np.asarray(args[3], dtype=np.float64)
+            if ua.shape != va.shape:
+                raise ValueError("U and V must have the same shape")
+            if ua.ndim == 2:
+                if (xa.ndim == 1 and ya.ndim == 1
+                        and xa.size == ua.shape[1] and ya.size == ua.shape[0]):
+                    xa, ya = np.meshgrid(xa, ya)
+                elif xa.shape != ua.shape or ya.shape != va.shape:
+                    raise ValueError("X and Y must match U's shape or one axis each")
+                x, y = xa.ravel(), ya.ravel()
+            else:
+                x, y = xa.ravel(), ya.ravel()
+            u, v = ua.ravel(), va.ravel()
             if len(args) >= 5 and C is None:
                 C = args[4]
         elif len(args) == 0 and U is not None and V is not None:
-            ua = np.asarray(U, dtype=np.float64).ravel()
-            va = np.asarray(V, dtype=np.float64).ravel()
-            if ua.size != va.size:
+            ua = np.asarray(U, dtype=np.float64)
+            va = np.asarray(V, dtype=np.float64)
+            if ua.shape != va.shape:
                 raise ValueError("U and V must have the same shape")
-            x = np.arange(ua.size, dtype=float)
-            y = np.zeros(ua.size)
-            u, v = ua, va
+            if ua.ndim == 2:
+                rows, cols = ua.shape
+                x, y = np.meshgrid(np.arange(cols, dtype=float),
+                                   np.arange(rows, dtype=float))
+                x, y = x.ravel(), y.ravel()
+            else:
+                x = np.arange(ua.size, dtype=float)
+                y = np.zeros(ua.size)
+            u, v = ua.ravel(), va.ravel()
         else:
             raise TypeError("quiver expects U, V or X, Y, U, V")
         if not (x.size == y.size == u.size == v.size):
@@ -2378,6 +3194,10 @@ class Axes:
         self.arrows.append(entry)
         return _QuiverHandle(entry)
 
+    def quiverkey(self, Q, X, Y, U, label, **kwargs):
+        """Accept the quiver-key annotation; keys are not drawn yet."""
+        return None
+
     def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
                  capsize=None, label="", color=None, **kwargs):
         """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
@@ -2402,12 +3222,14 @@ class Axes:
         if marker:
             self.scatter(x, y, s=36, c=c, marker=marker)
 
-    def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
+    def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
+                alpha=None, **kwargs):
         """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
-        followed by `levels`. `linewidths` and `alpha` style every iso-line."""
+        followed by `levels`. Matplotlib contour kwargs are accepted."""
         return self._add_contour(args, levels, colors, cmap, False, linewidths, alpha)
 
-    def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
+    def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
+                 alpha=None, **kwargs):
         """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
         return self._add_contour(args, levels, colors, cmap, True, linewidths, alpha)
 
@@ -2444,23 +3266,51 @@ class Axes:
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
 
     @staticmethod
+    @staticmethod
     def _size_or(value, key):
-        return float(value) if value is not None else float(rcParams.get(key, rcParams.get("font.size", 10.0)))
+        return _font_size(value, rcParams.get(key, rcParams.get("font.size", 10.0)))
 
-    def set_xlim(self, lo, hi):
-        values = self._xdate((lo, hi))
+    def set_xlim(self, left=None, right=None, **kwargs):
+        """Set the x limits; accepts `left`/`right` or Matplotlib's `xmin`/`xmax`."""
+        left = kwargs.pop("xmin", left)
+        right = kwargs.pop("xmax", right)
+        current = self.get_xlim()
+        left = current[0] if left is None else left
+        right = current[1] if right is None else right
+        values = self._xdate((left, right))
         limits = self.xlim = (float(values[0]), float(values[1]))
         if self._share_x is not None:
             self._share_x.limits = limits
+        return limits
 
-    def set_ylim(self, lo, hi):
-        limits = self.ylim = (float(lo), float(hi))
+    def set_ylim(self, bottom=None, top=None, **kwargs):
+        """Set the y limits; accepts `bottom`/`top` or `ymin`/`ymax`."""
+        bottom = kwargs.pop("ymin", bottom)
+        top = kwargs.pop("ymax", top)
+        current = self.get_ylim()
+        bottom = current[0] if bottom is None else bottom
+        top = current[1] if top is None else top
+        limits = self.ylim = (float(bottom), float(top))
         if self._share_y is not None:
             self._share_y.limits = limits
+        return limits
 
-    def legend(self, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
-               title=None, title_fontsize=None, bbox_to_anchor=None, **kwargs):
-        """Show a legend. Supports matplotlib's common placement and layout kwargs."""
+    def legend(self, *args, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
+               title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
+               labels=None, **kwargs):
+        """Show a legend. Supports placement, layout and explicit handles/labels."""
+        if len(args) == 1:
+            arg = args[0]
+            if isinstance(arg, (list, tuple)) and arg and isinstance(arg[0], str):
+                _labels = arg
+            elif isinstance(arg, str):
+                loc = arg
+            else:
+                _handles = arg
+        elif len(args) >= 2:
+            _handles, _labels = args[0], args[1]
+            if len(args) > 2 and isinstance(args[2], str):
+                loc = args[2]
         self.show_legend = True
         if isinstance(loc, (tuple, list)):
             self.legend_anchor = (float(loc[0]), float(loc[1]))
@@ -2473,13 +3323,13 @@ class Axes:
         if frameon is not None:
             self.legend_frameon = bool(frameon)
         if fontsize is not None:
-            self.legend_fontsize = float(fontsize)
+            self.legend_fontsize = _font_size(fontsize, rcParams.get("legend.fontsize", 10.0))
         if title is not None:
             self.legend_title = _mathtext(title)
         if title_fontsize is not None:
-            self.legend_title_fontsize = float(title_fontsize)
+            self.legend_title_fontsize = _font_size(title_fontsize, 11.0)
         elif title is not None and self.legend_title_fontsize is None:
-            self.legend_title_fontsize = float(rcParams.get("legend.fontsize", 10.0)) * 1.1
+            self.legend_title_fontsize = _font_size(rcParams.get("legend.fontsize", 10.0)) * 1.1
         if bbox_to_anchor is not None:
             anchor = [float(v) for v in np.asarray(bbox_to_anchor).ravel()]
             if len(anchor) not in (2, 4):
@@ -2724,17 +3574,7 @@ class Axes:
             return self.plot(x, y, fmt, label=label, color=color,
                              drawstyle=f"steps-{where}", **kwargs)
         elif where == "mid":
-            # For 'mid', corners are at midpoints of each interval
-            x_arr = np.asarray(x, dtype=np.float64).ravel()
-            y_arr = np.asarray(y, dtype=np.float64).ravel()
-            x_mid = (x_arr[:-1] + x_arr[1:]) / 2.0
-            y_mid = (y_arr[:-1] + y_arr[1:]) / 2.0
-            # Repeat mids to create steps: left-right pairs per interval
-            x_out = np.repeat(x_mid, 2)
-            y_out = np.repeat(y_mid, 2)
-            # Shift the second of each pair to the next x value
-            x_out[1::2] = x_arr[1:]
-            y_out[1::2] = y_arr[:-1]
+            x_out, y_out = _mid_steps(x, y)
             return self.plot(x_out, y_out, fmt, label=label, color=color, drawstyle="steps-post", **kwargs)
         else:
             raise ValueError(f"unsupported where: {where!r}")
@@ -3166,6 +4006,23 @@ def _band(xs, ys, color, alpha, label=""):
                 cells=0, cell_colors="")
 
 
+def _mid_steps(x, y):
+    """Expand a line into matplotlib's `steps-mid` vertex sequence."""
+    x_arr = np.asarray(x, dtype=np.float64).ravel()
+    y_arr = np.asarray(y, dtype=np.float64).ravel()
+    if x_arr.size != y_arr.size:
+        raise ValueError("x and y must have the same length")
+    if x_arr.size < 2:
+        return x_arr, y_arr
+    x_mid = (x_arr[:-1] + x_arr[1:]) / 2.0
+    y_mid = (y_arr[:-1] + y_arr[1:]) / 2.0
+    x_out = np.repeat(x_mid, 2)
+    y_out = np.repeat(y_mid, 2)
+    x_out[1::2] = x_arr[1:]
+    y_out[1::2] = y_arr[:-1]
+    return x_out, y_out
+
+
 def _runs(x, y1, y2, where):
     """Split the curve into contiguous runs where `where` is true."""
     if where is None:
@@ -3412,6 +4269,10 @@ class ContourSet:
     def get_cmap(self): return self._e["cmap"]
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_clim(self, vmin=None, vmax=None): pass
+    def set(self, **kwargs): return self
+    def clabel(self, *args, **kwargs): return []
+    def get_paths(self): return []
+    def get_arrays(self): return ()
 
     def _colorbar_spec(self):
         lv = self._e["levels"]
@@ -3421,13 +4282,31 @@ class ContourSet:
 class AxesImage:
     """Handle returned by `Axes.imshow`, for later tweaks."""
 
-    def __init__(self, entry): self._e = entry
+    def __init__(self, entry, axes=None):
+        self._e = entry
+        self.axes = axes
 
     def get_array(self): return self._e["data"]
     def set_data(self, X): self._e["data"] = _as_image(X)
     def get_cmap(self): return self._e["cmap"]
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_extent(self, extent): self._e["extent"] = tuple(float(v) for v in extent)
+    def get_extent(self): return self._e["extent"]
+    def set_interpolation(self, value): self._e["interpolation"] = str(value)
+    def get_interpolation(self): return self._e["interpolation"]
+    def set_alpha(self, value): self._e["alpha"] = float(value)
+    def get_alpha(self): return self._e["alpha"]
+    def set_rasterized(self, value): return None
+    def set_agg_filter(self, value): return None
+    def set_path_effects(self, value): return None
+    def set_url(self, value): return None
+    def set_gid(self, value): return None
+    def set_zorder(self, value): return None
+    def set_clip_on(self, value): return None
+    def set_clip_path(self, *args, **kwargs): return None
+    def set_transform(self, value): return None
+    def set_visible(self, value): return None
+    def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
 
     def set_clim(self, vmin=None, vmax=None):
         self._e["vmin"], self._e["vmax"] = vmin, vmax
@@ -3536,13 +4415,37 @@ class GridSpec:
         return (x0, y0, max(x1 - x0, 0.01), max(y1 - y0, 0.01))
 
 
+class _ColorbarAxes:
+    def get_position(self, original=False): return _Bbox(0.0, 0.0, 1.0, 1.0)
+    def get_window_extent(self, renderer=None): return _Bbox(0.0, 0.0, 1.0, 1.0)
+    def set_visible(self, value): return None
+    def set_axis_off(self): return None
+    def set_ylabel(self, *args, **kwargs): return None
+    def set_xlabel(self, *args, **kwargs): return None
+    def set_title(self, *args, **kwargs): return None
+    def tick_params(self, *args, **kwargs): return None
+    def set_yticks(self, *args, **kwargs): return None
+    def set_xticks(self, *args, **kwargs): return None
+    def set_yticklabels(self, *args, **kwargs): return None
+    def set_xticklabels(self, *args, **kwargs): return None
+
+
 class Colorbar:
     """Handle returned by `Figure.colorbar`."""
 
-    def __init__(self, entry): self._e = entry
+    def __init__(self, entry):
+        self._e = entry
+        self.ax = _ColorbarAxes()
 
     def set_label(self, label): self._e["label"] = str(label)
     def get_label(self): return self._e["label"]
+    def add_lines(self, *args, **kwargs): return None
+    def minorticks_on(self): return None
+    def minorticks_off(self): return None
+    def set_ticks(self, *args, **kwargs): return None
+    def set_ticklabels(self, *args, **kwargs): return None
+    def set_clim(self, *args, **kwargs): return None
+    def update_normal(self, *args, **kwargs): return None
 
 
 class Figure:
@@ -3560,11 +4463,18 @@ class Figure:
         self._figure_texts = []
         self._render_cache = None
         self.transFigure = _CoordTransform("figure")
+        self.transSubfigure = self.transFigure
+        self.canvas = _Canvas(self)
+        self.subplotpars = _SubplotPars()
+        self.patch = Rectangle((0, 0), 1, 1, transform=self.transFigure,
+                               facecolor=self.get_facecolor())
+        self._gridspec = None
+        self._label = ""
+        self.callbacks = _Callbacks()
 
     def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
         """Draw a figure-level title above the panel grid."""
-        size = (float(fontsize) if fontsize is not None
-                else float(rcParams.get("figure.titlesize", 14.0)))
+        size = _font_size(fontsize, rcParams.get("figure.titlesize", 14.0))
         self._suptitle = dict(text=_mathtext(t), size=size, x=float(x), y=float(y))
         return None
 
@@ -3573,9 +4483,11 @@ class Figure:
         _transform, fontsize, colour, ha, va = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
+        if va == "center_baseline":
+            va = "center"
         if va not in ("baseline", "bottom", "center", "top"):
             raise ValueError(f"unsupported va: {va!r}")
-        size = float(fontsize) if fontsize is not None else float(rcParams.get("font.size", 10.0))
+        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         self._figure_texts.append((float(x), float(y), _mathtext(s),
                                    _norm_color(colour), size, ha, va))
@@ -3637,7 +4549,8 @@ class Figure:
             out[label] = self.add_subplot(SubplotSpec(gs, (r0, r1), (c0, c1)))
         return out
 
-    def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True):
+    def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True,
+                 **kwargs):
         axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
         if len(axs) == 1 and squeeze:
@@ -3670,18 +4583,46 @@ class Figure:
     def get_facecolor(self): return self.facecolor or "white"
     def get_edgecolor(self): return self.edgecolor
     def get_size_inches(self): return self.figsize
+    def get_label(self): return self._label
+    def set_label(self, label): self._label = str(label); return self
+
+    def set_facecolor(self, color):
+        self.facecolor = _norm_color(color)
+        if getattr(self, "patch", None) is not None:
+            self.patch.set_facecolor(self.facecolor)
+        return self
+
+    def legend(self, *args, **kwargs): return None
+    def figimage(self, *args, **kwargs): return None
+    def add_subfigure(self, *args, **kwargs): return self
+    def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
+        """Compatibility shim: each subfigure is this figure, sharing its canvas."""
+        if nrows * ncols == 1:
+            return self
+        out = np.empty((nrows, ncols), dtype=object)
+        out.fill(self)
+        return out.squeeze() if squeeze else out
+    def get_children(self): return list(self.axes)
+    def get_tightbbox(self, renderer=None, *args, **kwargs): return None
+    def set_tight_layout(self, value): return None
+    def get_tight_layout(self): return False
+    def set_constrained_layout(self, value): return None
+    def get_constrained_layout(self): return False
+    def set_constrained_layout_pads(self, **kwargs): return None
 
     def set_size_inches(self, width, height=None):
         if height is None:
             width, height = width
         self.figsize = _validate_figsize((width, height))
 
-    def colorbar(self, mappable=None, ax=None, label=""):
+    def colorbar(self, mappable=None, ax=None, label="", **kwargs):
         """Reserve a strip beside `mappable`'s axes showing its scale."""
         if not self.axes:
             raise ValueError("colorbar needs at least one axes")
         if isinstance(ax, (list, tuple, np.ndarray)):
             raise NotImplementedError("colorbar needs a single axes")
+        if ax is None:
+            ax = kwargs.get("cax")
         if ax is None:
             axes = self._cur or self.axes[0]
             if mappable is not None:
@@ -3793,8 +4734,19 @@ class Figure:
 _fig = None
 
 
-def figure(figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None, **kwargs):
+def figure(*args, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None, **kwargs):
+    """Create a figure; a leading scalar or string is accepted as matplotlib's
+    figure number and ignored, while a leading sequence sets `figsize`."""
     global _fig
+    if args:
+        if isinstance(args[0], (tuple, list, np.ndarray)):
+            figsize = args[0]
+        if len(args) > 1:
+            second = args[1]
+            if isinstance(second, (tuple, list, np.ndarray)):
+                figsize = second
+            else:
+                dpi = second
     _fig = Figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return _fig
 
@@ -3827,16 +4779,15 @@ def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
 def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
 def title(text, fontsize=None, **kwargs): gca().set_title(text, fontsize=fontsize)
-def text(x, y, s, color=None, fontsize=None, ha="left", va="baseline", transform=None):
-    gca().text(x, y, s, color=color, fontsize=fontsize, ha=ha, va=va, transform=transform)
+def text(*args, **kwargs): return gca().text(*args, **kwargs)
 def xticks(ticks=None, labels=None, **kwargs):
     return gca().xticks(ticks, labels=labels, **kwargs)
 def yticks(ticks=None, labels=None, **kwargs):
     return gca().yticks(ticks, labels=labels, **kwargs)
 def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
-           interpolation=None, aspect=None, alpha=None):
+           interpolation=None, aspect=None, alpha=None, **kwargs):
     return gca().imshow(X, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin=origin,
-                        interpolation=interpolation, aspect=aspect, alpha=alpha)
+                        interpolation=interpolation, aspect=aspect, alpha=alpha, **kwargs)
 
 
 def xscale(*args, **kwargs): return gca().set_xscale(*args, **kwargs)
@@ -3875,9 +4826,7 @@ def hist2d(*args, **kwargs): return gca().hist2d(*args, **kwargs)
 def hexbin(*args, **kwargs): return gca().hexbin(*args, **kwargs)
 
 
-def annotate(text, xy, xytext=None, arrowprops=None, color=None, fontsize=None):
-    gca().annotate(text, xy, xytext=xytext, arrowprops=arrowprops, color=color,
-                   fontsize=fontsize)
+def annotate(*args, **kwargs): return gca().annotate(*args, **kwargs)
 
 
 def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", vmin=None,
@@ -3901,13 +4850,25 @@ def draw(*args, **kwargs): pass
 
 def pause(*args, **kwargs): pass
 
-def ion(*args, **kwargs): pass
 
+def ion(*args, **kwargs): pass
 def ioff(*args, **kwargs): pass
+def use(*args, **kwargs): pass
+def connect(*args, **kwargs): return 1
+def figaspect(aspect):
+    """Return a figure size with the requested height/width ratio."""
+    aspect = float(aspect)
+    if aspect < 1.0:
+        return (4.0, 4.0 * aspect)
+    return (4.0 * aspect, 4.0)
 
 
 def quiver(*args, **kwargs):
     return gca().quiver(*args, **kwargs)
+
+
+def quiverkey(*args, **kwargs):
+    return gca().quiverkey(*args, **kwargs)
 
 
 def errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
@@ -3916,17 +4877,19 @@ def errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, c
                           elinewidth=elinewidth, capsize=capsize, label=label, color=color)
 
 
-def colorbar(mappable=None, ax=None, label=""):
-    return gcf().colorbar(mappable, ax=ax, label=label)
+def colorbar(mappable=None, ax=None, label="", **kwargs):
+    return gcf().colorbar(mappable, ax=ax, label=label, **kwargs)
 
 
-def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None):
+def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None,
+            **kwargs):
     return gca().contour(*args, levels=levels, colors=colors, cmap=cmap,
-                         linewidths=linewidths, alpha=alpha)
+                         linewidths=linewidths, alpha=alpha, **kwargs)
 
 
-def contourf(*args, levels=None, colors=None, cmap=None, alpha=None):
-    return gca().contourf(*args, levels=levels, colors=colors, cmap=cmap, alpha=alpha)
+def contourf(*args, levels=None, colors=None, cmap=None, alpha=None, **kwargs):
+    return gca().contourf(*args, levels=levels, colors=colors, cmap=cmap,
+                          alpha=alpha, **kwargs)
 
 
 def set_cmap(cmap):
@@ -3934,8 +4897,26 @@ def set_cmap(cmap):
     rcParams["image.cmap"] = _cmap_name(cmap)
 
 
-def xlim(lo, hi): gca().set_xlim(lo, hi)
-def ylim(lo, hi): gca().set_ylim(lo, hi)
+def xlim(*args, **kwargs):
+    ax = gca()
+    if not args and not kwargs:
+        return ax.get_xlim()
+    if len(args) == 1 and isinstance(args[0], (tuple, list, np.ndarray)):
+        ax.set_xlim(*args[0], **kwargs)
+    else:
+        ax.set_xlim(*args, **kwargs)
+    return ax.get_xlim()
+
+
+def ylim(*args, **kwargs):
+    ax = gca()
+    if not args and not kwargs:
+        return ax.get_ylim()
+    if len(args) == 1 and isinstance(args[0], (tuple, list, np.ndarray)):
+        ax.set_ylim(*args[0], **kwargs)
+    else:
+        ax.set_ylim(*args, **kwargs)
+    return ax.get_ylim()
 def legend(*args, **kwargs): return gca().legend(*args, **kwargs)
 def eventplot(*args, **kwargs): return gca().eventplot(*args, **kwargs)
 def broken_barh(*args, **kwargs): return gca().broken_barh(*args, **kwargs)
@@ -3993,6 +4974,145 @@ rcParams = {
 _RC_DEFAULTS = dict(rcParams)
 
 
+class _Namespace:
+    def __init__(self, **values): self.__dict__.update(values)
+
+
+class _Normalize:
+    def __init__(self, vmin=None, vmax=None, clip=False):
+        self.vmin, self.vmax, self.clip = vmin, vmax, clip
+
+    def __call__(self, value, clip=None): return value
+    def autoscale(self, A): return None
+    def autoscale_None(self, A): return None
+    def inverse(self, value): return value
+
+
+class _BoundaryNorm(_Normalize):
+    def __init__(self, boundaries, ncolors, clip=False, **kwargs):
+        super().__init__(clip=clip)
+        self.boundaries = np.asarray(boundaries, dtype=float)
+        self.ncolors = int(ncolors)
+
+    def __call__(self, value, clip=None):
+        return np.clip(np.digitize(value, self.boundaries) - 1, 0, self.ncolors - 1)
+
+
+class _ListedColormap:
+    def __init__(self, colors, name="from_list"):
+        self.colors = [_norm_color(c) for c in colors]
+        self.name, self.N = str(name), len(self.colors)
+
+    @classmethod
+    def from_list(cls, name, colors, N=256):
+        if colors and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
+            colors = [c for _, c in colors]
+        return cls(colors, name)
+
+    def __call__(self, X, alpha=None, bytes=False):
+        arr = np.asarray(X, dtype=float)
+        index = np.clip((arr * self.N).astype(int), 0, self.N - 1)
+        rgb = np.asarray([[int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)]
+                          for c in self.colors], dtype=float) / 255.0
+        out = rgb[index]
+        return out.astype(np.uint8) if bytes else out
+
+
+def _rgba_tuple(color):
+    value = _norm_color(color)
+    if value in (None, "none"):
+        return (0.0, 0.0, 0.0, 0.0)
+    body = value[1:]
+    rgba = [int(body[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
+    rgba.append(int(body[6:8], 16) / 255.0 if len(body) == 8 else 1.0)
+    return tuple(rgba)
+
+
+class _MColors:
+    Normalize = _Normalize
+    LogNorm = _Normalize
+    NoNorm = _Normalize
+    BoundaryNorm = _BoundaryNorm
+    Colormap = Colormap
+    ListedColormap = _ListedColormap
+    LinearSegmentedColormap = _ListedColormap
+    TABLEAU_COLORS = dict(_TAB10)
+    CSS4_COLORS = _CSS_COLORS
+    cnames = _CSS_COLORS
+
+    @staticmethod
+    def to_rgb(color): return _rgba_tuple(color)[:3]
+
+    @staticmethod
+    def to_rgba(color, alpha=None, **kwargs):
+        rgba = _rgba_tuple(color)
+        return rgba if alpha is None else (*rgba[:3], float(alpha))
+
+    @staticmethod
+    def to_rgba_array(colors, alpha=None):
+        values = [_rgba_tuple(c) for c in colors]
+        return np.asarray([v if alpha is None else (*v[:3], float(alpha)) for v in values])
+
+    @staticmethod
+    def rgb2hex(rgb): return _norm_color(tuple(rgb))
+
+    @staticmethod
+    def to_hex(color, keep_alpha=False):
+        value = _norm_color(color)
+        return value if keep_alpha or value in (None, "none") else value[:7]
+
+
+class _NoopLocator:
+    def __init__(self, *args, **kwargs): pass
+    def __call__(self): return []
+    def tick_values(self, vmin, vmax): return np.array([vmin, vmax], dtype=float)
+    def set_params(self, **kwargs): return None
+    def set_axis(self, axis): return None
+
+
+class _NoopFormatter:
+    def __init__(self, *args, **kwargs): self.args = args
+    def __call__(self, value, pos=None): return str(value)
+    def set_axis(self, axis): return None
+    def set_locs(self, locs): return None
+
+
+class _PathEffects:
+    class Normal:
+        def __init__(self, *args, **kwargs): pass
+    class SimplePatchShadow:
+        def __init__(self, *args, **kwargs): pass
+    class SimpleLineShadow:
+        def __init__(self, *args, **kwargs): pass
+    class Stroke:
+        def __init__(self, *args, **kwargs): pass
+
+    @staticmethod
+    def withStroke(*args, **kwargs): return _PathEffects.Stroke()
+
+    @staticmethod
+    def withSimplePatchShadow(*args, **kwargs): return _PathEffects.SimplePatchShadow()
+
+
+mcolors = _MColors()
+colors = mcolors
+mpatches = patches
+mpath = _Namespace(Path=Path)
+mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox)
+mticker = _Namespace(
+    Locator=_NoopLocator, MultipleLocator=_NoopLocator, FixedLocator=_NoopLocator,
+    LinearLocator=_NoopLocator, LogLocator=_NoopLocator, MaxNLocator=_NoopLocator,
+    AutoMinorLocator=_NoopLocator, Formatter=_NoopFormatter,
+    FuncFormatter=_NoopFormatter, FormatStrFormatter=_NoopFormatter,
+    StrMethodFormatter=_NoopFormatter, ScalarFormatter=_NoopFormatter,
+    LogFormatter=_NoopFormatter, NullFormatter=_NoopFormatter,
+)
+ticker = mticker
+gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec)
+lines = _Namespace(Line2D=Line2D)
+patheffects = _PathEffects()
+
+
 def rc(group=None, **kwargs):
     """Record rc settings. `rc("lines", linewidth=2)` maps to `lines.linewidth`."""
     if group is None or isinstance(group, dict):
@@ -4046,6 +5166,48 @@ _STYLE_PRESETS = {
         "axes.prop_cycle": ["#4c72b0", "#dd8452", "#55a868", "#c44e52", "#8172b3",
                             "#937860", "#da8bc3", "#8c8c8c", "#ccb974", "#64b5cd"],
     },
+    "seaborn": {
+        "figure.facecolor": "#ffffff", "axes.facecolor": "#eaeaf2",
+        "axes.edgecolor": "#ffffff", "text.color": "#262626",
+        "axes.labelcolor": "#262626", "xtick.color": "#262626",
+        "ytick.color": "#262626", "grid.color": "#ffffff",
+    },
+    "bmh": {
+        "figure.facecolor": "#eeeeee", "axes.facecolor": "#eeeeee",
+        "axes.edgecolor": "#bcbcbc", "text.color": "#262626",
+        "axes.labelcolor": "#262626", "xtick.color": "#262626",
+        "ytick.color": "#262626", "grid.color": "#ffffff",
+    },
+    "fivethirtyeight": {
+        "figure.facecolor": "#f0f0f0", "axes.facecolor": "#f0f0f0",
+        "axes.edgecolor": "#f0f0f0", "text.color": "#262626",
+        "axes.labelcolor": "#262626", "xtick.color": "#262626",
+        "ytick.color": "#262626", "grid.color": "#cbcbcb",
+        "axes.prop_cycle": ["#008fd5", "#fc4f30", "#e5ae38", "#6d904f", "#8b8b8b"],
+    },
+    "grayscale": {
+        "figure.facecolor": "#ffffff", "axes.facecolor": "#ffffff",
+        "axes.edgecolor": "#000000", "text.color": "#000000",
+        "axes.labelcolor": "#000000", "xtick.color": "#000000",
+        "ytick.color": "#000000", "grid.color": "#b0b0b0",
+        "axes.prop_cycle": ["#000000", "#555555", "#aaaaaa", "#dddddd"],
+    },
+    "Solarize_Light2": {
+        "figure.facecolor": "#fdf6e3", "axes.facecolor": "#eee8d5",
+        "axes.edgecolor": "#93a1a1", "text.color": "#073642",
+        "axes.labelcolor": "#073642", "xtick.color": "#073642",
+        "ytick.color": "#073642", "grid.color": "#93a1a1",
+        "axes.prop_cycle": ["#268bd2", "#2aa198", "#859900", "#b58900", "#cb4b16",
+                            "#dc322f", "#d33682", "#6c71c4"],
+    },
+    "classic": {
+        "figure.facecolor": "#ffffff", "axes.facecolor": "#ffffff",
+        "axes.edgecolor": "#000000", "text.color": "#000000",
+        "axes.labelcolor": "#000000", "xtick.color": "#000000",
+        "ytick.color": "#000000", "grid.color": "#b0b0b0",
+        "axes.prop_cycle": ["#0000ff", "#00ff00", "#ff0000", "#00ffff",
+                            "#ff00ff", "#ffff00", "#000000"],
+    },
 }
 
 
@@ -4069,7 +5231,7 @@ def _style_rc(style):
 class _StyleLibrary:
     """The `plt.style` namespace: presets, `use`, and `context`."""
 
-    available = sorted(["default", *_STYLE_PRESETS])
+    available = sorted(["default", *_STYLE_PRESETS], key=str)
     library = _STYLE_PRESETS
 
     def use(self, style):

@@ -26,6 +26,7 @@ import os
 import pathlib
 import re
 import shutil
+import sys
 import tempfile
 import textwrap
 
@@ -35,8 +36,6 @@ import matplotvite
 # Bodies that cannot be rendered out of process: pytest fixtures, checks against
 # Matplotlib internals, or interactive backends.
 SKIP_RE = re.compile(r"pytest\.|check_figures_equal\(|\binput\(|themes\.|savefig\(")
-IMPORT_RE = re.compile(r"^\s*(import|from)\s+(matplotlib|numpy)\b")
-ASSERT_RE = re.compile(r"^\s*assert\b")
 
 
 def find_tests_root(source: pathlib.Path | None) -> pathlib.Path | None:
@@ -121,6 +120,29 @@ class _ExampleStripper(ast.NodeTransformer):
         return node
 
 
+class _PruneEmpty(ast.NodeTransformer):
+    """Remove compound statements whose bodies were stripped away."""
+
+    def visit_If(self, node: ast.If):
+        node = self.generic_visit(node)
+        if not node.body:
+            return node.orelse or None
+        return node
+
+    def _visit_block(self, node):
+        node = self.generic_visit(node)
+        return node if node.body else None
+
+    visit_For = _visit_block
+    visit_AsyncFor = _visit_block
+    visit_While = _visit_block
+    visit_With = _visit_block
+    visit_AsyncWith = _visit_block
+    visit_FunctionDef = _visit_block
+    visit_AsyncFunctionDef = _visit_block
+    visit_ClassDef = _visit_block
+
+
 def prepare_example(text: str) -> str | None:
     """Rewrite a gallery script into a snippet that draws once and saves."""
     if "input(" in text:
@@ -130,6 +152,7 @@ def prepare_example(text: str) -> str | None:
     except SyntaxError:
         return None
     tree = _ExampleStripper().visit(tree)
+    tree = _PruneEmpty().visit(tree)
     code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
     if not code:
         return None
@@ -168,15 +191,26 @@ def _resolve_baseline(tests_root: pathlib.Path, stem: str, name: str) -> pathlib
     return base.with_suffix(".png")
 
 
+class _BodyStripper(_ExampleStripper):
+    """Remove imports, interactive calls and assertions from a test body."""
+
+    def visit_Assert(self, node: ast.Assert):
+        return None
+
+
 def prepare_body(source: str) -> str | None:
     """Rewrite a test body into a runnable matplotvite snippet."""
     body = textwrap.dedent(source)
     if SKIP_RE.search(body):
         return None
-    lines = [line for line in body.splitlines()
-             if not IMPORT_RE.match(line) and not ASSERT_RE.match(line)]
-    code = "\n".join(lines).strip("\n")
-    if not code.strip():
+    try:
+        tree = ast.parse(body)
+    except SyntaxError:
+        return None
+    tree = _BodyStripper().visit(tree)
+    tree = _PruneEmpty().visit(tree)
+    code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
+    if not code:
         return None
     return code + "\nplt.savefig(OUT, dpi=100)\n"
 
@@ -213,18 +247,28 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
     return cases
 
 
-def render(snippet: str, out_path: pathlib.Path) -> str | None:
+def render(snippet: str, out_path: pathlib.Path,
+           extra_path: pathlib.Path | None = None) -> str | None:
     """Render a snippet with matplotvite; return an error string or None."""
     out_path = out_path.resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    namespace = {"plt": matplotvite, "mpl": matplotvite, "np": np,
-                 "OUT": str(out_path)}
+    namespace = {"plt": matplotvite, "mpl": matplotvite, "matplotlib": matplotvite,
+                 "np": np, "OUT": str(out_path)}
+    # Imports such as `from matplotlib.patches import Circle` are stripped from
+    # gallery snippets, so expose the compatibility classes as bare names.
+    namespace.update({name: getattr(matplotvite, name)
+                      for name in sorted(getattr(matplotvite, "__all__", ()), key=str)
+                      if hasattr(matplotvite, name)})
+    # Resolve helper paths before the scratch-directory change.
+    added_path = str(extra_path.resolve()) if extra_path is not None else None
     # Run inside a scratch directory: some examples write their own PNGs next to
     # the script's current directory.
     with tempfile.TemporaryDirectory() as scratch:
         previous = pathlib.Path.cwd()
         try:
             os.chdir(scratch)
+            if added_path is not None:
+                sys.path.insert(0, added_path)
             matplotvite.close("all")
             # Each case starts from Matplotlib's defaults, not the previous case's
             # rcParams edits.
@@ -237,6 +281,8 @@ def render(snippet: str, out_path: pathlib.Path) -> str | None:
         except Exception as exc:  # noqa: BLE001 - the gallery records every failure
             return f"{type(exc).__name__}: {exc}"
         finally:
+            if added_path is not None:
+                sys.path.remove(added_path)
             os.chdir(previous)
 
 
@@ -387,7 +433,8 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
             entry["error"] = "interactive or unparseable"
         else:
             ours = out / f"{slug}.png"
-            entry["error"] = render(str(case["snippet"]), ours)
+            entry["error"] = render(str(case["snippet"]), ours,
+                                    pathlib.Path(str(case["path"])).parent)
             entry["status"] = "rendered" if entry["error"] is None else "failed"
             if entry["error"] is None:
                 entry["ours"] = str(ours)
