@@ -2632,3 +2632,15 @@ def test_gallery_2d_data_and_stacked_hist():
     ax.hexbin("x", "y", data={"x": [0, 1], "y": [0, 1]})
     ax.hist2d("x", "y", data={"x": [0, 1], "y": [0, 1]})
     assert ax.bars
+
+
+def test_gallery_collection_and_pie_handles():
+    fig, ax = plt.subplots()
+    pc = plt.mcollections.PathCollection([plt.mpath.Path.unit_circle()])
+    ax.add_collection(pc)
+    ax.add_patch(plt.Annulus((0, 0), (0.5, 0.3), 0.1))
+
+    pie = ax.pie([1, 2])
+    assert pie.wedges and pie.texts is not None
+    legend = ax.legend()
+    assert legend.legendPatch is not None

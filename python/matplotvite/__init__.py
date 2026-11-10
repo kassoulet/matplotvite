@@ -19,7 +19,8 @@ __all__ = (
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
     "mtransforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
-    "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
+    "    Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
+    "PathCollection", "RegularPolyCollection",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
@@ -860,15 +861,43 @@ class _Wedge:
 
     def __init__(self, color=None):
         self._color = color
+        self._gid = None
+        self._zorder = 1
 
     def set_facecolor(self, c):
         self._color = str(c)
         return self
 
-    def set_color(self, c):
-        return self.set_facecolor(c)
-
+    def set_edgecolor(self, c): return self
+    def set_color(self, c): return self.set_facecolor(c)
     def get_facecolor(self): return self._color
+    def set_gid(self, gid): self._gid = gid
+    def get_gid(self): return self._gid
+    def get_label(self): return ""
+    def get_zorder(self): return self._zorder
+    def set_zorder(self, zorder): self._zorder = zorder
+
+
+class _PieResult:
+    """Matplotlib's PieResult: unpackable and attribute-accessible."""
+
+    def __init__(self, wedges, texts, autotexts):
+        self.wedges, self.texts, self.autotexts = wedges, texts, autotexts
+
+    def __iter__(self): return iter((self.wedges, self.texts, self.autotexts))
+
+
+class _LegendHandle:
+    """Return value of `legend`, with the mutable frame patch."""
+
+    def __init__(self):
+        self.legendPatch = Rectangle((0, 0), 1, 1)
+        self._zorder = 5
+
+    def get_zorder(self): return self._zorder
+    def set_zorder(self, zorder): self._zorder = int(zorder)
+    def get_frame(self): return self.legendPatch
+    def get_title(self): return _TextLabel()
 
 
 class _BarHandle:
@@ -1494,7 +1523,8 @@ class Annulus(Patch):
     def __init__(self, xy, r, width, angle=0.0, **kwargs):
         super().__init__(**kwargs)
         self._center = (float(xy[0]), float(xy[1]))
-        self._r, self._width = float(r), float(width)
+        self._r = max(float(v) for v in np.asarray(r, dtype=float).ravel())
+        self._width = max(float(v) for v in np.asarray(width, dtype=float).ravel())
         self.angle = float(angle)
 
     def get_xy(self):
@@ -1689,6 +1719,36 @@ class PolyCollection(LineCollection):
                                       np.asarray(v, dtype=float).reshape(-1, 2)[:1]])
                           for v in verts]
         return self
+
+
+class PathCollection(LineCollection):
+    def __init__(self, paths, **kwargs):
+        self._paths = list(paths)
+        segments = []
+        for path in self._paths:
+            points = np.asarray(getattr(path, "vertices", path), dtype=float).reshape(-1, 2)
+            segments.append(np.vstack([points, points[:1]]) if len(points) else points)
+        super().__init__(segments, **kwargs)
+
+    def set_paths(self, paths):
+        self._paths = list(paths)
+        return self
+
+
+class RegularPolyCollection(LineCollection):
+    def __init__(self, numVertices, sizes=None, offsets=None, offset_transform=None, **kwargs):
+        n = max(int(numVertices), 3)
+        angles = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False) + np.pi / 2.0
+        base = np.column_stack([np.cos(angles), np.sin(angles)])
+        offsets = [] if offsets is None else list(offsets)
+        sizes = [1.0] * len(offsets) if sizes is None else list(sizes)
+        segments = []
+        for i, offset in enumerate(offsets):
+            size = float(sizes[i % len(sizes)]) if sizes else 1.0
+            radius = max(np.sqrt(abs(size)) / 100.0, 0.01)
+            points = base * radius + np.asarray(offset, dtype=float).ravel()[:2]
+            segments.append(np.vstack([points, points[:1]]))
+        super().__init__(segments, **kwargs)
 
 
 class PatchCollection(LineCollection):
@@ -3863,7 +3923,7 @@ class Axes:
             if len(anchor) not in (2, 4):
                 raise ValueError("bbox_to_anchor needs 2 or 4 values")
             self.legend_anchor = (anchor[0], anchor[1])
-        return None
+        return _LegendHandle()
 
     def minorticks_on(self): self.minor_ticks = True
     def minorticks_off(self): self.minor_ticks = False
@@ -4066,7 +4126,7 @@ class Axes:
                           ha="center", va="center")
                 autotexts.append(_TextLabel(shown))
         self.set_axis_off()
-        return wedges, texts, autotexts
+        return _PieResult(wedges, texts, autotexts)
 
     def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
                   **kwargs):
@@ -4525,7 +4585,19 @@ def _line_styles(styles, n):
 
 
 def _as_f64(v):
-    return np.ascontiguousarray(np.asarray(v, dtype=np.float64).ravel())
+    arr = np.asarray(v)
+    if arr.dtype.kind == "O":
+        def number(item):
+            if hasattr(item, "_jd"):
+                return float(item._jd + item._seconds / 86400.0)
+            if hasattr(item, "_value"):
+                return float(item._value)
+            if hasattr(item, "value"):
+                return float(item.value)
+            return float(item)
+        arr = np.asarray([number(item) for item in arr.ravel()],
+                         dtype=np.float64).reshape(arr.shape)
+    return np.ascontiguousarray(np.asarray(arr, dtype=np.float64).ravel())
 
 
 def _band(xs, ys, color, alpha, label=""):
@@ -5125,10 +5197,12 @@ class Figure:
 
     def add_axes(self, rect=None, **kwargs):
         """Add an axes whose figure-fraction rectangle is the plotting area."""
-        rows, cols = self.grid
-        ax = self.add_subplot(rows, cols, len(self.axes) + 1)
+        ax = Axes(len(self.axes) + 1000)
+        ax._fig = self
         ax.set_position(rect if rect is not None else (0.0, 0.0, 1.0, 1.0))
         ax._bounds_are_axes = True
+        self.axes.append(ax)
+        self._cur = ax
         return ax
 
     def add_artist(self, artist):
@@ -5160,7 +5234,7 @@ class Figure:
             self.patch.set_facecolor(self.facecolor)
         return self
 
-    def legend(self, *args, **kwargs): return None
+    def legend(self, *args, **kwargs): return _LegendHandle()
     def figimage(self, *args, **kwargs): return None
     def add_subfigure(self, *args, **kwargs): return self
     def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
@@ -5691,7 +5765,8 @@ mpatches = patches
 mpath = _Namespace(Path=Path)
 mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           PolyCollection=PolyCollection, PatchCollection=PatchCollection,
-                          EventCollection=EventCollection, PathCollection=LineCollection)
+                          EventCollection=EventCollection, PathCollection=PathCollection,
+                          RegularPolyCollection=RegularPolyCollection)
 collections = mcollections
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          offset_copy=_offset_copy)
