@@ -59,10 +59,15 @@ def test_grid_defaults_and_unicode_minus(tmp_path):
     assert "−1" in svg
 
 
-def test_empty_raises(tmp_path):
-    plt.figure()
-    with pytest.raises(RuntimeError):
-        plt.savefig(tmp_path / "e.png")
+def test_empty_figure_saves_blank(tmp_path):
+    fig = plt.figure((4, 3))
+    p = tmp_path / "e.png"
+    fig.savefig(p)
+    b = p.read_bytes()
+    assert b[:8] == b"\x89PNG\r\n\x1a\n"
+    assert int.from_bytes(b[16:20], "big") == 400
+    assert int.from_bytes(b[20:24], "big") == 300
+    assert fig.savefig(None, format="svg").decode().startswith("<svg")
 
 
 def test_bad_path():
@@ -863,11 +868,11 @@ def test_hidden_and_removed_axes_are_not_drawn(tmp_path):
     fig.savefig(p)
     assert "gone" not in p.read_text()
 
-    plt.figure()
+    fig = plt.figure()
     plt.plot([1, 2])
     plt.gca().remove()
-    with pytest.raises(RuntimeError):
-        plt.savefig(tmp_path / "none.png")
+    fig.savefig(tmp_path / "none.png")
+    assert (tmp_path / "none.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_axis_off_hides_ticks_but_keeps_plot(tmp_path):
@@ -972,8 +977,9 @@ def test_axes_clear_empties_the_figure(tmp_path):
     ax.text(0, 0, "gone")
     ax.clear()
     assert ax.get_xlim() == pytest.approx((-0.05, 1.05))
-    with pytest.raises(RuntimeError):
-        plt.savefig(tmp_path / "empty.png")
+    p = tmp_path / "empty.svg"
+    plt.savefig(p)
+    assert "gone" not in p.read_text()
 
 
 def test_figure_introspection_and_add_axes(tmp_path):

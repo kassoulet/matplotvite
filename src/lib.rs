@@ -51,26 +51,6 @@ fn render(
         figure_texts,
     } = options;
     register_plotters_fonts();
-    if suptitle.is_empty()
-        && figure_texts.is_empty()
-        && panels.iter().all(|p| {
-            p.series.is_empty()
-                && p.texts.is_empty()
-                && p.images.is_empty()
-                && p.annotations.is_empty()
-                && p.contours.is_empty()
-                && p.errors.is_empty()
-                && p.scatter.is_empty()
-                && p.arrows.is_empty()
-                && p.bars.is_empty()
-                && p.bands.is_empty()
-                && p.patches.is_empty()
-                && p.collections.is_empty()
-                && p.colorbar.is_none()
-        })
-    {
-        return Err(PyRuntimeError::new_err("nothing to plot"));
-    }
     let (w, h) = size;
     // Defend against integer overflow and unconstrained allocations (DoS)
     const MAX_CANVAS_DIM: u32 = 32768;
