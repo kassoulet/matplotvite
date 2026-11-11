@@ -543,17 +543,23 @@ fn best_legend_pos(
     best
 }
 
+fn legend_corner_radius(font_size: f64) -> f64 {
+    // Matplotlib's rounded legend box scales with the text, not the canvas.
+    (font_size * 0.5).clamp(3.0, 12.0)
+}
+
 fn draw_rounded_frame<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     rect: (f64, f64, f64, f64),
     fill: RGBAColor,
     border: RGBColor,
+    radius: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
 {
     let (x, y, w, h) = rect;
-    let r = 6.0_f64.min(w / 2.0).min(h / 2.0);
+    let r = radius.min(w / 2.0).min(h / 2.0);
     let mut pts = Vec::with_capacity(20);
     let corners = [
         (
@@ -640,6 +646,7 @@ where
             (x, y, box_w, box_h),
             RGBAColor(255, 255, 255, 0.8),
             RGBColor(204, 204, 204),
+            legend_corner_radius(fs),
         )?;
     }
     if !opts.title.is_empty() {

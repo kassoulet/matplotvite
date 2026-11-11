@@ -517,6 +517,23 @@ def test_legend_orders_lines_before_patches_and_collections(tmp_path):
     assert order == sorted(order)
 
 
+def test_legend_frame_radius_scales_with_font_size(tmp_path):
+    radii = []
+    for fontsize in (8, 20):
+        fig, ax = plt.subplots(figsize=(4, 3))
+        ax.plot([0, 1], [0, 1], label="a")
+        ax.legend(fontsize=fontsize)
+        p = tmp_path / f"legend_{fontsize}.svg"
+        fig.savefig(p)
+        match = re.search(r'<polygon opacity="0.8" fill="#FFFFFF" points="([^"]+)"',
+                          p.read_text())
+        assert match is not None
+        points = [tuple(float(v) for v in pair.split(","))
+                  for pair in match.group(1).split()]
+        radii.append(points[0][1] - min(y for _, y in points))
+    assert radii[0] > 0 and radii[1] > radii[0]
+
+
 def test_colorbar_strip(tmp_path):
     plt.figure((6, 3))
     plt.contourf(np.add.outer(np.arange(20.0), np.arange(20.0)), levels=[0, 10, 20, 30])
