@@ -22,6 +22,18 @@ def test_png(tmp_path):
     assert int.from_bytes(b[16:20], "big") == 400 and int.from_bytes(b[20:24], "big") == 300
 
 
+def _mean_abs_channel_diff(a_rows, b_rows):
+    """Mean |difference| over the RGB channels of two decoded PNGs."""
+    total = 0
+    count = 0
+    for row_a, row_b in zip(a_rows, b_rows):
+        for i in range(0, min(len(row_a), len(row_b)), 4):
+            for channel in range(3):
+                total += abs(row_a[i + channel] - row_b[i + channel])
+                count += 1
+    return total / max(count, 1)
+
+
 def _png_colour_counts(rows):
     counts = {"red": 0, "blue": 0, "green": 0, "orange": 0, "nonwhite": 0}
     for row in rows:
@@ -53,8 +65,11 @@ def test_direct_and_svg_png_paths_preserve_every_panel():
     svg_counts = _png_colour_counts(svg[2])
     for colour in ("red", "blue", "green", "orange"):
         assert direct_counts[colour] > 20 and svg_counts[colour] > 20
-    assert abs(direct_counts["nonwhite"] - svg_counts["nonwhite"]) <= 0.1 * max(
-        direct_counts["nonwhite"], svg_counts["nonwhite"], 1)
+    # Compare pixels, not colour totals: moving a panel by a pixel keeps the
+    # totals but shifts every line, which the mean difference catches. The SVG
+    # path rasterises through resvg, so edges and text differ by anti-aliasing;
+    # this four-panel figure measures about 6.1 on a 0-255 scale.
+    assert _mean_abs_channel_diff(direct[2], svg[2]) <= 10.0
 
 
 @pytest.mark.parametrize("compression", ["fast", "default", "best"])
