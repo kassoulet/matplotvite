@@ -26,7 +26,7 @@
 - [x] `subplots(nrows, ncols)`, `subplot(r,c,i)`, `gca()`, `gcf()`
 - [x] `Axes`: `plot`, `set_title/xlabel/ylabel`, `legend`, `set_xlim/ylim`, `xlim/ylim`
 - [x] Color: named (`red/r/green/g/blue/b/orange/black/k`) + hex strings + tab10 auto-cycle
-- [x] Embedded Geist fonts (sans-serif, serif, mono) — no system font deps
+- [x] Embedded DejaVu Sans (regular/bold) and Geist (serif, mono) fonts — no system font deps
 
 ---
 

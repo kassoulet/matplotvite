@@ -993,9 +993,9 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
         )
 
     mpl_note = (
-        "Matplotlib renders in this gallery use the Agg backend and its default DejaVu fonts. "
-        "Matplotvite renders use its embedded Geist faces, so typography and spacing differ even "
-        "when the call sequence is identical."
+        "Matplotlib renders in this gallery use the Agg backend and its default DejaVu Sans font. "
+        "Matplotvite renders use the same embedded DejaVu Sans face, though antialiasing and "
+        "layout can still differ when the call sequence is identical."
         if mpl_available
         else "matplotlib is not installed in this build; the comparison column is unavailable."
     )
@@ -1027,7 +1027,7 @@ def generate_comparison_html(samples_info: list[dict[str, object]], mpl_availabl
     </p>
     <ul class="hero-meta">
       <li>Identical call sequence</li>
-      <li>Matplotlib default fonts vs embedded Geist</li>
+      <li>Shared embedded DejaVu Sans default</li>
       <li>Per-snippet timings, best of three runs</li>
       <li>Differences in antialiasing and layout are expected</li>
     </ul>
@@ -1390,7 +1390,7 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
         </div>
         <div>
           <h3>Embedded font data</h3>
-          <p>The bundled Geist faces avoid host font discovery and fontconfig parsing during rendering.</p>
+          <p>The bundled DejaVu Sans and Geist faces avoid host font discovery and fontconfig parsing during rendering.</p>
         </div>
         <div>
           <h3>Parallel subplot panels</h3>

@@ -2299,6 +2299,14 @@ def test_title_fontsize(tmp_path):
     assert any(18.5 < v < 20.5 for v in sizes)  # xlabel at 14pt
 
 
+def test_default_sans_font_is_dejavu():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    ax.set_title("DejaVu Sans")
+    pdf = fig.savefig(None, format="pdf")
+    assert b"DejaVuSans" in pdf
+
+
 def test_subplots_share_limits_and_hide_inner_labels(tmp_path):
     fig, axs = plt.subplots(2, 2, figsize=(4, 4), sharex=True, sharey=True)
     axs[0, 0].plot([0, 10], [0, 10])

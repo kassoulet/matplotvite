@@ -98,8 +98,8 @@ at runtime.
 | Rendering | `plotters` | Rust |
 | Rendering | `resvg`, `usvg`, `tiny-skia` | Rust (`tiny-skia` contains some `unsafe` SIMD internals) |
 | Rendering | `svg2pdf`, `pdf-writer`, `png` | Rust |
-| Text | `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter` | Rust; only the embedded Geist faces are loaded |
-| Fonts | Geist sans/serif/mono TTFs | OFL, embedded in the binary (see `assets/fonts/`) |
+| Text | `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter` | Rust; only the embedded DejaVu Sans and Geist faces are loaded |
+| Fonts | DejaVu Sans regular/bold, Geist serif/mono TTFs | Bitstream Vera / OFL, embedded in the binary (see `assets/fonts/`) |
 | Build | Rust stable, `maturin`, CPython (with development headers) | NumPy is only needed to import the built module |
 
 Matplotvite itself contains no `unsafe` code. All non-Rust code sits behind the
