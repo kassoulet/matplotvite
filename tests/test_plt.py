@@ -2634,6 +2634,36 @@ def test_twinx_png_keeps_primary_and_twin_axes():
     assert dark_left > 20
 
 
+def test_twinx_left_axis_keeps_tick_density_and_label_spacing():
+    x = np.linspace(0, 12, 140)
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    ax.plot(x, 20 + 8 * np.sin(x / 2.0), color="#c44e52")
+    ax.set_ylabel("Temperature (C)", color="#c44e52")
+    twin = ax.twinx()
+    twin.plot(x, 101 + 3 * np.cos(x / 3.0), color="#4c72b0")
+    twin.set_ylabel("Pressure (kPa)", color="#4c72b0")
+    svg = fig.savefig(format="svg").decode()
+    labels = {t.strip() for t in re.findall(r"<text[^>]*>([^<]*)</text>", svg)}
+    # 11.2 to 28.8 fits 2s, the step Matplotlib's AutoLocator picks; a 5s
+    # step would leave only 15, 20 and 25 on the left axis.
+    assert {"12", "14", "16", "18", "20", "22", "24", "26", "28"} <= labels
+    width, _, rows = decode_png_rgba(fig.savefig(format="png"))
+    cut = width // 8
+    label_right = 0
+    tick_left = width
+    for row in rows:
+        for x in range(cut):
+            r, g, b = row[x * 4], row[x * 4 + 1], row[x * 4 + 2]
+            if r > 150 and g < 120 and b < 120:
+                label_right = max(label_right, x)
+            elif max(r, g, b) < 100:
+                tick_left = min(tick_left, x)
+    assert label_right and tick_left < width
+    # Matplotlib's 4 pt labelpad: the rotated label sits just clear of the
+    # widest tick label instead of 20 px away at a fixed offset.
+    assert 0 < tick_left - label_right <= 14
+
+
 def test_twiny_adds_top_axis_on_the_same_panel(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.plot([0, 1, 2], [10, 20, 30])

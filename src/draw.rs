@@ -420,9 +420,17 @@ where
         let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
         let style =
             rotated_style(size, ylabel_col, 270.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        // Sit just past the widest right-hand tick label (matplotlib's
+        // labelpad of 4 pt) instead of at a fixed offset in the reserved gap.
+        let label_px = text_px(ystyle.labelsize.max(6.0), dpi);
+        let widest = ylabels
+            .iter()
+            .map(|l| crate::fonts::text_width(l, label_px))
+            .fold(0.0, f64::max);
+        let x = (right as f64 + ytick_len + 4.0 + widest + 10.0).min((right + gap - 8) as f64);
         area.draw(&Text::new(
             p.ylabel.clone(),
-            (right + gap - 4, (top + bottom) / 2),
+            (x.round() as i32, (top + bottom) / 2),
             style,
         ))?;
     } else if side == "top" && !p.xlabel.is_empty() {
@@ -439,9 +447,17 @@ where
             let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
             let style = rotated_style(size, ylabel_col, 270.0, dpi)
                 .pos(Pos::new(HPos::Center, VPos::Center));
+            // Sit just left of the widest tick label instead of 52 px out,
+            // which left a visible hole between the label and its ticks.
+            let label_px = text_px(ystyle.labelsize.max(6.0), dpi);
+            let widest = ylabels
+                .iter()
+                .map(|l| crate::fonts::text_width(l, label_px))
+                .fold(0.0, f64::max);
+            let x = (left as f64 - ytick_len - 4.0 - widest - 8.0).max(2.0);
             area.draw(&Text::new(
                 p.ylabel.clone(),
-                (left - 52, (top + bottom) / 2),
+                (x.round() as i32, (top + bottom) / 2),
                 style,
             ))?;
         }
