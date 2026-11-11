@@ -2272,6 +2272,18 @@ def test_subplots_share_limits_and_hide_inner_labels(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_shared_axes_render_fewer_tick_labels():
+    counts = []
+    for shared in (False, True):
+        fig, axs = plt.subplots(2, 2, figsize=(4, 4), sharex=shared, sharey=shared)
+        for ax in axs.flat:
+            ax.plot([0, 1], [0, 1])
+        svg = fig.savefig(None, format="svg").decode()
+        texts = re.findall(r"<text[^>]*>(.*?)</text>", svg, re.S)
+        counts.append(sum(bool(text.strip()) for text in texts))
+    assert counts[1] < counts[0]
+
+
 def test_subplots_squeeze_false_keeps_array():
     fig, axs = plt.subplots(1, 1, squeeze=False)
     assert axs.shape == (1, 1)
