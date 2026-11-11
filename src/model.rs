@@ -459,6 +459,10 @@ pub(crate) struct Panel {
     /// Figure-fraction `(x, y, width, height)`; `None` uses the grid cell.
     #[pyo3(item)]
     pub(crate) bounds: Option<(f64, f64, f64, f64)>,
+    /// The bounds are a precise plotting rectangle (`add_axes`/inset), not a
+    /// panel that still needs the roomier label margins.
+    #[pyo3(item)]
+    pub(crate) axes_bounds: bool,
     /// Empty for a normal axes, `"y"` for `twinx`, `"x"` for `twiny`.
     #[pyo3(item)]
     pub(crate) twin: String,

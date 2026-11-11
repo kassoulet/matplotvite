@@ -2494,13 +2494,21 @@ class Axes:
         self._pos_override = tuple(float(v) for v in pos)
         self._bounds_are_axes = True
 
+    def _exact_axes_box(self):
+        """True when the renderer can preserve a plain `add_axes` rectangle."""
+        return (self._pos_override is not None
+                and getattr(self, "_bounds_are_axes", False)
+                and not self.title and self._colorbar is None
+                and not self._twin and self.aspect is None)
+
     def _render_bounds(self, dpi=None):
         """Expand an axes rectangle by the renderer's label margins.
 
         Matplotlib's `add_axes`/`set_position` rectangle is the axes box, not
-        the outer panel; the fixed tick, label and title margins live outside
-        it. The renderer takes a panel rectangle, so add those margins back
-        before drawing.
+        the outer panel; the tick, label and title margins live outside it.
+        The renderer takes a panel rectangle, so add those margins back before
+        drawing. Plain axes boxes use the same 40/30/25/25 px margins as the
+        renderer's exact path; styled panels keep the roomier legacy margins.
         """
         if self._pos_override is None:
             return None
@@ -2511,7 +2519,10 @@ class Axes:
         width, height = fw * dpi, fh * dpi
         if width <= 0.0 or height <= 0.0:
             return self._pos_override
-        left, right, bottom = 70.0 / width, 25.0 / width, 60.0 / height
+        exact = self._exact_axes_box()
+        left = (40.0 if exact else 70.0) / width
+        right = 25.0 / width
+        bottom = (30.0 if exact else 60.0) / height
         title_pad = 0.0
         if self.title:
             title_size = float(self.title_size or rcParams.get("axes.titlesize", 12.0))
@@ -4573,7 +4584,8 @@ class Axes:
                     axis_off=self._axis_off,
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
                     foreground=_norm_color(rcParams.get("text.color")),
-                    bounds=self._render_bounds(dpi), twin=self._twin, twin_gap=self._twin_gap,
+                    bounds=self._render_bounds(dpi), axes_bounds=self._exact_axes_box(),
+                    twin=self._twin, twin_gap=self._twin_gap,
                     patches=patches, collections=collections,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True,
                              e["alpha"], e["interpolation"])

@@ -1001,21 +1001,24 @@ def test_figure_introspection_and_add_axes(tmp_path):
 
 
 def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
-    fig = plt.figure((4, 3))
-    ax = fig.add_axes([0.2, 0.2, 0.6, 0.6])
-    ax.set_facecolor("red")
-    ax.plot([0, 1], [0, 1])
-    p = tmp_path / "plot_area.svg"
-    fig.savefig(p)
-    match = re.search(
-        r'<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" '
-        r'opacity="1" fill="#FF0000"',
-        p.read_text(),
-    )
-    assert match is not None
-    x, y, w, h = (int(v) for v in match.groups())
-    assert abs(x - 80) <= 2 and abs(y - 60) <= 2
-    assert abs(w - 240) <= 2 and abs(h - 180) <= 2
+    cases = [([0.1, 0.1, 0.8, 0.8], (40, 30, 320, 240)),
+             ([0.2, 0.2, 0.6, 0.6], (80, 60, 240, 180))]
+    for index, (rect, expected) in enumerate(cases):
+        fig = plt.figure((4, 3))
+        ax = fig.add_axes(rect)
+        ax.set_facecolor("red")
+        ax.plot([0, 1], [0, 1])
+        p = tmp_path / f"plot_area_{index}.svg"
+        fig.savefig(p)
+        match = re.search(
+            r'<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" '
+            r'opacity="1" fill="#FF0000"',
+            p.read_text(),
+        )
+        assert match is not None
+        x, y, w, h = (int(v) for v in match.groups())
+        for actual, wanted in zip((x, y, w, h), expected):
+            assert abs(actual - wanted) <= 2
 
 
 def test_mpl_toolkits_inset_axes(tmp_path):

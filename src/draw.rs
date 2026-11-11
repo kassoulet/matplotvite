@@ -1497,15 +1497,25 @@ where
                 || p.grid.linewidth.is_some()
                 || p.grid.alpha.is_some()
                 || p.grid.linestyle.is_some()));
+    let exact_axes = p.axes_bounds;
     let shrunk_area;
     let mut builder = ChartBuilder::on(area);
-    builder.margin(25);
-    if colorbar.is_some() {
-        builder.margin_right(125);
-    } else if twin_side == "y" {
-        builder.margin_right(10 + twin_gap_px);
-    } else if twin_side == "x" {
-        builder.margin_top(10 + twin_gap_px);
+    if exact_axes {
+        // `add_axes`/insets already include their label margins in `bounds`.
+        // Keep the chart plotting area on the requested rectangle instead of
+        // adding the normal panel margin a second time.
+        builder.margin(0);
+        builder.margin_right(25);
+        builder.margin_top(25);
+    } else {
+        builder.margin(25);
+        if colorbar.is_some() {
+            builder.margin_right(125);
+        } else if twin_side == "y" {
+            builder.margin_right(10 + twin_gap_px);
+        } else if twin_side == "x" {
+            builder.margin_top(10 + twin_gap_px);
+        }
     }
     // An equal-aspect panel may rebuild its chart after measuring the plotting
     // area. Leave the caption empty for that probe so it cannot be drawn twice.
@@ -1515,8 +1525,8 @@ where
         builder.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
     }
     let mut chart = builder
-        .x_label_area_size(35)
-        .y_label_area_size(45)
+        .x_label_area_size(if exact_axes { 30 } else { 35 })
+        .y_label_area_size(if exact_axes { 40 } else { 45 })
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
