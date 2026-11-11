@@ -42,6 +42,14 @@ def test_toolkit_shim_is_scoped_inside_matplotvite():
         assert not any(path.startswith("mpl_toolkits/") for path in files)
 
 
+def test_bundled_font_licences_are_installed():
+    files = [str(path) for path in metadata.files("matplotvite")]
+    if "matplotvite/__init__.py" not in files:
+        pytest.skip("editable installs do not expose the wheel's licence list")
+    assert any(path.endswith("LICENSE_DEJAVU.txt") for path in files)
+    assert any(path.endswith("LICENSE_GEIST_OFL.txt") for path in files)
+
+
 def test_matplotlib_toolkit_namespace_is_not_shadowed():
     # Matplotlib is not a wheel-test dependency, so only check coexistence
     # when it is already installed.

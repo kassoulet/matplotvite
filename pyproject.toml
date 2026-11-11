@@ -9,7 +9,8 @@ description = "Matplotlib-style static plots rendered in Rust, with numpy as the
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT OR Apache-2.0"
-license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
+license-files = ["LICENSE-MIT", "LICENSE-APACHE", "assets/fonts/LICENSE_DEJAVU.txt",
+                 "assets/fonts/LICENSE_GEIST_OFL.txt"]
 authors = [{ name = "Gautier Portet", email = "kassoulet@gmail.com" }]
 keywords = ["matplotlib", "plotting", "charts", "svg", "pdf"]
 classifiers = [
