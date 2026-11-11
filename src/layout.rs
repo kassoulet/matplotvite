@@ -166,7 +166,9 @@ pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
     let raw = (hi - lo) / target.max(1) as f64;
     let mag = 10f64.powf(raw.log10().floor());
     let mut step = 10.0 * mag;
-    for norm in [1.0, 2.0, 5.0, 10.0] {
+    // Matplotlib's AutoLocator steps: 1, 2, 2.5, 5, 10 per decade. The 2.5
+    // decade is what turns 0-2 into 0.25 steps rather than 0.5.
+    for norm in [1.0, 2.0, 2.5, 5.0, 10.0] {
         let candidate = norm * mag;
         let count =
             ((hi / candidate + 1e-9).floor() - (lo / candidate - 1e-9).ceil() + 1.0) as usize;
@@ -225,6 +227,14 @@ mod tests {
         assert_eq!(
             nice_ticks(11.2, 28.8, 8),
             vec![12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0]
+        );
+    }
+
+    #[test]
+    fn nice_ticks_uses_quarter_steps_for_a_two_unit_span() {
+        assert_eq!(
+            nice_ticks(-0.1, 2.1, 8),
+            vec![0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
         );
     }
 
