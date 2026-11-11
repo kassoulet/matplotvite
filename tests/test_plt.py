@@ -1127,6 +1127,23 @@ def test_mpl_toolkits_inset_axes(tmp_path):
     assert "#FF0000" in p.read_text().upper()
 
 
+def test_inset_axes_png_keeps_parent_and_child_content():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1], color="blue", linewidth=3)
+    inset = ax.inset_axes([0.5, 0.5, 0.4, 0.3])
+    inset.plot([0, 1], [1, 0], color="red", linewidth=3)
+    width, _, rows = decode_png_rgba(fig.savefig(format="png"))
+    red = blue = 0
+    for row in rows:
+        for x in range(0, width * 4, 4):
+            r, g, b = row[x], row[x + 1], row[x + 2]
+            red += r > 150 and g < 100 and b < 100
+            blue += b > 150 and r < 100 and g < 120
+    # Overlay panels share one document, so the parent line must survive the
+    # inset's opaque background outside the inset rectangle.
+    assert red > 20 and blue > 20
+
+
 def test_inset_axes_is_placed_in_axes_fraction(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])
