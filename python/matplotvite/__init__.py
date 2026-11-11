@@ -174,6 +174,8 @@ def _text_props(fontdict, kwargs):
 def _mathtext(text):
     """Render a small `$...$` TeX subset as Unicode for the text renderer."""
     value = str(text)
+    if not rcParams.get("text.parse_math", True):
+        return value
     parts = value.split("$")
     if len(parts) % 2 == 0:
         return value
@@ -245,6 +247,9 @@ class Colormap:
         self.N = int(colors.shape[0])
         self._rgb = colors.astype(np.float64) / 255.0
         self._reverse = reverse
+        self._bad = "#00000000"
+        self._under = None
+        self._over = None
 
     @property
     def colors(self):
@@ -285,6 +290,20 @@ class Colormap:
 
     def resampled(self, lut): return get_cmap(self.name, lut)
     def with_extremes(self, **kwargs): return self
+
+    def copy(self):
+        copied = Colormap(self.name)
+        copied._bad, copied._under, copied._over = self._bad, self._under, self._over
+        return copied
+
+    def set_bad(self, color="k", alpha=None):
+        self._bad = (_norm_color(color), alpha)
+
+    def set_under(self, color="k", alpha=None):
+        self._under = (_norm_color(color), alpha)
+
+    def set_over(self, color="k", alpha=None):
+        self._over = (_norm_color(color), alpha)
 
     def __repr__(self):
         return f"<Colormap {self.name!r}>"
@@ -2135,6 +2154,7 @@ class _Axis:
 
     def __init__(self, parent, axis):
         self._parent, self._axis = parent, axis
+        self.axes = parent
         self.label = _TextLabel()
         self.offsetText = _TextLabel()
         self._visible = True
@@ -4026,7 +4046,7 @@ class Axes:
 
     def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None, alpha=None):
         x, y, z, levels = _contour_args(args, levels)
-        levels = _levels(z, levels)
+        levels = _levels(z, levels, allow_single=not filled)
         if linewidths is None:
             widths = []
         elif np.isscalar(linewidths):
@@ -5058,7 +5078,7 @@ def _err_pair(err, n, name):
     raise ValueError(f"{name} must be a scalar, a length-{n} array, or shape (2, {n})")
 
 
-def _levels(z, levels):
+def _levels(z, levels, allow_single=False):
     lo, hi = float(np.nanmin(z)), float(np.nanmax(z))
     if not hi > lo:
         hi = lo + 1.0
@@ -5069,7 +5089,7 @@ def _levels(z, levels):
             raise ValueError("levels must be at least 2")
         return [float(v) for v in np.linspace(lo, hi, int(levels))]
     lv = np.atleast_1d(np.asarray(levels, dtype=np.float64)).ravel()
-    if lv.size < 2:
+    if lv.size < (1 if allow_single else 2):
         raise ValueError("levels needs at least two entries")
     return [float(v) for v in np.sort(lv)]
 
@@ -5968,6 +5988,7 @@ rcParams = {
     "xtick.color": "#000000",
     "ytick.color": "#000000",
     "text.color": "#000000",
+    "text.parse_math": True,
     "grid.color": "#b0b0b0",
 }
 _RC_DEFAULTS = dict(rcParams)
@@ -5985,6 +6006,23 @@ class _Normalize:
     def autoscale(self, A): return None
     def autoscale_None(self, A): return None
     def inverse(self, value): return value
+
+
+class _TwoSlopeNorm(_Normalize):
+    def __init__(self, vcenter, vmin=None, vmax=None, clip=False):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.vcenter = float(vcenter)
+
+    def __call__(self, value, clip=None):
+        vmin = self.vmin
+        vmax = self.vmax
+        center = self.vcenter
+        arr = np.asarray(value, dtype=float)
+        out = np.empty_like(arr, dtype=float)
+        below = arr <= center
+        out[below] = 0.5 * (arr[below] - vmin) / (center - vmin)
+        out[~below] = 0.5 + 0.5 * (arr[~below] - center) / (vmax - center)
+        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
 
 
 class _BoundaryNorm(_Normalize):
@@ -6031,6 +6069,7 @@ class _MColors:
     Normalize = _Normalize
     LogNorm = _Normalize
     NoNorm = _Normalize
+    TwoSlopeNorm = _TwoSlopeNorm
     BoundaryNorm = _BoundaryNorm
     Colormap = Colormap
     ListedColormap = _ListedColormap

@@ -615,11 +615,13 @@ def test_contour_explicit_colors_are_used(tmp_path):
 
 def test_contour_levels_validation():
     plt.figure()
-    z = np.zeros((4, 4)) + 1.0
+    z = np.arange(16.0).reshape(4, 4)
+    cs = plt.contour(z, levels=[5.0])
+    assert cs.levels == [5.0]
     with pytest.raises(ValueError):
         plt.contour(z, levels=1)
     with pytest.raises(ValueError):
-        plt.contour(z, levels=[0.5])
+        plt.contourf(z, levels=[5.0])
     with pytest.raises(ValueError):
         plt.contour([0.0, 1.0], [0.0, 1.0], np.zeros((4, 4)))
 
@@ -1933,6 +1935,30 @@ def test_css_colors_and_color_specs(tmp_path):
     p = tmp_path / "css.svg"
     plt.savefig(p)
     assert "#663399" in p.read_text().upper()
+
+
+def test_m16_api_compatibility():
+    cmap = plt.get_cmap("viridis")
+    copied = cmap.copy()
+    assert copied.name == cmap.name
+    copied.set_bad("red")
+    copied.set_under("blue")
+    copied.set_over("green")
+
+    norm = plt.mcolors.TwoSlopeNorm(vcenter=0.0, vmin=-2.0, vmax=2.0)
+    assert norm(-2.0) == pytest.approx(0.0)
+    assert norm(0.0) == pytest.approx(0.5)
+    assert norm(2.0) == pytest.approx(1.0)
+
+    fig, ax = plt.subplots()
+    assert ax.xaxis.axes is ax and ax.yaxis.axes is ax
+    old = plt.rcParams["text.parse_math"]
+    try:
+        plt.rcParams["text.parse_math"] = False
+        ax.set_title("$x^2$")
+        assert ax.get_title() == "$x^2$"
+    finally:
+        plt.rcParams["text.parse_math"] = old
 
 
 def test_colormap_registry_and_get_cmap():
