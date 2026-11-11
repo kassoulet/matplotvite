@@ -31,12 +31,26 @@ pub(crate) fn draw_label<DB: DrawingBackend>(
     ha: &str,
     va: &str,
     bbox: Option<&TextBBox>,
+    line_scale: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
 {
     let fs = size.max(1.0);
-    let lines: Vec<&str> = s
+    // SVG collapses runs of ordinary spaces. Text blocks with indentation or
+    // tabs use non-breaking spaces so their columns survive resvg and PDF.
+    let keep_spacing = s
+        .lines()
+        .any(|line| line.starts_with(' ') || line.starts_with('\t'))
+        || s.contains('\t');
+    let expanded: String;
+    let text = if keep_spacing {
+        expanded = s.replace('\t', "    ").replace(' ', "\u{00A0}");
+        expanded.as_str()
+    } else {
+        s
+    };
+    let lines: Vec<&str> = text
         .split('\n')
         .map(|line| line.trim_end_matches('\r'))
         .collect();
@@ -49,7 +63,7 @@ where
         "right" => -w,
         _ => 0.0,
     };
-    let line_h = fs * 1.2;
+    let line_h = fs * 1.2 * line_scale.clamp(0.1, 4.0);
     let dy = if lines.len() == 1 {
         match va {
             "top" => 0.0,
@@ -1139,6 +1153,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     vmin: f64,
     vmax: f64,
     label: &str,
+    line_scale: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -1179,6 +1194,7 @@ where
                 "left",
                 "center",
                 None,
+                line_scale,
             )?;
         }
     }
@@ -1193,6 +1209,7 @@ where
             "left",
             "top",
             None,
+            line_scale,
         )?;
     }
     Ok(())
@@ -1504,6 +1521,7 @@ fn mix_at(a: (f64, f64, f64), b: (f64, f64, f64), bound: f64) -> (f64, f64, f64)
     (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, bound)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     p: &Panel,
@@ -1512,6 +1530,7 @@ pub(crate) fn draw_panel<DB: DrawingBackend>(
     raster_scatter: bool,
     draw_images: bool,
     dpi: f64,
+    line_scale: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -2571,6 +2590,7 @@ where
                 ha,
                 va,
                 bbox.as_ref(),
+                line_scale,
             )?;
         }
         for (text, xy, xytext, c, size) in &p.annotations {
@@ -2592,6 +2612,7 @@ where
                 "left",
                 "baseline",
                 None,
+                line_scale,
             )?;
         }
         for item in &p.images {
@@ -2813,6 +2834,7 @@ where
             *vmin,
             *vmax,
             label,
+            line_scale,
         )?;
     }
     Ok(())

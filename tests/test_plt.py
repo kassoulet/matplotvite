@@ -302,15 +302,19 @@ def test_colormap_maps_nan_to_transparent():
 
 def test_text_newline_draws_separate_lines(tmp_path):
     plt.figure((4, 3))
-    plt.text(0.1, 0.5, "first\nsecond")
+    plt.text(0.1, 0.5, "first\nsecond\n  indented\n\ttabbed")
     p = tmp_path / "multiline.svg"
     plt.savefig(p)
+    svg = p.read_text()
     ys = {}
     for name in ("first", "second"):
-        match = re.search(rf'<text x="-?\d+" y="(\d+)"[^>]*>\s*{name}', p.read_text())
+        match = re.search(rf'<text x="-?\d+" y="(\d+)"[^>]*>\s*{name}', svg)
         assert match is not None
         ys[name] = int(match.group(1))
-    assert ys["first"] != ys["second"]
+    delta = abs(ys["second"] - ys["first"])
+    assert 15 <= delta <= 18  # 10 pt at 100 dpi with 1.2 line spacing
+    assert "\u00a0\u00a0indented" in svg
+    assert "\u00a0\u00a0\u00a0\u00a0tabbed" in svg
 
 
 def test_imshow_rgb_handle_and_errors(tmp_path):

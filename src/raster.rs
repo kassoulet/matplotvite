@@ -175,7 +175,7 @@ fn render_panel(
         let mut overlays = Vec::new();
         // `text_px` compensates for the SVG backend's 1.24 font divisor; the
         // bitmap backend applies the font size directly.
-        draw_panel(&area, p, &mut overlays, 0, false, true, p.dpi / 1.24)
+        draw_panel(&area, p, &mut overlays, 0, false, true, p.dpi / 1.24, 1.0)
             .map_err(|e| e.to_string())?;
         area.present().map_err(|e| e.to_string())?;
     }

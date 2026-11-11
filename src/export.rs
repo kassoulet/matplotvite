@@ -260,8 +260,17 @@ fn panel_fragment(
                 let right = (w as f64 - (x + pw) * w as f64).round() as i32;
                 let bottom = (y * h as f64).round() as i32;
                 let area = root.margin(top.max(0), bottom.max(0), left.max(0), right.max(0));
-                draw_panel(&area, p, &mut overlays, gap, raster_scatter, false, p.dpi)
-                    .map_err(|e| e.to_string())?;
+                draw_panel(
+                    &area,
+                    p,
+                    &mut overlays,
+                    gap,
+                    raster_scatter,
+                    false,
+                    p.dpi,
+                    1.0 / 1.24,
+                )
+                .map_err(|e| e.to_string())?;
             }
             None => draw_panel(
                 cells.get(p.pos).ok_or("subplot index out of range")?,
@@ -271,6 +280,7 @@ fn panel_fragment(
                 raster_scatter,
                 false,
                 p.dpi,
+                1.0 / 1.24,
             )
             .map_err(|e| e.to_string())?,
         }
@@ -360,6 +370,7 @@ fn decoration_fragment(
                 ha,
                 va,
                 bbox.as_ref(),
+                1.0 / 1.24,
             )
             .map_err(|e| e.to_string())?;
         }
