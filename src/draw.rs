@@ -543,6 +543,54 @@ fn best_legend_pos(
     best
 }
 
+fn draw_rounded_frame<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    rect: (f64, f64, f64, f64),
+    fill: RGBAColor,
+    border: RGBColor,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let (x, y, w, h) = rect;
+    let r = 6.0_f64.min(w / 2.0).min(h / 2.0);
+    let mut pts = Vec::with_capacity(20);
+    let corners = [
+        (
+            x + r,
+            y + r,
+            std::f64::consts::PI,
+            1.5 * std::f64::consts::PI,
+        ),
+        (
+            x + w - r,
+            y + r,
+            1.5 * std::f64::consts::PI,
+            2.0 * std::f64::consts::PI,
+        ),
+        (x + w - r, y + h - r, 0.0, 0.5 * std::f64::consts::PI),
+        (
+            x + r,
+            y + h - r,
+            0.5 * std::f64::consts::PI,
+            std::f64::consts::PI,
+        ),
+    ];
+    for (cx, cy, start, end) in corners {
+        for i in 0..=4 {
+            let angle = start + (end - start) * i as f64 / 4.0;
+            pts.push(((cx + r * angle.cos()) as i32, (cy + r * angle.sin()) as i32));
+        }
+    }
+    area.draw(&Polygon::new(pts.clone(), fill.filled()))?;
+    let mut outline = pts;
+    if let Some(first) = outline.first().copied() {
+        outline.push(first);
+    }
+    area.draw(&PathElement::new(outline, border.stroke_width(1)))?;
+    Ok(())
+}
+
 /// Draw the legend myself so placement, columns, title and frame options all
 /// work; plotters' built-in legend only supports a single column.
 fn draw_legend<DB: DrawingBackend>(
@@ -587,20 +635,12 @@ where
         anchored_legend_pos(ax, ay, loc, box_w, box_h, rect)
     };
     if opts.frameon {
-        area.draw(&Rectangle::new(
-            [
-                (x as i32, y as i32),
-                ((x + box_w) as i32, (y + box_h) as i32),
-            ],
-            RGBAColor(255, 255, 255, 0.92).filled(),
-        ))?;
-        area.draw(&Rectangle::new(
-            [
-                (x as i32, y as i32),
-                ((x + box_w) as i32, (y + box_h) as i32),
-            ],
-            RGBColor(200, 200, 200).stroke_width(1),
-        ))?;
+        draw_rounded_frame(
+            area,
+            (x, y, box_w, box_h),
+            RGBAColor(255, 255, 255, 0.8),
+            RGBColor(204, 204, 204),
+        )?;
     }
     if !opts.title.is_empty() {
         let style = ("sans-serif", title_fs.round() as u32)
