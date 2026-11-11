@@ -154,11 +154,12 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
     (x0, x1, y0, y1)
 }
 
-/// Roughly `target` evenly spaced values on a 1/2/5 x 10^k step.
+/// Roughly `target` evenly spaced values on a 1/2/2.5/5/10 x 10^k step.
 ///
-/// The step is the densest one whose labels still fit the budget, so a span
-/// of 17.6 with eight requested ticks uses 2 rather than 5 (Matplotlib's
-/// `MaxNLocator` behaves the same way).
+/// The step is the candidate whose ratio to `span / target` is closest, so a
+/// span of 17.6 with eight requested ticks uses 2 rather than 5 and a 1.96
+/// span uses 0.25 rather than 0.2, as Matplotlib's `MaxNLocator` does. Only
+/// steps whose labels fit the budget are considered.
 pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
     if hi <= lo || !lo.is_finite() || !hi.is_finite() {
         return Vec::new();
@@ -166,22 +167,27 @@ pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
     let raw = (hi - lo) / target.max(1) as f64;
     let mag = 10f64.powf(raw.log10().floor());
     let mut step = 10.0 * mag;
-    // Matplotlib's AutoLocator steps: 1, 2, 2.5, 5, 10 per decade. The 2.5
-    // decade is what turns 0-2 into 0.25 steps rather than 0.5.
+    let mut best = f64::INFINITY;
+    // Matplotlib's AutoLocator steps: 1, 2, 2.5, 5, 10 per decade.
     for norm in [1.0, 2.0, 2.5, 5.0, 10.0] {
         let candidate = norm * mag;
         let count =
             ((hi / candidate + 1e-9).floor() - (lo / candidate - 1e-9).ceil() + 1.0) as usize;
         if count <= target + 1 {
-            step = candidate;
-            break;
+            let score = (candidate / raw).ln().abs();
+            if score < best {
+                best = score;
+                step = candidate;
+            }
         }
     }
-    let mut value = (lo / step).ceil() * step;
+    // Multiply an integer index by the step rather than adding it repeatedly:
+    // accumulation left values like -5.55e-17 where Matplotlib prints 0.
+    let mut index = (lo / step).ceil();
     let mut out = Vec::new();
-    while value <= hi + step * 1e-9 && out.len() < 50 {
-        out.push(value);
-        value += step;
+    while index * step <= hi + step * 1e-9 && out.len() < 50 {
+        out.push(index * step);
+        index += 1.0;
     }
     out
 }

@@ -762,6 +762,20 @@ def test_colorbar_uses_nice_ticks():
     assert not re.search(r">\s*0\.5\s*</text>", svg)
 
 
+def test_colorbar_ticks_have_no_float_noise():
+    fig, ax = plt.subplots(figsize=(5, 4))
+    x = np.linspace(0, 4, 40)
+    y = np.linspace(0, 3, 30)
+    xx, yy = np.meshgrid(x, y)
+    mesh = ax.pcolormesh(x, y, np.sin(xx) * np.cos(yy), cmap="viridis")
+    fig.colorbar(mesh, ax=ax)
+    svg = fig.savefig(None, format="svg").decode()
+    # Accumulating the step left -5.55e-17 in the labels; multiply an index
+    # instead, and prefer the 0.25 step over 0.2 for a span just under 2.
+    assert "e-17" not in svg and "e+03" not in svg
+    assert re.search(r">\s*0\.75\s*</text>", svg)
+
+
 def test_colorbar_on_multiple_axes(tmp_path):
     fig, axs = plt.subplots(1, 2, figsize=(6, 3))
     for ax, offset in zip(axs, (0.0, 10.0)):
