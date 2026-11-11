@@ -8,7 +8,9 @@ use plotters::style::IntoFont;
 use crate::color::{color, colormap};
 use crate::image::{base64, image_png, image_rgb};
 use crate::layout::{auto_ticks, axis_bounds, panel_ranges, range};
-use crate::model::{Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression};
+use crate::model::{
+    Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
+};
 
 /// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
 /// points at `dpi`. Convert once so both land on the same pixel size.
@@ -19,7 +21,7 @@ pub(crate) fn text_px(size: f64, dpi: f64) -> f64 {
 /// Draw one label. Alignment is approximated: the backend only has a top-left
 /// anchor, so the text width is estimated from the glyph count.
 #[allow(clippy::too_many_arguments)]
-fn draw_label<DB: DrawingBackend>(
+pub(crate) fn draw_label<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     base: (i32, i32),
     pos: (i32, i32),
@@ -28,6 +30,7 @@ fn draw_label<DB: DrawingBackend>(
     size: f64,
     ha: &str,
     va: &str,
+    bbox: Option<&TextBBox>,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -62,6 +65,42 @@ where
             _ => -fs * 0.8,
         }
     };
+    if let Some(bb) = bbox {
+        let pad = bb.pad.max(0.0) * fs;
+        let left = pos.0 as f64 - base.0 as f64 + dx - pad;
+        let top = pos.1 as f64 - base.1 as f64 + dy - fs * 0.8 - pad;
+        let right = pos.0 as f64 - base.0 as f64 + dx + w + pad;
+        let bottom = pos.1 as f64 - base.1 as f64
+            + dy
+            + lines.len().saturating_sub(1) as f64 * line_h
+            + fs * 0.2
+            + pad;
+        let face = bb
+            .facecolor
+            .as_deref()
+            .map(color)
+            .unwrap_or(RGBAColor(0, 0, 0, 0.0));
+        let edge = bb
+            .edgecolor
+            .as_deref()
+            .map(color)
+            .unwrap_or(RGBAColor(0, 0, 0, 0.0));
+        let alpha = bb.alpha.clamp(0.0, 1.0);
+        let fill = RGBAColor(face.0, face.1, face.2, face.3 * alpha);
+        let border = RGBAColor(edge.0, edge.1, edge.2, edge.3 * alpha);
+        let radius = if bb.rounded {
+            legend_corner_radius(fs)
+        } else {
+            0.0
+        };
+        draw_rounded_frame(
+            area,
+            (left, top, right - left, bottom - top),
+            fill,
+            border,
+            radius,
+        )?;
+    }
     let style = ("sans-serif", fs.round() as u32).into_font().color(&col);
     for (index, line) in lines.iter().enumerate() {
         if line.is_empty() {
@@ -552,7 +591,7 @@ fn draw_rounded_frame<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     rect: (f64, f64, f64, f64),
     fill: RGBAColor,
-    border: RGBColor,
+    border: RGBAColor,
     radius: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -645,7 +684,7 @@ where
             area,
             (x, y, box_w, box_h),
             RGBAColor(255, 255, 255, 0.8),
-            RGBColor(204, 204, 204),
+            RGBAColor(204, 204, 204, 1.0),
             legend_corner_radius(fs),
         )?;
     }
@@ -1114,6 +1153,7 @@ where
                 13.0,
                 "left",
                 "center",
+                None,
             )?;
         }
     }
@@ -1127,6 +1167,7 @@ where
             14.0,
             "left",
             "top",
+            None,
         )?;
     }
     Ok(())
@@ -2479,9 +2520,19 @@ where
         // map_coordinate yields canvas-absolute pixels; the panel's own area re-applies
         // its origin, so anything drawn on it shifts back to cell-local pixels.
         let base = area.get_base_pixel();
-        for (x, y, s, c, size, ha, va) in &p.texts {
+        for (x, y, s, c, size, ha, va, bbox) in &p.texts {
             let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
-            draw_label(area, base, pos, s, color(c), text_px(*size, dpi), ha, va)?;
+            draw_label(
+                area,
+                base,
+                pos,
+                s,
+                color(c),
+                text_px(*size, dpi),
+                ha,
+                va,
+                bbox.as_ref(),
+            )?;
         }
         for (text, xy, xytext, c, size) in &p.annotations {
             let target = chart_area.map_coordinate(&(tx(xy.0), ty(xy.1)));
@@ -2501,6 +2552,7 @@ where
                 text_px(*size, dpi),
                 "left",
                 "baseline",
+                None,
             )?;
         }
         for item in &p.images {

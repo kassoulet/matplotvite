@@ -534,6 +534,22 @@ def test_legend_frame_radius_scales_with_font_size(tmp_path):
     assert radii[0] > 0 and radii[1] > radii[0]
 
 
+def test_text_bbox_draws_axes_and_figure_frames(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    text = ax.text(0.2, 0.5, "Nb KP=13743",
+                   bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
+                             edgecolor="gray"))
+    assert text.get_bbox_patch() is not None
+    assert ax.texts[-1].get_bbox()["rounded"] is True
+    fig.text(0.1, 0.9, "figure", bbox=dict(boxstyle="square", facecolor="white",
+                                           edgecolor="gray"))
+    p = tmp_path / "text-bbox.svg"
+    fig.savefig(p)
+    svg = p.read_text()
+    assert svg.count("#808080") >= 2
+    assert svg.count("#FFFFFF") >= 2
+
+
 def test_colorbar_strip(tmp_path):
     plt.figure((6, 3))
     plt.contourf(np.add.outer(np.arange(20.0), np.arange(20.0)), levels=[0, 10, 20, 30])

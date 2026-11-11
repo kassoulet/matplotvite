@@ -8,7 +8,7 @@ use plotters::style::IntoFont;
 use rayon::prelude::*;
 
 use crate::color::color;
-use crate::draw::{draw_panel, text_px};
+use crate::draw::{draw_label, draw_panel, text_px};
 use crate::fonts::{fontdb, pdf_options};
 use crate::model::{Panel, PngCompression, Suptitle, TextItem};
 
@@ -348,32 +348,19 @@ fn decoration_fragment(
             ))
             .map_err(|e| e.to_string())?;
         }
-        for (x, y, text, colour, size, ha, va) in decorations.texts {
+        for (x, y, text, colour, size, ha, va, bbox) in decorations.texts {
             // Figure coordinates are fractions of the canvas, like `fig.text`.
-            let px = text_px(*size, dpi).max(1.0);
-            let tw = crate::fonts::text_width(text, px);
-            let dx = match ha.as_str() {
-                "center" => -tw / 2.0,
-                "right" => -tw,
-                _ => 0.0,
-            };
-            let dy = match va.as_str() {
-                "top" => 0.0,
-                "center" => -px / 2.0,
-                "bottom" => -px,
-                _ => -px * 0.8,
-            };
-            let style = ("sans-serif", px.round() as u32)
-                .into_font()
-                .color(&color(colour));
-            root.draw(&Text::new(
-                text.to_string(),
-                (
-                    (x * w as f64 + dx) as i32,
-                    ((1.0 - y) * h as f64 + dy) as i32,
-                ),
-                style,
-            ))
+            draw_label(
+                &root,
+                (0, 0),
+                ((x * w as f64) as i32, ((1.0 - y) * h as f64) as i32),
+                text,
+                color(colour),
+                text_px(*size, dpi).max(1.0),
+                ha,
+                va,
+                bbox.as_ref(),
+            )
             .map_err(|e| e.to_string())?;
         }
         if let Some(ec) = decorations.edgecolor {

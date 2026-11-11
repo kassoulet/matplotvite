@@ -178,8 +178,31 @@ pub(crate) struct Series {
     pub(crate) drawstyle: String,
 }
 
-/// (x, y, text, color, font size, horizontal align, vertical align).
-pub(crate) type TextItem = (f64, f64, String, String, f64, String, String);
+#[derive(FromPyObject)]
+pub(crate) struct TextBBox {
+    #[pyo3(item)]
+    pub(crate) facecolor: Option<String>,
+    #[pyo3(item)]
+    pub(crate) edgecolor: Option<String>,
+    #[pyo3(item)]
+    pub(crate) alpha: f64,
+    #[pyo3(item)]
+    pub(crate) pad: f64,
+    #[pyo3(item)]
+    pub(crate) rounded: bool,
+}
+
+/// (x, y, text, color, font size, horizontal align, vertical align, bbox).
+pub(crate) type TextItem = (
+    f64,
+    f64,
+    String,
+    String,
+    f64,
+    String,
+    String,
+    Option<TextBBox>,
+);
 
 /// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper,
 /// opacity, interpolation).

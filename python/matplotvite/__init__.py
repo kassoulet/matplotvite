@@ -156,6 +156,19 @@ _IGNORED_TEXT_KWARGS = frozenset(
 )
 
 
+def _text_bbox(value):
+    """Normalise the common `bbox=dict(...)` text frame options."""
+    if not isinstance(value, dict):
+        return None
+    style = str(value.get("boxstyle", "square"))
+    match = _re.search(r"pad\s*=\s*([0-9.]+)", style)
+    return dict(facecolor=_norm_color(value.get("facecolor", value.get("fc"))),
+                edgecolor=_norm_color(value.get("edgecolor", value.get("ec"))),
+                alpha=float(value.get("alpha", 1.0)),
+                pad=float(match.group(1)) if match else 0.3,
+                rounded="round" in style.lower() or "circle" in style.lower())
+
+
 def _text_props(fontdict, kwargs):
     """Split text keywords into the honoured subset and the compatibility no-ops."""
     props = dict(fontdict or {})
@@ -165,10 +178,11 @@ def _text_props(fontdict, kwargs):
     colour = props.pop("color", props.pop("c", None))
     ha = props.pop("horizontalalignment", props.pop("ha", "left"))
     va = props.pop("verticalalignment", props.pop("va", "baseline"))
+    bbox = _text_bbox(props.pop("bbox", None))
     unexpected = [key for key in props if key not in _IGNORED_TEXT_KWARGS]
     if unexpected:
         raise TypeError(f"unexpected text keyword argument {unexpected[0]!r}")
-    return transform, fontsize, colour, ha, va
+    return transform, fontsize, colour, ha, va, bbox
 
 
 def _mathtext(text):
@@ -614,6 +628,7 @@ class _TextEntry(tuple):
     def get_fontsize(self): return self[4]
     def get_ha(self): return self[5]
     def get_va(self): return self[6]
+    def get_bbox(self): return self[8]
 
 
 class _TextArt:
@@ -3079,7 +3094,7 @@ class Axes:
         """Place text at (x, y); `transform` may be `ax.transAxes` or
         `fig.transFigure` to use axes- or figure-fraction coordinates. Other
         Matplotlib text properties are accepted but not drawn yet."""
-        transform, fontsize, colour, ha, va = _text_props(fontdict, kwargs)
+        transform, fontsize, colour, ha, va, bbox = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va == "center_baseline":
@@ -3094,7 +3109,7 @@ class Axes:
         x = _as_f64(self._xdate(x) if kind == "data" else x)
         y = _as_f64(y)
         self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s),
-                                      _norm_color(colour), size, ha, va, kind)))
+                                      _norm_color(colour), size, ha, va, kind, bbox)))
         return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
@@ -4593,7 +4608,7 @@ class Axes:
 
     def _resolve_text(self, t, x0, x1, y0, y1):
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
-        x, y, s, c, size, ha, va, kind = t
+        x, y, s, c, size, ha, va, kind, bbox = t
         if kind == "axes":
             x, y = x0 + x * (x1 - x0), y0 + y * (y1 - y0)
         elif kind == "figure":
@@ -4602,7 +4617,7 @@ class Axes:
             fx0, fy0 = col / cols, (rows - 1 - row) / rows
             x = x0 + (x - fx0) * cols * (x1 - x0)
             y = y0 + (y - fy0) * rows * (y1 - y0)
-        return (x, y, s, c, size, ha, va)
+        return (x, y, s, c, size, ha, va, bbox)
 
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
@@ -5403,7 +5418,7 @@ class Figure:
 
     def text(self, x, y, s, fontdict=None, **kwargs):
         """Figure-fraction text, drawn above every panel so nothing clips it."""
-        _transform, fontsize, colour, ha, va = _text_props(fontdict, kwargs)
+        _transform, fontsize, colour, ha, va, bbox = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va == "center_baseline":
@@ -5414,7 +5429,7 @@ class Figure:
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         values = _as_f64((x, y))
         self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s),
-                                   _norm_color(colour), size, ha, va))
+                                   _norm_color(colour), size, ha, va, bbox))
         return _TextArt()
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
