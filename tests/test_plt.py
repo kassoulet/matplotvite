@@ -22,7 +22,6 @@ def test_png(tmp_path):
     assert int.from_bytes(b[16:20], "big") == 400 and int.from_bytes(b[20:24], "big") == 300
 
 
-@pytest.mark.parametrize("compression", ["fast", "default", "best"])
 def _png_colour_counts(rows):
     counts = {"red": 0, "blue": 0, "green": 0, "orange": 0, "nonwhite": 0}
     for row in rows:
@@ -58,6 +57,7 @@ def test_direct_and_svg_png_paths_preserve_every_panel():
         direct_counts["nonwhite"], svg_counts["nonwhite"], 1)
 
 
+@pytest.mark.parametrize("compression", ["fast", "default", "best"])
 def test_png_compression(tmp_path, compression):
     p = tmp_path / f"{compression}.png"
     _fig()
@@ -2573,21 +2573,26 @@ def test_pyplot_subplot_accepts_subplotspec():
 def test_twinx_adds_right_axis_on_the_same_panel(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.plot([0, 1, 2], [1, 4, 9], color="red")
-    ax.set_ylabel("left")
+    ax.set_ylabel("left", color="#c44e52")
     original = ax.get_position().bounds
     twin = ax.twinx()
     twin.plot([0, 1, 2], [100, 50, 10], color="blue")
-    twin.set_ylabel("right")
+    twin.set_ylabel("right", color="#4c72b0")
     assert twin._twin_of is ax and twin._twin == "y"
     assert twin.get_xlim() == ax.get_xlim()
-    assert ax.get_position().x1 < original[0] + original[2]
+    assert ax.get_position().bounds == original
     assert twin.get_position().bounds == original
+    assert ax._panel()["twin_reserve"] == "y"
+    assert twin._panel()["twin_reserve"] == "y"
+    assert ax._panel()["ylabel_color"] == "#c44e52"
+    assert twin._panel()["ylabel_color"] == "#4c72b0"
     assert ax._panel()["bounds"] is not None and twin._panel()["bounds"] is not None
     assert twin._panel()["ticks"]["hide_xlabels"]
     p = tmp_path / "twinx.svg"
     fig.savefig(p)
     s = p.read_text().upper()
     assert "#FF0000" in s and "#0000FF" in s
+    assert "#C44E52" in s and "#4C72B0" in s
     assert "right" in p.read_text()
 
 

@@ -2387,6 +2387,8 @@ class Axes:
         self._prop_cycle = list(rcParams.get("axes.prop_cycle", _CYCLE))
         self._cycle_pos = 0
         self._twin, self._twin_gap, self._twin_of = "", 0.0, None
+        self._twin_reserve = ""
+        self.xlabel_color = self.ylabel_color = None
         self._fig = None
         self._colorbar = None
         self._bounds_are_axes = False
@@ -2586,16 +2588,17 @@ class Axes:
             raise RuntimeError("twinx/twiny needs an axes attached to a figure")
         fig = self._fig
         box = self.get_position()
-        if axis == "y":
-            gap = 60.0 / (fig.figsize[0] * fig.get_dpi())
-            base = (box.x0, box.y0, max(box.width - gap, 0.05), box.height)
-        else:
-            gap = 50.0 / (fig.figsize[1] * fig.get_dpi())
-            base = (box.x0, box.y0, box.width, max(box.height - gap, 0.05))
-        self._pos_override = base
+        gap = (60.0 if axis == "y" else 50.0) / (
+            fig.figsize[0 if axis == "y" else 1] * fig.get_dpi())
+        # Both panels keep the same plot rectangle; the shared margin reserves
+        # the room for the overlay's right/top labels instead of shrinking the
+        # primary axes.
+        self._twin_gap, self._twin_reserve = gap, axis
+        self._pos_override = box.bounds
         self._bounds_are_axes = False
         twin = Axes(self.pos)
         twin._fig, twin._twin, twin._twin_gap = fig, axis, gap
+        twin._twin_reserve = axis
         twin._twin_of = self
         twin._pos_override = box.bounds
         twin._bounds_are_axes = False
@@ -4099,10 +4102,14 @@ class Axes:
     def set_xlabel(self, t, fontsize=None, **kwargs):
         self.xlabel = _mathtext(t)
         self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
+        if "color" in kwargs or "labelcolor" in kwargs:
+            self.xlabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
     def set_ylabel(self, t, fontsize=None, **kwargs):
         self.ylabel = _mathtext(t)
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
+        if "color" in kwargs or "labelcolor" in kwargs:
+            self.ylabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
     @staticmethod
     def _size_or(value, key):
@@ -4601,6 +4608,8 @@ class Axes:
                     foreground=_norm_color(rcParams.get("text.color")),
                     bounds=self._render_bounds(dpi), axes_bounds=self._exact_axes_box(),
                     twin=self._twin, twin_gap=self._twin_gap,
+                    twin_reserve=self._twin_reserve,
+                    xlabel_color=self.xlabel_color, ylabel_color=self.ylabel_color,
                     patches=patches, collections=collections,
                     images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True,
                              e["alpha"], e["interpolation"])

@@ -33,9 +33,13 @@ def test_type_marker_and_stub_are_installed():
 
 
 def test_toolkit_shim_is_scoped_inside_matplotvite():
+    package = Path(plt.__file__).parent
+    assert (package / "mpl_toolkits/axes_grid1/inset_locator.py").is_file()
+    # Editable installs only expose their dist-info here, not the wheel's file
+    # list; the wheel-test job checks this half against a real install.
     files = [str(path) for path in metadata.files("matplotvite")]
-    assert "matplotvite/mpl_toolkits/axes_grid1/inset_locator.py" in files
-    assert not any(path.startswith("mpl_toolkits/") for path in files)
+    if "matplotvite/__init__.py" in files:
+        assert not any(path.startswith("mpl_toolkits/") for path in files)
 
 
 def test_matplotlib_toolkit_namespace_is_not_shadowed():

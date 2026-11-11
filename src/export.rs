@@ -248,7 +248,7 @@ fn panel_fragment(
         let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
         let content = root.margin(top_pad, 0, 0, 0);
         let cells = content.split_evenly(grid);
-        let gap = if p.twin.is_empty() {
+        let gap = if p.twin_reserve.is_empty() {
             0
         } else {
             (p.twin_gap * w as f64).round() as i32

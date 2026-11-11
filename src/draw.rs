@@ -400,9 +400,12 @@ where
         }
     }
     let fg = color(default_tick);
+    let ylabel_col = p.ylabel_color.as_deref().map(color).unwrap_or(fg);
+    let xlabel_col = p.xlabel_color.as_deref().map(color).unwrap_or(fg);
     if side == "right" && !p.ylabel.is_empty() {
         let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
-        let style = rotated_style(size, fg, 270.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        let style =
+            rotated_style(size, ylabel_col, 270.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.ylabel.clone(),
             (right + gap - 4, (top + bottom) / 2),
@@ -410,12 +413,34 @@ where
         ))?;
     } else if side == "top" && !p.xlabel.is_empty() {
         let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
-        let style = rotated_style(size, fg, 0.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        let style =
+            rotated_style(size, xlabel_col, 0.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.xlabel.clone(),
             ((left + right) / 2, top - gap + 10),
             style,
         ))?;
+    } else if side.is_empty() {
+        if p.ylabel_color.is_some() && !p.ylabel.is_empty() {
+            let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
+            let style = rotated_style(size, ylabel_col, 270.0, dpi)
+                .pos(Pos::new(HPos::Center, VPos::Center));
+            area.draw(&Text::new(
+                p.ylabel.clone(),
+                (left - 52, (top + bottom) / 2),
+                style,
+            ))?;
+        }
+        if p.xlabel_color.is_some() && !p.xlabel.is_empty() {
+            let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
+            let style =
+                rotated_style(size, xlabel_col, 0.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+            area.draw(&Text::new(
+                p.xlabel.clone(),
+                ((left + right) / 2, bottom + 34),
+                style,
+            ))?;
+        }
     }
     Ok(())
 }
@@ -1494,6 +1519,7 @@ where
     let colorbar = p.colorbar.as_ref();
     let fg = color(p.foreground.as_deref().unwrap_or("#000000"));
     let twin_side = p.twin.as_str();
+    let twin_reserve = p.twin_reserve.as_str();
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
     // Log axes are laid out in log10 space: the ranges and every mapped point are
     // transformed, and the tick labels are converted back to powers of ten.
@@ -1540,6 +1566,8 @@ where
         || p.ticks.xstyle.is_custom()
         || p.ticks.ystyle.is_custom()
         || !twin_side.is_empty()
+        || p.xlabel_color.is_some()
+        || p.ylabel_color.is_some()
         || (p.grid.show
             && (p.grid.color.is_some()
                 || p.grid.linewidth.is_some()
@@ -1559,9 +1587,9 @@ where
         builder.margin(25);
         if colorbar.is_some() {
             builder.margin_right(125);
-        } else if twin_side == "y" {
+        } else if twin_reserve == "y" {
             builder.margin_right(10 + twin_gap_px);
-        } else if twin_side == "x" {
+        } else if twin_reserve == "x" {
             builder.margin_top(10 + twin_gap_px);
         }
     }
@@ -1573,7 +1601,7 @@ where
         builder.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
     }
     let mut chart = builder
-        .x_label_area_size(if exact_axes { 30 } else { 35 })
+        .x_label_area_size(if exact_axes { 30 } else { 45 })
         .y_label_area_size(if exact_axes { 40 } else { 45 })
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
@@ -1600,16 +1628,16 @@ where
         rb.margin(25);
         if colorbar.is_some() {
             rb.margin_right(125);
-        } else if twin_side == "y" {
+        } else if twin_reserve == "y" {
             rb.margin_right(10 + twin_gap_px);
-        } else if twin_side == "x" {
+        } else if twin_reserve == "x" {
             rb.margin_top(10 + twin_gap_px);
         }
         if !p.title.is_empty() {
             rb.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
         }
         chart = rb
-            .x_label_area_size(35)
+            .x_label_area_size(45)
             .y_label_area_size(45)
             .build_cartesian_2d(x0..x1, y0..y1)?;
     }
@@ -1670,10 +1698,15 @@ where
             // contributes the axis spines and descriptions.
             mesh.disable_mesh().set_all_tick_mark_size(0);
         }
-        let (x_desc, y_desc) = if twin_side.is_empty() {
-            (p.xlabel.as_str(), p.ylabel.as_str())
+        let x_desc = if twin_side.is_empty() && p.xlabel_color.is_none() {
+            p.xlabel.as_str()
         } else {
-            ("", "")
+            ""
+        };
+        let y_desc = if twin_side.is_empty() && p.ylabel_color.is_none() {
+            p.ylabel.as_str()
+        } else {
+            ""
         };
         mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
             .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
@@ -1685,17 +1718,23 @@ where
             .x_label_formatter(&x_fmt)
             .y_label_formatter(&y_fmt)
             .draw()?;
-        // Plotters only strokes the left/bottom axes; matplotlib draws a full box.
+        // Plotters strokes the left/bottom axes; add only the missing top and
+        // right spines so no edge is painted twice and looks thicker.
         {
             let base = area.get_base_pixel();
             let pa = chart.plotting_area();
             let tl = pa.map_coordinate(&(x0, y1));
             let br = pa.map_coordinate(&(x1, y0));
-            let frame = [
-                (tl.0 - base.0, tl.1 - base.1),
-                (br.0 - base.0, br.1 - base.1),
-            ];
-            area.draw(&Rectangle::new(frame, fg.stroke_width(1)))?;
+            let (left, top) = (tl.0 - base.0, tl.1 - base.1);
+            let (right, bottom) = (br.0 - base.0, br.1 - base.1);
+            area.draw(&PathElement::new(
+                vec![(left, top), (right, top)],
+                fg.stroke_width(1),
+            ))?;
+            area.draw(&PathElement::new(
+                vec![(right, top), (right, bottom)],
+                fg.stroke_width(1),
+            ))?;
         }
         if manual {
             let axis_side = match twin_side {

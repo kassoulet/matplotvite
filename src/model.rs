@@ -492,6 +492,14 @@ pub(crate) struct Panel {
     /// Gap reserved for the twin axis labels, as a figure-width fraction.
     #[pyo3(item)]
     pub(crate) twin_gap: f64,
+    /// Side that reserves label room for a twin axis, on both panels.
+    #[pyo3(item)]
+    pub(crate) twin_reserve: String,
+    /// Explicit axis-label colours; `None` follows the axes foreground.
+    #[pyo3(item)]
+    pub(crate) xlabel_color: Option<String>,
+    #[pyo3(item)]
+    pub(crate) ylabel_color: Option<String>,
     #[pyo3(item)]
     pub(crate) patches: Vec<ArtistPatch>,
     #[pyo3(item)]
