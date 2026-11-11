@@ -1018,6 +1018,24 @@ def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
     assert abs(w - 240) <= 2 and abs(h - 180) <= 2
 
 
+def test_mpl_toolkits_inset_axes(tmp_path):
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
+
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    inset = inset_axes(ax, width="30%", height="25%", loc="upper right", borderpad=0)
+    parent = ax.get_position()
+    assert inset.get_position().width == pytest.approx(0.3 * parent.width)
+    assert inset.get_position().height == pytest.approx(0.25 * parent.height)
+    inset.plot([0, 1], [1, 0], color="red")
+    assert inset in fig.get_axes()
+    zoomed = zoomed_inset_axes(ax, 2, loc="lower left", borderpad=0)
+    assert zoomed.get_xlim() != ax.get_xlim()
+    p = tmp_path / "toolkit-inset.svg"
+    fig.savefig(p)
+    assert "#FF0000" in p.read_text().upper()
+
+
 def test_inset_axes_is_placed_in_axes_fraction(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])

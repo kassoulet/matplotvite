@@ -55,4 +55,5 @@ markers = [
 
 [tool.maturin]
 python-source = "python"
+python-packages = ["mpl_toolkits"]
 module-name = "matplotvite._core"
