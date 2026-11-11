@@ -155,22 +155,26 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
 }
 
 /// Roughly `target` evenly spaced values on a 1/2/5 x 10^k step.
+///
+/// The step is the densest one whose labels still fit the budget, so a span
+/// of 17.6 with eight requested ticks uses 2 rather than 5 (Matplotlib's
+/// `MaxNLocator` behaves the same way).
 pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
     if hi <= lo || !lo.is_finite() || !hi.is_finite() {
         return Vec::new();
     }
     let raw = (hi - lo) / target.max(1) as f64;
     let mag = 10f64.powf(raw.log10().floor());
-    let norm = raw / mag;
-    let step = if norm <= 1.0 {
-        1.0
-    } else if norm <= 2.0 {
-        2.0
-    } else if norm <= 5.0 {
-        5.0
-    } else {
-        10.0
-    } * mag;
+    let mut step = 10.0 * mag;
+    for norm in [1.0, 2.0, 5.0, 10.0] {
+        let candidate = norm * mag;
+        let count =
+            ((hi / candidate + 1e-9).floor() - (lo / candidate - 1e-9).ceil() + 1.0) as usize;
+        if count <= target + 1 {
+            step = candidate;
+            break;
+        }
+    }
     let mut value = (lo / step).ceil() * step;
     let mut out = Vec::new();
     while value <= hi + step * 1e-9 && out.len() < 50 {
@@ -212,6 +216,16 @@ mod tests {
     fn axis_bounds_honors_explicit_limits_without_padding() {
         assert_eq!(axis_bounds((0.0, 10.0), Some((2.0, 6.0))), (2.0, 6.0));
         assert_eq!(axis_bounds((5.0, 5.0), Some((1.0, 2.0))), (1.0, 2.0));
+    }
+
+    #[test]
+    fn nice_ticks_uses_the_densest_step_within_the_budget() {
+        // A 17.6 span with eight ticks fits 2s (nine labels); 5s would leave
+        // three, which is what the twin sample used to show.
+        assert_eq!(
+            nice_ticks(11.2, 28.8, 8),
+            vec![12.0, 14.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0]
+        );
     }
 
     #[test]
