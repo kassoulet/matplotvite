@@ -1152,7 +1152,10 @@ where
             }
         }
         MarkerShape::Circle(frac) => {
-            let radius = (ri * frac).max(1.0) as u32;
+            // Matplotlib strokes markers with their edge width even when the
+            // edge colour is the face, so the visible radius includes half of
+            // it (scatter's default linewidths is 1 pt).
+            let radius = (ri * frac + stroke as f64 / 2.0).round().max(1.0) as u32;
             area.draw(&Circle::new((x, y), radius, col.filled()))?;
         }
     }
@@ -1471,6 +1474,20 @@ fn draw_marker_raster(
                     tiny_skia::Transform::identity(),
                     None,
                 );
+                // A face-coloured edge like Matplotlib's marker linewidth.
+                if stroke > 0 {
+                    let edge = tiny_skia::Stroke {
+                        width: stroke as f32,
+                        ..Default::default()
+                    };
+                    pixmap.stroke_path(
+                        &path,
+                        &paint,
+                        &edge,
+                        tiny_skia::Transform::identity(),
+                        None,
+                    );
+                }
             }
         }
         MarkerShape::Polygon(verts) => {
@@ -2424,13 +2441,10 @@ where
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
         let mut legend_scatter: Vec<(String, RGBAColor)> = Vec::new();
-        let dense = raster_scatter
-            && p.scatter
-                .iter()
-                .map(|sc| sc.x.as_array().len().min(sc.y.as_array().len()))
-                .sum::<usize>()
-                >= 4096;
-        let mut marker_layer = if dense {
+        // Any raster scatter benefits from the layer: tiny_skia keeps the
+        // fractional radius and anti-aliases the marker edge, which the
+        // integer plotters circles cannot do.
+        let mut marker_layer = if raster_scatter {
             let (w, h) = area.dim_in_pixel();
             // Falling back to per-point elements is better than failing a save.
             tiny_skia::Pixmap::new(w.max(1), h.max(1))

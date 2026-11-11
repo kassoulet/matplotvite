@@ -2520,6 +2520,20 @@ def test_add_collection_renders_offsets(tmp_path):
     assert "#0000FF" in svg and "#FF0000" in svg
 
 
+def test_scatter_marker_png_covers_its_points_area():
+    fig, ax = plt.subplots(figsize=(1, 1), dpi=100)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+    ax.scatter([0.5], [0.5], s=4, color="blue")
+    width, _, rows = decode_png_rgba(fig.savefig(format="png"))
+    xs = [x for row in rows for x in range(width)
+          if min(row[x * 4], row[x * 4 + 1], row[x * 4 + 2]) < 250]
+    # Matplotlib draws s=4 as a 5 px disc (2 pt face plus the 1 pt face-coloured
+    # edge); integer plotters circles used to render a bare 2x2 block.
+    assert xs and max(xs) - min(xs) + 1 >= 4
+
+
 def test_dense_collection_uses_raster_layer_only_for_raster_output(tmp_path):
     rng = np.random.default_rng(11)
     offsets = rng.normal(size=(5000, 2))
