@@ -1057,6 +1057,19 @@ def test_plot_alpha_and_bad_drawstyle(tmp_path):
         plt.plot([1], [2], [3])
 
 
+def test_plot_implicit_x_uses_indices():
+    fig, ax = plt.subplots()
+    line = ax.plot([4, 7, 2])[0]
+    assert np.asarray(line.get_xdata()).tolist() == [0.0, 1.0, 2.0]
+    assert ax.get_xlim() == pytest.approx((-0.1, 2.1))
+    assert ax.get_ylim() == pytest.approx((1.75, 7.25))
+
+    fig, ax = plt.subplots()
+    line = ax.plot(np.array([3, 5]), "r--")[0]
+    assert np.asarray(line.get_xdata()).tolist() == [0.0, 1.0]
+    assert ax.get_ylim() == pytest.approx((2.9, 5.1))
+
+
 def test_plot_multiple_data_sets_and_line_handles():
     plt.figure()
     lines = plt.plot([0, 1], [1, 0], [0, 1], [0, 1], "r--")

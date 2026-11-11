@@ -2412,7 +2412,9 @@ class Axes:
             raise ValueError(f"unsupported drawstyle: {drawstyle!r}")
         handles = []
         for index, (gx, gy, gfmt) in enumerate(_plot_args(args, fmt)):
-            if gy is None:
+            if gx is None:
+                gx = np.arange(len(gy))
+            elif gy is None:
                 gx, gy = np.arange(len(gx)), gx
             gfmt = gfmt or (fmt if index == 0 else None)
             if not label and getattr(gy, "name", None) is not None:

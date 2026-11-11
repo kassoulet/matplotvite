@@ -21,6 +21,40 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "python") not in sys.path:
     sys.path.insert(0, str(ROOT / "python"))
 
+
+def _check_compiled_extension():
+    """Refuse to let an in-tree extension silently shadow a newer Rust build."""
+    extensions = [
+        path
+        for pattern in ("_core*.so", "_core*.pyd", "_core*.dylib")
+        for path in (ROOT / "python" / "matplotvite").glob(pattern)
+    ]
+    if not extensions:
+        return
+    newest_input = max(
+        [
+            path
+            for path in [ROOT / "Cargo.toml", ROOT / "Cargo.lock",
+                         *list((ROOT / "src").rglob("*.rs")),
+                         *list((ROOT / "assets").rglob("*"))]
+            if path.is_file()
+        ],
+        key=lambda path: path.stat().st_mtime,
+        default=None,
+    )
+    if newest_input is None:
+        return
+    newest_mtime = max(path.stat().st_mtime for path in extensions)
+    if newest_mtime < newest_input.stat().st_mtime:
+        raise SystemExit(
+            "stale compiled extension in python/matplotvite; run "
+            "`maturin develop --release` before building pages"
+        )
+
+
+if __name__ == "__main__":
+    _check_compiled_extension()
+
 import numpy as np
 import matplotvite
 from examples.samples import SAMPLES

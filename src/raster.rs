@@ -101,7 +101,7 @@ fn downsample(
             .par_chunks_mut(row_len)
             .enumerate()
             .for_each(|(y, row)| {
-                let top = y * source_stride;
+                let top = y * scale as usize * source_stride;
                 let bottom = top + source_stride;
                 for (x, dst) in row.iter_mut().enumerate() {
                     let left = x * 6;
@@ -309,4 +309,25 @@ pub(crate) fn render_png(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::downsample;
+
+    #[test]
+    fn downsample_2x2_reads_the_correct_source_rows() {
+        let (width, height) = (4u32, 4u32);
+        let mut rgb = vec![0u8; (width * height * 3) as usize];
+        for row in 0..height {
+            for col in 0..width {
+                let i = ((row * width + col) * 3) as usize;
+                rgb[i] = (row * 10 + col) as u8;
+            }
+        }
+        let out = downsample(&rgb, 2, 2, 2).unwrap();
+        // Output row 0 averages source rows 0 and 1; row 1 averages rows 2 and 3.
+        assert_eq!(out.data()[0], 5);
+        assert_eq!(out.data()[2 * 4], 25);
+    }
 }
