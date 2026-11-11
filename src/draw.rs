@@ -1423,7 +1423,10 @@ fn draw_marker_raster(
     marker: &str,
 ) {
     let (x, y) = ((pos.0 - base.0) as f64, (pos.1 - base.1) as f64);
-    let r = r.round().max(1.0);
+    // Keep the fractional radius on the dense raster path: rounding it down
+    // shrank every small marker (s=4 is 1.39 px) to a hard two-pixel block
+    // instead of an anti-aliased disc.
+    let r = r.clamp(1.0, MAX_MARKER_RADIUS);
     let span = 2.0 * r;
     let map = |(vx, vy): (f64, f64)| ((x + vx * span) as f32, (y - vy * span) as f32);
     let alpha = (col.3.clamp(0.0, 1.0) * 255.0).round() as u8;
