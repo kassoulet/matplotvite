@@ -3886,8 +3886,6 @@ class Axes:
         if data is not None:
             x = data[x] if isinstance(x, str) else x
             y = data[y] if isinstance(y, str) else y
-        if not label and getattr(y, "name", None) is not None:
-            label = str(y.name)
         x = _as_f64(self._xdate(x))
         y = _as_f64(y)
         if x.size != y.size:
@@ -4741,6 +4739,8 @@ def _parse_fmt(fmt):
             mark, i = ch, i + 1
         else:
             i += 1
+    if not style:
+        style = "None" if mark else "-"
     return color, style, mark
 
 

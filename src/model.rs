@@ -324,6 +324,7 @@ pub(crate) struct Ticks {
 pub(crate) enum LegendSwatch {
     Line(RGBAColor, u32),
     LineMarker(RGBAColor, u32, String),
+    Marker(RGBAColor, String),
     Rect(RGBAColor),
     Collection(RGBAColor),
     Circle(RGBAColor),

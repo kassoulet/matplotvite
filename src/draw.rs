@@ -637,6 +637,15 @@ where
                     marker,
                 )?;
             }
+            LegendSwatch::Marker(c, marker) => draw_marker(
+                area,
+                (0, 0),
+                ((cx + 10.0) as i32, cy as i32),
+                4.0,
+                *c,
+                1,
+                marker,
+            )?,
             LegendSwatch::Rect(c) | LegendSwatch::Collection(c) => area.draw(&Rectangle::new(
                 [
                     ((cx + 2.0) as i32, (cy - 5.0) as i32),
@@ -2068,7 +2077,14 @@ where
             Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),
             None => color(&s.color).mix(1.0),
         };
-        if matches!(s.linestyle.as_str(), ":" | "--" | "-.") {
+        if s.linestyle == "None" {
+            if !s.label.is_empty() && !s.marker.is_empty() {
+                entries.push(LegendEntry {
+                    label: s.label.clone(),
+                    swatch: LegendSwatch::Marker(col, s.marker.clone()),
+                });
+            }
+        } else if matches!(s.linestyle.as_str(), ":" | "--" | "-.") {
             let lw = s.linewidth.max(1.0);
             // Matplotlib scales its dash sequences by line width.
             let (dash, gap) = match s.linestyle.as_str() {
@@ -2583,7 +2599,7 @@ where
     if p.legend.show {
         // Matplotlib collects line handles before patches and collections.
         entries.sort_by_key(|entry| match &entry.swatch {
-            LegendSwatch::Line(..) | LegendSwatch::LineMarker(..) => 0,
+            LegendSwatch::Line(..) | LegendSwatch::LineMarker(..) | LegendSwatch::Marker(..) => 0,
             LegendSwatch::Rect(_) => 1,
             LegendSwatch::Collection(_) | LegendSwatch::Circle(_) => 2,
         });

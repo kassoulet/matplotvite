@@ -1057,6 +1057,16 @@ def test_plot_alpha_and_bad_drawstyle(tmp_path):
         plt.plot([1], [2], [3])
 
 
+def test_plot_fmt_marker_only_and_unlabelled_scatter():
+    fig, ax = plt.subplots()
+    line = ax.plot([0, 1], [0, 1], "o+")[0]
+    assert line.get_linestyle() == "None"
+    ax.scatter([0, 1], [0, 1])
+    ax.legend()
+    svg = fig.savefig(None, format="svg").decode()
+    assert "y0" not in svg
+
+
 def test_plot_implicit_x_uses_indices():
     fig, ax = plt.subplots()
     line = ax.plot([4, 7, 2])[0]
@@ -2072,7 +2082,7 @@ def test_pandas_dataframe_and_series_input():
     assert plt.gca().lines[0]["label"] == "y"
     plt.figure()
     plt.scatter("x", "y", data=df)
-    assert plt.gca().scatter_pts[0]["label"] == "y"
+    assert plt.gca().scatter_pts[0]["label"] == ""
 
     series = pd.Series([2, 4, 3], name="temp")
     plt.figure()
