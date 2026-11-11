@@ -1103,7 +1103,7 @@ def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
 
 
 def test_mpl_toolkits_inset_axes(tmp_path):
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
+    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
 
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])

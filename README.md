@@ -246,12 +246,20 @@ plt.savefig("contours.png")
 - `ax.inset_axes([x, y, w, h])` for child axes placed in parent-axes fractions
 - `fig.add_axes([x, y, w, h])` where the rectangle is the plotting area, not a panel
   that includes tick and label margins
+- `matplotvite.mpl_toolkits.axes_grid1.inset_locator.inset_axes` /
+  `zoomed_inset_axes` for the common inset-locator calls
 - `subplot_mosaic(...)` with named panels and empty cells
 - `twinx()` / `twiny()` for independent scales on a shared panel
 - `fig.suptitle(...)` and `fig.subplots(..., sharex=, sharey=, squeeze=)`
 - `style.use`, `style.context`, `style.available`, and `rcParams` style presets
 - `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
   `invert_xaxis`/`invert_yaxis`
+
+The inset-locator shim lives under `matplotvite.mpl_toolkits`; the wheel does not
+install a top-level `mpl_toolkits`, so it cannot overwrite or shadow Matplotlib's
+`axes_grid1`, `mplot3d`, or `axisartist`. Existing code that imports
+`mpl_toolkits.axes_grid1.inset_locator` should switch to the scoped path above
+when using matplotvite without Matplotlib installed.
 
 ### Introspection
 

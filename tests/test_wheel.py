@@ -1,9 +1,12 @@
 """Smoke tests for an installed wheel, run after `pip install dist/*.whl`."""
 
+import importlib
 import io
+from importlib import metadata
 from pathlib import Path
 
 import numpy as np
+import pytest
 import matplotvite as plt
 from matplotvite import _core
 
@@ -27,6 +30,20 @@ def test_type_marker_and_stub_are_installed():
     package = _extension_path().parent
     assert (package / "py.typed").is_file()
     assert (package / "__init__.pyi").is_file()
+
+
+def test_toolkit_shim_is_scoped_inside_matplotvite():
+    files = [str(path) for path in metadata.files("matplotvite")]
+    assert "matplotvite/mpl_toolkits/axes_grid1/inset_locator.py" in files
+    assert not any(path.startswith("mpl_toolkits/") for path in files)
+
+
+def test_matplotlib_toolkit_namespace_is_not_shadowed():
+    # Matplotlib is not a wheel-test dependency, so only check coexistence
+    # when it is already installed.
+    pytest.importorskip("matplotlib")
+    mplot3d = importlib.import_module("mpl_toolkits.mplot3d")
+    assert mplot3d.__file__
 
 
 def test_installed_wheel_renders_every_format():
