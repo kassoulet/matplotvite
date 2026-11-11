@@ -1354,14 +1354,18 @@ fn tick_label(v: f64) -> String {
         return "0".to_string();
     }
     let a = v.abs();
-    if !(1e-3..1e5).contains(&a) {
+    let label = if !(1e-3..1e5).contains(&a) {
         format!("{v:.2e}")
     } else {
         format!("{v:.4}")
             .trim_end_matches('0')
             .trim_end_matches('.')
             .to_string()
-    }
+    };
+    label
+        .strip_prefix('-')
+        .map(|rest| format!("−{rest}"))
+        .unwrap_or(label)
 }
 
 /// Tick label for a log coordinate: base^v written as a plain number.
@@ -1576,8 +1580,8 @@ where
         mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
             .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
             .axis_style(fg.stroke_width(1))
-            .x_labels(6)
-            .y_labels(6)
+            .x_labels(8)
+            .y_labels(8)
             .x_desc(x_desc)
             .y_desc(y_desc)
             .x_label_formatter(&x_fmt)

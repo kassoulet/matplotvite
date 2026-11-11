@@ -4205,6 +4205,14 @@ class Axes:
             self.grid_linestyle = str(kwargs.get("linestyle", kwargs.get("ls")))
         if "alpha" in kwargs:
             self.grid_alpha = float(kwargs["alpha"])
+        if self.show_grid:
+            # Matplotlib's default major grid is light grey and thin.
+            if self.grid_color is None:
+                self.grid_color = "#b0b0b0"
+            if self.grid_linewidth is None:
+                self.grid_linewidth = 0.8
+            if self.grid_alpha is None:
+                self.grid_alpha = 1.0
         return None
 
     def tick_params(self, axis="both", **kwargs):

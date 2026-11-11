@@ -196,7 +196,7 @@ pub(crate) fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
             }
         }
     }
-    nice_ticks(lo, hi, 6)
+    nice_ticks(lo, hi, 8)
 }
 
 #[cfg(test)]
@@ -212,6 +212,14 @@ mod tests {
     fn axis_bounds_honors_explicit_limits_without_padding() {
         assert_eq!(axis_bounds((0.0, 10.0), Some((2.0, 6.0))), (2.0, 6.0));
         assert_eq!(axis_bounds((5.0, 5.0), Some((1.0, 2.0))), (1.0, 2.0));
+    }
+
+    #[test]
+    fn auto_ticks_uses_eight_ticks_for_a_wide_range() {
+        assert_eq!(
+            auto_ticks(0.0, 3500.0, false),
+            vec![0.0, 500.0, 1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0]
+        );
     }
 
     #[test]

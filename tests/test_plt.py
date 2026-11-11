@@ -48,6 +48,17 @@ def test_constant_series(tmp_path):
     assert (tmp_path / "c.png").stat().st_size > 0
 
 
+def test_grid_defaults_and_unicode_minus(tmp_path):
+    fig, ax = plt.subplots()
+    ax.plot([-1, 1], [-1, 1])
+    ax.grid(True)
+    assert ax.grid_color == "#b0b0b0"
+    assert ax.grid_linewidth == pytest.approx(0.8)
+    ax.set_xticks([-1, 0, 1])
+    svg = fig.savefig(None, format="svg").decode()
+    assert "−1" in svg
+
+
 def test_empty_raises(tmp_path):
     plt.figure()
     with pytest.raises(RuntimeError):
