@@ -253,6 +253,16 @@ fn has_dense_markers(p: &Panel) -> bool {
 /// multi-panel figures and panels with enough primitives to amortise it. Tiny
 /// single-panel plots and marker-heavy panels keep the faster SVG + resvg path.
 pub(crate) fn direct_eligible(panels: &[Panel]) -> bool {
+    // Twin and explicitly positioned panels are overlays, not separate grid
+    // cells. The direct path paints each panel opaquely and copies its whole
+    // rectangle, so it would erase the primary panel underneath; the SVG path
+    // layers them on one transparent document instead.
+    if panels
+        .iter()
+        .any(|panel| !panel.twin.is_empty() || panel.bounds.is_some())
+    {
+        return false;
+    }
     if panels.iter().any(has_dense_markers) {
         return false;
     }

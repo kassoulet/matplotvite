@@ -1,4 +1,6 @@
 import re
+import struct
+import zlib
 
 import numpy as np
 import pytest
@@ -11,6 +13,52 @@ def _fig():
     plt.plot([1, 2, 3], label="list")  # y only
     plt.title("t"); plt.xlabel("x"); plt.ylabel("y"); plt.legend()
     return f
+
+
+def _decode_png_rgba(data):
+    """Decode the opaque RGBA PNGs matplotvite writes, using only stdlib."""
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    pos, compressed = 8, bytearray()
+    width = height = depth = color = None
+    while pos < len(data):
+        length = int.from_bytes(data[pos:pos + 4], "big")
+        kind = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if kind == b"IHDR":
+            width, height, depth, color = struct.unpack(">IIBB", body[:10])
+        elif kind == b"IDAT":
+            compressed.extend(body)
+        elif kind == b"IEND":
+            break
+    assert depth == 8 and color == 6
+    raw = zlib.decompress(bytes(compressed))
+    stride = width * 4
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        filter_type = raw[start]
+        row = bytearray(raw[start + 1:start + 1 + stride])
+        for i in range(stride):
+            left = row[i - 4] if i >= 4 else 0
+            above = previous[i]
+            upper_left = previous[i - 4] if i >= 4 else 0
+            if filter_type == 1:
+                predictor = left
+            elif filter_type == 2:
+                predictor = above
+            elif filter_type == 3:
+                predictor = (left + above) // 2
+            elif filter_type == 4:
+                p = left + above - upper_left
+                pa, pb, pc = abs(p - left), abs(p - above), abs(p - upper_left)
+                predictor = left if pa <= pb and pa <= pc else above if pb <= pc else upper_left
+            else:
+                predictor = 0
+            row[i] = (row[i] + predictor) & 255
+        rows.append(row)
+        previous = row
+    return width, height, rows
 
 
 def test_png(tmp_path):
@@ -2553,6 +2601,25 @@ def test_twinx_adds_right_axis_on_the_same_panel(tmp_path):
     s = p.read_text().upper()
     assert "#FF0000" in s and "#0000FF" in s
     assert "right" in p.read_text()
+
+
+def test_twinx_png_keeps_primary_and_twin_axes():
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.plot([0, 1, 2], [1, 4, 9], color="red", linewidth=4)
+    twin = ax.twinx()
+    twin.plot([0, 1, 2], [9, 4, 1], color="blue", linewidth=4)
+    width, height, rows = _decode_png_rgba(fig.savefig(format="png"))
+    assert (width, height) == (500, 400)
+    red = blue = dark_left = 0
+    for y, row in enumerate(rows):
+        for x in range(0, width * 4, 4):
+            r, g, b = row[x], row[x + 1], row[x + 2]
+            red += r > 160 and g < 100 and b < 100
+            blue += b > 160 and r < 100 and g < 100
+            if x < width // 5 * 4 and r < 100 and g < 100 and b < 100:
+                dark_left += 1
+    assert red > 20 and blue > 20
+    assert dark_left > 20
 
 
 def test_twiny_adds_top_axis_on_the_same_panel(tmp_path):
