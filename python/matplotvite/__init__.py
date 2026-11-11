@@ -672,17 +672,45 @@ def _margin(lo, hi, scale, sticky=()):
     return (10.0 ** lo, 10.0 ** hi) if scale == "log" else (lo, hi)
 
 
+def _update_extent(ext, values):
+    """Update running (min, max) extent without flattening arrays into Python lists.
+
+    Performance: Direct NumPy min/max avoids allocating large Python lists and
+    copying elements into Python float objects for dense plots.
+    """
+    if values is None:
+        return ext
+    if isinstance(values, (int, float, np.number)):
+        v = float(values)
+        if _math.isfinite(v):
+            return (min(ext[0], v), max(ext[1], v))
+        return ext
+    if isinstance(values, np.ndarray) and values.dtype.kind == "f" and values.ndim == 1:
+        arr = values
+    else:
+        arr = np.asarray(values, dtype=float).ravel()
+    if arr.size:
+        fin = arr[np.isfinite(arr)]
+        if fin.size:
+            return (min(ext[0], float(fin.min())), max(ext[1], float(fin.max())))
+    return ext
+
+
+def _span_extent(ext):
+    """Convert an accumulated (min, max) extent to non-degenerate span."""
+    lo, hi = ext
+    if lo > hi:
+        return (0.0, 1.0)
+    return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
+
+
 def _span(values):
     """A flat series is widened so its extent is never degenerate.
 
     `Axes.get_xlim`/`get_ylim` add Matplotlib's autoscale margin on top of this.
     """
-    vals = np.asarray(values, dtype=float).ravel()
-    vals = vals[np.isfinite(vals)]
-    if vals.size == 0:
-        return (0.0, 1.0)
-    lo, hi = float(vals.min()), float(vals.max())
-    return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
+    ext = _update_extent((float("inf"), float("-inf")), values)
+    return _span_extent(ext)
 
 
 def _looks_like_categories(values):
@@ -2571,52 +2599,58 @@ class Axes:
         return xs, ys
 
     def _extent_x(self):
-        xs = []
+        # Accumulate extent iteratively across primitives to avoid creating
+        # giant Python lists and converting millions of elements.
+        ext = (float("inf"), float("-inf"))
         for entry in self.lines:
-            xs.extend(np.asarray(entry["x"]).ravel())
+            ext = _update_extent(ext, entry["x"])
         for im in self.images:
-            xs.extend([im["extent"][0], im["extent"][1]])
+            ext = _update_extent(ext, im["extent"][0])
+            ext = _update_extent(ext, im["extent"][1])
         for c in self.contours:
-            xs.extend([float(c["x"][0]), float(c["x"][-1])])
+            ext = _update_extent(ext, float(c["x"][0]))
+            ext = _update_extent(ext, float(c["x"][-1]))
         for sc in self.scatter_pts:
-            xs.extend(sc["x"])
+            ext = _update_extent(ext, sc["x"])
         for a in self.arrows:
-            xs.extend(a["x"])
-            xs.extend(a["x"] + a["u"])
+            ext = _update_extent(ext, a["x"])
+            ext = _update_extent(ext, a["x"] + a["u"])
         for bars in self.bars:
-            xs.extend(bars["left"])
-            xs.extend(bars["left"] + bars["width"])
+            ext = _update_extent(ext, bars["left"])
+            ext = _update_extent(ext, bars["left"] + bars["width"])
         for band in self.bands:
-            xs.extend(band["x"])
+            ext = _update_extent(ext, band["x"])
         for e in self.errors:
-            xs.extend(e[0] - e[4])
-            xs.extend(e[0] + e[5])
-        xs.extend(self._artist_extents()[0])
-        return _span(xs)
+            ext = _update_extent(ext, e[0] - e[4])
+            ext = _update_extent(ext, e[0] + e[5])
+        ext = _update_extent(ext, self._artist_extents()[0])
+        return _span_extent(ext)
 
     def _extent_y(self):
-        ys = []
+        ext = (float("inf"), float("-inf"))
         for entry in self.lines:
-            ys.extend(np.asarray(entry["y"]).ravel())
+            ext = _update_extent(ext, entry["y"])
         for im in self.images:
-            ys.extend([im["extent"][2], im["extent"][3]])
+            ext = _update_extent(ext, im["extent"][2])
+            ext = _update_extent(ext, im["extent"][3])
         for c in self.contours:
-            ys.extend([float(c["y"][0]), float(c["y"][-1])])
+            ext = _update_extent(ext, float(c["y"][0]))
+            ext = _update_extent(ext, float(c["y"][-1]))
         for sc in self.scatter_pts:
-            ys.extend(sc["y"])
+            ext = _update_extent(ext, sc["y"])
         for a in self.arrows:
-            ys.extend(a["y"])
-            ys.extend(a["y"] + a["v"])
+            ext = _update_extent(ext, a["y"])
+            ext = _update_extent(ext, a["y"] + a["v"])
         for bars in self.bars:
-            ys.extend(bars["bottom"])
-            ys.extend(bars["bottom"] + bars["height"])
+            ext = _update_extent(ext, bars["bottom"])
+            ext = _update_extent(ext, bars["bottom"] + bars["height"])
         for band in self.bands:
-            ys.extend(band["y"])
+            ext = _update_extent(ext, band["y"])
         for e in self.errors:
-            ys.extend(e[1] - e[2])
-            ys.extend(e[1] + e[3])
-        ys.extend(self._artist_extents()[1])
-        return _span(ys)
+            ext = _update_extent(ext, e[1] - e[2])
+            ext = _update_extent(ext, e[1] + e[3])
+        ext = _update_extent(ext, self._artist_extents()[1])
+        return _span_extent(ext)
 
     def get_xlim(self):
         extent = self._extent_x()
