@@ -2648,6 +2648,21 @@ def test_images_have_sticky_edges_and_no_default_resampling():
     assert ax.get_xlim() == pytest.approx((-0.5, 10.525))
 
 
+def test_image_interpolation_rc_default(tmp_path):
+    old = plt.rcParams["image.interpolation"]
+    try:
+        plt.rcParams["image.interpolation"] = "antialiased"
+        fig = plt.figure((3, 3))
+        ax = fig.gca()
+        ax.imshow(np.linspace(0, 1, 64).reshape(8, 8), cmap="gray")
+        assert ax.images[0]["interpolation"] == "antialiased"
+        p = tmp_path / "smooth.svg"
+        fig.savefig(p)
+        assert "image-rendering:pixelated" not in p.read_text()
+    finally:
+        plt.rcParams["image.interpolation"] = old
+
+
 def test_imshow_origin_and_explicit_extent():
     plt.figure()
     ax = plt.gca()

@@ -3091,16 +3091,20 @@ class Axes:
         """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
         (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
         `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
-        image's opacity. `clim` and Matplotlib's extra artist kwargs are accepted."""
+        image's opacity. When omitted, `rcParams["image.interpolation"]`
+        supplies the default. `clim` and Matplotlib's extra artist kwargs are
+        accepted."""
         if clim is not None:
             vmin, vmax = clim
-        if interpolation is not None:
-            interpolation = {
-                "spline16": "bicubic", "spline36": "bicubic", "hanning": "bilinear",
-                "hamming": "bilinear", "hermite": "bicubic", "kaiser": "bicubic",
-                "quadric": "bicubic", "catrom": "bicubic", "gaussian": "bicubic",
-                "lanczos": "bicubic", "blackman": "bilinear", "sinc": "bicubic",
-            }.get(str(interpolation).lower(), interpolation)
+        setting = (rcParams.get("image.interpolation", "nearest")
+                   if interpolation is None else interpolation)
+        interp = str(setting).lower()
+        interp = {
+            "spline16": "bicubic", "spline36": "bicubic", "hanning": "bilinear",
+            "hamming": "bilinear", "hermite": "bicubic", "kaiser": "bicubic",
+            "quadric": "bicubic", "catrom": "bicubic", "gaussian": "bicubic",
+            "lanczos": "bicubic", "blackman": "bilinear", "sinc": "bicubic",
+        }.get(interp, interp)
         a = _as_image(X)
         h, w = a.shape[:2]
         if origin == "lower":
@@ -3116,12 +3120,10 @@ class Axes:
                 extent = (extent[0], extent[1], extent[3], extent[2])
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
-        # No resampling by default: pixels are drawn as-is.
-        interp = "nearest" if interpolation is None else str(interpolation).lower()
         if interp == "auto":
             interp = "antialiased"
         if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
-            raise ValueError(f"unsupported interpolation: {interpolation!r}")
+            raise ValueError(f"unsupported interpolation: {setting!r}")
         opacity = 1.0 if alpha is None else float(alpha)
         if not np.isfinite(opacity):
             raise ValueError("alpha must be finite")
@@ -5981,6 +5983,7 @@ rcParams = {
     "legend.fontsize": 10.0,
     "axes.prop_cycle": _CycleList(_CYCLE),
     "image.cmap": "viridis",
+    "image.interpolation": "nearest",
     "figure.facecolor": "#ffffff",
     "axes.facecolor": "#ffffff",
     "axes.edgecolor": "#000000",

@@ -191,8 +191,8 @@ plt.savefig("contours.png")
 - `axline(xy1, xy2=, slope=)` — infinite line clipped to the axes, excluded from limits
 - `rc("lines", linewidth=2)`, `rc_context`, `rcParams`, `rcdefaults` — recorded settings
   with restore-on-exit; `lines.linewidth`, `lines.markersize`, `lines.markerlinewidth`,
-  `axes.labelsize`, `axes.titlesize`, `font.size`, `legend.fontsize` and `figure.dpi`
-  affect output
+  `axes.labelsize`, `axes.titlesize`, `font.size`, `legend.fontsize`, `figure.dpi` and
+  `image.interpolation` affect output
 - `fill_between(x, y1, y2, where=, color=, alpha=)`, `fill_betweenx` and `fill(...)` —
   filled polygons; `where` masks split into separate runs, `label=` gives a legend swatch
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
