@@ -3,6 +3,7 @@
 import numpy as np
 import pytest
 from examples.samples import SAMPLES
+from png_utils import decode_png_rgba
 import matplotvite
 
 
@@ -26,8 +27,18 @@ def test_sample_runner_execution(sample, tmp_path):
     assert out_file.stat().st_size > 0, f"Sample {sample['id']} produced an empty file"
 
     if sample["format"] == "png":
-        header = out_file.read_bytes()[:8]
+        data = out_file.read_bytes()
+        header = data[:8]
         assert header == b"\x89PNG\r\n\x1a\n", f"Invalid PNG magic bytes for {filename}"
+        width, height, rows = decode_png_rgba(data)
+        assert width >= 300 and height >= 200, (
+            f"Sample {sample['id']} rendered at an unexpectedly small {width}x{height}"
+        )
+        nonwhite = sum(
+            min(row[i], row[i + 1], row[i + 2]) < 250
+            for row in rows for i in range(0, len(row), 4)
+        )
+        assert nonwhite > 500, f"Sample {sample['id']} rendered a nearly blank PNG"
     elif sample["format"] == "svg":
         content = out_file.read_text(encoding="utf-8").strip()
         assert content.startswith("<svg"), f"SVG does not start with <svg: {filename}"

@@ -1,10 +1,9 @@
 import re
-import struct
-import zlib
 
 import numpy as np
 import pytest
 import matplotvite as plt
+from png_utils import decode_png_rgba
 
 
 def _fig():
@@ -13,52 +12,6 @@ def _fig():
     plt.plot([1, 2, 3], label="list")  # y only
     plt.title("t"); plt.xlabel("x"); plt.ylabel("y"); plt.legend()
     return f
-
-
-def _decode_png_rgba(data):
-    """Decode the opaque RGBA PNGs matplotvite writes, using only stdlib."""
-    assert data[:8] == b"\x89PNG\r\n\x1a\n"
-    pos, compressed = 8, bytearray()
-    width = height = depth = color = None
-    while pos < len(data):
-        length = int.from_bytes(data[pos:pos + 4], "big")
-        kind = data[pos + 4:pos + 8]
-        body = data[pos + 8:pos + 8 + length]
-        pos += 12 + length
-        if kind == b"IHDR":
-            width, height, depth, color = struct.unpack(">IIBB", body[:10])
-        elif kind == b"IDAT":
-            compressed.extend(body)
-        elif kind == b"IEND":
-            break
-    assert depth == 8 and color == 6
-    raw = zlib.decompress(bytes(compressed))
-    stride = width * 4
-    rows, previous = [], bytearray(stride)
-    for y in range(height):
-        start = y * (stride + 1)
-        filter_type = raw[start]
-        row = bytearray(raw[start + 1:start + 1 + stride])
-        for i in range(stride):
-            left = row[i - 4] if i >= 4 else 0
-            above = previous[i]
-            upper_left = previous[i - 4] if i >= 4 else 0
-            if filter_type == 1:
-                predictor = left
-            elif filter_type == 2:
-                predictor = above
-            elif filter_type == 3:
-                predictor = (left + above) // 2
-            elif filter_type == 4:
-                p = left + above - upper_left
-                pa, pb, pc = abs(p - left), abs(p - above), abs(p - upper_left)
-                predictor = left if pa <= pb and pa <= pc else above if pb <= pc else upper_left
-            else:
-                predictor = 0
-            row[i] = (row[i] + predictor) & 255
-        rows.append(row)
-        previous = row
-    return width, height, rows
 
 
 def test_png(tmp_path):
@@ -70,6 +23,41 @@ def test_png(tmp_path):
 
 
 @pytest.mark.parametrize("compression", ["fast", "default", "best"])
+def _png_colour_counts(rows):
+    counts = {"red": 0, "blue": 0, "green": 0, "orange": 0, "nonwhite": 0}
+    for row in rows:
+        for i in range(0, len(row), 4):
+            r, g, b = row[i], row[i + 1], row[i + 2]
+            counts["red"] += r > 150 and g < 120 and b < 120
+            counts["blue"] += b > 150 and r < 120 and g < 120
+            counts["green"] += g > 100 and r < 120 and b < 120
+            counts["orange"] += r > 180 and 60 < g < 180 and b < 100
+            counts["nonwhite"] += min(r, g, b) < 250
+    return counts
+
+
+def test_direct_and_svg_png_paths_preserve_every_panel():
+    def render(force_svg):
+        fig, axs = plt.subplots(2, 2, figsize=(6, 5))
+        for i, (ax, colour) in enumerate(zip(axs.flat, ("red", "blue", "green", "orange"))):
+            ax.plot([0, 1, 2], [i, i + 2, i + 1], color=colour, linewidth=3)
+            ax.set_title(f"panel {i}")
+        if force_svg:
+            # A figure decoration makes the renderer choose the SVG path.
+            fig.text(0, 0, "")
+        return decode_png_rgba(fig.savefig(format="png"))
+
+    direct = render(False)
+    svg = render(True)
+    assert direct[:2] == svg[:2]
+    direct_counts = _png_colour_counts(direct[2])
+    svg_counts = _png_colour_counts(svg[2])
+    for colour in ("red", "blue", "green", "orange"):
+        assert direct_counts[colour] > 20 and svg_counts[colour] > 20
+    assert abs(direct_counts["nonwhite"] - svg_counts["nonwhite"]) <= 0.1 * max(
+        direct_counts["nonwhite"], svg_counts["nonwhite"], 1)
+
+
 def test_png_compression(tmp_path, compression):
     p = tmp_path / f"{compression}.png"
     _fig()
@@ -2608,7 +2596,7 @@ def test_twinx_png_keeps_primary_and_twin_axes():
     ax.plot([0, 1, 2], [1, 4, 9], color="red", linewidth=4)
     twin = ax.twinx()
     twin.plot([0, 1, 2], [9, 4, 1], color="blue", linewidth=4)
-    width, height, rows = _decode_png_rgba(fig.savefig(format="png"))
+    width, height, rows = decode_png_rgba(fig.savefig(format="png"))
     assert (width, height) == (500, 400)
     red = blue = dark_left = 0
     for y, row in enumerate(rows):
