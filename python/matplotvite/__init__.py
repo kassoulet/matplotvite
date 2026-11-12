@@ -3296,12 +3296,21 @@ class Axes:
         cap_color = _single_color(cap_style.get("color", cap_style.get("c")), whisker_color)
         cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.5)
         mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
-        parsed_color, _, parsed_marker = _stem_fmt(str(sym or ""), None)
-        flier_color = _single_color(
-            flier_style.get("markerfacecolor", flier_style.get("mfc",
+        # `sym=None` means matplotlib's default flier (`o`); only an explicit
+        # empty string (`sym=""`) hides the outliers.
+        flier_format = "o" if sym is None else str(sym)
+        parsed_color, _, parsed_marker = _stem_fmt(flier_format, None)
+        flier_edge = _single_color(
+            flier_style.get("markeredgecolor", flier_style.get("mec",
                              flier_style.get("color", flier_style.get("c")))),
             parsed_color or "black")
+        flier_face = _single_color(
+            flier_style.get("markerfacecolor", flier_style.get("mfc")),
+            parsed_color or "none")
         flier_marker = str(flier_style.get("marker", parsed_marker or "o"))
+        flier_width = _number(
+            flier_style.get("markeredgewidth", flier_style.get("mew")), 1.0)
+        flier_size = _number(flier_style.get("markersize", flier_style.get("ms")), 8.0)
         draw_caps = True if showcaps is None else bool(showcaps)
         draw_box = True if showbox is None else bool(showbox)
         draw_fliers = True if showfliers is None else bool(showfliers)
@@ -3387,14 +3396,15 @@ class Axes:
                 else:
                     out["means"].append(self._stats_line(
                         [mean, mean], [loc - half, loc + half], mean_color))
-            if draw_fliers and fliers.size and str(sym or "") != "":
+            if draw_fliers and fliers.size and flier_format != "":
+                style = dict(linestyle="none", marker=flier_marker,
+                             markersize=flier_size, mfc=flier_face, mec=flier_edge,
+                             mew=flier_width)
                 if orientation == "vertical":
-                    self.scatter(np.full(fliers.size, loc), fliers, s=36,
-                                 c=flier_color, marker=flier_marker)
+                    entry = self.plot(np.full(fliers.size, loc), fliers, **style)
                 else:
-                    self.scatter(fliers, np.full(fliers.size, loc), s=36,
-                                 c=flier_color, marker=flier_marker)
-                out["fliers"].append(self.scatter_pts[-1])
+                    entry = self.plot(fliers, np.full(fliers.size, loc), **style)
+                out["fliers"].append(entry[0])
             else:
                 out["fliers"].append(None)
         if manage_ticks:

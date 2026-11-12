@@ -774,6 +774,7 @@ where
                     ((cx + 10.0) as i32, cy as i32),
                     4.0,
                     *c,
+                    *c,
                     1,
                     marker,
                 )?;
@@ -783,6 +784,7 @@ where
                 (0, 0),
                 ((cx + 10.0) as i32, cy as i32),
                 4.0,
+                *c,
                 *c,
                 1,
                 marker,
@@ -1105,12 +1107,16 @@ fn marker_shape(marker: &str) -> MarkerShape {
 }
 
 /// One scatter marker centred on canvas pixel `pos`, with pixel radius `r`.
+/// `fill` paints the interior and `edge` the outline; a fully transparent
+/// `fill` draws the outline only (Matplotlib's `markerfacecolor="none"`).
+#[allow(clippy::too_many_arguments)]
 fn draw_marker<DB: DrawingBackend, C: Color>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     base: (i32, i32),
     pos: (i32, i32),
     r: f64,
-    col: C,
+    fill: C,
+    edge: C,
     stroke: u32,
     marker: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
@@ -1120,6 +1126,7 @@ where
     let (x, y) = (pos.0 - base.0, pos.1 - base.1);
     let ri = r.round().max(1.0);
     let span = 2.0 * ri;
+    let hollow = fill.to_rgba().3 == 0.0;
     let map = |(vx, vy): (f64, f64)| {
         (
             (x as f64 + vx * span).round() as i32,
@@ -1129,25 +1136,31 @@ where
     match marker_shape(marker) {
         MarkerShape::Polygon(verts) => {
             if marker == "s" {
-                // Keep a square marker as an SVG `<rect>`; the raster backends
-                // produce the same pixels either way.
-                area.draw(&Rectangle::new(
-                    [
-                        (x - ri as i32, y - ri as i32),
-                        (x + ri as i32, y + ri as i32),
-                    ],
-                    col.filled(),
-                ))?;
+                let corners = [
+                    (x - ri as i32, y - ri as i32),
+                    (x + ri as i32, y + ri as i32),
+                ];
+                if hollow {
+                    // Keep a square marker as an SVG `<rect>`; the raster backends
+                    // produce the same pixels either way.
+                    area.draw(&Rectangle::new(corners, edge.stroke_width(stroke.max(1))))?;
+                } else {
+                    area.draw(&Rectangle::new(corners, fill.filled()))?;
+                }
             } else {
                 let pts: Vec<(i32, i32)> = verts.iter().map(|v| map(*v)).collect();
-                area.draw(&Polygon::new(pts, col.filled()))?;
+                if hollow {
+                    area.draw(&Polygon::new(pts, edge.stroke_width(stroke.max(1))))?;
+                } else {
+                    area.draw(&Polygon::new(pts, fill.filled()))?;
+                }
             }
         }
         MarkerShape::Strokes(segs) => {
             for (a, b) in segs {
                 area.draw(&PathElement::new(
                     vec![map(a), map(b)],
-                    col.stroke_width(stroke),
+                    edge.stroke_width(stroke),
                 ))?;
             }
         }
@@ -1156,7 +1169,15 @@ where
             // edge colour is the face, so the visible radius includes half of
             // it (scatter's default linewidths is 1 pt).
             let radius = (ri * frac + stroke as f64 / 2.0).round().max(1.0) as u32;
-            area.draw(&Circle::new((x, y), radius, col.filled()))?;
+            if hollow {
+                area.draw(&Circle::new(
+                    (x, y),
+                    radius,
+                    edge.stroke_width(stroke.max(1)),
+                ))?;
+            } else {
+                area.draw(&Circle::new((x, y), radius, fill.filled()))?;
+            }
         }
     }
     Ok(())
@@ -1416,12 +1437,14 @@ fn simplify_polyline(
 /// Paint one marker into a transparent raster layer. Dense raster scatters use
 /// this instead of one SVG element per point, which keeps resvg's per-element
 /// work out of the save path.
+#[allow(clippy::too_many_arguments)]
 fn draw_marker_raster(
     pixmap: &mut tiny_skia::Pixmap,
     base: (i32, i32),
     pos: (i32, i32),
     r: f64,
-    col: RGBAColor,
+    fill: RGBAColor,
+    edge: RGBAColor,
     stroke: u32,
     marker: &str,
 ) {
@@ -1431,15 +1454,19 @@ fn draw_marker_raster(
     // instead of an anti-aliased disc.
     let r = r.clamp(1.0, MAX_MARKER_RADIUS);
     let span = 2.0 * r;
+    let hollow = fill.3 == 0.0;
     let map = |(vx, vy): (f64, f64)| ((x + vx * span) as f32, (y - vy * span) as f32);
-    let alpha = (col.3.clamp(0.0, 1.0) * 255.0).round() as u8;
-    let paint = tiny_skia::Paint {
-        shader: tiny_skia::Shader::SolidColor(tiny_skia::Color::from_rgba8(
-            col.0, col.1, col.2, alpha,
-        )),
-        anti_alias: true,
-        ..Default::default()
+    let paint_of = |col: RGBAColor| {
+        let alpha = (col.3.clamp(0.0, 1.0) * 255.0).round() as u8;
+        tiny_skia::Paint {
+            shader: tiny_skia::Shader::SolidColor(tiny_skia::Color::from_rgba8(
+                col.0, col.1, col.2, alpha,
+            )),
+            anti_alias: true,
+            ..Default::default()
+        }
     };
+    let paint = paint_of(if hollow { edge } else { fill });
     match marker_shape(marker) {
         MarkerShape::Strokes(segs) => {
             let mut pb = tiny_skia::PathBuilder::new();
@@ -1456,7 +1483,7 @@ fn draw_marker_raster(
                 };
                 pixmap.stroke_path(
                     &path,
-                    &paint,
+                    &paint_of(edge),
                     &stroke,
                     tiny_skia::Transform::identity(),
                     None,
@@ -1467,26 +1494,42 @@ fn draw_marker_raster(
             let mut pb = tiny_skia::PathBuilder::new();
             pb.push_circle(x as f32, y as f32, (r * frac).max(1.0) as f32);
             if let Some(path) = pb.finish() {
-                pixmap.fill_path(
-                    &path,
-                    &paint,
-                    tiny_skia::FillRule::Winding,
-                    tiny_skia::Transform::identity(),
-                    None,
-                );
-                // A face-coloured edge like Matplotlib's marker linewidth.
-                if stroke > 0 {
-                    let edge = tiny_skia::Stroke {
-                        width: stroke as f32,
-                        ..Default::default()
-                    };
-                    pixmap.stroke_path(
+                if hollow {
+                    if stroke > 0 {
+                        let outline = tiny_skia::Stroke {
+                            width: stroke as f32,
+                            ..Default::default()
+                        };
+                        pixmap.stroke_path(
+                            &path,
+                            &paint_of(edge),
+                            &outline,
+                            tiny_skia::Transform::identity(),
+                            None,
+                        );
+                    }
+                } else {
+                    pixmap.fill_path(
                         &path,
                         &paint,
-                        &edge,
+                        tiny_skia::FillRule::Winding,
                         tiny_skia::Transform::identity(),
                         None,
                     );
+                    // A face-coloured edge like Matplotlib's marker linewidth.
+                    if stroke > 0 {
+                        let outline = tiny_skia::Stroke {
+                            width: stroke as f32,
+                            ..Default::default()
+                        };
+                        pixmap.stroke_path(
+                            &path,
+                            &paint,
+                            &outline,
+                            tiny_skia::Transform::identity(),
+                            None,
+                        );
+                    }
                 }
             }
         }
@@ -2178,9 +2221,27 @@ where
                     color(&coll.colors[i % coll.colors.len()])
                 };
                 if let Some(layer) = collection_layer.as_mut() {
-                    draw_marker_raster(layer, base, (px, py), r, col.mix(alpha), 1, marker);
+                    draw_marker_raster(
+                        layer,
+                        base,
+                        (px, py),
+                        r,
+                        col.mix(alpha),
+                        col.mix(alpha),
+                        1,
+                        marker,
+                    );
                 } else {
-                    draw_marker(area, base, (px, py), r, col.mix(alpha), 1, marker)?;
+                    draw_marker(
+                        area,
+                        base,
+                        (px, py),
+                        r,
+                        col.mix(alpha),
+                        col.mix(alpha),
+                        1,
+                        marker,
+                    )?;
                 }
             }
             for (i, seg) in coll.segments.iter().enumerate() {
@@ -2347,24 +2408,40 @@ where
         }
         if !s.marker.is_empty() && s.markersize > 0.0 {
             let stroked = matches!(s.marker.as_str(), "x" | "+");
-            let name = if stroked {
-                s.mec.as_deref().unwrap_or(&s.color)
+            let (fill_name, edge_name) = if stroked {
+                (
+                    s.mec.as_deref().unwrap_or(&s.color),
+                    s.mec.as_deref().unwrap_or(&s.color),
+                )
             } else {
-                s.mfc.as_deref().unwrap_or(&s.color)
+                (
+                    s.mfc.as_deref().unwrap_or(&s.color),
+                    s.mec.as_deref().unwrap_or(&s.color),
+                )
             };
-            let mc = match s.alpha {
+            let shade = |name: &str| match s.alpha {
                 Some(a) => color(name).mix(a.clamp(0.0, 1.0)),
                 None => color(name).mix(1.0),
             };
+            let (fill, edge) = (shade(fill_name), shade(edge_name));
             let r = marker_radius(s.markersize * s.markersize);
             let stroke = s.mew.max(1.0).round() as u32;
             let chart_area = chart.plotting_area();
             for (xv, yv) in xs.iter().zip(ys.iter()) {
                 let (px, py) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
                 if let Some(layer) = series_marker_layer.as_mut() {
-                    draw_marker_raster(layer, series_base, (px, py), r, mc, stroke, &s.marker);
+                    draw_marker_raster(
+                        layer,
+                        series_base,
+                        (px, py),
+                        r,
+                        fill,
+                        edge,
+                        stroke,
+                        &s.marker,
+                    );
                 } else {
-                    draw_marker(area, base, (px, py), r, mc, stroke, &s.marker)?;
+                    draw_marker(area, base, (px, py), r, fill, edge, stroke, &s.marker)?;
                 }
             }
         }
@@ -2481,9 +2558,9 @@ where
                 };
                 let col = col.mix(alpha);
                 if let Some(layer) = marker_layer.as_mut() {
-                    draw_marker_raster(layer, base, (cx, cy), r, col, 2, &sc.marker);
+                    draw_marker_raster(layer, base, (cx, cy), r, col, col, 2, &sc.marker);
                 } else {
-                    draw_marker(area, base, (cx, cy), r, col, 2, &sc.marker)?;
+                    draw_marker(area, base, (cx, cy), r, col, col, 2, &sc.marker)?;
                 }
             }
             if !sc.label.is_empty() {

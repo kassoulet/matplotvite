@@ -1510,6 +1510,26 @@ def test_boxplot_single_and_hidden_parts(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_boxplot_draws_default_outliers(tmp_path):
+    data = [np.array([0.0, 1.0, 2.0, 3.0, 4.0, 100.0])]
+    plt.figure()
+    ax = plt.gca()
+    result = ax.boxplot(data)
+    # `sym=None` means the default flier, not "hide them".
+    assert result["fliers"][0] is not None
+    assert np.allclose(result["fliers"][0].get_ydata(), [100.0])
+    assert ax.get_ylim()[1] > 100.0
+    hidden = ax.boxplot(data, sym="")
+    assert hidden["fliers"] == [None]
+    off = ax.boxplot(data, showfliers=False)
+    assert off["fliers"] == [None]
+    p = tmp_path / "box_fliers.svg"
+    plt.savefig(p)
+    # Matplotlib's default flier is a hollow circle with a black 1 pt edge.
+    circles = [line for line in p.read_text().splitlines() if "<circle" in line]
+    assert circles and all('fill="none"' in line.lower() for line in circles)
+
+
 def test_violinplot_bodies_and_stats(tmp_path):
     rng = np.random.default_rng(3)
     data = [rng.normal(size=80), rng.normal(2.0, 0.5, size=60)]
