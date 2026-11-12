@@ -41,7 +41,11 @@ SKIP_RE = re.compile(r"pytest\.|check_figures_equal\(|\binput\(|themes\.|savefig
 
 # Imports the renderer supplies itself or never needs: pytest is a test-only
 # dependency, and bodies that use it are skipped by SKIP_RE.
-STRIPPED_IMPORTS = ("matplotlib", "numpy", "pytest")
+STRIPPED_IMPORTS = ("matplotlib", "mpl_toolkits", "numpy", "pytest")
+
+# The toolkit shims ship inside matplotvite so the wheel never shadows
+# Matplotlib's own top-level `mpl_toolkits` namespace.
+TOOLKITS_PACKAGE = "matplotvite.mpl_toolkits"
 
 # Aliases used by Matplotlib's tests after a stripped `from numpy... import`.
 NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
@@ -178,7 +182,7 @@ def find_examples_root(source: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
-def _alias_assignment(target: str, module: str) -> ast.Assign:
+def _alias_assignment(target: str, module: str) -> ast.Expr:
     """`target = matplotlib.<module>`, or `target = plt` for pyplot.
 
     The namespace binds `matplotlib` to matplotvite, so the assignment keeps a
@@ -192,6 +196,14 @@ def _alias_assignment(target: str, module: str) -> ast.Assign:
     return ast.Assign(targets=[ast.Name(id=target, ctx=ast.Store())], value=value)
 
 
+def _toolkit_import(alias: ast.alias) -> ast.Assign:
+    """`import matplotlib` line that binds a toolkit submodule to its alias."""
+    suffix = alias.name.split(".", 1)[1] if "." in alias.name else ""
+    target = alias.asname or alias.name.split(".")[0]
+    return ast.parse(
+        f"import {TOOLKITS_PACKAGE}{'.' + suffix if suffix else ''} as {target}").body[0]
+
+
 class _ExampleStripper(ast.NodeTransformer):
     """Drop Matplotlib/NumPy imports and the interactive tail of a gallery script."""
 
@@ -199,7 +211,9 @@ class _ExampleStripper(ast.NodeTransformer):
         kept, emitted = [], []
         for alias in node.names:
             module = alias.name.split(".")
-            if module[0] not in STRIPPED_IMPORTS:
+            if module[0] == "mpl_toolkits":
+                emitted.append(_toolkit_import(alias))
+            elif module[0] not in STRIPPED_IMPORTS:
                 kept.append(alias)
             elif (alias.asname and alias.asname not in ("plt", "mpl")
                   and len(module) > 1 and module[1] != "pyplot"):
@@ -209,6 +223,9 @@ class _ExampleStripper(ast.NodeTransformer):
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
         module = node.module or ""
+        if module.split(".")[0] == "mpl_toolkits":
+            rewritten = f"{TOOLKITS_PACKAGE}{'.' + module.split('.', 1)[1] if '.' in module else ''}"
+            return ast.ImportFrom(module=rewritten, names=node.names, level=0)
         if module.split(".")[0] not in STRIPPED_IMPORTS:
             return node
         if module != "matplotlib":
@@ -336,13 +353,18 @@ def failure_status(error: str | None) -> str:
     if not error:
         return "failed"
     kind, _, detail = error.partition(":")
+    if kind == "ModuleNotFoundError":
+        # The snippet needs a module the harness does not supply: a toolkit
+        # (mpl_toolkits), an optional image library (PIL) or a local helper
+        # that imports Matplotlib itself.
+        return "harvester-gap"
     if kind == "NameError":
         match = re.search(r"name '([^']+)' is not defined", detail)
         name = match.group(1) if match else ""
         if name and (name in NUMPY_ALIASES or compat_name(name) is not None):
             return "harvester-gap"
         return "needs-api"
-    if kind in ("AttributeError", "NotImplementedError"):
+    if kind in ("AttributeError", "ImportError", "NotImplementedError"):
         return "needs-api"
     return "bug"
 

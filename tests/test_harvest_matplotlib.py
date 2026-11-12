@@ -113,6 +113,32 @@ def test_render_uses_module_alias_imports(tmp_path):
     assert out.exists()
 
 
+def test_prepare_example_rewrites_toolkit_imports_to_the_scoped_shim():
+    # The wheel deliberately ships no top-level `mpl_toolkits`, so a harvested
+    # snippet must import the shim inside matplotvite.
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "from mpl_toolkits.axes_grid1 import make_axes_locatable\n"
+        "import mpl_toolkits.axes_grid1.inset_locator as loc\n"
+        "fig, ax = plt.subplots()\n")
+    assert ("from matplotvite.mpl_toolkits.axes_grid1 import "
+            "make_axes_locatable") in snippet
+    assert "import matplotvite.mpl_toolkits.axes_grid1.inset_locator as loc" in snippet
+    assert "import mpl_toolkits" not in snippet
+
+
+def test_prepare_example_renders_a_toolkit_inset(tmp_path):
+    out = tmp_path / "out.png"
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "from mpl_toolkits.axes_grid1.inset_locator import inset_axes\n"
+        "fig, ax = plt.subplots()\n"
+        "ax.plot([0, 1], [1, 0])\n"
+        "inset_axes(ax, width='30%', height='30%', loc='upper left')\n")
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
 def test_prepare_body_skips_unrenderable_bodies():
     cleaned = prepare_body("    import matplotlib.pyplot as plt\n    plt.plot([1])\n")
     assert cleaned.startswith("plt.plot([1])")
@@ -241,6 +267,12 @@ def test_failure_status_splits_gaps_from_missing_apis():
     assert failure_status(
         "AttributeError: 'Axes' object has no attribute 'triplot'") == "needs-api"
     assert failure_status("NotImplementedError: 'symlog'") == "needs-api"
+    # A missing toolkit or a local helper that imports Matplotlib is a harness
+    # limitation, not a matplotvite bug.
+    assert failure_status(
+        "ModuleNotFoundError: No module named 'PIL'") == "harvester-gap"
+    assert failure_status(
+        "ImportError: cannot import name 'BboxConnector'") == "needs-api"
     assert failure_status("TypeError: fill expects (x, y)") == "bug"
 
 
