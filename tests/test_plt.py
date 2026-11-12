@@ -3519,3 +3519,34 @@ def test_scatter_accepts_a_norm():
     handle = plt.scatter([0, 1], [0, 1], c=[1.0, 100.0],
                          norm=plt.colors.LogNorm(vmin=1.0, vmax=100.0))
     assert handle._e["values"].tolist() == pytest.approx([0.0, 1.0])
+
+
+def test_arrow_patch_and_ellipse_collection_render(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    arrow = plt.patches.Arrow(1, 1, 4, 0, width=0.5, color="black")
+    pts = arrow.get_xy()
+    assert pts.shape[1] == 2 and np.ptp(pts[:, 0]) == pytest.approx(4.0)
+    ax.add_patch(arrow)
+    ellipses = plt.collections.EllipseCollection(
+        [2.0, 1.0], [1.0, 2.0], [0.0, 45.0], units="xy",
+        offsets=[[7, 7], [7, 3]], facecolor="red")
+    assert len(ellipses.get_segments()) == 2
+    ax.add_collection(ellipses)
+    p = tmp_path / "arrow.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_get_subplotspec_reports_the_grid_cell():
+    plt.rcdefaults()
+    fig, axs = plt.subplots(2, 2)
+    spec = axs[1, 0].get_subplotspec()
+    assert spec.rows == (1, 1) and spec.cols == (0, 0)
+    assert spec.get_position(fig) is not None
+    gs = fig.add_gridspec(1, 3)
+    ax = fig.add_subplot(gs[1])
+    spec = ax.get_subplotspec()
+    assert spec.cols == (1, 1) and spec.gridspec is gs

@@ -24,7 +24,7 @@ __all__ = (
     "same_color", "FixedFormatter", "LogLocator",
     "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
-    "PathCollection", "RegularPolyCollection",
+    "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
@@ -2084,6 +2084,66 @@ class RegularPolyCollection(LineCollection):
         super().__init__(segments, **kwargs)
 
 
+class EllipseCollection(PolyCollection):
+    """Ellipses at `offsets`, with widths/heights in points or data units."""
+
+    def __init__(self, widths, heights, angles, units="points", offsets=None,
+                 offset_transform=None, **kwargs):
+        widths = np.atleast_1d(np.asarray(widths, dtype=float)).ravel()
+        heights = np.atleast_1d(np.asarray(heights, dtype=float)).ravel()
+        angles = np.atleast_1d(np.asarray(angles, dtype=float)).ravel()
+        centers = np.zeros((1, 2)) if offsets is None else np.asarray(
+            offsets, dtype=float).reshape(-1, 2)
+        t = np.linspace(0.0, 2.0 * np.pi, 49)
+        verts = []
+        for i, center in enumerate(centers):
+            w = float(widths[i % len(widths)]) / 2.0
+            h = float(heights[i % len(heights)]) / 2.0
+            a = np.deg2rad(float(angles[i % len(angles)]))
+            x, y = w * np.cos(t), h * np.sin(t)
+            verts.append(np.column_stack([
+                center[0] + x * np.cos(a) - y * np.sin(a),
+                center[1] + x * np.sin(a) + y * np.cos(a)]))
+        super().__init__(verts, **kwargs)
+        self._units = str(units)
+
+    def get_offsets(self): return None
+
+
+class Arrow(Patch):
+    """A filled arrow from (x, y) to (x + dx, y + dy)."""
+
+    def __init__(self, x, y, dx, dy, width=1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.x, self.y, self.dx, self.dy = map(float, (x, y, dx, dy))
+        self.width = float(width)
+
+    def get_xy(self):
+        length = _math.hypot(self.dx, self.dy)
+        if length == 0.0:
+            return np.array([[self.x, self.y], [self.x, self.y]])
+        ux, uy = self.dx / length, self.dy / length
+        nx, ny = -uy, ux
+        half = self.width / 2.0
+        head_length = min(3.0 * self.width, length)
+        head_half = self.width
+        tip = (self.x + self.dx, self.y + self.dy)
+        neck = (tip[0] - ux * head_length, tip[1] - uy * head_length)
+        base = (self.x + nx * half, self.y + ny * half)
+        return np.array([
+            base,
+            (neck[0] + nx * half, neck[1] + ny * half),
+            (neck[0] + nx * head_half, neck[1] + ny * head_half),
+            tip,
+            (neck[0] - nx * head_half, neck[1] - ny * head_half),
+            (neck[0] - nx * half, neck[1] - ny * half),
+            (self.x - nx * half, self.y - ny * half),
+        ])
+
+
+patches.Arrow = Arrow
+
+
 class PatchCollection(LineCollection):
     def __init__(self, patches, colors=None, **kwargs):
         self._patches = list(patches)
@@ -2523,6 +2583,7 @@ class Axes:
         if args:
             pos = 0
         self.pos, self.lines, self.texts = pos, [], []
+        self._subplotspec = None
         self.images, self.annotations = [], []
         self.contours = []
         self.errors = []
@@ -3316,6 +3377,15 @@ class Axes:
         self.set_xscale("log")
         self.set_yscale("log")
         return self.plot(*args, **kwargs)
+
+    def get_subplotspec(self):
+        """The `SubplotSpec` this axes was created from, or its grid cell."""
+        if self._subplotspec is not None:
+            return self._subplotspec
+        rows, cols = self._fig.grid if self._fig is not None else (1, 1)
+        row, col = divmod(int(self.pos), cols)
+        return SubplotSpec(GridSpec(rows, cols, figure=self._fig),
+                           (row, row), (col, col))
 
     def get_xscale(self): return self.xscale
     def get_yscale(self): return self.yscale
@@ -5912,6 +5982,7 @@ class Figure:
 
     def _add_spec(self, spec):
         ax = Axes(len(self.axes))
+        ax._subplotspec = spec
         ax._fig = self
         ax._pos_override = spec.gridspec._bounds(spec.rows, spec.cols)
         ax._bounds_are_axes = False
@@ -7186,7 +7257,8 @@ path = mpath
 mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           PolyCollection=PolyCollection, PatchCollection=PatchCollection,
                           EventCollection=EventCollection, PathCollection=PathCollection,
-                          RegularPolyCollection=RegularPolyCollection)
+                          RegularPolyCollection=RegularPolyCollection,
+                          EllipseCollection=EllipseCollection)
 collections = mcollections
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          BboxTransformTo=_Transform, IdentityTransform=_Transform,
