@@ -3570,3 +3570,36 @@ def test_symlog_scale_renders_symmetric_decade_ticks(tmp_path):
     p = tmp_path / "symlog.svg"
     figure.savefig(p)
     assert "−1000" in p.read_text()
+
+
+def test_clabel_labels_contours(tmp_path):
+    plt.rcdefaults()
+    X, Y = np.meshgrid(np.linspace(-2, 2, 40), np.linspace(-2, 2, 40))
+    Z = np.exp(-(X ** 2 + Y ** 2))
+    figure, axes = plt.subplots()
+    contours = axes.contour(X, Y, Z, levels=5)
+    handles = contours.clabel(fmt="%1.2f")
+    texts = [t[2] for t in axes.texts]
+    assert texts == ["0.25", "0.50", "0.75", "0.99"]
+    assert len(handles) == len(texts)
+    assert all(isinstance(t[9], float) for t in axes.texts)
+    p = tmp_path / "clabel.svg"
+    figure.savefig(p)
+    assert "0.75" in p.read_text()
+    with pytest.raises(NotImplementedError):
+        contours.clabel(manual=True)
+
+
+def test_text_rotation_applies_to_axes_and_figure_text(tmp_path):
+    plt.rcdefaults()
+    figure, axes = plt.subplots()
+    axes.set_xlim(0, 1)
+    axes.set_ylim(0, 1)
+    axes.text(0.5, 0.5, "upright", rotation=90)
+    figure.text(0.2, 0.1, "sideways", rotation="vertical")
+    assert axes.texts[0].get_rotation() == 90.0
+    p = tmp_path / "rotated.svg"
+    figure.savefig(p)
+    svg = p.read_text()
+    assert "upright" in svg and "sideways" in svg
+    assert svg.count('transform="rotate(90') == 2

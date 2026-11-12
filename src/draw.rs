@@ -31,6 +31,7 @@ pub(crate) fn draw_label<DB: DrawingBackend>(
     ha: &str,
     va: &str,
     bbox: Option<&TextBBox>,
+    rotation: f64,
     line_scale: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -115,7 +116,15 @@ where
             radius,
         )?;
     }
-    let style = ("sans-serif", fs.round() as u32).into_font().color(&col);
+    let deg = rotation.rem_euclid(360.0);
+    let mut style = ("sans-serif", fs.round() as u32).into_font().color(&col);
+    if (45.0..135.0).contains(&deg) {
+        style = style.transform(FontTransform::Rotate90);
+    } else if (135.0..225.0).contains(&deg) {
+        style = style.transform(FontTransform::Rotate180);
+    } else if (225.0..315.0).contains(&deg) {
+        style = style.transform(FontTransform::Rotate270);
+    }
     for (index, line) in lines.iter().enumerate() {
         if line.is_empty() {
             continue;
@@ -1261,6 +1270,7 @@ where
                 "left",
                 "center",
                 None,
+                0.0,
                 line_scale,
             )?;
         }
@@ -1276,6 +1286,7 @@ where
             "left",
             "top",
             None,
+            0.0,
             line_scale,
         )?;
     }
@@ -2783,7 +2794,7 @@ where
         // map_coordinate yields canvas-absolute pixels; the panel's own area re-applies
         // its origin, so anything drawn on it shifts back to cell-local pixels.
         let base = area.get_base_pixel();
-        for (x, y, s, c, size, ha, va, bbox) in &p.texts {
+        for (x, y, s, c, size, ha, va, bbox, rotation) in &p.texts {
             let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
             draw_label(
                 area,
@@ -2795,6 +2806,7 @@ where
                 ha,
                 va,
                 bbox.as_ref(),
+                *rotation,
                 line_scale,
             )?;
         }
@@ -2817,6 +2829,7 @@ where
                 "left",
                 "baseline",
                 None,
+                0.0,
                 line_scale,
             )?;
         }

@@ -192,7 +192,8 @@ pub(crate) struct TextBBox {
     pub(crate) rounded: bool,
 }
 
-/// (x, y, text, color, font size, horizontal align, vertical align, bbox).
+/// (x, y, text, color, font size, horizontal align, vertical align, bbox,
+/// rotation in degrees).
 pub(crate) type TextItem = (
     f64,
     f64,
@@ -202,6 +203,7 @@ pub(crate) type TextItem = (
     String,
     String,
     Option<TextBBox>,
+    f64,
 );
 
 /// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper,

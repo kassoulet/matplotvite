@@ -170,7 +170,7 @@ _IGNORED_TEXT_KWARGS = frozenset(
     "family figure font fontfamily fontname fontproperties font_properties "
     "fontstretch fontstyle fontvariant variant fontweight gid in_layout linespacing ma "
     "math_fontfamily multialignment parse_math path_effects picker rasterized "
-    "rotation rotation_mode sketch_params snap style transform_rotates_text url usetex verticalalignment "
+    "rotation_mode sketch_params snap style transform_rotates_text url usetex verticalalignment "
     "visible weight wrap zorder".split()
 )
 
@@ -188,6 +188,20 @@ def _text_bbox(value):
                 rounded="round" in style.lower() or "circle" in style.lower())
 
 
+def _rotation_value(value):
+    """Degrees for a text rotation, accepting Matplotlib's string aliases."""
+    if value is None:
+        return 0.0
+    if isinstance(value, str):
+        key = value.strip().lower()
+        if key in ("vertical", "vert"):
+            return 90.0
+        if key in ("horizontal", "horiz"):
+            return 0.0
+        value = key
+    return float(value)
+
+
 def _text_props(fontdict, kwargs):
     """Split text keywords into the honoured subset and the compatibility no-ops."""
     props = dict(fontdict or {})
@@ -198,10 +212,11 @@ def _text_props(fontdict, kwargs):
     ha = props.pop("horizontalalignment", props.pop("ha", "left"))
     va = props.pop("verticalalignment", props.pop("va", "baseline"))
     bbox = _text_bbox(props.pop("bbox", None))
+    rotation = _rotation_value(props.pop("rotation", None))
     unexpected = [key for key in props if key not in _IGNORED_TEXT_KWARGS]
     if unexpected:
         raise TypeError(f"unexpected text keyword argument {unexpected[0]!r}")
-    return transform, fontsize, colour, ha, va, bbox
+    return transform, fontsize, colour, ha, va, bbox, rotation
 
 
 def _mathtext(text):
@@ -696,6 +711,7 @@ class _TextEntry(tuple):
     def get_ha(self): return self[5]
     def get_va(self): return self[6]
     def get_bbox(self): return self[8]
+    def get_rotation(self): return self[9]
 
 
 class _TextArt:
@@ -3451,7 +3467,7 @@ class Axes:
         """Place text at (x, y); `transform` may be `ax.transAxes` or
         `fig.transFigure` to use axes- or figure-fraction coordinates. Other
         Matplotlib text properties are accepted but not drawn yet."""
-        transform, fontsize, colour, ha, va, bbox = _text_props(fontdict, kwargs)
+        transform, fontsize, colour, ha, va, bbox, rotation = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va == "center_baseline":
@@ -3466,7 +3482,8 @@ class Axes:
         x = _as_f64(self._xdate(x) if kind == "data" else x)
         y = _as_f64(y)
         self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s),
-                                      _norm_color(colour), size, ha, va, kind, bbox)))
+                                      _norm_color(colour), size, ha, va, kind, bbox,
+                                      rotation)))
         return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
@@ -4546,7 +4563,7 @@ class Axes:
                      colors=_colors(colors), cmap=_cmap_name(cmap), filled=filled,
                      alpha=float(np.clip(opacity, 0.0, 1.0)))
         self.contours.append(entry)
-        return ContourSet(entry)
+        return ContourSet(entry, axes=self)
 
     def set_title(self, t, fontsize=None, **kwargs):
         self.title = _mathtext(t)
@@ -5121,7 +5138,7 @@ class Axes:
 
     def _resolve_text(self, t, x0, x1, y0, y1):
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
-        x, y, s, c, size, ha, va, kind, bbox = t
+        x, y, s, c, size, ha, va, kind, bbox, rotation = t
         if kind == "axes":
             x, y = x0 + x * (x1 - x0), y0 + y * (y1 - y0)
         elif kind == "figure":
@@ -5130,7 +5147,7 @@ class Axes:
             fx0, fy0 = col / cols, (rows - 1 - row) / rows
             x = x0 + (x - fx0) * cols * (x1 - x0)
             y = y0 + (y - fy0) * rows * (y1 - y0)
-        return (x, y, s, c, size, ha, va, bbox)
+        return (x, y, s, c, size, ha, va, bbox, rotation)
 
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
@@ -5701,10 +5718,62 @@ def _contour_args(args, levels):
             np.ascontiguousarray(z), levels)
 
 
+def _contour_segments(x, y, z, level):
+    """Marching-squares iso-line segments for one level on a rectilinear grid."""
+    segments = []
+    rows, cols = z.shape
+    for i in range(rows - 1):
+        for j in range(cols - 1):
+            values = (z[i, j], z[i, j + 1], z[i + 1, j + 1], z[i + 1, j])
+            if not all(_math.isfinite(float(v)) for v in values):
+                continue
+            corners = ((x[j], y[i]), (x[j + 1], y[i]),
+                       (x[j + 1], y[i + 1]), (x[j], y[i + 1]))
+            crossings = []
+            for k in range(4):
+                a, b = values[k], values[(k + 1) % 4]
+                if (a < level <= b) or (b < level <= a):
+                    t = (level - a) / (b - a)
+                    (xa, ya), (xb, yb) = corners[k], corners[(k + 1) % 4]
+                    crossings.append((xa + t * (xb - xa), ya + t * (yb - ya)))
+            if len(crossings) == 2:
+                segments.append((crossings[0], crossings[1]))
+            elif len(crossings) == 4:
+                segments.extend([(crossings[0], crossings[1]),
+                                 (crossings[2], crossings[3])])
+    return segments
+
+
+def _contour_label_text(level, fmt):
+    if callable(fmt):
+        return str(fmt(level))
+    if isinstance(fmt, dict):
+        return str(fmt.get(level, f"{level:g}"))
+    if fmt is None:
+        magnitude = abs(level)
+        text = (f"{level:g}" if magnitude >= 1000.0 or 0.0 < magnitude < 1e-3
+                else f"{level:.3f}".rstrip("0").rstrip("."))
+        return text.replace("-", "\u2212")
+    return str(fmt % level)
+
+
+def _contour_label_colour(entry, index, level):
+    """The colour the renderer uses for this level's line."""
+    colours = entry.get("colors") or []
+    if colours:
+        return _norm_color(colours[index % len(colours)])
+    levels = entry["levels"]
+    lo, hi = float(levels[0]), float(levels[-1])
+    t = (level - lo) / (hi - lo) if hi > lo else 0.5
+    rgb = np.asarray(get_cmap(entry.get("cmap"))(t), dtype=float).ravel()[:3]
+    return "#%02x%02x%02x" % tuple(int(round(float(v) * 255)) for v in rgb)
+
+
 class ContourSet:
     """Handle returned by `Axes.contour` / `Axes.contourf`."""
 
-    def __init__(self, ax=None, levels=None, segments=None, *args, **kwargs):
+    def __init__(self, ax=None, levels=None, segments=None, *args, axes=None, **kwargs):
+        self.axes = axes
         if isinstance(ax, dict) and levels is None and segments is None:
             self._e = ax
             return
@@ -5734,7 +5803,51 @@ class ContourSet:
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_clim(self, vmin=None, vmax=None): pass
     def set(self, **kwargs): return self
-    def clabel(self, *args, **kwargs): return []
+
+    def clabel(self, levels=None, *, fontsize=None, inline=True, inline_spacing=5,
+               fmt=None, colors=None, use_clabeltext=False, manual=False,
+               rightside_up=True, zorder=None, **kwargs):
+        """Label each contour level at the midpoint of its longest segment.
+
+        Labels are drawn horizontally or vertically, whichever is closer to the
+        local line direction; Matplotlib's inline gap is not cut out of the line.
+        """
+        if manual:
+            raise NotImplementedError("manual clabel placement is not supported")
+        if self.axes is None:
+            return []
+        all_levels = self.levels
+        if levels is None:
+            chosen = list(range(len(all_levels)))
+        else:
+            wanted = set(np.atleast_1d(np.asarray(levels, dtype=float)).ravel().tolist())
+            chosen = [i for i, value in enumerate(all_levels) if value in wanted]
+        palette = (None if colors is None else
+                   [_norm_color(c) for c in np.atleast_1d(colors).ravel()])
+        texts = []
+        for index in chosen:
+            level = all_levels[index]
+            segments = _contour_segments(self._e["x"], self._e["y"], self._e["z"], level)
+            if not segments:
+                continue
+            (xa, ya), (xb, yb) = max(
+                segments, key=lambda s: (s[1][0] - s[0][0]) ** 2 + (s[1][1] - s[0][1]) ** 2)
+            angle = _math.degrees(_math.atan2(yb - ya, xb - xa))
+            if rightside_up:
+                if angle > 90.0:
+                    angle -= 180.0
+                elif angle < -90.0:
+                    angle += 180.0
+            colour = (palette[index % len(palette)] if palette
+                      else _contour_label_colour(self._e, index, level))
+            texts.append(self.axes.text(
+                (xa + xb) / 2.0, (ya + yb) / 2.0,
+                _contour_label_text(level, fmt),
+                fontsize=fontsize, color=colour, ha="center", va="center",
+                rotation=angle,
+                **{k: v for k, v in kwargs.items() if k in ("alpha", "clip_on")}))
+        return texts
+
     def get_paths(self): return []
     def get_arrays(self): return ()
 
@@ -5979,7 +6092,7 @@ class Figure:
 
     def text(self, x, y, s, fontdict=None, **kwargs):
         """Figure-fraction text, drawn above every panel so nothing clips it."""
-        _transform, fontsize, colour, ha, va, bbox = _text_props(fontdict, kwargs)
+        _transform, fontsize, colour, ha, va, bbox, rotation = _text_props(fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va == "center_baseline":
@@ -5990,7 +6103,7 @@ class Figure:
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         values = _as_f64((x, y))
         self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s),
-                                   _norm_color(colour), size, ha, va, bbox))
+                                   _norm_color(colour), size, ha, va, bbox, rotation))
         return _TextArt()
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
