@@ -199,6 +199,17 @@ def test_render_returns_the_failure_reason(tmp_path):
     assert render("plt.plot([0, 1])\n", out) == "no figure saved"
 
 
+def test_render_resolves_stripped_submodule_names(tmp_path):
+    out = tmp_path / "out.png"
+    snippet = ("locator = MaxNLocator(3)\n"
+               "cmap = LinearSegmentedColormap\n"
+               "values = ma.masked_array([1, 2, 3])\n"
+               "plt.plot(rand(4), color=TABLEAU_COLORS['tab:blue'])\n"
+               "plt.savefig(OUT, dpi=100)\n")
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
 def test_render_records_ignored_shim_calls(tmp_path):
     out = tmp_path / "out.png"
     ignored = []

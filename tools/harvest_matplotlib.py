@@ -42,6 +42,22 @@ SKIP_RE = re.compile(r"pytest\.|check_figures_equal\(|\binput\(|themes\.|savefig
 # dependency, and bodies that use it are skipped by SKIP_RE.
 STRIPPED_IMPORTS = ("matplotlib", "numpy", "pytest")
 
+# Aliases used by Matplotlib's tests after a stripped `from numpy... import`.
+NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
+
+# Matplotvite namespaces that hold names the top-level `__all__` does not.
+COMPAT_NAMESPACES = ("ticker", "cm", "colors", "patches", "path", "transforms",
+                     "collections", "lines", "gridspec", "patheffects")
+
+
+def compat_name(name: str):
+    """Resolve a name from a stripped `from matplotlib.x import y` line."""
+    for module_name in COMPAT_NAMESPACES:
+        module = getattr(matplotvite, module_name, None)
+        if module is not None and hasattr(module, name):
+            return getattr(module, name)
+    return None
+
 
 def find_tests_root(source: pathlib.Path | None) -> pathlib.Path | None:
     """Locate the `matplotlib/tests` directory inside a checkout or an sdist."""
@@ -419,7 +435,22 @@ def render(snippet: str, out_path: pathlib.Path,
     namespace.update({
         "assert_array_almost_equal": np.testing.assert_array_almost_equal,
         "assert_array_equal": np.testing.assert_array_equal,
+        "matplotvite": matplotvite,
     })
+    # Imports are stripped from the snippets, so resolve the names they would
+    # have bound: `MaxNLocator`, `TABLEAU_COLORS`, `rand`, `ma`, ... otherwise
+    # the case fails with a NameError that hides whether the API exists.
+    try:
+        needed = _loaded_names(ast.parse(snippet))
+    except SyntaxError:
+        needed = set()
+    for name in needed - set(namespace):
+        if name in NUMPY_ALIASES:
+            namespace[name] = NUMPY_ALIASES[name]
+            continue
+        value = compat_name(name)
+        if value is not None:
+            namespace[name] = value
     if mpl_cbook is not None:
         namespace["cbook"] = mpl_cbook
         namespace["get_sample_data"] = mpl_cbook.get_sample_data
