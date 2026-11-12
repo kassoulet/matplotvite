@@ -6321,6 +6321,8 @@ def rcdefaults():
 
 
 _STYLE_PRESETS = {
+    # Matplotlib's test-suite style; it is the current default look.
+    "mpl20": {},
     "dark_background": {
         "figure.facecolor": "#000000", "axes.facecolor": "#000000",
         "axes.edgecolor": "#ffffff", "text.color": "#dddddd",
