@@ -3369,7 +3369,8 @@ class Axes:
         return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
-               interpolation=None, aspect=None, alpha=None, clim=None, **kwargs):
+               interpolation=None, aspect=None, alpha=None, clim=None, norm=None,
+               **kwargs):
         """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
         (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
         `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
@@ -3389,6 +3390,8 @@ class Axes:
             "bessel": "bicubic", "mitchell": "bicubic",
         }.get(interp, interp)
         a = _as_image(X)
+        if norm is not None and a.ndim == 2:
+            a, vmin, vmax = _norm_values(norm, a)
         h, w = a.shape[:2]
         if origin == "lower":
             a = a[::-1]
@@ -4107,7 +4110,7 @@ class Axes:
             extent = (float(x[0]) - dx / 2, float(x[-1]) + dx / 2,
                       float(y[0]) - dy / 2, float(y[-1]) + dy / 2)
         return self.imshow(z, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
-                           extent=extent, origin="lower", alpha=alpha)
+                           extent=extent, origin="lower", alpha=alpha, norm=norm)
 
     def pcolor(self, *args, **kwargs):
         return self.pcolormesh(*args, **kwargs)
@@ -4264,7 +4267,7 @@ class Axes:
                                  _norm_color(color), size))
 
     def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
-                vmin=None, vmax=None, data=None, **kwargs):
+                vmin=None, vmax=None, data=None, norm=None, **kwargs):
         """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
         colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
         if data is not None:
@@ -4277,6 +4280,8 @@ class Axes:
             raise ValueError("x and y must have the same length")
         n = y.size
         values, colors = _scatter_colors(c if c is not None else self._next_color(), n)
+        if norm is not None and values is not None:
+            values, vmin, vmax = _norm_values(norm, values)
         entry = dict(
             x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
             values=values, cmap=_cmap_name(cmap),
@@ -6330,9 +6335,9 @@ def annotate(*args, **kwargs): return gca().annotate(*args, **kwargs)
 
 
 def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", vmin=None,
-            vmax=None, data=None, **kwargs):
+            vmax=None, data=None, norm=None, **kwargs):
     return gca().scatter(x, y, s=s, c=c, alpha=alpha, cmap=cmap, label=label, marker=marker,
-                         vmin=vmin, vmax=vmax, data=data)
+                         vmin=vmin, vmax=vmax, data=data, norm=norm)
 
 
 def axes(*args, **kwargs):
@@ -6518,6 +6523,69 @@ class _TwoSlopeNorm(_Normalize):
         return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
 
 
+class _LogNorm(_Normalize):
+    """Logarithmic normalisation, as `colors.LogNorm`."""
+
+    def __init__(self, vmin=None, vmax=None, clip=False, base=10):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.base = float(base)
+
+    def __call__(self, value, clip=None):
+        lo = float(self.vmin) if self.vmin not in (None, 0) else 1e-300
+        hi = float(self.vmax) if self.vmax not in (None, 0) else 1.0
+        base = self.base if self.base > 0.0 and self.base != 1.0 else 10.0
+
+        def log(values):
+            return np.log(np.maximum(np.asarray(values, dtype=float), 1e-300)) / _math.log(base)
+
+        span = log(hi) - log(lo)
+        out = (log(value) - log(lo)) / (span if span else 1.0)
+        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
+
+    def inverse(self, value):
+        lo = float(self.vmin) if self.vmin not in (None, 0) else 1e-300
+        hi = float(self.vmax) if self.vmax not in (None, 0) else 1.0
+        log_lo, log_hi = _math.log(lo), _math.log(hi)
+        return np.exp(log_lo + np.asarray(value, dtype=float) * (log_hi - log_lo))
+
+
+class _PowerNorm(_Normalize):
+    """Power-law normalisation, as `colors.PowerNorm`."""
+
+    def __init__(self, gamma, vmin=None, vmax=None, clip=False):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.gamma = float(gamma)
+
+    def __call__(self, value, clip=None):
+        lo = 0.0 if self.vmin is None else float(self.vmin)
+        hi = 1.0 if self.vmax is None else float(self.vmax)
+        span = hi - lo if hi != lo else 1.0
+        out = np.clip((np.asarray(value, dtype=float) - lo) / span, 0.0, 1.0) ** self.gamma
+        return out if (clip if clip is not None else self.clip) else out
+
+
+class _SymLogNorm(_Normalize):
+    """Symmetric-log normalisation, as `colors.SymLogNorm`."""
+
+    def __init__(self, linthresh, linscale=1.0, vmin=None, vmax=None, clip=False,
+                 *, base=10):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.linthresh = max(float(linthresh), 1e-300)
+        self.linscale, self.base = float(linscale), float(base)
+
+    def __call__(self, value, clip=None):
+        lo = -1.0 if self.vmin is None else float(self.vmin)
+        hi = 1.0 if self.vmax is None else float(self.vmax)
+
+        def transform(values):
+            arr = np.asarray(values, dtype=float)
+            return np.sign(arr) * np.log1p(np.abs(arr) / self.linthresh)
+
+        span = transform(hi) - transform(lo)
+        out = (transform(value) - transform(lo)) / (span if span else 1.0)
+        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
+
+
 class _BoundaryNorm(_Normalize):
     def __init__(self, boundaries, ncolors, clip=False, **kwargs):
         super().__init__(clip=clip)
@@ -6532,6 +6600,7 @@ class _ListedColormap:
     def __init__(self, colors, name="from_list"):
         self.colors = [_norm_color(c) for c in colors]
         self.name, self.N = str(name), len(self.colors)
+        self._bad = self._under = self._over = None
 
     @classmethod
     def from_list(cls, name, colors, N=256):
@@ -6543,6 +6612,10 @@ class _ListedColormap:
     def _rgb(self):
         return np.asarray([_rgba_tuple(c)[:3] for c in self.colors], dtype=np.float64)
 
+    def set_bad(self, color="k", alpha=None): self._bad = _norm_color(color)
+    def set_under(self, color="k", alpha=None): self._under = _norm_color(color)
+    def set_over(self, color="k", alpha=None): self._over = _norm_color(color)
+
     def __call__(self, X, alpha=None, bytes=False):
         arr = np.asarray(X, dtype=float)
         index = np.clip((arr * self.N).astype(int), 0, self.N - 1)
@@ -6550,6 +6623,35 @@ class _ListedColormap:
                           for c in self.colors], dtype=float) / 255.0
         out = rgb[index]
         return out.astype(np.uint8) if bytes else out
+
+
+def from_levels_and_colors(levels, colors, extend="neither"):
+    """A `(cmap, norm)` pair for discrete levels, as `colors.from_levels_and_colors`."""
+    boundaries = np.asarray(levels, dtype=float).ravel()
+    if boundaries.size < 2:
+        raise ValueError("levels needs at least two boundaries")
+    palette = [_norm_color(c) for c in colors]
+    if not palette:
+        raise ValueError("from_levels_and_colors needs at least one colour")
+    ncolors = boundaries.size - 1
+    palette = [palette[i % len(palette)] for i in range(ncolors)]
+    cmap = _ListedColormap(palette, "from_levels_and_colors")
+    if extend in ("both", "min"):
+        cmap.set_under(palette[0])
+    if extend in ("both", "max"):
+        cmap.set_over(palette[-1])
+    return cmap, _BoundaryNorm(boundaries, ncolors, extend=extend)
+
+
+def _norm_values(norm, data):
+    """Fold `norm` into the data so the renderer's 0-1 mapping is linear."""
+    values = np.asarray(data, dtype=float)
+    finite = values[np.isfinite(values)]
+    if getattr(norm, "vmin", None) is None and finite.size:
+        norm.vmin = float(finite.min())
+    if getattr(norm, "vmax", None) is None and finite.size:
+        norm.vmax = float(finite.max())
+    return np.asarray(norm(values), dtype=float), 0.0, 1.0
 
 
 class _LinearSegmentedColormap(_ListedColormap):
@@ -6599,7 +6701,9 @@ def _rgba_tuple(color):
 
 class _MColors:
     Normalize = _Normalize
-    LogNorm = _Normalize
+    LogNorm = _LogNorm
+    PowerNorm = _PowerNorm
+    SymLogNorm = _SymLogNorm
     NoNorm = _Normalize
     TwoSlopeNorm = _TwoSlopeNorm
     BoundaryNorm = _BoundaryNorm
@@ -7073,6 +7177,7 @@ def _blended_transform_factory(x_transform, y_transform):
 
 mcolors = _MColors()
 mcolors.ScalarMappable = ScalarMappable
+mcolors.from_levels_and_colors = staticmethod(from_levels_and_colors)
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches

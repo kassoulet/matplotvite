@@ -3474,3 +3474,48 @@ def test_eventplot_accepts_a_2d_array_and_stackplot_dict_values():
     ax.stackplot(years, {"a": [1, 2, 3, 4], "b": [4, 3, 2, 1]}.values(),
                  labels={"a": 1, "b": 2}.keys())
     assert len(ax.bands) == 2
+
+
+def test_norms_change_the_image_mapping(tmp_path):
+    plt.rcdefaults()
+    data = np.array([[1.0, 10.0], [100.0, 1000.0]])
+    log = plt.colors.LogNorm(vmin=1.0, vmax=1000.0)
+    assert log(10.0) == pytest.approx(1 / 3, abs=1e-9)
+    assert log(1000.0) == pytest.approx(1.0)
+    assert log.inverse(1 / 3) == pytest.approx(10.0)
+
+    power = plt.colors.PowerNorm(2.0, vmin=0.0, vmax=2.0)
+    assert power(1.0) == pytest.approx(0.25)
+
+    symlog = plt.colors.SymLogNorm(linthresh=1.0, vmin=-100.0, vmax=100.0)
+    assert symlog(0.0) == pytest.approx(0.5)
+    assert symlog(100.0) == pytest.approx(1.0)
+
+    plt.figure()
+    image = plt.imshow(data, cmap="viridis", origin="lower", norm=log)
+    # The norm is folded into the data, so the renderer sees a 0-1 range.
+    assert image._e["vmin"] == 0.0 and image._e["vmax"] == 1.0
+    # imshow stores rows bottom-up for a lower origin.
+    assert np.allclose(image._e["data"], np.flipud([[0.0, 1 / 3], [2 / 3, 1.0]]))
+    p = tmp_path / "lognorm.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_from_levels_and_colors_builds_a_discrete_norm():
+    cmap, norm = plt.colors.from_levels_and_colors(
+        [0, 1, 2, 3], ["red", "green", "blue"])
+    assert cmap.colors == ["#ff0000", "#008000", "#0000ff"]
+    assert norm([0.5, 1.5, 2.5]).tolist() == [0, 1, 2]
+    plt.rcdefaults()
+    plt.figure()
+    plt.pcolormesh(np.array([[0.5, 1.5], [2.5, 0.5]]), cmap=cmap, norm=norm)
+    assert plt.gca().images[0]["vmin"] == 0.0
+
+
+def test_scatter_accepts_a_norm():
+    plt.rcdefaults()
+    plt.figure()
+    handle = plt.scatter([0, 1], [0, 1], c=[1.0, 100.0],
+                         norm=plt.colors.LogNorm(vmin=1.0, vmax=100.0))
+    assert handle._e["values"].tolist() == pytest.approx([0.0, 1.0])
