@@ -1049,6 +1049,9 @@ class _BarHandle:
     def get_facecolor(self):
         return self._axes.bars[self._group]["colors"][:1] or ["#1f77b4"]
 
+    def get_edgecolor(self):
+        return self._axes.bars[self._group].get("edgecolor")
+
     def get_color(self):
         return self.get_facecolor()[0]
 
@@ -3279,7 +3282,8 @@ class Axes:
         n = len(groups)
         pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
         wid = _fill(0.5 if widths is None else widths, n)
-        cap = _fill(wid if capwidths is None else capwidths, n)
+        # Matplotlib's caps are half the box width unless `capwidths` says otherwise.
+        cap = _fill([0.5 * v for v in wid] if capwidths is None else capwidths, n)
         box_style = dict(boxprops or {})
         median_style = dict(medianprops or {})
         whisker_style = dict(whiskerprops or {})
@@ -3287,14 +3291,14 @@ class Axes:
         flier_style = dict(flierprops or {})
         mean_style = dict(meanprops or {})
         box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
-        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), box_color)
-        box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.5)
+        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
+        box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.0)
         median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
         median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
-        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), box_color)
-        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.5)
-        cap_color = _single_color(cap_style.get("color", cap_style.get("c")), whisker_color)
-        cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.5)
+        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
+        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
+        cap_color = _single_color(cap_style.get("color", cap_style.get("c")), "black")
+        cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.0)
         mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
         # `sym=None` means matplotlib's default flier (`o`); only an explicit
         # empty string (`sym=""`) hides the outliers.
@@ -3438,11 +3442,11 @@ class Axes:
         flier_style = dict(flierprops or {})
         mean_style = dict(meanprops or {})
         box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
-        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), box_color)
+        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
         median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
         median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
-        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), box_color)
-        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.5)
+        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
+        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
         mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
         flier_color = _single_color(
             flier_style.get("markerfacecolor", flier_style.get("mfc",
@@ -3457,6 +3461,7 @@ class Axes:
             lo = float(stat.get("whislo", q1))
             hi = float(stat.get("whishi", q3))
             loc, half = float(pos[i]), float(wid[i]) / 2.0
+            cap_half = half / 2.0
             if showbox:
                 if orientation == "vertical":
                     bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
@@ -3475,7 +3480,8 @@ class Axes:
                         [loc, loc], [y0, y1], whisker_color, whisker_width))
                     if showcaps:
                         out["caps"].append(self._stats_line(
-                            [loc - half, loc + half], [y1, y1], whisker_color, whisker_width))
+                            [loc - cap_half, loc + cap_half], [y1, y1],
+                            whisker_color, whisker_width))
             else:
                 out["medians"].append(self._stats_line(
                     [med, med], [loc - half, loc + half], median_color, median_width))
@@ -3484,7 +3490,8 @@ class Axes:
                         [x0, x1], [loc, loc], whisker_color, whisker_width))
                     if showcaps:
                         out["caps"].append(self._stats_line(
-                            [x1, x1], [loc - half, loc + half], whisker_color, whisker_width))
+                            [x1, x1], [loc - cap_half, loc + cap_half],
+                            whisker_color, whisker_width))
             if showmeans and stat.get("mean") is not None:
                 mean = float(stat["mean"])
                 if orientation == "vertical":

@@ -1481,6 +1481,21 @@ def test_boxplot_stats_and_labels(tmp_path):
     assert "#FF7F0E" in s
 
 
+def test_boxplot_uses_matplotlib_style_defaults(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    result = ax.boxplot([[1.0, 2.0, 3.0, 4.0, 5.0]], patch_artist=True)
+    # Filled with C0 but edged, whiskered and capped in black, as Matplotlib.
+    assert result["boxes"][0].get_facecolor() == [plt._CYCLE[0]]
+    assert result["boxes"][0].get_edgecolor() == "#000000"
+    cap = result["caps"][0]
+    xs = cap.get_xdata()
+    assert xs.max() - xs.min() == pytest.approx(0.25)  # half the 0.5 box width
+    p = tmp_path / "box_style.svg"
+    plt.savefig(p)
+    assert "#000000" in p.read_text().upper()
+
+
 def test_boxplot_horizontal_notch_and_fliers(tmp_path):
     data = [np.array([0.0, 1.0, 2.0, 3.0, 100.0]), np.array([2.0, 3.0, 4.0, 5.0, 6.0])]
     plt.figure()
