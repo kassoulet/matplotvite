@@ -2098,7 +2098,25 @@ where
                     let col =
                         RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
                             .mix(alpha);
-                    area.draw(&Polygon::new(pts, col.filled()))?;
+                    // Matplotlib's hexbin uses edgecolors="face". Plotters'
+                    // polygon ignores strokes, so grow each cell about its
+                    // centre instead: adjacent fills overlap and the white
+                    // antialiased seam between them disappears.
+                    let n = pts.len() as f64;
+                    let cx = pts.iter().map(|p| p.0 as f64).sum::<f64>() / n;
+                    let cy = pts.iter().map(|p| p.1 as f64).sum::<f64>() / n;
+                    let grown: Vec<(i32, i32)> = pts
+                        .iter()
+                        .map(|&(x, y)| {
+                            let (dx, dy) = (x as f64 - cx, y as f64 - cy);
+                            let len = (dx * dx + dy * dy).sqrt().max(1.0);
+                            (
+                                (x as f64 + dx / len).round() as i32,
+                                (y as f64 + dy / len).round() as i32,
+                            )
+                        })
+                        .collect();
+                    area.draw(&Polygon::new(grown, col.filled()))?;
                 }
                 if !band.label.is_empty() {
                     let hex = &band.cell_colors[..6];
