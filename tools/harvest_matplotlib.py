@@ -301,6 +301,28 @@ def _nonwhite_pixels(path: pathlib.Path) -> int | None:
     )
 
 
+def failure_status(error: str | None) -> str:
+    """Bucket a failed render: harvester gap, missing API or bug.
+
+    A `NameError` for a name matplotvite already exposes is the harvester's
+    fault (the import line was stripped); any other undefined name, a missing
+    attribute or an unimplemented option needs API work; the rest is a bug in
+    a feature matplotvite claims to support.
+    """
+    if not error:
+        return "failed"
+    kind, _, detail = error.partition(":")
+    if kind == "NameError":
+        match = re.search(r"name '([^']+)' is not defined", detail)
+        name = match.group(1) if match else ""
+        if name and (name in NUMPY_ALIASES or compat_name(name) is not None):
+            return "harvester-gap"
+        return "needs-api"
+    if kind in ("AttributeError", "NotImplementedError"):
+        return "needs-api"
+    return "bug"
+
+
 def _resolve_baseline(tests_root: pathlib.Path, stem: str, name: str) -> pathlib.Path:
     """`baseline_images` names omit extensions; prefer the PNG variant."""
     base = tests_root / "baseline_images" / stem / name
@@ -695,7 +717,8 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
                                     pathlib.Path(str(case["path"])).parent,
                                     ignored=ignored)
             entry["ignored"] = len(ignored)
-            entry["status"] = "failed" if entry["error"] is not None else "rendered"
+            entry["status"] = ("rendered" if entry["error"] is None
+                               else failure_status(str(entry["error"])))
             if entry["error"] is None:
                 entry["ours"] = str(ours)
                 entry["nonwhite"] = _nonwhite_pixels(ours)
@@ -718,19 +741,25 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     summary = "".join(
         f"<li>{html.escape(name)}: {ok}/{total} rendered</li>"
         for name, (total, ok) in sorted(statuses.items()))
-    rendered = sum(case["status"] == "rendered" for case in cases)
-    blank = sum(case["status"] == "blank" for case in cases)
-    unsupported = sum(case["status"] == "unsupported" for case in cases)
+    def count(status: str) -> int:
+        return sum(case["status"] == status for case in cases)
+
+    rendered, blank = count("rendered"), count("blank")
+    unsupported = count("unsupported")
+    needs_api, gaps, bugs = (count("needs-api"), count("harvester-gap"),
+                             count("bug"))
     (out / "index.html").write_text(
         f"<p>{rendered}/{len(cases)} examples rendered, {blank} blank, "
-        f"{unsupported} unsupported</p><ul>{summary}</ul>"
+        f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
+        f"gaps, {bugs} bugs</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
         "<th>status</th></tr>" + "".join(rows)
         + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank, "
-          f"{unsupported} unsupported; gallery: {out / 'index.html'}")
+          f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
+          f"gaps, {bugs} bugs; gallery: {out / 'index.html'}")
     return 0
 
 

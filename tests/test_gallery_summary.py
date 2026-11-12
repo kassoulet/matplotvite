@@ -29,9 +29,9 @@ def test_summary_counts_each_gallery_and_links_the_artifact(tmp_path, monkeypatc
     out = capsys.readouterr().out
 
     assert "## Comparison galleries" in out
-    assert "| Matplotlib baseline images | 5 | 2 | 0 | 1 | 1 | 0 | 1 |" in out
-    assert "| Matplotlib gallery examples | 2 | 1 | 0 | 1 | 0 | 0 | 0 |" in out
-    assert "| Seaborn examples | 2 | 0 | 1 | 0 | 0 | 1 | 0 |" in out
+    assert "| Matplotlib baseline images | 5 | 2 | 0 | 1 | 0 | 1 | 1 |" in out
+    assert "| Matplotlib gallery examples | 2 | 1 | 0 | 0 | 0 | 1 | 0 |" in out
+    assert "| Seaborn examples | 2 | 0 | 1 | 0 | 1 | 0 | 0 |" in out
     assert "`mpl-corpus/index.html`" in out
     assert "[Download the galleries artifact](https://example.test/artifact)" in out
     assert "9 cases across 3 galleries." in out

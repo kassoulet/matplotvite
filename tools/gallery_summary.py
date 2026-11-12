@@ -18,8 +18,8 @@ GALLERIES = (
     ("Matplotlib gallery examples", "mpl-examples"),
     ("Seaborn examples", "seaborn-gallery"),
 )
-STATUS_ORDER = ("rendered", "blank", "pass", "failed", "no baseline", "needs-api",
-                "unsupported")
+STATUS_ORDER = ("rendered", "blank", "pass", "no baseline", "needs-api",
+                "harvester-gap", "bug", "failed", "unsupported")
 
 
 def load_counts(path: pathlib.Path) -> tuple[collections.Counter[str], int]:

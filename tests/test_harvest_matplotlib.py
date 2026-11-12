@@ -5,8 +5,9 @@ from pathlib import Path
 
 import matplotvite
 
-from tools.harvest_matplotlib import (_resolve_baseline, find_examples_root,
-                                      find_tests_root, harvest, harvest_examples,
+from tools.harvest_matplotlib import (_resolve_baseline, failure_status,
+                                      find_examples_root, find_tests_root,
+                                      harvest, harvest_examples,
                                       harvest_examples_gallery, harvest_gallery,
                                       prepare_body, prepare_example, render)
 
@@ -201,6 +202,19 @@ def test_examples_gallery_marks_out_of_scope_categories(tmp_path):
     assert cases["lines/demo"]["status"] == "rendered"
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "2 unsupported" in index
+
+
+def test_failure_status_splits_gaps_from_missing_apis():
+    assert failure_status(None) == "failed"
+    # A stripped name matplotvite already exposes is the harvester's fault.
+    assert failure_status(
+        "NameError: name 'MaxNLocator' is not defined") == "harvester-gap"
+    assert failure_status(
+        "NameError: name 'streamplot' is not defined") == "needs-api"
+    assert failure_status(
+        "AttributeError: 'Axes' object has no attribute 'triplot'") == "needs-api"
+    assert failure_status("NotImplementedError: 'symlog'") == "needs-api"
+    assert failure_status("TypeError: fill expects (x, y)") == "bug"
 
 
 def test_render_runs_in_a_scratch_directory(tmp_path, monkeypatch):
