@@ -214,10 +214,12 @@ def _text_props(fontdict, kwargs):
     va = props.pop("verticalalignment", props.pop("va", "baseline"))
     bbox = _text_bbox(props.pop("bbox", None))
     rotation = _rotation_value(props.pop("rotation", None))
+    family = props.pop("fontfamily", props.pop("family", props.pop("fontname", None)))
+    family = _font_family(family)
     unexpected = [key for key in props if key not in _IGNORED_TEXT_KWARGS]
     if unexpected:
         raise TypeError(f"unexpected text keyword argument {unexpected[0]!r}")
-    return transform, fontsize, colour, ha, va, bbox, rotation
+    return transform, fontsize, colour, ha, va, bbox, rotation, family
 
 
 def _mathtext(text):
@@ -1477,6 +1479,41 @@ def _font_size(value, default=10.0):
         return float(default)
 
 
+_FONT_FAMILY_ALIASES = {
+    "sans-serif": "DejaVu Sans, sans-serif",
+    "sans": "DejaVu Sans, sans-serif",
+    "dejavu sans": "DejaVu Sans, sans-serif",
+    "dejavusans": "DejaVu Sans, sans-serif",
+    "serif": "Geist Serif",
+    "geist serif": "Geist Serif",
+    "monospace": "Geist Mono",
+    "mono": "Geist Mono",
+    "geist mono": "Geist Mono",
+}
+
+
+def _font_family(value=None):
+    """Resolve a Matplotlib font family to one of the embedded faces.
+
+    `font.family` may be a string or a preference list; unknown names fall back
+    to DejaVu Sans, the same way Matplotlib falls back when a font is missing.
+    """
+    if value is None:
+        value = rcParams.get("font.family", ["sans-serif"])
+    families = [value] if isinstance(value, str) else list(value or [])
+    for family in families:
+        resolved = _FONT_FAMILY_ALIASES.get(str(family).strip().lower())
+        if resolved:
+            return resolved
+    return _FONT_FAMILY_ALIASES["sans-serif"]
+
+
+def _family_override(kwargs):
+    """Explicit `fontfamily=`/`family=` on an artist, or None to follow rcParams."""
+    value = kwargs.get("fontfamily", kwargs.get("family", kwargs.get("fontname")))
+    return None if value is None else _font_family(value)
+
+
 def _numbers(value):
     if value is None:
         return []
@@ -2656,7 +2693,9 @@ class Axes:
         self.legend_title = ""
         self.legend_title_fontsize = None
         self.legend_anchor = None
+        self.legend_family = None
         self.title_size = self.xlabel_size = self.ylabel_size = None
+        self.title_family = self.xlabel_family = self.ylabel_family = None
         self.transAxes = _CoordTransform("axes")
         self.transData = _CoordTransform("data")
         self.patch = Rectangle((0, 0), 1, 1, transform=self.transAxes,
@@ -3468,7 +3507,8 @@ class Axes:
         """Place text at (x, y); `transform` may be `ax.transAxes` or
         `fig.transFigure` to use axes- or figure-fraction coordinates. Other
         Matplotlib text properties are accepted but not drawn yet."""
-        transform, fontsize, colour, ha, va, bbox, rotation = _text_props(fontdict, kwargs)
+        transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
+            fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va == "center_baseline":
@@ -3484,7 +3524,7 @@ class Axes:
         y = _as_f64(y)
         self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s),
                                       _norm_color(colour), size, ha, va, kind, bbox,
-                                      rotation)))
+                                      rotation, family)))
         return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
@@ -4377,13 +4417,14 @@ class Axes:
         renderer currently treats both coordinate systems as data coordinates.
         """
         size = _font_size(fontsize, rcParams.get("font.size", 10.0))
+        family = _family_override(kwargs)
         color = color or kwargs.get("color") or rcParams.get("text.color", "black")
         xytext = kwargs.get("xytext", xytext)
         xy = _as_f64(xy)
         xytext = None if xytext is None else _as_f64(xytext)
         self.annotations.append((_mathtext(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
-                                 _norm_color(color), size))
+                                 _norm_color(color), size, family or ""))
 
     def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
                 vmin=None, vmax=None, data=None, norm=None, **kwargs):
@@ -4569,16 +4610,19 @@ class Axes:
     def set_title(self, t, fontsize=None, **kwargs):
         self.title = _mathtext(t)
         self.title_size = self._size_or(fontsize, "axes.titlesize")
+        self.title_family = _family_override(kwargs)
 
     def set_xlabel(self, t, fontsize=None, **kwargs):
         self.xlabel = _mathtext(t)
         self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
+        self.xlabel_family = _family_override(kwargs)
         if "color" in kwargs or "labelcolor" in kwargs:
             self.xlabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
     def set_ylabel(self, t, fontsize=None, **kwargs):
         self.ylabel = _mathtext(t)
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
+        self.ylabel_family = _family_override(kwargs)
         if "color" in kwargs or "labelcolor" in kwargs:
             self.ylabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
@@ -4626,7 +4670,7 @@ class Axes:
 
     def legend(self, *args, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
                title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
-               labels=None, **kwargs):
+               labels=None, fontfamily=None, **kwargs):
         """Show a legend. Supports placement, layout and explicit handles/labels."""
         if len(args) == 1:
             arg = args[0]
@@ -4657,6 +4701,8 @@ class Axes:
             self.legend_title = _mathtext(title)
         if title_fontsize is not None:
             self.legend_title_fontsize = _font_size(title_fontsize, 11.0)
+        if fontfamily is not None:
+            self.legend_family = _font_family(fontfamily)
         elif title is not None and self.legend_title_fontsize is None:
             self.legend_title_fontsize = _font_size(rcParams.get("legend.fontsize", 10.0)) * 1.1
         if bbox_to_anchor is not None:
@@ -5086,13 +5132,18 @@ class Axes:
             elif yticklabels is None:
                 yticklabels = [_symlog_label(v) for v in yticks]
         return dict(pos=self.pos, series=series, texts=texts, title=self.title,
+                    font_family=_font_family(),
+                    title_family=self.title_family,
+                    xlabel_family=self.xlabel_family,
+                    ylabel_family=self.ylabel_family,
                     dpi=float(self._fig.dpi if self._fig is not None else DPI),
                     xlabel=self.xlabel, ylabel=self.ylabel,
                     title_size=self.title_size, xlabel_size=self.xlabel_size,
                     ylabel_size=self.ylabel_size,
                     legend=dict(show=self.show_legend, loc=self.legend_loc,
                                 ncol=self.legend_ncol, frameon=self.legend_frameon,
-                                fontsize=legend_font, title=self.legend_title,
+                                fontsize=legend_font, family=self.legend_family or _font_family(),
+                                title=self.legend_title,
                                 title_fontsize=legend_title, anchor=self.legend_anchor),
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
@@ -5139,7 +5190,7 @@ class Axes:
 
     def _resolve_text(self, t, x0, x1, y0, y1):
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
-        x, y, s, c, size, ha, va, kind, bbox, rotation = t
+        x, y, s, c, size, ha, va, kind, bbox, rotation, family = t
         if kind == "axes":
             x, y = x0 + x * (x1 - x0), y0 + y * (y1 - y0)
         elif kind == "figure":
@@ -5148,7 +5199,7 @@ class Axes:
             fx0, fy0 = col / cols, (rows - 1 - row) / rows
             x = x0 + (x - fx0) * cols * (x1 - x0)
             y = y0 + (y - fy0) * rows * (y1 - y0)
-        return (x, y, s, c, size, ha, va, bbox, rotation)
+        return (x, y, s, c, size, ha, va, bbox, rotation, family)
 
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
@@ -6121,12 +6172,14 @@ class Figure:
     def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
         """Draw a figure-level title above the panel grid."""
         size = _font_size(fontsize, rcParams.get("figure.titlesize", 14.0))
-        self._suptitle = dict(text=_mathtext(t), size=size, x=float(x), y=float(y))
+        self._suptitle = dict(text=_mathtext(t), size=size, x=float(x), y=float(y),
+                              family=_family_override(kwargs))
         return None
 
     def text(self, x, y, s, fontdict=None, **kwargs):
         """Figure-fraction text, drawn above every panel so nothing clips it."""
-        _transform, fontsize, colour, ha, va, bbox, rotation = _text_props(fontdict, kwargs)
+        _transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
+            fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
         if va == "center_baseline":
@@ -6137,7 +6190,8 @@ class Figure:
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         values = _as_f64((x, y))
         self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s),
-                                   _norm_color(colour), size, ha, va, bbox, rotation))
+                                   _norm_color(colour), size, ha, va, bbox, rotation,
+                                   family))
         return _TextArt()
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
@@ -6406,6 +6460,8 @@ class Figure:
             "edgecolor": _norm_color(edgecolor) or self.edgecolor,
             "compression": compression,
             "suptitle": self._suptitle["text"] if self._suptitle else "",
+            "suptitle_family": (self._suptitle.get("family") or _font_family())
+            if self._suptitle else _font_family(),
             "suptitle_size": self._suptitle["size"] if self._suptitle else 14.0,
             "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
             "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
@@ -6537,7 +6593,8 @@ def figtext(x, y, s, **kwargs):
 def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
 def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
-def title(text, fontsize=None, **kwargs): gca().set_title(text, fontsize=fontsize)
+def title(text, fontsize=None, **kwargs):
+    return gca().set_title(text, fontsize=fontsize, **kwargs)
 def text(*args, **kwargs): return gca().text(*args, **kwargs)
 text.Text = Text
 def xticks(ticks=None, labels=None, **kwargs):

@@ -45,7 +45,12 @@ pub(crate) fn register_plotters_fonts() {
             let _ = plotters::style::register_font(family, FontStyle::Normal, FONT_SANS);
             let _ = plotters::style::register_font(family, FontStyle::Bold, FONT_SANS_BOLD);
         }
-        let fonts: &[(&str, &[u8])] = &[("serif", FONT_SERIF), ("monospace", FONT_MONO)];
+        let fonts: &[(&str, &[u8])] = &[
+            ("serif", FONT_SERIF),
+            ("monospace", FONT_MONO),
+            ("Geist Serif", FONT_SERIF),
+            ("Geist Mono", FONT_MONO),
+        ];
         for (name, bytes) in fonts {
             let _ = plotters::style::register_font(name, FontStyle::Normal, bytes);
         }

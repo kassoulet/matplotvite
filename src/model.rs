@@ -102,6 +102,8 @@ pub(crate) struct RenderOptions {
     #[pyo3(item)]
     pub(crate) suptitle: String,
     #[pyo3(item)]
+    pub(crate) suptitle_family: String,
+    #[pyo3(item)]
     pub(crate) suptitle_size: f64,
     #[pyo3(item)]
     pub(crate) suptitle_x: f64,
@@ -115,6 +117,7 @@ pub(crate) struct RenderOptions {
 /// Figure-level title drawn above the panel grid.
 pub(crate) struct Suptitle<'a> {
     pub(crate) text: &'a str,
+    pub(crate) family: &'a str,
     pub(crate) size: f64,
     pub(crate) x: f64,
     pub(crate) y: f64,
@@ -193,7 +196,7 @@ pub(crate) struct TextBBox {
 }
 
 /// (x, y, text, color, font size, horizontal align, vertical align, bbox,
-/// rotation in degrees).
+/// rotation in degrees, font family).
 pub(crate) type TextItem = (
     f64,
     f64,
@@ -204,6 +207,7 @@ pub(crate) type TextItem = (
     String,
     Option<TextBBox>,
     f64,
+    String,
 );
 
 /// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper,
@@ -219,8 +223,8 @@ pub(crate) type ImageItem = (
     String,
 );
 
-/// (text, xy, xytext, color, font size).
-pub(crate) type Annotation = (String, (f64, f64), Option<(f64, f64)>, String, f64);
+/// (text, xy, xytext, color, font size, font family).
+pub(crate) type Annotation = (String, (f64, f64), Option<(f64, f64)>, String, f64, String);
 
 /// (x, y, yerr-lo, yerr-hi, xerr-lo, xerr-hi, color, cap half-width in px).
 pub(crate) type ErrorItem = (
@@ -375,6 +379,8 @@ pub(crate) struct LegendEntry {
 #[derive(FromPyObject)]
 pub(crate) struct Legend {
     #[pyo3(item)]
+    pub(crate) family: String,
+    #[pyo3(item)]
     pub(crate) show: bool,
     #[pyo3(item)]
     pub(crate) loc: String,
@@ -426,6 +432,16 @@ pub(crate) struct Panel {
     /// Fingerprint from the Python layer; empty disables the fragment cache.
     #[pyo3(item)]
     pub(crate) cache_key: String,
+    /// Font family for this panel's text, resolved from `rcParams["font.family"]`.
+    #[pyo3(item)]
+    pub(crate) font_family: String,
+    /// Per-artist overrides; `None` follows `font_family`.
+    #[pyo3(item)]
+    pub(crate) title_family: Option<String>,
+    #[pyo3(item)]
+    pub(crate) xlabel_family: Option<String>,
+    #[pyo3(item)]
+    pub(crate) ylabel_family: Option<String>,
     /// Effective output resolution, used to convert point sizes to pixels.
     #[pyo3(item)]
     pub(crate) dpi: f64,

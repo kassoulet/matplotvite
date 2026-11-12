@@ -3606,3 +3606,29 @@ def test_text_rotation_applies_to_axes_and_figure_text(tmp_path):
     svg = p.read_text()
     assert "upright" in svg and "sideways" in svg
     assert svg.count('transform="rotate(90') == 2
+
+
+def test_font_family_selection_and_overrides(tmp_path):
+    """rcParams picks the bundled face; artist keywords override it."""
+    plt.rcParams["font.family"] = ["serif"]
+    try:
+        fig, ax = plt.subplots()
+        ax.plot([0, 1], [0, 1])
+        ax.set_title("serif title")
+        svg = fig.savefig(None, format="svg").decode()
+        assert 'font-family="Geist Serif"' in svg
+        fig.savefig(tmp_path / "serif.png")
+
+        fig, ax = plt.subplots()
+        ax.plot([0, 1], [0, 1])
+        ax.set_title("mono title", fontfamily="monospace")
+        ax.set_xlabel("x label", fontfamily="DejaVu Sans")
+        ax.text(0.5, 0.5, "note", fontfamily="DejaVu Sans")
+        fig.text(0.5, 0.02, "foot", fontfamily="DejaVu Sans")
+        fig.suptitle("sup", fontfamily="DejaVu Sans")
+        svg = fig.savefig(None, format="svg").decode()
+        assert 'font-family="Geist Mono"' in svg
+        assert 'font-family="DejaVu Sans, sans-serif"' in svg
+        fig.savefig(tmp_path / "overrides.png")
+    finally:
+        plt.rcParams["font.family"] = ["sans-serif"]

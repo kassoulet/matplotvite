@@ -81,6 +81,7 @@
 ### 0.2.8 Font sizes
 - [x] `title(fontsize=)`, `xlabel(fontsize=)`, `ylabel(fontsize=)`, and `text(fontsize=)`
 - [x] Global `rcParams` font size (`font.size`, `axes.labelsize`, `axes.titlesize`, `legend.fontsize`)
+- [x] Font families backed by the embedded faces: `rcParams["font.family"]` selects DejaVu Sans / Geist Serif / Geist Mono, and `title`, `xlabel`, `ylabel`, `text`, `suptitle` and `legend` accept `fontfamily=`
 
 ---
 
