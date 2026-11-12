@@ -20,6 +20,7 @@ __all__ = (
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
     "mtransforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
     "    Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection",
     "mcollections", "collections", "ConnectionPatch",
@@ -2220,7 +2221,17 @@ class _Axis:
     def set_ticklabels(self, labels, **kwargs):
         if self._axis == "x": self._parent.set_xticklabels(labels, **kwargs)
         else: self._parent.set_yticklabels(labels, **kwargs)
-    def set_major_locator(self, locator): self._locator = locator
+    def set_major_locator(self, locator):
+        """Place the major ticks with `locator`, dropping explicit tick lists."""
+        self._locator = locator
+        if hasattr(locator, "set_axis"):
+            locator.set_axis(self)
+        if self._axis == "x":
+            self._parent._xlocator = locator
+            self._parent._xticks = self._parent._xticklabels = None
+        else:
+            self._parent._ylocator = locator
+            self._parent._yticks = self._parent._yticklabels = None
     def set_minor_locator(self, locator): return None
     def set_major_formatter(self, formatter): self._formatter = formatter
     def set_minor_formatter(self, formatter): return None
@@ -2378,6 +2389,7 @@ class Axes:
                                facecolor=self.get_facecolor(), edgecolor="none")
         self._axlines = []
         self._xticks = self._yticks = None
+        self._xlocator = self._ylocator = None
         self._xticklabels = self._yticklabels = None
         self._x_date = False
         self._categories = []
@@ -2947,10 +2959,9 @@ class Axes:
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.show_legend, self.xlim, self.ylim = False, None, None
         self._xticks = self._yticks = None
+        self._xlocator = self._ylocator = None
+        self.xaxis._locator = self.yaxis._locator = None
         self._xticklabels = self._yticklabels = None
-        self._x_date = False
-        self._categories = []
-        self.show_grid = False
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
         self.grid_axis = "both"
         self.tick_params_x.clear()
@@ -3022,14 +3033,33 @@ class Axes:
         self.set_yticks(ticks, labels=labels, **kwargs)
         return (self.get_yticks(), self.get_yticklabels())
 
+    def _locator_ticks(self, axis):
+        """Tick positions from the major locator, or None for the automatic ones."""
+        locator = self._xlocator if axis == "x" else self._ylocator
+        if locator is None:
+            return None
+        lo, hi = self.get_xlim() if axis == "x" else self.get_ylim()
+        try:
+            ticks = np.asarray(locator.tick_values(lo, hi), dtype=float).ravel()
+        except (AttributeError, TypeError, ValueError):
+            return None
+        ticks = ticks[np.isfinite(ticks)]
+        return [float(v) for v in ticks] or None
+
     def get_xticks(self, minor=False):
         if self._xticks is not None:
             return np.asarray(self._xticks)
+        ticks = self._locator_ticks("x")
+        if ticks is not None:
+            return np.asarray(ticks)
         return np.linspace(*self.get_xlim(), 6)
 
     def get_yticks(self, minor=False):
         if self._yticks is not None:
             return np.asarray(self._yticks)
+        ticks = self._locator_ticks("y")
+        if ticks is not None:
+            return np.asarray(ticks)
         return np.linspace(*self.get_ylim(), 6)
 
     def set_xticklabels(self, labels, **kwargs):
@@ -4607,6 +4637,9 @@ class Axes:
         legend_title = (float(self.legend_title_fontsize)
                         if self.legend_title_fontsize is not None else legend_font * 1.1)
         xticks, xticklabels = self._xticks, self._xticklabels
+        if xticks is None:
+            xticks = self._locator_ticks("x")
+        yticks = self._yticks if self._yticks is not None else self._locator_ticks("y")
         if self._x_date and self.xscale == "linear":
             if xticks is None:
                 lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
@@ -4640,7 +4673,7 @@ class Axes:
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,
                               linestyle=self.grid_linestyle, axis=self.grid_axis),
                     ticks=dict(xticks=xticks, xticklabels=xticklabels,
-                               yticks=self._yticks, yticklabels=self._yticklabels,
+                               yticks=yticks, yticklabels=self._yticklabels,
                                xstyle=self._tick_style_dict("x"),
                                ystyle=self._tick_style_dict("y"),
                                hide_xlabels=self.hide_xticklabels or self._twin == "y",
@@ -6238,6 +6271,110 @@ class _NoopLocator:
     def set_axis(self, axis): return None
 
 
+class _Locator:
+    """Base for the major locators that really place ticks.
+
+    Matplotlib derives tick positions from the locator attached to the axis,
+    so accepting `set_major_locator` without using it silently ignores the
+    caller's tick choice. `_NoopLocator` stays for the locators that only
+    need to be accepted, such as `LogLocator` and `NullLocator`.
+    """
+
+    axis = None
+
+    def set_axis(self, axis): self.axis = axis
+    def set_params(self, **kwargs): return None
+    def __call__(self, vmin=None, vmax=None):
+        if vmin is None or vmax is None:
+            raise ValueError("a locator needs the axis limits")
+        return self.tick_values(vmin, vmax)
+
+
+def _locator_span(vmin, vmax):
+    return (vmin, vmax) if vmin <= vmax else (vmax, vmin)
+
+
+def _locator_value(value):
+    """Drop the binary noise so 3 * 0.1 reads as 0.3."""
+    return float(f"{value:.12g}")
+
+
+class _MultipleLocator(_Locator):
+    """Ticks at multiples of `base`, as `ticker.MultipleLocator`."""
+
+    def __init__(self, base=1.0):
+        self.base = float(base)
+
+    def set_params(self, base=None):
+        if base is not None:
+            self.base = float(base)
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _locator_span(vmin, vmax)
+        base = self.base if self.base > 0 else 1.0
+        first = _math.ceil(lo / base - 1e-9) * base
+        last = _math.floor(hi / base + 1e-9) * base
+        count = int(round((last - first) / base)) + 1 if last >= first else 0
+        return np.asarray([_locator_value(first + i * base) for i in range(count)])
+
+
+class _MaxNLocator(_Locator):
+    """Roughly `nbins` "nice" ticks, as `ticker.MaxNLocator`."""
+
+    _STEPS = (1.0, 2.0, 2.5, 5.0, 10.0)
+
+    def __init__(self, nbins=None, steps=None, **kwargs):
+        self.nbins = nbins
+        self.steps = tuple(float(v) for v in steps) if steps else self._STEPS
+
+    def set_params(self, nbins=None, steps=None, **kwargs):
+        if nbins is not None:
+            self.nbins = nbins
+        if steps is not None:
+            self.steps = tuple(float(v) for v in steps)
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _locator_span(vmin, vmax)
+        if not hi > lo:
+            return np.asarray([_locator_value(lo)])
+        nbins = 9 if self.nbins in (None, "auto") else max(1, int(self.nbins))
+        raw = (hi - lo) / nbins
+        magnitude = 10.0 ** _math.floor(_math.log10(raw))
+        step = magnitude * self.steps[-1]
+        for candidate in sorted(self.steps):
+            if magnitude * candidate >= raw - 1e-12:
+                step = magnitude * candidate
+                break
+        first = _math.ceil(lo / step - 1e-9) * step
+        count = int(_math.floor((hi - first) / step + 1e-9)) + 1
+        return np.asarray([_locator_value(first + i * step) for i in range(max(count, 0))])
+
+
+class _FixedLocator(_Locator):
+    """Ticks exactly at `locs`."""
+
+    def __init__(self, locs, **kwargs):
+        self.locs = np.asarray(locs, dtype=float).ravel()
+
+    def tick_values(self, vmin, vmax): return self.locs
+    def __call__(self, vmin=None, vmax=None): return self.locs
+
+
+class _LinearLocator(_Locator):
+    """`numticks` ticks evenly spaced over the axis limits."""
+
+    def __init__(self, numticks=None, **kwargs):
+        self.numticks = numticks
+
+    def set_params(self, numticks=None, **kwargs):
+        if numticks is not None:
+            self.numticks = numticks
+
+    def tick_values(self, vmin, vmax):
+        num = 6 if self.numticks is None else max(2, int(self.numticks))
+        return np.linspace(vmin, vmax, num)
+
+
 class _NoopFormatter:
     def __init__(self, *args, **kwargs): self.args = args
     def __call__(self, value, pos=None): return str(value)
@@ -6291,14 +6428,18 @@ collections = mcollections
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          offset_copy=_offset_copy)
 mticker = _Namespace(
-    Locator=_NoopLocator, MultipleLocator=_NoopLocator, FixedLocator=_NoopLocator,
-    LinearLocator=_NoopLocator, LogLocator=_NoopLocator, MaxNLocator=_NoopLocator,
+    Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
+    LinearLocator=_LinearLocator, LogLocator=_NoopLocator, MaxNLocator=_MaxNLocator,
     NullLocator=_NoopLocator, AutoMinorLocator=_NoopLocator, Formatter=_NoopFormatter,
     FuncFormatter=_NoopFormatter, FormatStrFormatter=_NoopFormatter,
     StrMethodFormatter=_NoopFormatter, ScalarFormatter=_NoopFormatter,
     LogFormatter=_NoopFormatter, NullFormatter=_NoopFormatter,
 )
 ticker = mticker
+MultipleLocator = _MultipleLocator
+MaxNLocator = _MaxNLocator
+FixedLocator = _FixedLocator
+LinearLocator = _LinearLocator
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)

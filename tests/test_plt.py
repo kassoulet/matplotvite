@@ -993,6 +993,40 @@ def test_axes_set_dispatch(tmp_path):
         ax.set(nonexistent=1)
 
 
+def test_major_locators_place_ticks(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    ax.plot([0.0, 1.0], [0.0, 3500.0])
+    ax.xaxis.set_major_locator(plt.MultipleLocator(0.25))
+    assert list(ax.get_xticks()) == pytest.approx([0.0, 0.25, 0.5, 0.75, 1.0])
+    ticks = ax._panel()["ticks"]
+    assert ticks["xticks"] == pytest.approx([0.0, 0.25, 0.5, 0.75, 1.0])
+    ax.yaxis.set_major_locator(plt.MaxNLocator(8))
+    yticks = ax._panel()["ticks"]["yticks"]
+    # 0 to 3500 in 500s, as Matplotlib's AutoLocator chooses for this span.
+    assert yticks == pytest.approx([0.0, 500.0, 1000.0, 1500.0, 2000.0,
+                                    2500.0, 3000.0, 3500.0])
+    p = tmp_path / "locators.svg"
+    plt.savefig(p)
+    text = p.read_text()
+    assert "0.25" in text and "3500" in text
+    # The locator wins over a tick list set before it, as in Matplotlib.
+    ax.set_xticks([0.5])
+    ax.xaxis.set_major_locator(plt.FixedLocator([0.0, 1.0]))
+    assert list(ax.get_xticks()) == [0.0, 1.0]
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["0", "1"]
+
+
+def test_linear_locator_spreads_ticks_over_the_limits():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    ax.plot([0, 10], [0, 1])
+    ax.yaxis.set_major_locator(plt.LinearLocator(3))
+    lo, hi = ax.get_ylim()
+    assert list(ax.get_yticks()) == pytest.approx([lo, (lo + hi) / 2, hi])
+    assert len(ax._panel()["ticks"]["yticks"]) == 3
+
+
 def test_axes_tick_labels_are_text_like():
     plt.figure()
     ax = plt.gca()
