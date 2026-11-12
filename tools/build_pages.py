@@ -713,9 +713,9 @@ def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
 
   <header class="hero">
     <p class="hero-kicker">Python plotting · Rust rendering path</p>
-    <h1 class="hero-title">Static matplotlib-style figures without a matplotlib runtime</h1>
+    <h1 class="hero-title">Static matplotlib-style figures, native renderer</h1>
     <p class="hero-subtitle">
-      Matplotvite maps NumPy arrays and dataframes to a compiled Rust renderer and
+      Matplotvite maps NumPy arrays and dataframes to a fast Rust renderer and
       writes PNG, SVG, PDF, or WebP output. The public API follows matplotlib's
       pyplot and object-oriented interfaces where practical.
     </p>

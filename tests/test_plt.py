@@ -3632,3 +3632,23 @@ def test_font_family_selection_and_overrides(tmp_path):
         fig.savefig(tmp_path / "overrides.png")
     finally:
         plt.rcParams["font.family"] = ["sans-serif"]
+
+
+def test_axes_image_artist_constructor():
+    """Subclasses can build an AxesImage before filling it with set_array."""
+    from matplotvite import AxesImage
+
+    fig, ax = plt.subplots()
+
+    class RibbonImage(AxesImage):
+        def __init__(self, axes, extent, **kwargs):
+            super().__init__(axes, extent=extent, interpolation="bicubic", **kwargs)
+            self.set_transform(ax.transData)
+
+    image = RibbonImage(ax, extent=(0, 1, 0, 1))
+    assert image.get_array() is None
+    assert image.get_extent() == (0.0, 1.0, 0.0, 1.0)
+    image.set_array(np.zeros((2, 2, 4)))
+    assert image.get_array().shape == (2, 2, 4)
+    image.draw()
+    fig.savefig(None, format="png")

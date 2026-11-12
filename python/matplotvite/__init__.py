@@ -691,8 +691,16 @@ Bbox = _Bbox
 class _Transform:
     """Stand-in for a matplotlib transform: data coordinates pass through."""
 
+    def __init__(self, *args, **kwargs):
+        self._args, self._kwargs = args, kwargs
+
     def transform(self, points): return np.asarray(points, dtype=np.float64)
 
+    def __add__(self, other): return self
+    def __radd__(self, other): return self
+    def translate(self, *args, **kwargs): return self
+    def rotate_deg(self, *args, **kwargs): return self
+    def scale(self, *args, **kwargs): return self
     def inverted(self): return self
 
 
@@ -5942,14 +5950,32 @@ class ContourSet:
 
 
 class AxesImage:
-    """Handle returned by `Axes.imshow`, for later tweaks."""
+    """Handle returned by `Axes.imshow`, for later tweaks.
 
-    def __init__(self, entry, axes=None):
-        self._e = entry
-        self.axes = axes
+    The constructor also accepts Matplotlib's artist form,
+    `AxesImage(axes, extent=..., cmap=..., interpolation=...)`, which subclasses
+    use before calling `set_array`.
+    """
 
-    def get_array(self): return self._e["data"]
+    def __init__(self, entry=None, axes=None, *, extent=None, cmap="viridis",
+                 interpolation="nearest", alpha=1.0, origin="upper", **kwargs):
+        if isinstance(entry, dict):  # internal entry from Axes.imshow
+            self._e = entry
+            self.axes = axes
+        else:
+            self.axes = entry if axes is None else axes
+            self._e = dict(data=None, cmap=_cmap_name(cmap), vmin=None, vmax=None,
+                           extent=None if extent is None else tuple(float(v) for v in extent),
+                           alpha=float(alpha), interpolation=str(interpolation))
+        self._visible = True
+        self._zorder = 0
+        self._transform = None
+
+    def get_array(self): return self._e.get("data")
     def set_data(self, X): self._e["data"] = _as_image(X)
+    set_array = set_data
+    def get_transform(self): return self._transform
+    def draw(self, renderer=None): return None
     def get_cmap(self): return get_cmap(self._e["cmap"])
 
     @property
