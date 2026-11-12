@@ -1760,6 +1760,12 @@ where
                 || p.grid.alpha.is_some()
                 || p.grid.linestyle.is_some()));
     let exact_axes = p.axes_bounds;
+    // Fixed margins at 25 px + 45 px label bands only fit tall panels. On a
+    // short subplot row they consume the whole cell, leaving a few pixels for
+    // the data (Matplotlib budgets these margins as a fraction of the axes).
+    let panel_h = area.dim_in_pixel().1 as f64;
+    let margin = (panel_h / 10.0).clamp(4.0, 25.0).round() as u32;
+    let label_area = (panel_h / 5.0).clamp(8.0, 45.0).round() as u32;
     let shrunk_area;
     let mut builder = ChartBuilder::on(area);
     if exact_axes {
@@ -1770,7 +1776,7 @@ where
         builder.margin_right(25);
         builder.margin_top(25);
     } else {
-        builder.margin(25);
+        builder.margin(margin);
         if colorbar.is_some() {
             builder.margin_right(125);
         } else if twin_reserve == "y" {
@@ -1795,8 +1801,8 @@ where
         );
     }
     let mut chart = builder
-        .x_label_area_size(if exact_axes { 30 } else { 45 })
-        .y_label_area_size(if exact_axes { 40 } else { 45 })
+        .x_label_area_size(if exact_axes { 30 } else { label_area })
+        .y_label_area_size(if exact_axes { 40 } else { label_area })
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
@@ -1826,7 +1832,7 @@ where
             Some(a) => ChartBuilder::on(a),
             None => ChartBuilder::on(area),
         };
-        rb.margin(25);
+        rb.margin(margin);
         if colorbar.is_some() {
             rb.margin_right(125);
         } else if twin_reserve == "y" {
@@ -1846,8 +1852,8 @@ where
             );
         }
         chart = rb
-            .x_label_area_size(45)
-            .y_label_area_size(45)
+            .x_label_area_size(label_area)
+            .y_label_area_size(label_area)
             .build_cartesian_2d(x0..x1, y0..y1)?;
     }
     if let Some(fc) = &p.facecolor {
