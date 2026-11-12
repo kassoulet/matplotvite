@@ -587,8 +587,9 @@ pub(crate) struct Bar {
     pub(crate) height: OwnedArray1,
     #[pyo3(item)]
     pub(crate) colors: Vec<String>,
+    /// One edge colour per bar; a shorter list cycles.
     #[pyo3(item)]
-    pub(crate) edgecolor: Option<String>,
+    pub(crate) edgecolor: Option<Vec<String>>,
     #[pyo3(item)]
     pub(crate) alpha: Option<f64>,
     #[pyo3(item)]

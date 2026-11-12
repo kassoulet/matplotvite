@@ -19,9 +19,11 @@ __all__ = (
     "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
-    "mtransforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
+    "same_color", "FixedFormatter", "LogLocator",
     "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
-    "    Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
+    "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
@@ -45,10 +47,12 @@ _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
 _FMT_COLORS = {"b": "blue", "g": "green", "r": "red", "k": "black"}
 _SHORT_COLORS = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
+# Matplotlib's C0-C9 order; the `tab:grey` spelling is a trailing alias so
+# iterating the dict still lines up with the default property cycle.
 _TAB10 = {"tab:blue": "#1f77b4", "tab:orange": "#ff7f0e", "tab:green": "#2ca02c",
           "tab:red": "#d62728", "tab:purple": "#9467bd", "tab:brown": "#8c564b",
-          "tab:pink": "#e377c2", "tab:gray": "#7f7f7f", "tab:grey": "#7f7f7f",
-          "tab:olive": "#bcbd22", "tab:cyan": "#17becf"}
+          "tab:pink": "#e377c2", "tab:gray": "#7f7f7f", "tab:olive": "#bcbd22",
+          "tab:cyan": "#17becf", "tab:grey": "#7f7f7f"}
 
 # Compatibility shims that cannot affect the renderer record their calls here.
 # The gallery reads and resets this list per case; direct users get one warning
@@ -65,14 +69,27 @@ def _ignored(name):
                       RuntimeWarning, stacklevel=3)
 
 
+def _with_alpha(value, alpha):
+    """Apply an alpha value to a normalised colour string."""
+    if value in (None, "none"):
+        return value
+    alpha = min(max(float(alpha), 0.0), 1.0)
+    body = value[1:7]
+    return f"#{body}{round(alpha * 255):02x}"
+
+
 def _norm_color(c):
     """Normalise a matplotlib colour spec to `#rrggbb`, `#rrggbbaa` or "none".
 
     Accepts CSS4 names, single-letter shorthands, `C0`-`C9`, hex strings
-    (3/6/8 digits), RGB(A) tuples in 0-1 and greyscale strings such as "0.5".
+    (3/6/8 digits), RGB(A) tuples in 0-1, greyscale strings such as "0.5" and
+    Matplotlib's `(color, alpha)` pair form.
     """
     if c is None:
         return None
+    if (isinstance(c, (tuple, list)) and len(c) == 2
+            and not all(isinstance(v, (int, float, np.number)) for v in c)):
+        return _with_alpha(_norm_color(c[0]), c[1])
     if isinstance(c, (tuple, list, np.ndarray)):
         vals = [float(v) for v in np.asarray(c, dtype=float).ravel()]
         if len(vals) not in (3, 4):
@@ -151,9 +168,9 @@ def _math_script(body, table, marker):
 _IGNORED_TEXT_KWARGS = frozenset(
     "alpha antialiased antialiasing backgroundcolor bbox clip_box clip_on clip_path "
     "family figure font fontfamily fontname fontproperties font_properties "
-    "fontstretch fontstyle fontvariant fontweight gid in_layout linespacing ma "
+    "fontstretch fontstyle fontvariant variant fontweight gid in_layout linespacing ma "
     "math_fontfamily multialignment parse_math path_effects picker rasterized "
-    "rotation rotation_mode sketch_params snap style url usetex verticalalignment "
+    "rotation rotation_mode sketch_params snap style transform_rotates_text url usetex verticalalignment "
     "visible weight wrap zorder".split()
 )
 
@@ -244,10 +261,27 @@ def _cmap_lookup(name):
     return base, np.asarray(colors, dtype=np.uint8), reverse
 
 
+def _register_custom_cmap(cmap):
+    """Add a `Colormap` built in Python to the table the renderer reads."""
+    name = str(getattr(cmap, "name", "custom"))
+    if name not in _CMAP_DATA:
+        rgb = np.asarray(cmap._rgb, dtype=np.float64)
+        if rgb.ndim != 2 or rgb.shape[1] != 3 or not len(rgb):
+            raise ValueError(f"unsupported colormap: {cmap!r}")
+        positions = np.linspace(0.0, 1.0, rgb.shape[0])
+        samples = np.linspace(0.0, 1.0, 256)
+        table = np.stack([np.interp(samples, positions, rgb[:, channel])
+                          for channel in range(3)], axis=1)
+        _CMAP_DATA[name] = np.clip(table * 255.0, 0, 255).astype(np.uint8)
+    return name
+
+
 def _cmap_name(cmap):
     """Canonical registry name; `None` picks up the `image.cmap` rcParam."""
     if isinstance(cmap, Colormap):
         return cmap.name
+    if isinstance(cmap, _ListedColormap):
+        return _register_custom_cmap(cmap)
     if cmap is None:
         cmap = rcParams.get("image.cmap", "viridis")
     base, _, reverse = _cmap_lookup(cmap)
@@ -365,6 +399,16 @@ class _ColormapRegistry:
         except ValueError:
             return default
 
+    def register(self, cmap, name=None, force=False):
+        """Register a colormap so `get_cmap`/`colormaps[name]` find it."""
+        cmap_name = str(name or getattr(cmap, "name", ""))
+        if not cmap_name:
+            raise ValueError("a registered colormap needs a name")
+        if cmap_name in _CMAP_DATA and not force:
+            raise ValueError(f"colormap {cmap_name!r} is already registered")
+        _register_custom_cmap(cmap)
+        return cmap
+
 
 colormaps = _ColormapRegistry()
 
@@ -453,9 +497,30 @@ class _PropCycler:
 
 
 class _CycleList(list):
-    """A prop-cycle list that also supports matplotlib's `by_key()` API."""
+    """`axes.prop_cycle`: iterating yields `{"color": ...}` entries, as Cycler."""
 
-    def by_key(self): return {"color": list(self)}
+    def __init__(self, colors):
+        super().__init__({"color": c} for c in colors)
+
+    def by_key(self): return {"color": [entry["color"] for entry in self]}
+
+
+def _cycle_colors(value):
+    """Plain colour list from a Cycler, a dict or a list of either."""
+    if value is None:
+        return []
+    if hasattr(value, "by_key"):
+        return list(value.by_key().get("color", ()))
+    if isinstance(value, dict):
+        return list(value.get("color", ()))
+    colors = []
+    for item in value:
+        if isinstance(item, dict):
+            if item.get("color") is not None:
+                colors.append(item["color"])
+        else:
+            colors.append(item)
+    return colors
 
 
 class _CoordTransform:
@@ -679,7 +744,9 @@ class _TextLabel:
     def get_color(self): return self._color
     def set_color(self, color): self._color = color
     def set_ha(self, value): _ignored("Text.set_ha")
+    set_horizontalalignment = set_ha
     def set_va(self, value): _ignored("Text.set_va")
+    set_verticalalignment = set_va
     def set_fontweight(self, value): _ignored("Text.set_fontweight")
     def set_fontstyle(self, value): _ignored("Text.set_fontstyle")
     def set_fontfamily(self, value): _ignored("Text.set_fontfamily")
@@ -749,10 +816,24 @@ def _span(values):
     return _span_extent(ext)
 
 
+def _as_list(values):
+    """Materialise dict views and other one-shot iterables as a list."""
+    if isinstance(values, (str, bytes)) or np.isscalar(values):
+        return values
+    if hasattr(values, "__iter__") and not isinstance(
+            values, (list, tuple, np.ndarray, range)):
+        try:
+            return list(values)
+        except TypeError:
+            return values
+    return values
+
+
 def _looks_like_categories(values):
     """True for string scalars or sequences, which matplotlib treats as categories."""
     if isinstance(values, str):
         return True
+    values = _as_list(values)
     try:
         array = np.asarray(values)
     except (TypeError, ValueError):
@@ -819,6 +900,20 @@ def _date_label(value):
     if abs(value - round(value)) < 1e-9:
         return dt.strftime("%Y-%m-%d")
     return dt.strftime("%Y-%m-%d %H:%M")
+
+
+def _format_ticklabels(formatter, ticks):
+    """Labels from a major formatter, or None when it cannot be used here."""
+    if formatter is None or ticks is None:
+        return None
+    labels = []
+    for pos, value in enumerate(ticks):
+        try:
+            label = formatter(float(value), pos)
+        except TypeError:
+            label = formatter(float(value))
+        labels.append(str(label))
+    return labels
 
 
 def _add_months(value, months):
@@ -1052,7 +1147,8 @@ class _BarHandle:
         return self._axes.bars[self._group]["colors"][:1] or ["#1f77b4"]
 
     def get_edgecolor(self):
-        return self._axes.bars[self._group].get("edgecolor")
+        edges = self._axes.bars[self._group].get("edgecolor")
+        return edges[0] if edges and len(edges) == 1 else edges
 
     def get_color(self):
         return self.get_facecolor()[0]
@@ -1093,6 +1189,37 @@ class _BarHandle:
         self._axes.bars[self._group]["width"][self._index] = 0.0
 
 
+class _LineGroupHandle(list):
+    """A group of line handles that applies a setter to every member."""
+
+    def set_linewidth(self, width):
+        for handle in self:
+            handle.set_linewidth(width)
+        return self
+
+    def set_color(self, color):
+        for handle in self:
+            handle.set_color(color)
+        return self
+
+    def set_linestyle(self, linestyle):
+        for handle in self:
+            handle.set_linestyle(linestyle)
+        return self
+
+    def set_visible(self, visible): return self
+
+
+class _StemContainer:
+    """`markerline`, `stemlines` and `baseline`, unpackable as Matplotlib's."""
+
+    def __init__(self, markerline, stemlines, baseline):
+        self.markerline, self.stemlines, self.baseline = markerline, stemlines, baseline
+
+    def __iter__(self):
+        return iter((self.markerline, self.stemlines, self.baseline))
+
+
 class _BarContainer(list):
     """List of `_BarHandle`, matching matplotlib's `BarContainer`."""
 
@@ -1129,6 +1256,29 @@ class _ScatterHandle:
         return np.column_stack([self._e["x"], self._e["y"]])
 
     def get_sizes(self): return self._e["sizes"]
+
+    def set_sizes(self, sizes):
+        self._e["sizes"] = np.ascontiguousarray(np.asarray(sizes, dtype=np.float64).ravel())
+        return self
+
+    def set_markerfacecolor(self, color):
+        self._e["colors"] = [_norm_color(color)]
+        return self
+
+    set_facecolor = set_markerfacecolor
+
+    def set_markeredgecolor(self, color):
+        _ignored("PathCollection.set_markeredgecolor")
+        return self
+
+    def set_markersize(self, size):
+        self._e["sizes"] = np.full(np.asarray(self._e["x"]).size, float(size) ** 2)
+        return self
+
+    def set_alpha(self, alpha):
+        self._e["alpha"] = float(alpha)
+        return self
+
     def get_array(self): return self._e["values"]
     def get_cmap(self): return self._e["cmap"]
 
@@ -1201,6 +1351,14 @@ class _ViolinBody:
 
     def set_alpha(self, alpha):
         self._e["alpha"] = None if alpha is None else float(alpha)
+        return self
+
+    def set_edgecolor(self, color):
+        _ignored("ViolinBody.set_edgecolor")
+        return self
+
+    def set_linewidth(self, width):
+        _ignored("ViolinBody.set_linewidth")
         return self
 
     def get_paths(self): return [self._e]
@@ -2222,6 +2380,23 @@ class _Axis:
     def set_ticklabels(self, labels, **kwargs):
         if self._axis == "x": self._parent.set_xticklabels(labels, **kwargs)
         else: self._parent.set_yticklabels(labels, **kwargs)
+    def set(self, **kwargs):
+        """`ax.xaxis.set(major_locator=..., major_formatter=..., label=...)`."""
+        for key, value in kwargs.items():
+            if key in ("major_locator", "minor_locator", "major_formatter",
+                       "minor_formatter"):
+                getattr(self, f"set_{key}")(value)
+            elif key == "label":
+                self.label.set_text(value)
+            elif key == "ticks":
+                self.set_ticks(value)
+            elif key == "ticklabels":
+                self.set_ticklabels(value)
+            elif key in ("visible", "rotation", "labelsize", "labelpad"):
+                _ignored(f"Axis.set({key})")
+            else:
+                raise AttributeError(f"Axis.set() does not support {key!r}")
+
     def set_major_locator(self, locator):
         """Place the major ticks with `locator`, dropping explicit tick lists."""
         self._locator = locator
@@ -2401,7 +2576,7 @@ class Axes:
         self._fig = fig_arg
         self._share_x = self._share_y = None
         self.hide_xticklabels = self.hide_yticklabels = False
-        self._prop_cycle = list(rcParams.get("axes.prop_cycle", _CYCLE))
+        self._prop_cycle = _cycle_colors(rcParams.get("axes.prop_cycle")) or list(_CYCLE)
         self._cycle_pos = 0
         self._twin, self._twin_gap, self._twin_of = "", 0.0, None
         self._twin_reserve = ""
@@ -2431,7 +2606,7 @@ class Axes:
         if colors is None and args:
             arg = args[0]
             if arg is None:
-                colors = list(rcParams.get("axes.prop_cycle", _CYCLE))
+                colors = _cycle_colors(rcParams.get("axes.prop_cycle")) or list(_CYCLE)
             elif hasattr(arg, "by_key"):
                 colors = arg.by_key().get("color")
             elif isinstance(arg, dict):
@@ -2476,7 +2651,8 @@ class Axes:
             else:
                 glabel = label if index == 0 else ""
             style = linestyle or ls or "-"
-            gcolor, gmarker = color or c, marker
+            gcolor = color if color is not None else c
+            gmarker = marker
             if gfmt:
                 f_color, f_style, f_marker = _parse_fmt(gfmt)
                 gcolor = gcolor or f_color
@@ -2484,9 +2660,10 @@ class Axes:
                     style = f_style or style
                 if not gmarker:
                     gmarker = f_marker
-            line_color = gcolor or self._next_color()
+            line_color = self._next_color() if gcolor is None else gcolor
             edge = markeredgecolor or mec
             xvals = self._xdate(gx)
+            gy = self._ydate(gy)
             series_style = drawstyle
             if drawstyle == "steps-mid":
                 xvals, gy = _mid_steps(xvals, gy)
@@ -2588,6 +2765,9 @@ class Axes:
         if len(bounds) != 4:
             raise ValueError("inset_axes bounds must be (x, y, width, height)")
         x, y, w, h = (float(v) for v in bounds)
+        # A bad transform used to turn into a gigantic canvas request; reject it.
+        if not all(_math.isfinite(v) and abs(v) <= 100.0 for v in (x, y, w, h)):
+            raise ValueError(f"inset_axes bounds must be finite axes fractions: {bounds!r}")
         box = self.get_position()
         child = Axes(len(self._fig.axes))
         child._fig = self._fig
@@ -2599,11 +2779,11 @@ class Axes:
         self._fig._cur = child
         return child
 
-    def twinx(self):
+    def twinx(self, **kwargs):
         """A second axes sharing the x axis, with its own y axis on the right."""
         return self._make_twin("y")
 
-    def twiny(self):
+    def twiny(self, **kwargs):
         """A second axes sharing the y axis, with its own x axis on top."""
         return self._make_twin("x")
 
@@ -2830,7 +3010,32 @@ class Axes:
                 labels.append(entry["label"])
         return handles, labels
 
-    def specgram(self, *args, **kwargs): return None
+    def specgram(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+                 noverlap=None, cmap=None, xextent=None, pad_to=None, sides=None,
+                 scale_by_freq=None, mode=None, scale=None, vmin=None, vmax=None,
+                 **kwargs):
+        """Windowed FFT magnitude, drawn as an image; returns (Pxx, freqs, bins, image)."""
+        data = np.asarray(x, dtype=np.float64).ravel()
+        nfft = max(int(NFFT), 2)
+        step = nfft - (nfft // 2 if noverlap is None else int(noverlap))
+        if step <= 0:
+            raise ValueError("noverlap must be smaller than NFFT")
+        if data.size < nfft:
+            raise ValueError("specgram needs at least NFFT samples")
+        taper = np.hanning(nfft) if window is None or window is np.hanning else np.asarray(window)
+        frames = np.stack([data[i:i + nfft] * taper
+                           for i in range(0, data.size - nfft + 1, step)])
+        spectrum = np.abs(np.fft.rfft(frames, n=nfft, axis=1)) ** 2
+        pxx = spectrum.T / max(float(Fs), 1e-12)
+        freqs = np.fft.rfftfreq(nfft, d=1.0 / float(Fs)) + float(Fc)
+        bins = np.arange(frames.shape[0]) * step / float(Fs)
+        decibels = 10.0 * np.log10(np.maximum(pxx, 1e-20))
+        image = self.imshow(decibels, aspect="auto", origin="lower", cmap=cmap,
+                            vmin=vmin, vmax=vmax,
+                            extent=(float(bins[0]), float(bins[-1]),
+                                    float(freqs[0]), float(freqs[-1])), **kwargs)
+        return pxx, freqs, bins, image
+
     def psd(self, *args, **kwargs): return None
     def magnitude_spectrum(self, *args, **kwargs): return None
     def set_rorigin(self, value): return None
@@ -2982,7 +3187,7 @@ class Axes:
             self._x_date = True
             return _date_to_num(values)
         if _looks_like_categories(values):
-            array = np.asarray(values)
+            array = np.asarray(_as_list(values))
             labels = [str(v) for v in array.ravel()]
             for label in labels:
                 if label not in self._categories:
@@ -3181,6 +3386,7 @@ class Axes:
             "hamming": "bilinear", "hermite": "bicubic", "kaiser": "bicubic",
             "quadric": "bicubic", "catrom": "bicubic", "gaussian": "bicubic",
             "lanczos": "bicubic", "blackman": "bilinear", "sinc": "bicubic",
+            "bessel": "bicubic", "mitchell": "bicubic",
         }.get(interp, interp)
         a = _as_image(X)
         h, w = a.shape[:2]
@@ -3201,6 +3407,8 @@ class Axes:
             interp = "antialiased"
         if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
             raise ValueError(f"unsupported interpolation: {setting!r}")
+        if alpha is not None and np.ndim(alpha) > 0:
+            raise NotImplementedError("per-pixel alpha arrays are not supported yet")
         opacity = 1.0 if alpha is None else float(alpha)
         if not np.isfinite(opacity):
             raise ValueError("alpha must be finite")
@@ -3216,6 +3424,8 @@ class Axes:
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
              label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
         """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
+        if histtype == "barstacked":
+            histtype, stacked = "bar", True
         if histtype not in ("bar", "step", "stepfilled"):
             raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
         if data is not None and isinstance(x, str):
@@ -3226,13 +3436,31 @@ class Axes:
             try:
                 candidate = np.asarray(x, dtype=np.float64)
                 if candidate.ndim == 2:
-                    datasets = [candidate[i] for i in range(candidate.shape[0])]
+                    datasets = list(candidate)
                 elif candidate.ndim == 1:
                     datasets = [candidate]
             except (TypeError, ValueError):
+                # Ragged sample sizes are the usual multi-histogram input.
                 datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
         elif isinstance(x, np.ndarray) and x.ndim == 2:
-            datasets = [x[i] for i in range(x.shape[0])]
+            datasets = list(x)
+        if datasets is not None and len(datasets) > 1 and not stacked:
+            # Overlaid histograms: one pass per data set, as Matplotlib draws them.
+            counts_list, handles = [], []
+            edges = None
+            for i, dataset in enumerate(datasets):
+                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
+                          else color)
+                label_i = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
+                           else label)
+                counts, edges, handle = self.hist(
+                    dataset, bins=bins, range=range, density=density, weights=weights,
+                    cumulative=cumulative, bottom=bottom, histtype=histtype, align=align,
+                    orientation=orientation, color=colour, label=label_i, alpha=alpha,
+                    edgecolor=edgecolor, **kwargs)
+                counts_list.append(counts)
+                handles.append(handle)
+            return counts_list, edges, handles
         if datasets is not None and len(datasets) > 1 and stacked:
             edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
             counts_list = []
@@ -3247,8 +3475,10 @@ class Axes:
             handles = []
             running = np.zeros(counts_list[0].size)
             for i, count in enumerate(counts_list):
-                colour = color[i] if isinstance(color, (list, tuple)) else color
-                label_i = label[i] if isinstance(label, (list, tuple)) else label
+                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
+                          else color)
+                label_i = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
+                           else label)
                 text = "" if label_i is None else str(label_i)
                 if histtype == "bar":
                     if orientation == "horizontal":
@@ -3697,7 +3927,9 @@ class Axes:
         left = x - w / 2.0 if align == "center" else x
         colors = _bar_colors(color if color is not None else self._next_color(), n)
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
-                              colors=colors, edgecolor=_norm_color(edgecolor),
+                              colors=colors,
+                              edgecolor=(_bar_colors(edgecolor, n)
+                                         if edgecolor is not None else None),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=True))
         if yerr is not None:
@@ -3740,16 +3972,39 @@ class Axes:
                 else:
                     x, ha = anchor + length / 2.0, "center"
                 va = "center"
-            text = texts[i] if texts is not None else fmt % length
+            if texts is not None:
+                text = texts[i]
+            elif callable(fmt):
+                text = str(fmt(length))
+            elif "%" in str(fmt):
+                text = str(fmt) % length
+            else:
+                text = str(fmt).format(length)
             self.text(x, y, text, color=kwargs.get("color", "black"),
                       fontsize=kwargs.get("fontsize", 10), ha=ha, va=va)
             out.append(text)
         return out
 
+    def _ydate(self, values):
+        """Convert date-like or categorical y values to numbers and label the axis."""
+        if _looks_like_dates(values):
+            return _date_to_num(values)
+        if _looks_like_categories(values):
+            return self._category_positions(values)
+        return values
+
+    def _category_positions(self, values):
+        """Map y category labels to positions, labelling the y axis with them."""
+        labels = [str(v) for v in np.asarray(_as_list(values), dtype=object).ravel()]
+        self._yticks = [float(i) for i in range(len(labels))]
+        self._yticklabels = labels
+        return np.arange(len(labels), dtype=np.float64)
+
     def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
              align="center", alpha=None, linewidth=None, **kwargs):
         """Horizontal bars, stored as the same rectangles as `bar`."""
-        y = _as_f64(y)
+        y = (self._category_positions(y) if _looks_like_categories(y)
+             else _as_f64(y))
         n = y.size
         w, h, l = _fill(width, n), _fill(height, n), _fill(left, n)
         if align not in ("center", "edge"):
@@ -3757,7 +4012,8 @@ class Axes:
         bottom = y - h / 2.0 if align == "center" else y
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
                               colors=_bar_colors(color if color is not None else self._next_color(), n),
-                              edgecolor=_norm_color(edgecolor),
+                              edgecolor=(_bar_colors(edgecolor, n)
+                                         if edgecolor is not None else None),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=False))
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
@@ -4012,10 +4268,11 @@ class Axes:
         """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
         colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
         if data is not None:
-            x = data[x] if isinstance(x, str) else x
-            y = data[y] if isinstance(y, str) else y
+            def column(value):
+                return data[value] if isinstance(value, str) and value in data else value
+            x, y, s, c = column(x), column(y), column(s), column(c)
         x = _as_f64(self._xdate(x))
-        y = _as_f64(y)
+        y = _as_f64(self._ydate(y))
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
         n = y.size
@@ -4174,7 +4431,8 @@ class Axes:
         else:
             widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
         if widths and len(widths) not in (1, len(levels)):
-            raise ValueError("linewidths must be a scalar or match the number of levels")
+            # Matplotlib cycles the sequence across levels.
+            widths = [widths[i % len(widths)] for i in range(len(levels))]
         opacity = 1.0 if alpha is None else float(alpha)
         if not np.isfinite(opacity):
             raise ValueError("alpha must be finite")
@@ -4278,6 +4536,8 @@ class Axes:
         elif title is not None and self.legend_title_fontsize is None:
             self.legend_title_fontsize = _font_size(rcParams.get("legend.fontsize", 10.0)) * 1.1
         if bbox_to_anchor is not None:
+            if hasattr(bbox_to_anchor, "get_points"):
+                bbox_to_anchor = np.asarray(bbox_to_anchor.get_points()).ravel()
             anchor = [float(v) for v in np.asarray(bbox_to_anchor).ravel()]
             if len(anchor) not in (2, 4):
                 raise ValueError("bbox_to_anchor needs 2 or 4 values")
@@ -4291,7 +4551,9 @@ class Axes:
                   colors=None, linestyles=None, linewidths=None, **kwargs):
         """One short line per event position, one row per positions array."""
         rows = positions
-        if not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
+        if isinstance(rows, np.ndarray) and rows.ndim == 2:
+            rows = list(rows)
+        elif not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
             rows = [rows]
         rows = [np.asarray(r, dtype=np.float64).ravel() for r in rows]
         if not rows:
@@ -4324,12 +4586,19 @@ class Axes:
         if not pairs:
             return None
         n = len(pairs)
+        position, height = yrange
+        if isinstance(position, str):
+            # A categorical y position labels the axis and sits at index 0.
+            offset = self._category_positions([position])[0]
+            step = float(height) / 2.0 if kwargs.get("align", "center") == "center" else 0.0
+            position = offset - step
         self.bars.append(dict(left=np.array([a for a, _ in pairs]),
-                              bottom=np.full(n, float(yrange[0])),
+                              bottom=np.full(n, float(position)),
                               width=np.array([b for _, b in pairs]),
-                              height=np.full(n, float(yrange[1])),
+                              height=np.full(n, float(height)),
                               colors=_bar_colors(colors, n),
-                              edgecolor=_norm_color(edgecolor),
+                              edgecolor=(_bar_colors(edgecolor, n)
+                                         if edgecolor is not None else None),
                               alpha=None if alpha is None else float(alpha),
                               label="", vertical=True))
         return None
@@ -4399,10 +4668,13 @@ class Axes:
         lo, hi = _fill(self._xdate(xmin), ys.size), _fill(self._xdate(xmax), ys.size)
         cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
         widths = _fill(linewidths, ys.size) if linewidths is not None else None
+        handles = []
         for i in range(ys.size):
             self.lines.append(_series(
                 [lo[i], hi[i]], [ys[i], ys[i]], label, cols[i], linestyle=styles[i],
                 linewidth=2.0 if widths is None else float(widths[i])))
+            handles.append(_LineHandle(self.lines[-1]))
+        return handles
 
     def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
                label="", **kwargs):
@@ -4411,10 +4683,13 @@ class Axes:
         lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
         cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
         widths = _fill(linewidths, xs.size) if linewidths is not None else None
+        handles = []
         for i in range(xs.size):
             self.lines.append(_series(
                 [xs[i], xs[i]], [lo[i], hi[i]], label, cols[i], linestyle=styles[i],
                 linewidth=2.0 if widths is None else float(widths[i])))
+            handles.append(_LineHandle(self.lines[-1]))
+        return handles
 
     def stem(self, *args, linefmt=None, markerfmt=None, basefmt=None, bottom=0.0, label="",
              orientation="vertical", **kwargs):
@@ -4433,26 +4708,32 @@ class Axes:
             raise ValueError(f"unsupported orientation: {orientation!r}")
         colour, style, _ = _stem_fmt(linefmt)
         colour = kwargs.get("color") or colour or _CYCLE[len(self.lines) % len(_CYCLE)]
+        marker = baseline = None
+        stemlines = _LineGroupHandle()
         if x.size:
             if orientation == "vertical":
-                self.vlines(x, bottom, y, colors=colour, linestyles=style,
-                            linewidths=rcParams.get("lines.linewidth", 1.5))
+                stemlines = _LineGroupHandle(self.vlines(
+                    x, bottom, y, colors=colour, linestyles=style,
+                    linewidths=rcParams.get("lines.linewidth", 1.5)))
             else:
-                self.hlines(y, bottom, x, colors=colour, linestyles=style,
-                            linewidths=rcParams.get("lines.linewidth", 1.5))
-            marker_colour, _, marker = _stem_fmt(markerfmt, "o")
-            self.scatter(x, y, s=36, c=marker_colour or colour,
-                         marker=marker,
-                         markersize=rcParams.get("lines.markersize", 6.0))
+                stemlines = _LineGroupHandle(self.hlines(
+                    y, bottom, x, colors=colour, linestyles=style,
+                    linewidths=rcParams.get("lines.linewidth", 1.5)))
+            marker_colour, _, marker_fmt = _stem_fmt(markerfmt, "o")
+            marker = self.scatter(x, y, s=36, c=marker_colour or colour,
+                                  marker=marker_fmt,
+                                  markersize=rcParams.get("lines.markersize", 6.0))
             if basefmt != "none":
                 if orientation == "vertical":
-                    self.hlines([float(bottom)], float(x.min()), float(x.max()),
-                                colors=colour,
-                                linewidths=rcParams.get("lines.linewidth", 1.5))
+                    base_lines = self.hlines(
+                        [float(bottom)], float(x.min()), float(x.max()),
+                        colors=colour, linewidths=rcParams.get("lines.linewidth", 1.5))
                 else:
-                    self.vlines([float(bottom)], float(y.min()), float(y.max()),
-                                colors=colour,
-                                linewidths=rcParams.get("lines.linewidth", 1.5))
+                    base_lines = self.vlines(
+                        [float(bottom)], float(y.min()), float(y.max()),
+                        colors=colour, linewidths=rcParams.get("lines.linewidth", 1.5))
+                baseline = _LineGroupHandle(base_lines)[0] if base_lines else None
+        return _StemContainer(marker, stemlines, baseline)
 
     def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
             normalize=True, shadow=False, **kwargs):
@@ -4503,13 +4784,16 @@ class Axes:
         x = np.asarray(x, dtype=np.float64).ravel()
         layers = []
         for y in ys:
-            a = np.asarray(y, dtype=np.float64)
+            a = np.asarray(_as_list(y), dtype=np.float64)
             if a.ndim == 2 and a.shape[0] == x.size:
                 layers.extend(a[:, i] for i in range(a.shape[1]))
+            elif a.ndim == 2 and a.shape[1] == x.size:
+                layers.extend(a[i] for i in range(a.shape[0]))
             else:
                 layers.append(a.ravel())
         if not layers:
             raise ValueError("stackplot needs at least one y array")
+        labels = list(_as_list(labels)) if labels else []
         cols = _colors(colors)
         if baseline == "sym":
             cum = -np.sum(np.stack(layers), axis=0) / 2.0
@@ -4625,8 +4909,7 @@ class Axes:
                              label="", vertical=True))
         series = [dict(s, color=_norm_color(s["color"]), mfc=_norm_color(s["mfc"]),
                        mec=_norm_color(s["mec"])) for s in series]
-        bars = [dict(b, colors=[_norm_color(c) for c in b["colors"]],
-                     edgecolor=_norm_color(b["edgecolor"])) for b in bars]
+        bars = [dict(b, colors=[_norm_color(c) for c in b["colors"]],                              edgecolor=b["edgecolor"]) for b in bars]
         bands = [dict(b, color=_norm_color(b["color"])) for b in self.bands]
         patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
         collections = [c for c in (_collection_entry(a) for a in self.artists) if c is not None]
@@ -4648,6 +4931,13 @@ class Axes:
         if xticks is None:
             xticks = self._locator_ticks("x")
         yticks = self._yticks if self._yticks is not None else self._locator_ticks("y")
+        yticklabels = self._yticklabels
+        # A user-set major formatter decides the tick text, before the date and
+        # category defaults fill it in.
+        if xticklabels is None:
+            xticklabels = _format_ticklabels(self.xaxis._formatter, xticks)
+        if yticklabels is None:
+            yticklabels = _format_ticklabels(self.yaxis._formatter, yticks)
         if self._x_date and self.xscale == "linear":
             if xticks is None:
                 lo, hi = (x0, x1) if x0 <= x1 else (x1, x0)
@@ -4681,7 +4971,7 @@ class Axes:
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,
                               linestyle=self.grid_linestyle, axis=self.grid_axis),
                     ticks=dict(xticks=xticks, xticklabels=xticklabels,
-                               yticks=yticks, yticklabels=self._yticklabels,
+                               yticks=yticks, yticklabels=yticklabels,
                                xstyle=self._tick_style_dict("x"),
                                ystyle=self._tick_style_dict("y"),
                                hide_xlabels=self.hide_xticklabels or self._twin == "y",
@@ -4724,7 +5014,7 @@ class Axes:
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
         font = float(rcParams.get("font.size", 10.0))
-        return dict(labelsize=float(style.get("labelsize", font)),
+        return dict(labelsize=_font_size(style.get("labelsize"), font),
                     length=float(style.get("length", 3.5)),
                     width=float(style.get("width", 1.0)),
                     color=_norm_color(style.get("labelcolor")),
@@ -4960,7 +5250,7 @@ def _line_styles(styles, n):
 
 
 def _as_f64(v):
-    arr = np.asarray(v)
+    arr = np.asarray(_as_list(v))
     if arr.dtype.kind == "O":
         def number(item):
             if item is None or np.ma.is_masked(item):
@@ -5098,21 +5388,19 @@ def _cmap_colors(cmap, values):
 
 
 def _bar_colors(color, n):
+    """One colour per bar; a short list cycles, as Matplotlib's fill loop does."""
     if color is None:
         return []
-    if isinstance(color, str):
-        return [_norm_color(color)]
-    if _is_rgb(color):
+    if isinstance(color, str) or _is_rgb(color):
         return [_norm_color(color)]
     array = np.asarray(color)
     if array.ndim == 2 and array.shape[1] in (3, 4):
         vals = [_norm_color(row) for row in array]
-        if len(vals) in (1, n):
-            return vals
-    vals = [_norm_color(v) for v in np.asarray(color, dtype=object).ravel()]
-    if len(vals) not in (1, n):
-        raise ValueError("color must be a single colour or one per bar")
-    return vals
+    else:
+        vals = [_norm_color(v) for v in np.asarray(_as_list(color), dtype=object).ravel()]
+    if not vals:
+        return []
+    return [vals[i % len(vals)] for i in range(n)]
 
 
 def _sizes(s, n):
@@ -5127,12 +5415,24 @@ def _sizes(s, n):
     return np.ascontiguousarray(np.clip(a, 0.0, None))
 
 
+def _is_color_sequence(value):
+    """A list of colour specs, e.g. `[cmap(0.2), cmap(0.4)]`."""
+    if not isinstance(value, (list, tuple)) or not value:
+        return False
+    return all(isinstance(v, str) or _is_rgb(v) for v in value)
+
+
 def _scatter_colors(c, n):
     """Split `c` into (numeric values for cmap, explicit colour strings)."""
     if c is None:
         return None, []
     if isinstance(c, str) or _is_rgb(c):
         return None, [_norm_color(c)]
+    if _is_color_sequence(c):
+        seq = list(c)
+        if len(seq) not in (1, n):
+            raise ValueError("c must be a single colour or one colour per point")
+        return None, [_norm_color(seq[i % len(seq)]) for i in range(n)]
     a = np.asarray(c)
     if a.dtype.kind in "fiu":
         v = np.asarray(a, dtype=np.float64).ravel()
@@ -5236,6 +5536,12 @@ def _colors(colors):
 
 
 def _contour_args(args, levels):
+    if args and isinstance(args[0], ContourSet):
+        # `contour(cs, ...)` re-contours an existing set at new levels.
+        if levels is None and len(args) > 1:
+            levels = args[1]
+        entry = args[0]._e
+        return entry["x"], entry["y"], entry["z"], levels
     if len(args) == 1:
         (z,) = args
         x = y = None
@@ -5277,12 +5583,33 @@ def _contour_args(args, levels):
 class ContourSet:
     """Handle returned by `Axes.contour` / `Axes.contourf`."""
 
-    def __init__(self, entry): self._e = entry
+    def __init__(self, ax=None, levels=None, segments=None, *args, **kwargs):
+        if isinstance(ax, dict) and levels is None and segments is None:
+            self._e = ax
+            return
+        # Hand-built contours (`ContourSet(ax, levels, paths)`) carry explicit
+        # geometry that the renderer's level field cannot express.
+        raise NotImplementedError(
+            "user-specified contour paths are not supported yet")
 
     @property
     def levels(self): return list(self._e["levels"])
+    @property
+    def cmap(self): return get_cmap(self._e["cmap"])
+    @property
+    def linewidths(self):
+        widths = self._e.get("linewidths") or []
+        return widths[0] if len(widths) == 1 and widths else widths
 
-    def get_cmap(self): return self._e["cmap"]
+    def get_linewidth(self): return self.linewidths
+    def set_linewidth(self, width):
+        values = np.atleast_1d(np.asarray(width, dtype=np.float64)).ravel()
+        self._e["linewidths"] = [float(v) for v in values]
+        return self
+    def get_linewidths(self):
+        widths = self._e.get("linewidths") or []
+        return list(widths)
+    def get_cmap(self): return get_cmap(self._e["cmap"])
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_clim(self, vmin=None, vmax=None): pass
     def set(self, **kwargs): return self
@@ -5304,7 +5631,16 @@ class AxesImage:
 
     def get_array(self): return self._e["data"]
     def set_data(self, X): self._e["data"] = _as_image(X)
-    def get_cmap(self): return self._e["cmap"]
+    def get_cmap(self): return get_cmap(self._e["cmap"])
+
+    @property
+    def norm(self):
+        return _Normalize(vmin=self._e["vmin"], vmax=self._e["vmax"])
+
+    def set_norm(self, norm):
+        self._e["vmin"] = getattr(norm, "vmin", None)
+        self._e["vmax"] = getattr(norm, "vmax", None)
+        return self
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_extent(self, extent): self._e["extent"] = tuple(float(v) for v in extent)
     def get_extent(self): return self._e["extent"]
@@ -5477,7 +5813,7 @@ class Colorbar:
         self._e = entry
         self.ax = _ColorbarAxes()
 
-    def set_label(self, label): self._e["label"] = str(label)
+    def set_label(self, label, loc=None, **kwargs): self._e["label"] = str(label)
     def get_label(self): return self._e["label"]
     def add_lines(self, *args, **kwargs): return None
     def minorticks_on(self): return None
@@ -5616,6 +5952,9 @@ class Figure:
     def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True,
                  **kwargs):
         nrows, ncols = _validate_grid_shape(nrows, ncols)
+        # `plt.subplots` builds its grid from a GridSpec in Matplotlib, so
+        # `ax.get_gridspec()` must return one here too.
+        self._gridspec = GridSpec(nrows, ncols, figure=self)
         axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
         if len(axs) == 1 and squeeze:
@@ -5959,8 +6298,12 @@ def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
 def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
 def matshow(A, fignum=None, **kwargs): return gca().matshow(A, **kwargs)
 def xkcd(scale=1, length=100, randomness=2):
-    """Matplotlib's sketch style has no renderer support; accept and ignore it."""
+    """Matplotlib's sketch style has no renderer support; accept and ignore it.
+
+    The call also works as `with plt.xkcd():`, so return a context manager.
+    """
     _ignored("xkcd")
+    return _NoopContext()
 def get_data_path(): return os.path.dirname(os.path.abspath(__file__))
 def axhline(*args, **kwargs): return gca().axhline(*args, **kwargs)
 def axvline(*args, **kwargs): return gca().axvline(*args, **kwargs)
@@ -6129,12 +6472,23 @@ rcParams = {
     "text.color": "#000000",
     "text.parse_math": True,
     "grid.color": "#b0b0b0",
+    "font.family": ["sans-serif"],
+    "font.sans-serif": ["DejaVu Sans", "Bitstream Vera Sans", "Arial"],
+    "font.serif": ["DejaVu Serif", "Times New Roman"],
+    "font.monospace": ["DejaVu Sans Mono", "Courier New"],
 }
 _RC_DEFAULTS = dict(rcParams)
 
 
 class _Namespace:
     def __init__(self, **values): self.__dict__.update(values)
+
+
+class _NoopContext:
+    """A context manager for calls such as `with plt.xkcd():` that do nothing."""
+
+    def __enter__(self): return self
+    def __exit__(self, *exc): return False
 
 
 class _Normalize:
@@ -6185,6 +6539,10 @@ class _ListedColormap:
             colors = [c for _, c in colors]
         return cls(colors, name)
 
+    @property
+    def _rgb(self):
+        return np.asarray([_rgba_tuple(c)[:3] for c in self.colors], dtype=np.float64)
+
     def __call__(self, X, alpha=None, bytes=False):
         arr = np.asarray(X, dtype=float)
         index = np.clip((arr * self.N).astype(int), 0, self.N - 1)
@@ -6192,6 +6550,41 @@ class _ListedColormap:
                           for c in self.colors], dtype=float) / 255.0
         out = rgb[index]
         return out.astype(np.uint8) if bytes else out
+
+
+class _LinearSegmentedColormap(_ListedColormap):
+    """Colormap built from channel tables, as `LinearSegmentedColormap`."""
+
+    def __init__(self, name, segmentdata, N=256, gamma=1.0):
+        samples = np.linspace(0.0, 1.0, max(int(N), 2))
+        channels = []
+        for key in ("red", "green", "blue"):
+            table = segmentdata.get(key, ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)))
+            points = np.asarray(table, dtype=float)
+            middle = points[:, 2] if points.shape[1] >= 3 else points[:, 1]
+            channels.append(np.interp(samples, points[:, 0], middle))
+        rows = np.clip(np.stack(channels, axis=1), 0.0, 1.0) ** (1.0 / float(gamma))
+        colors = [f"#{int(round(r * 255)):02x}{int(round(g * 255)):02x}{int(round(b * 255)):02x}"
+                  for r, g, b in rows]
+        super().__init__(colors, name)
+
+    @classmethod
+    def from_list(cls, name, colors, N=256):
+        """Resample a list of colours (or value/colour pairs) into `N` steps."""
+        if colors and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
+            colors = [c for _, c in colors]
+        stops = np.asarray([_rgba_tuple(c)[:3] for c in colors], dtype=float)
+        positions = (np.linspace(0.0, 1.0, stops.shape[0]) if stops.shape[0] > 1
+                     else np.asarray([0.0]))
+        samples = np.linspace(0.0, 1.0, max(int(N), 2))
+        table = (np.stack([np.interp(samples, positions, stops[:, channel])
+                           for channel in range(3)], axis=1)
+                 if stops.shape[0] > 1 else np.tile(stops[0], (samples.size, 1)))
+        hexes = [f"#{int(round(r * 255)):02x}{int(round(g * 255)):02x}{int(round(b * 255)):02x}"
+                 for r, g, b in table]
+        instance = cls.__new__(cls)
+        _ListedColormap.__init__(instance, hexes, name)
+        return instance
 
 
 def _rgba_tuple(color):
@@ -6212,7 +6605,7 @@ class _MColors:
     BoundaryNorm = _BoundaryNorm
     Colormap = Colormap
     ListedColormap = _ListedColormap
-    LinearSegmentedColormap = _ListedColormap
+    LinearSegmentedColormap = _LinearSegmentedColormap
     TABLEAU_COLORS = dict(_TAB10)
     BASE_COLORS = {name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
@@ -6315,20 +6708,37 @@ def _locator_value(value):
 class _MultipleLocator(_Locator):
     """Ticks at multiples of `base`, as `ticker.MultipleLocator`."""
 
-    def __init__(self, base=1.0):
-        self.base = float(base)
+    def __init__(self, base=1.0, offset=0.0):
+        self.base, self.offset = float(base), float(offset)
 
-    def set_params(self, base=None):
+    def set_params(self, base=None, offset=None):
         if base is not None:
             self.base = float(base)
+        if offset is not None:
+            self.offset = float(offset)
 
     def tick_values(self, vmin, vmax):
         lo, hi = _locator_span(vmin, vmax)
         base = self.base if self.base > 0 else 1.0
-        first = _math.ceil(lo / base - 1e-9) * base
-        last = _math.floor(hi / base + 1e-9) * base
+        first = _math.ceil((lo - self.offset) / base - 1e-9) * base + self.offset
+        last = _math.floor((hi - self.offset) / base + 1e-9) * base + self.offset
         count = int(round((last - first) / base)) + 1 if last >= first else 0
         return np.asarray([_locator_value(first + i * base) for i in range(count)])
+
+
+class _IndexLocator(_Locator):
+    """Ticks at `offset + base * i`, as `ticker.IndexLocator`."""
+
+    def __init__(self, base, offset=0.0):
+        self.base, self.offset = float(base), float(offset)
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _locator_span(vmin, vmax)
+        if self.base <= 0:
+            return np.asarray([], dtype=float)
+        count = int(_math.floor((hi - self.offset) / self.base + 1e-9)) + 1
+        values = [self.offset + i * self.base for i in range(max(count, 0))]
+        return np.asarray([v for v in values if v >= lo - 1e-9], dtype=float)
 
 
 class _MaxNLocator(_Locator):
@@ -6414,6 +6824,231 @@ class _PathEffects:
     def withSimplePatchShadow(*args, **kwargs): return _PathEffects.SimplePatchShadow()
 
 
+class _TransformedBbox:
+    """Bbox carried through a transform; matplotvite transforms are identities."""
+
+    def __init__(self, bbox, transform=None):
+        self._bbox, self._transform = bbox, transform
+
+    @property
+    def x0(self): return float(self._bbox.x0)
+    @property
+    def y0(self): return float(self._bbox.y0)
+    @property
+    def x1(self): return float(self._bbox.x1)
+    @property
+    def y1(self): return float(self._bbox.y1)
+    @property
+    def width(self): return self.x1 - self.x0
+    @property
+    def height(self): return self.y1 - self.y0
+
+    def get_points(self):
+        return np.asarray([[self.x0, self.y0], [self.x1, self.y1]], dtype=float)
+
+    def transformed(self, transform):
+        return _TransformedBbox(self._bbox, transform)
+
+
+class FontProperties:
+    """`FontProperties` accepts Matplotlib's font settings; size is the one the
+    renderer uses, the rest are kept for code that reads them back."""
+
+    def __init__(self, family=None, style=None, variant=None, weight=None,
+                 stretch=None, size=None, fname=None, math_fontfamily=None, **kwargs):
+        self._family, self._style, self._variant = family, style, variant
+        self._weight, self._stretch, self._size = weight, stretch, size
+        self._fname, self._math_fontfamily = fname, math_fontfamily
+
+    def copy(self):
+        return FontProperties(self._family, self._style, self._variant, self._weight,
+                              self._stretch, self._size, self._fname,
+                              self._math_fontfamily)
+
+    get_family = lambda self: self._family
+    get_style = lambda self: self._style
+    get_variant = lambda self: self._variant
+    get_weight = lambda self: self._weight
+    get_stretch = lambda self: self._stretch
+    get_size = lambda self: self._size
+    get_size_in_points = lambda self: self._size
+    get_file = lambda self: self._fname
+    set_family = lambda self, value: setattr(self, "_family", value)
+    set_style = lambda self, value: setattr(self, "_style", value)
+    set_variant = lambda self, value: setattr(self, "_variant", value)
+    set_weight = lambda self, value: setattr(self, "_weight", value)
+    set_stretch = lambda self, value: setattr(self, "_stretch", value)
+    set_size = lambda self, value: setattr(self, "_size", value)
+    set_file = lambda self, value: setattr(self, "_fname", value)
+
+
+class CapStyle(str):
+    butt = "butt"
+    round = "round"
+    projecting = "projecting"
+
+
+class JoinStyle(str):
+    miter = "miter"
+    round = "round"
+    bevel = "bevel"
+
+
+def same_color(*colors):
+    """True when every colour argument normalises to the same value."""
+    return len({_norm_color(c) for c in colors}) == 1
+
+
+def _num_to_date(value, tz=None): return _date_from_num(float(value))
+
+
+class _DateFormatter:
+    """Format a date number with `strftime`; `fmt` is Matplotlib's format."""
+
+    def __init__(self, fmt="%Y-%m-%d", tz=None):
+        self.fmt, self.tz = str(fmt), tz
+
+    def __call__(self, x, pos=None):
+        return _date_from_num(float(x)).strftime(self.fmt)
+
+    def set_tzinfo(self, tz): self.tz = tz
+    def get_offset(self): return ""
+
+
+class _AutoDateLocator:
+    """Calendar-aware locator on the date-number axis."""
+
+    def __init__(self, *args, **kwargs): pass
+
+    def tick_values(self, vmin, vmax):
+        ticks, _ = _date_ticks(float(vmin), float(vmax))
+        return np.asarray(ticks, dtype=float)
+
+    def __call__(self, vmin, vmax): return self.tick_values(vmin, vmax)
+    def set_axis(self, axis): self.axis = axis
+
+
+class _CalendarLocator:
+    """Ticks aligned to a calendar unit: years, months, days or smaller.
+
+    `interval` steps by that many units; `bymonth`/`bymonthday` accept
+    Matplotlib's arguments but only the first value is honoured.
+    """
+
+    unit = "day"
+
+    def __init__(self, interval=1, bymonth=None, bymonthday=None, **kwargs):
+        self.interval = max(int(interval), 1)
+        self.bymonth = (list(bymonth) if isinstance(bymonth, (list, tuple))
+                        else ([bymonth] if bymonth is not None else None))
+        self.bymonthday = (list(bymonthday) if isinstance(bymonthday, (list, tuple))
+                           else ([bymonthday] if bymonthday is not None else None))
+
+    def set_axis(self, axis): self.axis = axis
+
+    def tick_values(self, vmin, vmax):
+        vmin, vmax = float(vmin), float(vmax)
+        if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmax <= vmin:
+            return np.asarray([vmin], dtype=float)
+        if self.unit in ("year", "month"):
+            ticks = self._calendar_ticks(vmin, vmax)
+        else:
+            step = {"day": 1.0, "hour": 1.0 / 24.0, "minute": 1.0 / 1440.0,
+                    "second": 1.0 / 86400.0}[self.unit] * self.interval
+            first = _math.ceil(vmin / step - 1e-9) * step
+            ticks = [first + i * step for i in range(50) if first + i * step <= vmax + 1e-9]
+        return np.asarray(ticks, dtype=float)
+
+    def __call__(self, vmin, vmax): return self.tick_values(vmin, vmax)
+
+    def _calendar_ticks(self, vmin, vmax):
+        start = _date_from_num(vmin)
+        if self.unit == "year":
+            month = (self.bymonth or [1])[0]
+            day = (self.bymonthday or [1])[0]
+            year = start.year if (start.month, start.day) <= (month, day) else start.year + 1
+            step, ticks = self.interval, []
+            for i in range(60):
+                year += step if i else 0
+                try:
+                    current = _datetime.datetime(year, month, day)
+                except ValueError:
+                    break
+                value = _datetime_to_num(current)
+                if value > vmax + 1e-9:
+                    break
+                ticks.append(value)
+            return ticks
+        month = (self.bymonth or [start.month])[0]
+        current = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if self.bymonth is None and current.month != month:
+            current = current.replace(month=month)
+        ticks = []
+        for _ in range(60):
+            value = _datetime_to_num(current)
+            if value > vmax + 1e-9:
+                break
+            if value >= vmin - 1e-9:
+                ticks.append(value)
+            current = _add_months(current, self.interval)
+        return ticks
+
+
+class _YearLocator(_CalendarLocator):
+    unit = "year"
+
+
+class _MonthLocator(_CalendarLocator):
+    unit = "month"
+
+
+class _DayLocator(_CalendarLocator):
+    unit = "day"
+
+
+class _HourLocator(_CalendarLocator):
+    unit = "hour"
+
+
+class _MinuteLocator(_CalendarLocator):
+    unit = "minute"
+
+
+class _SecondLocator(_CalendarLocator):
+    unit = "second"
+
+
+class _FixedFormatter:
+    """Formatter that returns `seq[pos]`, as Matplotlib's FixedFormatter."""
+
+    def __init__(self, seq): self.seq = list(seq)
+
+    def __call__(self, x, pos=None):
+        if pos is None or not 0 <= int(pos) < len(self.seq):
+            raise IndexError("FixedFormatter position out of range")
+        return self.seq[int(pos)]
+
+    def set_axis(self, axis): return None
+
+
+def _get_sample_data(name, asfileobj=True):
+    """Matplotlib's sample-data directory is not shipped with matplotvite."""
+    raise FileNotFoundError(
+        f"matplotvite does not bundle Matplotlib's sample data ({name!r})")
+
+
+def _flatten(seq, scalarp=None):
+    """Depth-first flatten of nested sequences, as `cbook.flatten`."""
+    if scalarp is None:
+        scalarp = lambda value: not hasattr(value, "__iter__") or isinstance(value, str)
+    if scalarp(seq):
+        return [seq]
+    out = []
+    for item in seq:
+        out.extend(_flatten(item, scalarp))
+    return out
+
+
 class GridSpecFromSubplotSpec(GridSpec):
     """A GridSpec rooted at an existing SubplotSpec."""
 
@@ -6427,19 +7062,33 @@ def _offset_copy(trans, fig=None, x=0, y=0, units="inches", **kwargs):
     return _Transform()
 
 
+def _blended_transform_factory(x_transform, y_transform):
+    """Combined transform: matplotvite only distinguishes data/axes/figure."""
+    kinds = {getattr(t, "kind", None) for t in (x_transform, y_transform)}
+    for kind in ("axes", "figure"):
+        if kind in kinds:
+            return _CoordTransform(kind)
+    return _Transform()
+
+
 mcolors = _MColors()
 mcolors.ScalarMappable = ScalarMappable
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches
 mpath = _Namespace(Path=Path)
+path = mpath
 mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           PolyCollection=PolyCollection, PatchCollection=PatchCollection,
                           EventCollection=EventCollection, PathCollection=PathCollection,
                           RegularPolyCollection=RegularPolyCollection)
 collections = mcollections
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
+                         BboxTransformTo=_Transform, IdentityTransform=_Transform,
+                         ScaledTranslation=_Transform, TransformedBbox=_TransformedBbox,
+                         blended_transform_factory=_blended_transform_factory,
                          offset_copy=_offset_copy)
+transforms = mtransforms
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
     LinearLocator=_LinearLocator, LogLocator=_NoopLocator, MaxNLocator=_MaxNLocator,
@@ -6447,19 +7096,68 @@ mticker = _Namespace(
     FuncFormatter=_NoopFormatter, FormatStrFormatter=_NoopFormatter,
     StrMethodFormatter=_NoopFormatter, ScalarFormatter=_NoopFormatter,
     LogFormatter=_NoopFormatter, NullFormatter=_NoopFormatter,
+    FixedFormatter=_FixedFormatter, IndexLocator=_IndexLocator,
+    AutoLocator=_MaxNLocator,
 )
 ticker = mticker
 MultipleLocator = _MultipleLocator
 MaxNLocator = _MaxNLocator
 FixedLocator = _FixedLocator
 LinearLocator = _LinearLocator
+LogLocator = _NoopLocator
+FixedFormatter = _FixedFormatter
+
+dates = _Namespace(
+    date2num=_date_to_num, num2date=_num_to_date, DateFormatter=_DateFormatter,
+    AutoDateLocator=_AutoDateLocator, YearLocator=_YearLocator,
+    MonthLocator=_MonthLocator, DayLocator=_DayLocator, HourLocator=_HourLocator,
+    MinuteLocator=_MinuteLocator, SecondLocator=_SecondLocator,
+    WeekdayLocator=_DayLocator, MicrosecondLocator=_SecondLocator,
+)
+mdates = dates
+
+cbook = _Namespace(get_sample_data=_get_sample_data, flatten=_flatten,
+                   silent_list=lambda *items: list(items[0]) if items else [],
+                   to_rgba=lambda color, alpha=None: _rgba_tuple(color) if alpha is None
+                   else (*_rgba_tuple(color)[:3], float(alpha)))
+
+
+def _findfont(prop=None, **kwargs):
+    raise NotImplementedError(
+        "matplotvite renders text with its bundled fonts; font paths are not resolved")
+
+
+font_manager = _Namespace(FontProperties=FontProperties, findfont=_findfont,
+                          fontManager=_Namespace(addfont=lambda path: None))
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)
 patheffects = _PathEffects()
 path_effects = patheffects
-color_sequences = {"tableau": list(_CYCLE), "petroff": ["#000000", "#1f77b4", "#2ca02c",
-                                                        "#d62728", "#9467bd", "#8c564b"]}
+class _ColorSequences(dict):
+    """`matplotlib.color_sequences`: named colour lists, looked up by name."""
+
+    def __missing__(self, key):
+        raise KeyError(key)
+
+
+def _colormap_sequence(name):
+    base, table, reverse = _cmap_lookup(name)
+    rows = table[::-1] if reverse else table
+    return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rows]
+
+
+_PETROFF = ["#3f90da", "#ffa90e", "#bd1f01", "#94a4a2", "#832db6",
+            "#a96b59", "#e76300", "#b9ac70", "#717581", "#92dadd"]
+color_sequences = _ColorSequences(
+    tableau=list(_CYCLE), petroff=_PETROFF[:6], petroff6=_PETROFF[:6],
+    petroff8=_PETROFF[:8], petroff10=list(_PETROFF))
+for _sequence in ("tab10", "tab20", "tab20b", "tab20c", "Pastel1", "Pastel2",
+                  "Paired", "Accent", "Dark2", "Set1", "Set2", "Set3", "okabe_ito"):
+    try:
+        color_sequences[_sequence] = _colormap_sequence(_sequence)
+    except ValueError:
+        pass
 
 
 def rc(group=None, **kwargs):
@@ -6560,12 +7258,18 @@ _STYLE_PRESETS = {
                             "#ff00ff", "#ffff00", "#000000"],
     },
 }
+for _petroff_style in ("petroff6", "petroff8", "petroff10"):
+    _STYLE_PRESETS[_petroff_style] = {
+        "axes.prop_cycle": list(color_sequences[_petroff_style])}
 
 
 def _style_rc(style):
     """Merge a preset name, a list of names or a dict into one rc mapping."""
     if isinstance(style, dict):
-        return dict(style)
+        merged = dict(style)
+        if isinstance(merged.get("axes.prop_cycle"), list):
+            merged["axes.prop_cycle"] = _CycleList(merged["axes.prop_cycle"])
+        return merged
     if isinstance(style, (list, tuple)):
         merged = {}
         for item in style:
@@ -6576,7 +7280,7 @@ def _style_rc(style):
         return dict(_RC_DEFAULTS)
     if name not in _STYLE_PRESETS:
         raise ValueError(f"style not found: {name!r}")
-    return dict(_STYLE_PRESETS[name])
+    return _style_rc(_STYLE_PRESETS[name])
 
 
 class _StyleLibrary:

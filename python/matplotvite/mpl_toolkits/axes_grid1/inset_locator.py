@@ -5,6 +5,8 @@ common `inset_axes`/`zoomed_inset_axes` calls into an axes-fraction rectangle
 and delegates to `Axes.inset_axes`.
 """
 
+import math
+
 from matplotvite import rcParams
 
 __all__ = ("inset_axes", "zoomed_inset_axes")
@@ -26,9 +28,14 @@ _LOCS = {
 def _bounds(value):
     if hasattr(value, "bounds"):
         return tuple(float(v) for v in value.bounds)
+    if hasattr(value, "get_points"):
+        return tuple(float(v) for v in value.get_points().ravel())
     values = tuple(float(v) for v in value)
+    if len(values) == 2:
+        # A point anchors a zero-size box at (x, y).
+        return (values[0], values[1], 0.0, 0.0)
     if len(values) != 4:
-        raise ValueError("bbox_to_anchor must be a 4-tuple or Bbox")
+        raise ValueError("bbox_to_anchor must be a 2- or 4-tuple or a Bbox")
     return values
 
 
@@ -57,9 +64,29 @@ def _anchor_box(parent, bbox_to_anchor, bbox_transform):
         x, y, w, h = box
         box = ((x - outer.x0) / outer.width, (y - outer.y0) / outer.height,
                w / outer.width, h / outer.height)
-    elif kind not in ("axes", "data"):
-        raise NotImplementedError("inset_axes only supports axes/figure bounds")
+    elif kind == "data":
+        x, y, w, h = box
+        x0, x1 = _data_fraction(parent, (x, x + w), "x")
+        y0, y1 = _data_fraction(parent, (y, y + h), "y")
+        box = (x0, y0, x1 - x0, y1 - y0)
+    elif kind != "axes":
+        raise NotImplementedError("inset_axes only supports axes/figure/data bounds")
+    if not all(abs(v) < 1e9 for v in box):
+        raise ValueError(f"inset_axes bounds are not finite: {box!r}")
     return box
+
+
+def _data_fraction(parent, values, axis):
+    """Map two data coordinates to parent-axes fractions, honouring log scales."""
+    lo, hi = parent.get_xlim() if axis == "x" else parent.get_ylim()
+    scale = parent.get_xscale() if axis == "x" else parent.get_yscale()
+    if scale == "log":
+        values = [math.log10(max(float(v), 1e-300)) for v in values]
+        lo, hi = math.log10(max(float(lo), 1e-300)), math.log10(max(float(hi), 1e-300))
+    span = float(hi) - float(lo)
+    if span == 0.0 or not math.isfinite(span):
+        raise ValueError("inset_axes needs a non-degenerate parent range")
+    return tuple((float(v) - float(lo)) / span for v in values)
 
 
 def _place(anchor, width, height, loc, pad_x, pad_y):

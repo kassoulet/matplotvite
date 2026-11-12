@@ -2075,9 +2075,11 @@ where
                     continue;
                 }
                 area.draw(&Rectangle::new([(xl, yt), (xr, yb)], col.filled()))?;
-                if let Some(ec) = &bars.edgecolor {
-                    let ecol = color(ec).stroke_width(1);
-                    area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
+                if let Some(edges) = &bars.edgecolor {
+                    if let Some(ec) = edges.get(i % edges.len().max(1)) {
+                        let ecol = color(ec).stroke_width(1);
+                        area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
+                    }
                 }
             }
             if !bars.label.is_empty() {
