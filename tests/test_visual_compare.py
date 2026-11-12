@@ -52,3 +52,29 @@ def test_svg_output_is_compared_against_matplotlib_svg(tmp_path):
     result = compare_images(tmp_path / "mpl.svg", tmp_path / "rs.svg")
     assert result["shape_match"] is True
     assert result["rms"] < 0.2
+
+
+def test_svg_comparison_page_lists_both_exports(tmp_path):
+    """The pages build turns the SVG metrics into a standalone comparison page."""
+    import json
+
+    from tools.build_pages import generate_galleries_html, generate_svg_comparison_html
+
+    gallery_dir = tmp_path / "visual-svg"
+    gallery_dir.mkdir()
+    (gallery_dir / "metrics.json").write_text(json.dumps({
+        "lines": {"shape_match": True, "rms": 0.1, "mismatch_pct": 2.0},
+        "broken": {"error": "TypeError: nope"},
+    }), encoding="utf-8")
+    (gallery_dir / "lines.mpl.svg").write_text("<svg/>", encoding="utf-8")
+    (gallery_dir / "lines.rs.svg").write_text("<svg/>", encoding="utf-8")
+
+    page = generate_svg_comparison_html(tmp_path)
+    assert page is not None
+    assert "visual-svg/lines.mpl.svg" in page
+    assert "visual-svg/lines.rs.svg" in page
+    assert "rms 0.100" in page
+    assert "TypeError: nope" in page
+    assert "svg-comparison.html" in generate_galleries_html(tmp_path)
+
+    assert generate_svg_comparison_html(tmp_path / "missing") is None

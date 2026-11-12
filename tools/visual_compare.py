@@ -126,16 +126,77 @@ def run(name: str, code: str, lib, tag: str, out: pathlib.Path, fmt: str = "png"
         return None, f"{type(exc).__name__}: {exc}"
 
 
+def _row(name: str, result: dict[str, object], a: pathlib.Path | None,
+         ea: str | None, b: pathlib.Path | None, eb: str | None) -> str:
+    rms = result.get("rms")
+    rms_text = "n/a" if rms is None else f"{float(rms):.3f}"
+    pct = result.get("mismatch_pct")
+    pct_text = "n/a" if pct is None else f"{float(pct):.1f}%"
+
+    def cell(path: pathlib.Path | None, error: str | None) -> str:
+        if path:
+            return f'<img src="{html.escape(path.name)}" loading="lazy">'
+        return f'<pre class="error">{html.escape(error or "")}</pre>'
+
+    return (f"<tr><td class=\"case\"><b>{html.escape(name)}</b>"
+            f"<span>rms {rms_text} · {pct_text} different</span></td>"
+            f"<td>{cell(a, ea)}</td><td>{cell(b, eb)}</td></tr>")
+
+
+def _page(title: str, subtitle: str, rows: list[str],
+          metrics: dict[str, dict[str, object]], fmt: str) -> str:
+    failures = sum(1 for result in metrics.values() if result.get("error"))
+    rms_values = [float(result["rms"]) for result in metrics.values()
+                  if result.get("rms") is not None]
+    median = sorted(rms_values)[len(rms_values) // 2] if rms_values else None
+    summary = f"{len(metrics)} cases · {failures} failures"
+    if median is not None:
+        summary += f" · median rms {median:.3f}"
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{html.escape(title)}</title>
+  <style>
+    :root {{ color-scheme: light dark; }}
+    body {{ margin: 0; padding: 2rem clamp(1rem, 4vw, 3rem); font: 15px/1.5 system-ui, sans-serif; }}
+    h1 {{ font-size: 1.6rem; margin: 0 0 .35rem; }}
+    .subtitle {{ color: #666; margin: 0 0 .5rem; max-width: 70ch; }}
+    .summary {{ font: 12px/1.5 ui-monospace, monospace; color: #666; margin: 0 0 1.5rem; }}
+    table {{ border-collapse: collapse; width: 100%; }}
+    th, td {{ border-bottom: 1px solid #d8d8d8; padding: .6rem; text-align: left; vertical-align: top; }}
+    th {{ font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: #666; }}
+    td.case {{ font: 12px/1.6 ui-monospace, monospace; white-space: nowrap; width: 1%; }}
+    td.case span {{ display: block; color: #666; }}
+    img {{ display: block; width: 100%; max-width: 460px; height: auto; background: #fff; }}
+    .error {{ color: #b00020; white-space: pre-wrap; max-width: 46ch; }}
+  </style>
+</head>
+<body>
+  <h1>{html.escape(title)}</h1>
+  <p class="subtitle">{html.escape(subtitle)}</p>
+  <p class="summary">{html.escape(summary)}</p>
+  <table>
+    <thead><tr><th>case</th><th>matplotlib {fmt.upper()}</th><th>matplotvite {fmt.upper()}</th></tr></thead>
+    <tbody>{''.join(rows)}</tbody>
+  </table>
+</body>
+</html>
+"""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("outdir", nargs="?", default="visual", type=pathlib.Path)
     parser.add_argument("--json", type=pathlib.Path, dest="json_out",
-                        help="write per-snippet mismatch metrics here")
+                        help="write per-snippet mismatch metrics here "
+                             "(default: <outdir>/metrics.json)")
     parser.add_argument("--format", choices=("png", "svg"), default="png",
                         help="save both libraries with this format before comparing "
                              "(svg exercises the vector export path)")
     args = parser.parse_args()
-    args.outdir.mkdir(exist_ok=True)
+    args.outdir.mkdir(parents=True, exist_ok=True)
 
     rows = []
     metrics: dict[str, dict[str, object]] = {}
@@ -147,21 +208,21 @@ def main() -> int:
             result.update(compare_images(a, b))
         elif ea:
             result["error"] = f"matplotlib: {ea}"
-        rms = result.get("rms")
-        rms_text = "n/a" if rms is None else f"{rms:.3f}"
-        cell = lambda p, e: (f'<img src="{p.name}">' if p
-                             else f'<pre style="color:#c00">{html.escape(e or "")}</pre>')
-        rows.append(f"<tr><td><b>{name}</b><br>rms: {rms_text}</td>"
-                    f"<td>{cell(a, ea)}</td><td>{cell(b, eb)}</td></tr>")
+        rows.append(_row(name, result, a, ea, b, eb))
         metrics[name] = result
-        print(f"{name:24} {'OK ' if b else 'FAIL'} {rms_text} {eb or ''}".rstrip())
-    (args.outdir / "index.html").write_text(
-        "<table border=1 cellpadding=6><tr><th>case</th><th>matplotlib</th>"
-        "<th>matplotvite</th></tr>" + "".join(rows)
-        + "</table><style>img{max-width:480px}</style>", encoding="utf-8")
-    if args.json_out:
-        args.json_out.write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n",
-                                encoding="utf-8")
+        print(f"{name:24} {'OK ' if b else 'FAIL'} {result.get('rms')} {eb or ''}".rstrip())
+
+    noun = "SVG export" if args.format == "svg" else "rendered output"
+    page = _page(
+        f"Matplotlib vs matplotvite — {noun}",
+        "The same script runs against both libraries; each image is the file the "
+        f"library wrote in {args.format.upper()} format. RMS and differing-pixel "
+        "share are measured after rasterising the pair to a common size.",
+        rows, metrics, args.format)
+    (args.outdir / "index.html").write_text(page, encoding="utf-8")
+    json_out = args.json_out or (args.outdir / "metrics.json")
+    json_out.write_text(json.dumps(metrics, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8")
     return 1 if any(v.get("error") for v in metrics.values()) else 0
 
 
