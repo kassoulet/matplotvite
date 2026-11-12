@@ -230,6 +230,32 @@ def test_render_exposes_local_example_modules(tmp_path, monkeypatch):
     assert out.exists()
 
 
+def test_harvest_marks_blank_renders_as_blank(tmp_path):
+    root = tmp_path / "tests"
+    (root / "baseline_images" / "test_demo").mkdir(parents=True)
+    (root / "test_demo.py").write_text(
+        "@image_comparison(['blank.png'])\n"
+        "def test_blank():\n"
+        "    plt.figure()\n"
+        "\n"
+        "@image_comparison(['drawn.png'])\n"
+        "def test_drawn():\n"
+        "    plt.plot([0, 1], [1, 0])\n", encoding="utf-8")
+    baseline = root / "baseline_images" / "test_demo" / "drawn.png"
+    matplotvite.close("all")
+    matplotvite.plot([0, 1], [1, 0])
+    matplotvite.savefig(baseline)
+    matplotvite.close("all")
+    out = tmp_path / "gallery"
+    counts = harvest_gallery(root, out, out / "manifest.json")
+    assert counts["blank"] == 1 and counts["rendered"] == 1
+    manifest = {case["id"]: case for case in
+                json.loads((out / "manifest.json").read_text(encoding="utf-8"))}
+    assert manifest["test_demo/test_blank"]["status"] == "blank"
+    assert manifest["test_demo/test_blank"]["nonwhite"] < 50
+    assert manifest["test_demo/test_drawn"]["status"] == "rendered"
+
+
 def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     root = make_root(tmp_path)
     # A real baseline lets the case be measured rather than reported as missing.
@@ -242,7 +268,8 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     out = tmp_path / "gallery"
     manifest_path = out / "manifest.json"
     counts = harvest_gallery(root, out, manifest_path)
-    assert counts == {"cases": 2, "rendered": 1, "failed": 0, "unsupported": 1}
+    assert counts == {"cases": 2, "rendered": 1, "blank": 0, "failed": 0,
+                     "unsupported": 1}
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "test_demo/test_grid" in index and "test_demo_test_grid.png" in index
     assert "parametrised test" in index

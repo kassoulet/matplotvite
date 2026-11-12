@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import ast
 import html
+import importlib.util
 import json
 import os
 import pathlib
@@ -263,6 +264,35 @@ def harvest_examples(examples_root: pathlib.Path) -> list[dict[str, object]]:
             "snippet": prepare_example(text),
         })
     return cases
+
+
+# A case whose PNG has almost no ink is reported as blank, not rendered:
+# Matplotlib's baseline is never empty, so such a case says nothing about
+# fidelity and usually points at a silently ignored call.
+BLANK_THRESHOLD = 50
+
+
+def _nonwhite_pixels(path: pathlib.Path) -> int | None:
+    """Sampled non-white pixel count, using the stdlib decoder in tests/."""
+    try:
+        from png_utils import decode_png_rgba
+    except ImportError:
+        helper = pathlib.Path(__file__).resolve().parents[1] / "tests" / "png_utils.py"
+        spec = importlib.util.spec_from_file_location("png_utils", helper)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        decode_png_rgba = module.decode_png_rgba
+    try:
+        _, _, rows = decode_png_rgba(path.read_bytes())
+    except Exception:  # noqa: BLE001 - an unreadable PNG is unknown, not blank
+        return None
+    return sum(
+        min(row[i], row[i + 1], row[i + 2]) < 250
+        for y, row in enumerate(rows) if y % 2 == 0
+        for i in range(0, len(row), 8)
+    )
 
 
 def _resolve_baseline(tests_root: pathlib.Path, stem: str, name: str) -> pathlib.Path:
@@ -542,19 +572,25 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             error = render(str(case["snippet"]), ours, ignored=ignored)
             entry["ignored"] = len(ignored)
             if error is None:
-                entry["status"] = "rendered"
-                rendered += 1
                 entry["ours"] = str(ours)
-                if baseline.exists():
-                    result = metrics(baseline, ours)
-                    metric_error = result.pop("error", None)
-                    entry.update(result)
-                    if metric_error is not None:
-                        # Rendering succeeded; only the pixel comparison is unavailable.
-                        entry["metrics_error"] = metric_error
+                nonwhite = _nonwhite_pixels(ours)
+                entry["nonwhite"] = nonwhite
+                if nonwhite is not None and nonwhite < BLANK_THRESHOLD:
+                    entry["status"] = "blank"
+                    entry["error"] = "blank render"
                 else:
-                    entry["status"] = "no baseline"
-                    entry["error"] = f"missing baseline {baseline}"
+                    entry["status"] = "rendered"
+                    rendered += 1
+                    if baseline.exists():
+                        result = metrics(baseline, ours)
+                        metric_error = result.pop("error", None)
+                        entry.update(result)
+                        if metric_error is not None:
+                            # Rendering succeeded; only the pixel comparison is unavailable.
+                            entry["metrics_error"] = metric_error
+                    else:
+                        entry["status"] = "no baseline"
+                        entry["error"] = f"missing baseline {baseline}"
             else:
                 entry["status"] = "failed"
                 entry["error"] = error
@@ -577,6 +613,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
         case["error"] = entry["error"]
         case["ignored"] = entry["ignored"]
         case["ours"] = entry.get("ours")
+        case["nonwhite"] = entry.get("nonwhite")
         case["shape_match"] = entry.get("shape_match")
         case["rms"] = entry.get("rms")
         case["mismatch_pct"] = entry.get("mismatch_pct")
@@ -591,9 +628,10 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     statuses = [str(case["status"]) for case in cases]
     print(f"\n{len(cases)} baseline cases: {rendered} rendered, "
-          f"{statuses.count('failed')} failed, {statuses.count('unsupported')} "
-          f"unsupported; gallery: {out / 'index.html'}")
+          f"{statuses.count('blank')} blank, {statuses.count('failed')} failed, "
+          f"{statuses.count('unsupported')} unsupported; gallery: {out / 'index.html'}")
     return {"cases": len(cases), "rendered": rendered,
+            "blank": statuses.count("blank"),
             "failed": statuses.count("failed"),
             "unsupported": statuses.count("unsupported")}
 
@@ -648,9 +686,12 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
                                     pathlib.Path(str(case["path"])).parent,
                                     ignored=ignored)
             entry["ignored"] = len(ignored)
-            entry["status"] = "rendered" if entry["error"] is None else "failed"
+            entry["status"] = "failed" if entry["error"] is not None else "rendered"
             if entry["error"] is None:
                 entry["ours"] = str(ours)
+                entry["nonwhite"] = _nonwhite_pixels(ours)
+                if entry["nonwhite"] is not None and entry["nonwhite"] < BLANK_THRESHOLD:
+                    entry["status"] = "blank"
         counts = statuses.setdefault(str(case["category"]), [0, 0])
         counts[0] += 1
         counts[1] += entry["status"] == "rendered"
@@ -669,14 +710,15 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         f"<li>{html.escape(name)}: {ok}/{total} rendered</li>"
         for name, (total, ok) in sorted(statuses.items()))
     rendered = sum(case["status"] == "rendered" for case in cases)
+    blank = sum(case["status"] == "blank" for case in cases)
     (out / "index.html").write_text(
-        f"<p>{rendered}/{len(cases)} examples rendered</p><ul>{summary}</ul>"
+        f"<p>{rendered}/{len(cases)} examples rendered, {blank} blank</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
         "<th>status</th></tr>" + "".join(rows)
         + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
-    print(f"\n{rendered}/{len(cases)} gallery examples rendered; "
+    print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank; "
           f"gallery: {out / 'index.html'}")
     return 0
 
