@@ -110,9 +110,17 @@ jobs:
             os: macos-latest
             target: aarch64-apple-darwin
             interpreter: python
+          - name: macos-x86_64
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+            interpreter: python
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
+            interpreter: python
+          - name: windows-arm64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
             interpreter: python
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -127,10 +135,23 @@ jobs:
           # select the matching container Python explicitly. The wheel is built
           # against the stable ABI (cp39-abi3) and works on every version above 3.9.
           args: --release --out dist --interpreter ${{ matrix.interpreter }}
+      - name: Build the sdist
+        # One matrix entry builds the source distribution: the tarball is
+        # platform independent, so every platform would only duplicate it.
+        if: matrix.name == 'linux-x86_64'
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          command: sdist
+          args: --out dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wheel-${{ matrix.name }}
           path: dist/*.whl
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.name == 'linux-x86_64'
+        with:
+          name: sdist
+          path: dist/*.tar.gz
 
   wheel-tests:
     name: wheel test (py${{ matrix.python }}, ${{ matrix.os }})
@@ -163,10 +184,56 @@ jobs:
           merge-multiple: true
       - name: Install the built wheel
         run: |
-          python -m pip install -c .github/requirements-ci.txt numpy pytest
+          python -m pip install -c .github/requirements-ci.txt numpy pandas pytest
           python -m pip install --no-index --find-links dist matplotvite
-      - name: Verify the installed wheel
-        run: python -m pytest -q tests/test_wheel.py
+      - name: Run the test suite against the installed wheel
+        # The repo root is not on sys.path ahead of site-packages, so these
+        # imports resolve to the installed wheel rather than the source tree.
+        # Keep this the same suite the `test` job runs, so a wheel-only break
+        # cannot hide behind a `maturin develop` build.
+        run: python -m pytest -q
+
+  sdist-wheel:
+    name: wheel from sdist
+    needs: wheels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdist
+          path: dist
+      - name: Build a wheel from the sdist
+        # Same PEP 517 path a user gets from `pip install matplotvite` on a
+        # platform without a wheel, using the pinned maturin instead of an
+        # isolated resolution.
+        run: |
+          python -m pip install -c .github/requirements-ci.txt maturin
+          python -m pip wheel --no-deps --no-build-isolation --wheel-dir wheel dist/*.tar.gz
+      - name: Check the wheel built from the sdist
+        run: |
+          python - <<'PY'
+          import glob
+          import pathlib
+
+          wheels = glob.glob("wheel/*.whl")
+          assert len(wheels) == 1, wheels
+          # The sdist must keep the abi3 configuration, or every interpreter
+          # above 3.9 would lose its wheel.
+          assert "cp39-abi3" in pathlib.Path(wheels[0]).name, wheels[0]
+          print(f"built {wheels[0]}")
+          PY
+      - name: Install and smoke-test the sdist wheel
+        run: |
+          python -m pip install -c .github/requirements-ci.txt numpy pytest
+          python -m pip install --no-deps wheel/*.whl
+          python -m pytest -q tests/test_wheel.py
 
   benchmarks:
     name: benchmark regression guard
