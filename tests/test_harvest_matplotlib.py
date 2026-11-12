@@ -7,8 +7,8 @@ import matplotvite
 
 from tools.harvest_matplotlib import (_resolve_baseline, find_examples_root,
                                       find_tests_root, harvest, harvest_examples,
-                                      harvest_gallery, prepare_body,
-                                      prepare_example, render)
+                                      harvest_examples_gallery, harvest_gallery,
+                                      prepare_body, prepare_example, render)
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
@@ -181,6 +181,26 @@ def test_harvest_examples_tags_each_script_with_its_category(tmp_path):
     assert cases["interactive"]["snippet"] is None
     assert "plt.plot([0, 1])" in cases["lines/band"]["snippet"]
     assert "matplotlib" not in cases["lines/band"]["snippet"]
+
+
+def test_examples_gallery_marks_out_of_scope_categories(tmp_path):
+    root = tmp_path / "examples"
+    script = "import matplotlib.pyplot as plt\nplt.plot([0, 1], [1, 0])\n"
+    for category in ("mplot3d", "widgets", "lines"):
+        (root / category).mkdir(parents=True)
+        (root / category / "demo.py").write_text(script, encoding="utf-8")
+    out = tmp_path / "gallery"
+    assert harvest_examples_gallery(root, out, out / "manifest.json") == 0
+    cases = {case["id"]: case for case in json.loads(
+        (out / "manifest.json").read_text(encoding="utf-8"))}
+    # A still render cannot judge a GUI or 3-D example, so it must not be
+    # counted as a matplotvite failure.
+    assert cases["mplot3d/demo"]["status"] == "unsupported"
+    assert cases["widgets/demo"]["status"] == "unsupported"
+    assert cases["mplot3d/demo"]["error"] == "mplot3d is out of scope"
+    assert cases["lines/demo"]["status"] == "rendered"
+    index = (out / "index.html").read_text(encoding="utf-8")
+    assert "2 unsupported" in index
 
 
 def test_render_runs_in_a_scratch_directory(tmp_path, monkeypatch):

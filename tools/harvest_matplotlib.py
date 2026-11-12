@@ -271,6 +271,12 @@ def harvest_examples(examples_root: pathlib.Path) -> list[dict[str, object]]:
 # fidelity and usually points at a silently ignored call.
 BLANK_THRESHOLD = 50
 
+# Gallery categories that cannot be judged from a still render: they need a
+# GUI toolkit, an interactive backend or 3-D axes (out of scope).
+OUT_OF_SCOPE_CATEGORIES = frozenset({
+    "animation", "mplot3d", "user_interfaces", "widgets",
+})
+
 
 def _nonwhite_pixels(path: pathlib.Path) -> int | None:
     """Sampled non-white pixel count, using the stdlib decoder in tests/."""
@@ -679,6 +685,9 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         if case["snippet"] is None:
             entry["status"] = "unsupported"
             entry["error"] = "interactive or unparseable"
+        elif case["category"] in OUT_OF_SCOPE_CATEGORIES:
+            entry["status"] = "unsupported"
+            entry["error"] = f"{case['category']} is out of scope"
         else:
             ours = out / f"{slug}.png"
             ignored: list[str] = []
@@ -711,15 +720,17 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         for name, (total, ok) in sorted(statuses.items()))
     rendered = sum(case["status"] == "rendered" for case in cases)
     blank = sum(case["status"] == "blank" for case in cases)
+    unsupported = sum(case["status"] == "unsupported" for case in cases)
     (out / "index.html").write_text(
-        f"<p>{rendered}/{len(cases)} examples rendered, {blank} blank</p><ul>{summary}</ul>"
+        f"<p>{rendered}/{len(cases)} examples rendered, {blank} blank, "
+        f"{unsupported} unsupported</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
         "<th>status</th></tr>" + "".join(rows)
         + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
-    print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank; "
-          f"gallery: {out / 'index.html'}")
+    print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank, "
+          f"{unsupported} unsupported; gallery: {out / 'index.html'}")
     return 0
 
 
