@@ -306,6 +306,8 @@ python tools/visual_compare.py visual --json visual_diff.json
 
 The visual comparison renders every gallery case through Matplotlib and
 matplotvite and records per-snippet RMS and visibly-different-pixel percentages.
+It also runs the examples from `examples/samples.py` (skipping any whose optional
+dependency is missing), so the page covers the same material as the gallery.
 CI uploads `visual_diff.json` with the side-by-side HTML gallery. Add
 `--format svg` to export both sides as SVG first; the Pages build does that and
 writes `dist/svg-comparison.html`, linked from the galleries page.

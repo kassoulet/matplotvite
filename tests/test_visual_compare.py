@@ -78,3 +78,15 @@ def test_svg_comparison_page_lists_both_exports(tmp_path):
     assert "svg-comparison.html" in generate_galleries_html(tmp_path)
 
     assert generate_svg_comparison_html(tmp_path / "missing") is None
+
+
+def test_gallery_samples_are_comparison_cases():
+    """The example gallery's snippets run against either library via OUT."""
+    from tools.visual_compare import gallery_cases
+
+    cases = gallery_cases()
+    code = cases["gallery_trigonometric_waves"]
+    assert "import matplotvite" not in code
+    assert 'plt.savefig("trigonometric_waves.png")' not in code
+    assert "plt.savefig(OUT)" in code
+    assert "gallery_broken_barh" in cases

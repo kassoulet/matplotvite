@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import argparse
 import html
+import importlib.util
 import json
 import pathlib
+import re
 import tempfile
 
 import numpy as np
@@ -47,6 +49,36 @@ plt.savefig(OUT)""",
 
 _VECTOR_SUFFIXES = (".pdf", ".svg", ".eps")
 _RASTER_CACHE = pathlib.Path(tempfile.mkdtemp(prefix="matplotvite-compare-"))
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+
+def gallery_cases() -> dict[str, str]:
+    """Reuse `examples/samples.py` as comparison cases.
+
+    Each sample stores its runnable source, written against `matplotvite as
+    plt`; drop those imports so the case runs against whichever library the
+    comparison binds, and save to OUT instead of the gallery filename. Samples
+    whose optional dependency is missing are skipped.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "matplotvite_gallery_samples", ROOT / "examples" / "samples.py")
+    if spec is None or spec.loader is None:  # pragma: no cover - defensive
+        return {}
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    cases: dict[str, str] = {}
+    for sample in module.SAMPLES:
+        requires = sample.get("requires")
+        if requires and importlib.util.find_spec(str(requires)) is None:
+            continue
+        code = "\n".join(
+            line for line in str(sample["code"]).splitlines()
+            if not line.startswith(("import matplotvite", "import matplotlib",
+                                    "from matplotlib")))
+        code = re.sub(r"(fig|plt)\.savefig\([^)]*\)", r"\1.savefig(OUT)", code)
+        cases[f"gallery_{sample['id']}"] = code
+    return cases
 
 
 def rasterise(path: pathlib.Path, like: pathlib.Path) -> pathlib.Path:
@@ -198,9 +230,10 @@ def main() -> int:
     args = parser.parse_args()
     args.outdir.mkdir(parents=True, exist_ok=True)
 
+    cases = {**CASES, **gallery_cases()}
     rows = []
     metrics: dict[str, dict[str, object]] = {}
-    for name, code in CASES.items():
+    for name, code in cases.items():
         (a, ea), (b, eb) = (run(name, code, mpl, "mpl", args.outdir, args.format),
                             run(name, code, matplotvite, "rs", args.outdir, args.format))
         result: dict[str, object] = {"error": eb}
