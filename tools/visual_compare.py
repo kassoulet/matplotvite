@@ -55,17 +55,28 @@ def rasterise(path: pathlib.Path, like: pathlib.Path) -> pathlib.Path:
     Matplotlib keeps some baselines as PDF/SVG (and a few EPS); those cannot be
     read by `matplotlib.image.imread`. Convert them with an optional converter at
     the rendered image's pixel size so the same RMS metric still applies.
+    `like` may be a raster image or another vector file.
     """
     if path.suffix.lower() not in _VECTOR_SUFFIXES:
         return path
+    if like.suffix.lower() in _VECTOR_SUFFIXES:
+        like = _rasterise_vector(like, _RASTER_CACHE / f"like-{like.stem}.png")
     height, width = mimg.imread(like).shape[:2]
     target = _RASTER_CACHE / f"{path.parent.name}-{path.stem}.png"
+    return _rasterise_vector(path, target, width, height)
+
+
+def _rasterise_vector(path: pathlib.Path, target: pathlib.Path,
+                      width: int | None = None,
+                      height: int | None = None) -> pathlib.Path:
+    """Convert a PDF/SVG/EPS file to PNG, optionally at a fixed pixel size."""
     suffix = path.suffix.lower()
     if suffix == ".pdf":
         import pypdfium2 as pdfium
         page = pdfium.PdfDocument(str(path))[0]
         page_width, _ = page.get_size()
-        page.render(scale=width / page_width).to_pil().save(target)
+        scale = 1.0 if width is None else width / page_width
+        page.render(scale=scale).to_pil().save(target)
     elif suffix == ".svg":
         import cairosvg
         cairosvg.svg2png(url=str(path), write_to=str(target),
@@ -73,19 +84,27 @@ def rasterise(path: pathlib.Path, like: pathlib.Path) -> pathlib.Path:
     else:
         from PIL import Image
         with Image.open(path) as image:  # EPS needs Ghostscript on PATH
-            image.convert("RGB").resize((width, height)).save(target)
-    # Converters round page sizes differently; the pixel metric needs equal shapes.
-    from PIL import Image
-    with Image.open(target) as image:
-        if image.size != (width, height):
-            image.resize((width, height)).save(target)
+            out = image.convert("RGB")
+            if width is not None:
+                out = out.resize((width, height))
+            out.save(target)
+    if width is not None:
+        # Converters round page sizes differently; the pixel metric needs equal shapes.
+        from PIL import Image
+        with Image.open(target) as image:
+            if image.size != (width, height):
+                image.resize((width, height)).save(target)
     return target
 
 
 def compare_images(path_a: pathlib.Path, path_b: pathlib.Path) -> dict[str, float | bool | None]:
     """Per-snippet pixel metrics: RMS error and percent of visibly different pixels."""
-    ia, ib = (mimg.imread(rasterise(path_a, path_b))[..., :3],
-              mimg.imread(path_b)[..., :3])
+    # Either side may be a vector file (matplotlib baselines, or both sides
+    # when --format svg compares the two exporters). Rasterise one side first
+    # so the other can be sized to it.
+    a = rasterise(path_a, path_b)
+    b = rasterise(path_b, a)
+    ia, ib = mimg.imread(a)[..., :3], mimg.imread(b)[..., :3]
     if ia.shape != ib.shape:
         return {"shape_match": False, "rms": None, "mismatch_pct": None}
     diff = np.abs(ia - ib)
@@ -95,8 +114,8 @@ def compare_images(path_a: pathlib.Path, path_b: pathlib.Path) -> dict[str, floa
             "mismatch_pct": round(mismatch, 3)}
 
 
-def run(name: str, code: str, lib, tag: str, out: pathlib.Path):
-    path = out / f"{name}.{tag}.png"
+def run(name: str, code: str, lib, tag: str, out: pathlib.Path, fmt: str = "png"):
+    path = out / f"{name}.{tag}.{fmt}"
     try:
         lib.close("all")
         # Keep random gallery cases comparable between the two libraries.
@@ -112,14 +131,17 @@ def main() -> int:
     parser.add_argument("outdir", nargs="?", default="visual", type=pathlib.Path)
     parser.add_argument("--json", type=pathlib.Path, dest="json_out",
                         help="write per-snippet mismatch metrics here")
+    parser.add_argument("--format", choices=("png", "svg"), default="png",
+                        help="save both libraries with this format before comparing "
+                             "(svg exercises the vector export path)")
     args = parser.parse_args()
     args.outdir.mkdir(exist_ok=True)
 
     rows = []
     metrics: dict[str, dict[str, object]] = {}
     for name, code in CASES.items():
-        (a, ea), (b, eb) = (run(name, code, mpl, "mpl", args.outdir),
-                            run(name, code, matplotvite, "rs", args.outdir))
+        (a, ea), (b, eb) = (run(name, code, mpl, "mpl", args.outdir, args.format),
+                            run(name, code, matplotvite, "rs", args.outdir, args.format))
         result: dict[str, object] = {"error": eb}
         if a and b:
             result.update(compare_images(a, b))
