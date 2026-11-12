@@ -1563,6 +1563,19 @@ def test_violinplot_bodies_and_stats(tmp_path):
     assert s.count("<POLYLINE") >= 6
 
 
+def test_violinplot_uses_one_body_colour_and_body_lines(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    result = ax.violinplot([np.linspace(0, 1, 10), np.linspace(0, 2, 10)])
+    assert [b.get_facecolor() for b in result["bodies"]] == [plt._CYCLE[0]] * 2
+    assert result["bodies"][0].get_alpha() == pytest.approx(0.3)
+    for handle in (result["cmaxes"][0], result["cmins"][1], result["cbars"][0]):
+        assert handle.get_color() == plt._CYCLE[0]
+    p = tmp_path / "violin_style.png"
+    plt.savefig(p)
+    assert p.stat().st_size > 0
+
+
 def test_violinplot_body_stays_within_the_data_range(tmp_path):
     data = [np.array([-2.7, -1.0, 0.2, 1.1, 2.4, 3.0, 4.8, 6.3])]
     plt.figure()

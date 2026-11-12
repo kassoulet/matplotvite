@@ -3547,7 +3547,15 @@ class Axes:
         pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
         wid = _fill(widths, n)
         colors = _colors(kwargs.get("facecolor", kwargs.get("facecolors")))
-        line_color = _single_color(kwargs.get("linecolor", kwargs.get("edgecolor")), None)
+        if not colors:
+            # Matplotlib 3.11 uses one cycle colour for every body in the call,
+            # not a new colour per violin.
+            colors = [self._next_color()]
+        alpha = kwargs.get("alpha")
+        body_alpha = 0.3 if alpha is None else float(alpha)
+        # Extrema, means, medians and quantiles use the body colour.
+        line_color = _single_color(
+            kwargs.get("linecolor", kwargs.get("edgecolor")), colors[0])
         out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
         if quantiles is not None:
             out["cquantiles"] = []
@@ -3588,8 +3596,8 @@ class Axes:
                     sign = -1.0 if side in ("left", "low") else 1.0
                     ys = np.concatenate([[loc], loc + sign * density * scale, [loc]])
                     xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
-            color = colors[i % len(colors)] if colors else self._next_color()
-            entry = _band(xs, ys, color, kwargs.get("alpha"))
+            color = colors[i] if i < len(colors) else colors[0]
+            entry = _band(xs, ys, color, body_alpha)
             self.bands.append(entry)
             out["bodies"].append(_ViolinBody(entry, color))
             if line_color is not None:
@@ -3600,27 +3608,27 @@ class Axes:
             horizontal = orientation == "horizontal"
             if showextrema:
                 out["cmins"].append(self._stats_line(
-                    [loc - half, loc + half], [vmin, vmin], "black")
+                    [loc - half, loc + half], [vmin, vmin], line_color)
                     if not horizontal else self._stats_line(
-                    [vmin, vmin], [loc - half, loc + half], "black"))
+                    [vmin, vmin], [loc - half, loc + half], line_color))
                 out["cmaxes"].append(self._stats_line(
-                    [loc - half, loc + half], [vmax, vmax], "black")
+                    [loc - half, loc + half], [vmax, vmax], line_color)
                     if not horizontal else self._stats_line(
-                    [vmax, vmax], [loc - half, loc + half], "black"))
+                    [vmax, vmax], [loc - half, loc + half], line_color))
                 out["cbars"].append(self._stats_line(
-                    [loc, loc], [vmin, vmax], "black")
+                    [loc, loc], [vmin, vmax], line_color)
                     if not horizontal else self._stats_line(
-                    [vmin, vmax], [loc, loc], "black"))
+                    [vmin, vmax], [loc, loc], line_color))
             if showmeans:
                 mean = float(vals.mean())
                 out["cmeans"].append(self._stats_line(
-                    [loc - half, loc + half], [mean, mean], "black")
+                    [loc - half, loc + half], [mean, mean], line_color)
                     if not horizontal else self._stats_line(
-                    [mean, mean], [loc - half, loc + half], "black"))
+                    [mean, mean], [loc - half, loc + half], line_color))
             if showmedians:
                 median = float(np.median(vals))
                 self._stats_line(
-                    [loc - half, loc + half], [median, median], "black")
+                    [loc - half, loc + half], [median, median], line_color)
             if quantiles is not None:
                 q_values = (per_group_quantiles[i] if per_group_quantiles is not None
                             else np.atleast_1d(
@@ -3628,9 +3636,9 @@ class Axes:
                 for q in q_values:
                     value = float(np.percentile(vals, q))
                     out["cquantiles"].append(self._stats_line(
-                        [value, value], [loc - half, loc + half], "black")
+                        [value, value], [loc - half, loc + half], line_color)
                         if horizontal else self._stats_line(
-                        [loc - half, loc + half], [value, value], "black"))
+                        [loc - half, loc + half], [value, value], line_color))
         return out
 
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
