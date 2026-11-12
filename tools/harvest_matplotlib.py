@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import gzip
 import html
 import importlib.util
 import json
@@ -478,9 +479,41 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
     return cases
 
 
+class _SampleDataCbook:
+    """`cbook` backed by the Matplotlib checkout's bundled sample data."""
+
+    def __init__(self, root: pathlib.Path): self._root = root.resolve()
+
+    def get_sample_data(self, fname, asfileobj=True, np_load=False):
+        path = pathlib.Path(str(fname))
+        candidate = path if path.is_absolute() else self._root / path
+        if not candidate.exists():
+            raise FileNotFoundError(f"no sample data {fname!r} in {self._root}")
+        if np_load or candidate.suffix.lower() in (".npz", ".npy"):
+            return np.load(candidate, allow_pickle=False)
+        if candidate.suffix.lower() == ".gz":
+            return gzip.open(candidate, "rb")
+        return open(candidate, "rb") if asfileobj else str(candidate)
+
+
+def find_sample_data(source: pathlib.Path) -> pathlib.Path | None:
+    """Locate `mpl-data/sample_data` in a checkout or an unpacked sdist."""
+    candidates = [source / "lib/matplotlib/mpl-data/sample_data",
+                  source / "mpl-data/sample_data",
+                  *sorted(source.glob("*/lib/matplotlib/mpl-data/sample_data")),
+                  *sorted(pathlib.Path("dist/mpl-sdist").glob(
+                      "*/lib/matplotlib/mpl-data/sample_data"))]
+    for candidate in candidates:
+        if candidate.is_dir():
+            # Resolve now: snippets run from a scratch working directory.
+            return candidate.resolve()
+    return None
+
+
 def render(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
-           ignored: list[str] | None = None) -> str | None:
+           ignored: list[str] | None = None,
+           sample_data: pathlib.Path | None = None) -> str | None:
     """Render a snippet with matplotvite; return an error string or None.
 
     When `ignored` is provided, append the names of compatibility shims that
@@ -527,7 +560,12 @@ def render(snippet: str, out_path: pathlib.Path,
                 return mpl_helpers[name]
             return getattr(matplotvite, name)
 
-    mpl_namespace = matplotvite if mpl_cbook is None else _MplProxy()
+    sample_cbook = (_SampleDataCbook(sample_data)
+                    if mpl_cbook is None and sample_data is not None else None)
+    if sample_cbook is not None:
+        mpl_helpers["cbook"] = sample_cbook
+    mpl_namespace = (_MplProxy() if (mpl_cbook is not None or sample_cbook is not None)
+                     else matplotvite)
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
     namespace.update(mpl_helpers)
@@ -555,9 +593,10 @@ def render(snippet: str, out_path: pathlib.Path,
         value = compat_name(name)
         if value is not None:
             namespace[name] = value
-    if mpl_cbook is not None:
-        namespace["cbook"] = mpl_cbook
-        namespace["get_sample_data"] = mpl_cbook.get_sample_data
+    cbook_namespace = mpl_cbook if mpl_cbook is not None else sample_cbook
+    if cbook_namespace is not None:
+        namespace["cbook"] = cbook_namespace
+        namespace["get_sample_data"] = cbook_namespace.get_sample_data
     if mpl_font_text is not None:
         namespace["_gen_multi_font_text"] = mpl_font_text
     ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)
@@ -742,6 +781,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         print(f"No gallery examples found under {source}.")
         return 1
     cases = harvest_examples(examples_root)
+    sample_data = find_sample_data(source)
     out.mkdir(parents=True, exist_ok=True)
     rows: list[str] = []
     statuses: dict[str, list[int]] = {}
@@ -761,7 +801,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
             ignored: list[str] = []
             entry["error"] = render(str(case["snippet"]), ours,
                                     pathlib.Path(str(case["path"])).parent,
-                                    ignored=ignored)
+                                    ignored=ignored, sample_data=sample_data)
             entry["ignored"] = len(ignored)
             entry["status"] = ("rendered" if entry["error"] is None
                                else failure_status(str(entry["error"])))

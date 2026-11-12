@@ -1,15 +1,17 @@
 """Tests for the Matplotlib baseline-image and gallery harvester."""
 
+import gzip
 import json
 from pathlib import Path
 
 import matplotvite
 
-from tools.harvest_matplotlib import (_resolve_baseline, failure_status,
-                                      find_examples_root, find_tests_root,
-                                      harvest, harvest_examples,
-                                      harvest_examples_gallery, harvest_gallery,
-                                      prepare_body, prepare_example, render)
+from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
+                                      failure_status, find_examples_root,
+                                      find_sample_data, find_tests_root, harvest,
+                                      harvest_examples, harvest_examples_gallery,
+                                      harvest_gallery, prepare_body,
+                                      prepare_example, render)
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
@@ -137,6 +139,25 @@ def test_prepare_example_renders_a_toolkit_inset(tmp_path):
         "inset_axes(ax, width='30%', height='30%', loc='upper left')\n")
     assert render(snippet, out) is None
     assert out.exists()
+
+
+def test_sample_data_is_resolved_from_the_sdist(tmp_path):
+    import numpy as np
+
+    root = tmp_path / "matplotlib-9.9" / "lib" / "matplotlib" / "mpl-data" / "sample_data"
+    root.mkdir(parents=True)
+    np.save(root / "array.npy", np.arange(6).reshape(2, 3))
+    np.savez(root / "arrays.npz", values=np.arange(3))
+    with gzip.open(root / "raw.dat.gz", "wb") as handle:
+        handle.write(np.arange(4, dtype=np.uint16).tobytes())
+
+    assert find_sample_data(tmp_path) == root.resolve()
+    cbook = _SampleDataCbook(root)
+    assert cbook.get_sample_data("array.npy").tolist() == [[0, 1, 2], [3, 4, 5]]
+    assert cbook.get_sample_data("arrays.npz")["values"].tolist() == [0, 1, 2]
+    # `.gz` sample data is decompressed, as Matplotlib's open_file_cm does.
+    with cbook.get_sample_data("raw.dat.gz") as handle:
+        assert np.frombuffer(handle.read(), np.uint16).tolist() == [0, 1, 2, 3]
 
 
 def test_prepare_body_skips_unrenderable_bodies():
