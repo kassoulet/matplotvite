@@ -3652,3 +3652,18 @@ def test_axes_image_artist_constructor():
     assert image.get_array().shape == (2, 2, 4)
     image.draw()
     fig.savefig(None, format="png")
+
+
+def test_patch_boxstyle_and_artist_set(tmp_path):
+    """Artist code calls BoxStyle(...) and patch.set(...)/line.set(...)."""
+    style = plt.patches.BoxStyle("Round", pad=0.02)
+    assert style is not None
+    patch = plt.Rectangle((0, 0), 1, 1)
+    patch.set(color="red", lw=3)
+    assert patch.get_linewidth() == 3
+    assert patch.get_color() == "#ff0000"
+    plt.figure()
+    line, = plt.plot([0, 1], [1, 0])
+    line.set(color="blue", lw=2, ls="--")
+    assert line.get_linewidth() == 2
+    plt.savefig(tmp_path / "artist_set.png")

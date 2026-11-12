@@ -1658,6 +1658,33 @@ class Patch:
         self._zorder = int(zorder)
         return self
 
+    def set(self, **kwargs):
+        """Apply Matplotlib artist properties by name, as `patch.set(color=...)`."""
+        setters = {
+            "color": self.set_color,
+            "facecolor": self.set_facecolor,
+            "fc": self.set_facecolor,
+            "edgecolor": self.set_edgecolor,
+            "ec": self.set_edgecolor,
+            "linewidth": self.set_linewidth,
+            "lw": self.set_linewidth,
+            "linestyle": self.set_linestyle,
+            "ls": self.set_linestyle,
+            "alpha": self.set_alpha,
+            "label": self.set_label,
+            "visible": self.set_visible,
+            "zorder": self.set_zorder,
+            "fill": self.set_fill,
+            "hatch": self.set_hatch,
+        }
+        for key, value in kwargs.items():
+            setter = setters.get(key)
+            if setter is None:
+                _ignored(f"Patch.set({key})")
+            else:
+                setter(value)
+        return self
+
     def set_fill(self, fill):
         self._fill = bool(fill)
         return self
@@ -1960,6 +1987,10 @@ for _patch_name in ("Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc",
 
 
 class _FlexibleStyleNamespace:
+    def __call__(self, name="", **kwargs):
+        """`BoxStyle("Round", pad=...)` returns an inert style object."""
+        return self.__getattr__(str(name) or "Style")(**kwargs)
+
     def __getattr__(self, name):
         if name.startswith("__"):
             raise AttributeError(name)
@@ -2332,6 +2363,36 @@ class Line2D:
     def update_from(self, other):
         if getattr(other, "_series", None) is not None:
             self._series.update(other._series)
+        return self
+
+    def set(self, **kwargs):
+        """Apply Matplotlib line properties by name, as `line.set(lw=...)`."""
+        setters = {
+            "color": self.set_color,
+            "c": self.set_color,
+            "linewidth": self.set_linewidth,
+            "lw": self.set_linewidth,
+            "linestyle": self.set_linestyle,
+            "ls": self.set_linestyle,
+            "marker": self.set_marker,
+            "markersize": self.set_markersize,
+            "ms": self.set_markersize,
+            "markerfacecolor": self.set_markerfacecolor,
+            "mfc": self.set_markerfacecolor,
+            "markeredgecolor": self.set_markeredgecolor,
+            "mec": self.set_markeredgecolor,
+            "alpha": self.set_alpha,
+            "label": self.set_label,
+            "zorder": self.set_zorder,
+            "drawstyle": self.set_drawstyle,
+            "visible": self.set_visible,
+        }
+        for key, value in kwargs.items():
+            setter = setters.get(key)
+            if setter is None:
+                _ignored(f"Line2D.set({key})")
+            else:
+                setter(value)
         return self
 
     def get_xdata(self): return self._series["x"]
