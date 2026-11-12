@@ -6499,7 +6499,7 @@ class Figure:
 
     def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
                 transparent=False, facecolor=None, edgecolor=None,
-                compression=None):
+                compression=None, pad_inches=None):
         """Write this figure, or return its bytes when `filepath` is None or a
         file-like object. `format` overrides the extension, `dpi` scales the
         pixel size and `bbox_inches="tight"` crops to the drawn content.
@@ -7819,7 +7819,7 @@ style = _StyleLibrary()
 
 
 def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=False,
-            facecolor=None, edgecolor=None, compression=None):
+            facecolor=None, edgecolor=None, compression=None, pad_inches=None):
     return gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches,
                          transparent=transparent, facecolor=facecolor, edgecolor=edgecolor,
-                         compression=compression)
+                         compression=compression, pad_inches=pad_inches)

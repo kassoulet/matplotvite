@@ -3667,3 +3667,12 @@ def test_patch_boxstyle_and_artist_set(tmp_path):
     line.set(color="blue", lw=2, ls="--")
     assert line.get_linewidth() == 2
     plt.savefig(tmp_path / "artist_set.png")
+
+
+def test_savefig_accepts_pad_inches(tmp_path):
+    """Matplotlib callers pass pad_inches=0 with bbox_inches='tight'."""
+    plt.figure()
+    plt.plot([0, 1], [1, 0])
+    target = tmp_path / "tight.png"
+    plt.savefig(target, bbox_inches="tight", pad_inches=0)
+    assert target.stat().st_size > 0
