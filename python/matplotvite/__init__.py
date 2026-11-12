@@ -7441,7 +7441,7 @@ def _blended_transform_factory(x_transform, y_transform):
 
 mcolors = _MColors()
 mcolors.ScalarMappable = ScalarMappable
-mcolors.from_levels_and_colors = staticmethod(from_levels_and_colors)
+mcolors.from_levels_and_colors = from_levels_and_colors
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches
