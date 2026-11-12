@@ -1677,17 +1677,17 @@ def test_hexbin_default_keeps_empty_cells_and_pyplot_shims(tmp_path):
 def test_quiver_arrows_and_extents(tmp_path):
     plt.figure()
     ax = plt.gca()
-    q = ax.quiver([0, 1], [0, 0], [1, 1], [1, -1],
+    q = ax.quiver([0, 1], [1, 3], [1, 1], [1, -1],
                   color=["red", "green"], pivot="tail")
     assert q.get_offsets().shape == (2, 2)
     assert np.allclose(q.get_U(), [1, 1]) and np.allclose(q.get_V(), [1, -1])
-    assert ax.get_xlim() == pytest.approx((-0.1, 2.1))
-    assert ax.get_ylim() == pytest.approx((-1.1, 1.1))
+    # Matplotlib autoscales on the arrow tails; arrows may leave the limits.
+    assert ax.get_xlim() == pytest.approx((-0.05, 1.05))
+    assert ax.get_ylim() == pytest.approx((0.9, 3.1))
     p = tmp_path / "quiver.svg"
     plt.savefig(p)
     s = p.read_text().upper()
-    assert s.count("<POLYGON") >= 2  # arrow heads
-    assert s.count("<POLYLINE") >= 2  # arrow shafts
+    assert s.count("<POLYGON") >= 2  # one filled arrow each
     assert "#FF0000" in s and "#008000" in s
 
 
@@ -1697,8 +1697,9 @@ def test_quiver_forms_scale_and_validation(tmp_path):
     grid = ax.quiver(np.ones((2, 3)), np.zeros((2, 3)))
     assert grid.get_offsets().shape == (6, 2)
     scaled = ax.quiver([0], [0], [2], [1], scale=2, pivot="tip", angles="uv")
-    assert np.allclose(scaled.get_U(), [1.0]) and np.allclose(scaled.get_V(), [0.5])
-    assert np.allclose(scaled.get_offsets(), [[-1.0, -0.5]])
+    # U/V stay in data units; the renderer applies `scale` in pixels.
+    assert np.allclose(scaled.get_U(), [2.0]) and np.allclose(scaled.get_V(), [1.0])
+    assert np.allclose(scaled.get_offsets(), [[0.0, 0.0]])
     plt.figure()
     q = plt.quiver(U=[1, 2], V=[0, 1], scale="auto")
     assert q.get_offsets().shape == (2, 2)
@@ -1713,8 +1714,36 @@ def test_quiver_forms_scale_and_validation(tmp_path):
         ax.quiver([0], [0], [1], [1], pivot="nose")
     with pytest.raises(ValueError):
         ax.quiver([0], [0], [1], [1], scale=0)
+    with pytest.raises(ValueError):
+        ax.quiver([0], [0], [1], [1], units="furlongs")
+    with pytest.raises(ValueError):
+        ax.quiver([0], [0], [1], [1], scale_units="furlongs")
     with pytest.raises(TypeError):
         ax.quiver([0])
+
+
+def _ink_width(path):
+    from png_utils import decode_png_rgba
+    _, _, rows = decode_png_rgba(path.read_bytes())
+    cols = [i // 4 for row in rows for i in range(0, len(row), 4)
+            if min(row[i], row[i + 1], row[i + 2]) < 250]
+    return max(cols) - min(cols)
+
+
+def test_quiver_length_is_measured_in_axes_widths(tmp_path):
+    lengths = []
+    for scale in (4, 8):
+        plt.figure()
+        ax = plt.gca()
+        ax.axis("off")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(-1, 1)
+        ax.quiver([0.0], [0.0], [1.0], [0.0], scale=scale, units="width")
+        p = tmp_path / f"quiver_scale_{scale}.png"
+        plt.savefig(p)
+        lengths.append(_ink_width(p))
+    # scale divides the length in axes widths, so doubling it halves the arrow.
+    assert lengths[0] / lengths[1] == pytest.approx(2.0, rel=0.08)
 
 
 def test_bar_label_places_values(tmp_path):

@@ -275,11 +275,23 @@ pub(crate) struct Arrow {
     #[pyo3(item)]
     pub(crate) colors: Vec<String>,
     #[pyo3(item)]
-    pub(crate) linewidth: f64,
+    pub(crate) scale: Option<f64>,
+    #[pyo3(item)]
+    pub(crate) units: String,
+    #[pyo3(item)]
+    pub(crate) scale_units: Option<String>,
+    #[pyo3(item)]
+    pub(crate) angles: String,
+    #[pyo3(item)]
+    pub(crate) width: Option<f64>,
     #[pyo3(item)]
     pub(crate) headwidth: f64,
     #[pyo3(item)]
     pub(crate) headlength: f64,
+    #[pyo3(item)]
+    pub(crate) headaxislength: f64,
+    #[pyo3(item)]
+    pub(crate) pivot: String,
 }
 
 /// (x, y, z, levels, linewidths, colors, colormap, filled, opacity).

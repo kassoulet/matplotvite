@@ -2667,8 +2667,8 @@ class Axes:
         for sc in self.scatter_pts:
             ext = _update_extent(ext, sc["x"])
         for a in self.arrows:
+            # Matplotlib autoscales quiver on the tails, not the arrow tips.
             ext = _update_extent(ext, a["x"])
-            ext = _update_extent(ext, a["x"] + a["u"])
         for bars in self.bars:
             ext = _update_extent(ext, bars["left"])
             ext = _update_extent(ext, bars["left"] + bars["width"])
@@ -2694,7 +2694,6 @@ class Axes:
             ext = _update_extent(ext, sc["y"])
         for a in self.arrows:
             ext = _update_extent(ext, a["y"])
-            ext = _update_extent(ext, a["y"] + a["v"])
         for bars in self.bars:
             ext = _update_extent(ext, bars["bottom"])
             ext = _update_extent(ext, bars["bottom"] + bars["height"])
@@ -3983,8 +3982,8 @@ class Axes:
                **kwargs):
         """Vector field arrows from `quiver(U, V)` or `quiver(X, Y, U, V)`.
 
-        `scale` divides the vector components; `pivot` places the arrow at its
-        tail, middle or tip."""
+        `scale` and `units` set the arrow length from the finished axes box, as
+        in Matplotlib; `pivot` places the arrow at its tail, middle or tip."""
         if len(args) == 2:
             ua = np.asarray(args[0], dtype=np.float64)
             va = np.asarray(args[1], dtype=np.float64)
@@ -4042,22 +4041,34 @@ class Axes:
             raise ValueError(f"unsupported angles: {angles!r}")
         if pivot not in ("tail", "middle", "mid", "tip"):
             raise ValueError(f"unsupported pivot: {pivot!r}")
-        if scale is not None and not isinstance(scale, str):
-            if float(scale) == 0.0:
+        supported_units = ("width", "height", "dots", "inches", "x", "y", "xy")
+        if units not in supported_units:
+            raise ValueError(f"unsupported units: {units!r}")
+        if scale_units is not None and scale_units not in supported_units:
+            raise ValueError(f"unsupported scale_units: {scale_units!r}")
+        if isinstance(scale, str):
+            if scale != "auto":
+                raise ValueError(f"unsupported scale: {scale!r}")
+            scale = None
+        if scale is not None:
+            scale = float(scale)
+            if scale == 0.0:
                 raise ValueError("scale must not be zero")
-            u, v = u / float(scale), v / float(scale)
-        if pivot in ("tip",):
-            x, y = x - u, y - v
-        elif pivot in ("middle", "mid"):
-            x, y = x - u / 2.0, y - v / 2.0
+        # Matplotlib sizes arrows from the axes box, so keep U/V in data units
+        # and hand `scale`/`units` to the renderer.
         colors = (_line_colors(color, x.size) if color is not None
                   else [self._next_color()])
-        linewidth = _number(kwargs.get("linewidth", kwargs.get("lw")), 1.5)
         entry = dict(x=np.ascontiguousarray(x), y=np.ascontiguousarray(y),
                      u=np.ascontiguousarray(u), v=np.ascontiguousarray(v),
-                     colors=colors, linewidth=linewidth,
+                     colors=colors,
+                     scale=scale, units=str(units),
+                     scale_units=None if scale_units is None else str(scale_units),
+                     angles=str(angles),
+                     width=None if width is None else _number(width, 0.005),
                      headwidth=_number(headwidth, 3.0),
-                     headlength=_number(headlength, 5.0))
+                     headlength=_number(headlength, 5.0),
+                     headaxislength=_number(headaxislength, 4.5),
+                     pivot="middle" if pivot == "mid" else str(pivot))
         self.arrows.append(entry)
         return _QuiverHandle(entry)
 

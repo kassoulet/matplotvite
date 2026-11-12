@@ -165,41 +165,57 @@ where
     Ok(())
 }
 
+/// Filled quiver arrow in canvas pixels: a shaft of `width_px` plus a
+/// triangular head, following Matplotlib's `_h_arrows` geometry.
 #[allow(clippy::too_many_arguments)]
-fn draw_vector_arrow<DB: DrawingBackend>(
+fn draw_quiver_arrow<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     base: (i32, i32),
-    from: (i32, i32),
-    to: (i32, i32),
+    from: (f64, f64),
+    to: (f64, f64),
     col: RGBAColor,
-    width: u32,
-    head_len: f64,
-    head_half: f64,
+    width_px: f64,
+    headwidth: f64,
+    headlength: f64,
+    headaxislength: f64,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
 {
-    let (sx, sy) = (from.0 - base.0, from.1 - base.1);
-    let (ax, ay) = (to.0 - base.0, to.1 - base.1);
-    let (dx, dy) = ((ax - sx) as f64, (ay - sy) as f64);
-    let len = (dx * dx + dy * dy).sqrt();
-    if len < 0.5 {
-        area.draw(&Circle::new((sx, sy), width.max(1), col.filled()))?;
+    let (sx, sy) = (from.0 - base.0 as f64, from.1 - base.1 as f64);
+    let (ex, ey) = (to.0 - base.0 as f64, to.1 - base.1 as f64);
+    let (dx, dy) = (ex - sx, ey - sy);
+    let len = dx.hypot(dy);
+    let w = width_px.max(1.0);
+    if len < 1.0 {
+        area.draw(&Circle::new(
+            (sx as i32, sy as i32),
+            (w * 0.5).max(1.0) as u32,
+            col.filled(),
+        ))?;
         return Ok(());
     }
     let (ux, uy) = (dx / len, dy / len);
-    let hl = head_len.max(2.0).min((len * 0.9).max(2.0));
-    let hw = head_half.max(1.0);
-    let (bx, by) = (ax as f64 - ux * hl, ay as f64 - uy * hl);
-    area.draw(&PathElement::new(
-        vec![(sx, sy), (ax, ay)],
-        col.stroke_width(width.max(1)),
-    ))?;
+    let (px, py) = (-uy, ux);
+    let half = (w * 0.5).max(0.5);
+    let hl = (headlength * w).clamp(1.0, len);
+    let hal = (headaxislength * w).clamp(0.0, len);
+    let hw = (0.5 * headwidth * w).max(half);
+    let at = |t: f64, off: f64| {
+        (
+            (sx + ux * t + px * off).round() as i32,
+            (sy + uy * t + py * off).round() as i32,
+        )
+    };
     area.draw(&Polygon::new(
         vec![
-            (ax, ay),
-            ((bx - uy * hw) as i32, (by + ux * hw) as i32),
-            ((bx + uy * hw) as i32, (by - ux * hw) as i32),
+            at(0.0, half),
+            at(len - hal, half),
+            at(len - hl, hw),
+            at(len, 0.0),
+            at(len - hl, -hw),
+            at(len - hal, -half),
+            at(0.0, -half),
         ],
         col.filled(),
     ))?;
@@ -2651,34 +2667,87 @@ where
             }
         }
     }
-    // Quiver arrows sit above the data and below the text layer.
+    // Quiver arrows sit above the data and below the text layer. Matplotlib
+    // sizes them from the finished axes box, so `scale` and `units` are applied
+    // here, in pixels, rather than on the data values in Python.
     {
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
+        let (pw, ph) = chart_area.dim_in_pixel();
+        let (pw, ph) = (pw as f64, ph as f64);
+        let x_span = (x1 - x0).abs().max(f64::MIN_POSITIVE);
+        let y_span = (y1 - y0).abs().max(f64::MIN_POSITIVE);
         for arrow in &p.arrows {
             let (axs, ays) = (arrow.x.as_array(), arrow.y.as_array());
             let (aus, avs) = (arrow.u.as_array(), arrow.v.as_array());
-            let width = arrow.linewidth.max(1.0).round() as u32;
-            let head_len = arrow.headlength.max(1.0) * 1.39;
-            let head_half = arrow.headwidth.max(1.0);
-            for i in 0..axs.len().min(ays.len()).min(aus.len()).min(avs.len()) {
+            let n = axs.len().min(ays.len()).min(aus.len()).min(avs.len());
+            let amean = if n == 0 {
+                0.0
+            } else {
+                (0..n).map(|i| aus[i].hypot(avs[i])).sum::<f64>() / n as f64
+            };
+            let sn = (n as f64).sqrt().clamp(8.0, 25.0);
+            let dots_per_unit = |unit: &str| -> f64 {
+                match unit {
+                    "height" => ph,
+                    "dots" => 1.0,
+                    "inches" => dpi,
+                    "x" => pw / x_span,
+                    "y" => ph / y_span,
+                    "xy" => pw.hypot(ph) / x_span.hypot(y_span),
+                    _ => pw,
+                }
+            };
+            let dx_trans = dots_per_unit(&arrow.units).max(f64::MIN_POSITIVE);
+            let span = pw / dx_trans;
+            let width_units = arrow.width.unwrap_or(0.06 * span / sn);
+            let widthu_per_lenu = match arrow.scale_units.as_deref() {
+                Some(unit) => dots_per_unit(unit) / dx_trans,
+                None => 1.0,
+            };
+            let scale = match arrow.scale {
+                Some(s) => s,
+                None => 1.8 * amean * sn / span * widthu_per_lenu,
+            };
+            let scale = if scale > 0.0 { scale } else { 1.0 };
+            let width_px = (width_units * dx_trans).max(1.0);
+            for i in 0..n {
                 let (sx, sy) = chart_area.map_coordinate(&(tx(axs[i]), ty(ays[i])));
-                let (ex, ey) =
-                    chart_area.map_coordinate(&(tx(axs[i] + aus[i]), ty(ays[i] + avs[i])));
+                let mag = aus[i].hypot(avs[i]);
+                let px_len = mag * widthu_per_lenu * dx_trans / scale;
+                let (dir_x, dir_y) = if arrow.angles == "uv" {
+                    (aus[i], -avs[i])
+                } else {
+                    (aus[i] * pw / x_span, -avs[i] * ph / y_span)
+                };
+                let dir_len = dir_x.hypot(dir_y);
+                let (ux, uy) = if dir_len > 1e-12 {
+                    (dir_x / dir_len, dir_y / dir_len)
+                } else {
+                    (1.0, 0.0)
+                };
+                let shift = match arrow.pivot.as_str() {
+                    "middle" => 0.5 * px_len,
+                    "tip" => px_len,
+                    _ => 0.0,
+                };
+                let start = (sx as f64 - ux * shift, sy as f64 - uy * shift);
+                let end = (start.0 + ux * px_len, start.1 + uy * px_len);
                 let col = if arrow.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
                     color(&arrow.colors[i % arrow.colors.len()])
                 };
-                draw_vector_arrow(
+                draw_quiver_arrow(
                     area,
                     base,
-                    (sx, sy),
-                    (ex, ey),
+                    start,
+                    end,
                     col,
-                    width,
-                    head_len,
-                    head_half,
+                    width_px,
+                    arrow.headwidth.max(1.0),
+                    arrow.headlength.max(1.0),
+                    arrow.headaxislength.max(0.0),
                 )?;
             }
         }

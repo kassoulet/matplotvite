@@ -70,13 +70,11 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
         xs.extend(sc.x.as_array().iter().copied());
         ys.extend(sc.y.as_array().iter().copied());
     }
+    // Matplotlib autoscales quiver on the arrow tails only; the arrows may
+    // extend past the data limits.
     for arrow in &p.arrows {
-        let (axs, ays) = (arrow.x.as_array(), arrow.y.as_array());
-        let (aus, avs) = (arrow.u.as_array(), arrow.v.as_array());
-        for i in 0..axs.len().min(ays.len()).min(aus.len()).min(avs.len()) {
-            xs.extend([axs[i], axs[i] + aus[i]]);
-            ys.extend([ays[i], ays[i] + avs[i]]);
-        }
+        xs.extend(arrow.x.as_array().iter().copied());
+        ys.extend(arrow.y.as_array().iter().copied());
     }
     for bars in &p.bars {
         let (l, w) = (bars.left.as_array(), bars.width.as_array());
