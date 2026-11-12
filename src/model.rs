@@ -485,6 +485,15 @@ pub(crate) struct Panel {
     pub(crate) y_log: bool,
     #[pyo3(item)]
     pub(crate) log_base: f64,
+    /// Symmetric-log axes: linear inside `±linthresh`, logarithmic outside.
+    #[pyo3(item)]
+    pub(crate) x_symlog: bool,
+    #[pyo3(item)]
+    pub(crate) y_symlog: bool,
+    #[pyo3(item)]
+    pub(crate) x_symlog_linthresh: f64,
+    #[pyo3(item)]
+    pub(crate) y_symlog_linthresh: f64,
     #[pyo3(item)]
     pub(crate) colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.

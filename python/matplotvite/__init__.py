@@ -925,6 +925,25 @@ def _add_months(value, months):
     return value.replace(year=year, month=month, day=min(value.day, last_day))
 
 
+def _symlog_label(value):
+    return f"{value:g}".replace("-", "\u2212")
+
+
+def _symlog_ticks(lo, hi, linthresh):
+    """Decade ticks on both sides of `linthresh`, plus zero."""
+    l = max(float(linthresh), 1e-300)
+    top = max(0, int(_math.floor(_math.log10(max(abs(float(lo)), abs(float(hi)), l) / l))))
+    stride = max(1, int(_math.ceil((top + 1) / 5.0)))
+    ticks = [0.0]
+    for sign in (1.0, -1.0):
+        for k in range(0, top + 1, stride):
+            value = sign * l * 10.0 ** k
+            if lo <= value <= hi:
+                ticks.append(value)
+    ticks = sorted({float(v) for v in ticks})
+    return ticks, [_symlog_label(v) for v in ticks]
+
+
 def _nice_step(raw, steps):
     for step in steps:
         if step >= raw:
@@ -2605,6 +2624,7 @@ class Axes:
         self.facecolor, self.alpha = None, None
         self.xscale = self.yscale = "linear"
         self.log_base = 10.0
+        self.symlog_linthresh_x = self.symlog_linthresh_y = 1.0
         self.show_grid = False
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
         self.grid_axis = "both"
@@ -3353,6 +3373,9 @@ class Axes:
             self.xscale = "linear"
         elif name == "log":
             self.xscale, self.log_base = "log", float(base)
+        elif name == "symlog":
+            self.xscale = "symlog"
+            self.symlog_linthresh_x = self._symlog_linthresh(kwargs)
         else:
             raise NotImplementedError(f"unsupported x scale: {value!r}")
 
@@ -3362,8 +3385,16 @@ class Axes:
             self.yscale = "linear"
         elif name == "log":
             self.yscale, self.log_base = "log", float(base)
+        elif name == "symlog":
+            self.yscale = "symlog"
+            self.symlog_linthresh_y = self._symlog_linthresh(kwargs)
         else:
             raise NotImplementedError(f"unsupported y scale: {value!r}")
+
+    @staticmethod
+    def _symlog_linthresh(kwargs):
+        value = kwargs.get("linthresh")
+        return 1.0 if value is None else max(float(value), 1e-300)
 
     def semilogx(self, *args, **kwargs):
         self.set_xscale("log")
@@ -5024,6 +5055,18 @@ class Axes:
         elif self._categories and xticks is None:
             xticks = [float(i) for i in range(len(self._categories))]
             xticklabels = list(self._categories)
+        # Symlog ticks are placed in data space and transformed by the renderer;
+        # always supply their labels so the raw values are shown.
+        if self.xscale == "symlog":
+            if xticks is None:
+                xticks, xticklabels = _symlog_ticks(x0, x1, self.symlog_linthresh_x)
+            elif xticklabels is None:
+                xticklabels = [_symlog_label(v) for v in xticks]
+        if self.yscale == "symlog":
+            if yticks is None:
+                yticks, yticklabels = _symlog_ticks(y0, y1, self.symlog_linthresh_y)
+            elif yticklabels is None:
+                yticklabels = [_symlog_label(v) for v in yticks]
         return dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     dpi=float(self._fig.dpi if self._fig is not None else DPI),
                     xlabel=self.xlabel, ylabel=self.ylabel,
@@ -5041,6 +5084,9 @@ class Axes:
                     bars=bars,
                     bands=bands,
                     x_log=self.xscale == "log", y_log=self.yscale == "log",
+                    x_symlog=self.xscale == "symlog", y_symlog=self.yscale == "symlog",
+                    x_symlog_linthresh=float(self.symlog_linthresh_x),
+                    y_symlog_linthresh=float(self.symlog_linthresh_y),
                     log_base=float(getattr(self, "log_base", 10.0)),
                     grid=dict(show=self.show_grid, color=self.grid_color,
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,

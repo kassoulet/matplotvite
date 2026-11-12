@@ -1230,8 +1230,10 @@ def test_axes_facecolor_alpha_label_zorder():
     assert ax.get_yscale() == "log"
     ax.set_xscale("linear")
     ax.set_yscale("linear")
-    with pytest.raises(NotImplementedError):
-        ax.set_xscale("symlog")
+    ax.set_xscale("symlog", linthresh=0.5)
+    assert ax.get_xscale() == "symlog"
+    assert ax.symlog_linthresh_x == 0.5
+    ax.set_xscale("linear")
 
 
 def test_axes_clear_empties_the_figure(tmp_path):
@@ -2031,8 +2033,9 @@ def test_log_scales(tmp_path):
     plt.semilogx(x, x)
     plt.xscale("log")
     assert plt.gca().get_xscale() == "log"
-    with pytest.raises(NotImplementedError):
-        ax.set_xscale("symlog")
+    ax.set_xscale("symlog")
+    assert ax.get_xscale() == "symlog"
+    ax.set_xscale("log")
     ax.set_yscale("linear")
     assert ax.get_yscale() == "linear"
 
@@ -3550,3 +3553,20 @@ def test_get_subplotspec_reports_the_grid_cell():
     ax = fig.add_subplot(gs[1])
     spec = ax.get_subplotspec()
     assert spec.cols == (1, 1) and spec.gridspec is gs
+
+
+def test_symlog_scale_renders_symmetric_decade_ticks(tmp_path):
+    plt.rcdefaults()
+    figure, axes = plt.subplots()
+    axes.set_yscale("symlog", linthresh=1)
+    axes.set_xscale("symlog", linthresh=1)
+    axes.plot([-1000, -10, -1, 0, 1, 10, 1000],
+              [-1000, -10, -1, 0, 1, 10, 1000])
+    panel = axes._panel()
+    assert panel["y_symlog"] is True and panel["y_symlog_linthresh"] == 1.0
+    assert panel["ticks"]["yticklabels"] == ["−1000", "−100", "−10", "−1", "0",
+                                            "1", "10", "100", "1000"]
+    assert axes.get_yscale() == "symlog"
+    p = tmp_path / "symlog.svg"
+    figure.savefig(p)
+    assert "−1000" in p.read_text()

@@ -222,6 +222,13 @@ where
     Ok(())
 }
 
+/// Symmetric-log transform used by `symlog` axes: linear near zero, then
+/// logarithmic on both sides of `±linthresh`.
+fn symlog(value: f64, linthresh: f64) -> f64 {
+    let l = if linthresh > 0.0 { linthresh } else { 1.0 };
+    value.signum() * l * (1.0 + value.abs() / l).ln()
+}
+
 fn rotated_style(size: f64, col: RGBAColor, rotation: f64, dpi: f64) -> TextStyle<'static> {
     let style = ("sans-serif", text_px(size.max(6.0), dpi).round() as u32)
         .into_font()
@@ -271,6 +278,8 @@ where
     let to_chart_x = |v: f64| {
         if p.x_log {
             v.max(f64::MIN_POSITIVE).log(log_base)
+        } else if p.x_symlog {
+            symlog(v, p.x_symlog_linthresh)
         } else {
             v
         }
@@ -278,6 +287,8 @@ where
     let to_chart_y = |v: f64| {
         if p.y_log {
             v.max(f64::MIN_POSITIVE).log(log_base)
+        } else if p.y_symlog {
+            symlog(v, p.y_symlog_linthresh)
         } else {
             v
         }
@@ -1641,6 +1652,8 @@ where
     let tx = |v: f64| {
         if p.x_log {
             v.max(f64::MIN_POSITIVE).log(base)
+        } else if p.x_symlog {
+            symlog(v, p.x_symlog_linthresh)
         } else {
             v
         }
@@ -1648,17 +1661,19 @@ where
     let ty = |v: f64| {
         if p.y_log {
             v.max(f64::MIN_POSITIVE).log(base)
+        } else if p.y_symlog {
+            symlog(v, p.y_symlog_linthresh)
         } else {
             v
         }
     };
-    if p.x_log {
+    if p.x_log || p.x_symlog {
         (x0, x1) = (tx(x0), tx(x1));
         if x1 <= x0 {
             x1 = x0 + 1.0;
         }
     }
-    if p.y_log {
+    if p.y_log || p.y_symlog {
         (y0, y1) = (ty(y0), ty(y1));
         if y1 <= y0 {
             y1 = y0 + 1.0;
