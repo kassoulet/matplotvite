@@ -86,6 +86,33 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
 
 
+def test_prepare_example_resolves_module_alias_imports():
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "import matplotlib.patches as mpatch\n"
+        "from matplotlib import transforms as mtrans\n"
+        "import matplotlib.dates as mdates\n"
+        "from matplotlib import pyplot as mpl\n"
+        "plt.gca().add_patch(mpatch.Circle((0, 0), 1))\n")
+    # The alias assignment goes through the `matplotlib` name the renderer binds
+    # to matplotvite, so no Matplotlib import is needed.
+    assert "mpatch = matplotlib.patches" in snippet
+    assert "mtrans = matplotlib.transforms" in snippet
+    assert "mdates = matplotlib.dates" in snippet
+    assert "mpl = " not in snippet.split("plt.gca()")[0].replace("mpatch", "")
+    assert "import matplotlib" not in snippet
+
+
+def test_render_uses_module_alias_imports(tmp_path):
+    out = tmp_path / "out.png"
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "import matplotlib.patches as mpatch\n"
+        "plt.gca().add_patch(mpatch.Circle((0.5, 0.5), 0.4))\n")
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
 def test_prepare_body_skips_unrenderable_bodies():
     cleaned = prepare_body("    import matplotlib.pyplot as plt\n    plt.plot([1])\n")
     assert cleaned.startswith("plt.plot([1])")

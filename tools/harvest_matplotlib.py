@@ -178,21 +178,45 @@ def find_examples_root(source: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
+def _alias_assignment(target: str, module: str) -> ast.Assign:
+    """`target = matplotlib.<module>`, or `target = plt` for pyplot.
+
+    The namespace binds `matplotlib` to matplotvite, so the assignment keeps a
+    stripped module alias (`mpatch`, `transforms`, `mdates`, ...) usable without
+    importing Matplotlib; an alias matplotvite has no module for raises an
+    AttributeError, which `failure_status` counts as a missing API.
+    """
+    value = (ast.Name(id="plt", ctx=ast.Load()) if module == "pyplot"
+             else ast.Attribute(value=ast.Name(id="matplotlib", ctx=ast.Load()),
+                                attr=module, ctx=ast.Load()))
+    return ast.Assign(targets=[ast.Name(id=target, ctx=ast.Store())], value=value)
+
+
 class _ExampleStripper(ast.NodeTransformer):
     """Drop Matplotlib/NumPy imports and the interactive tail of a gallery script."""
 
     def visit_Import(self, node: ast.Import):
-        kept = [alias for alias in node.names
-                if alias.name.split(".")[0] not in STRIPPED_IMPORTS]
-        if not kept:
-            return None
-        node.names = kept
-        return node
+        kept, emitted = [], []
+        for alias in node.names:
+            module = alias.name.split(".")
+            if module[0] not in STRIPPED_IMPORTS:
+                kept.append(alias)
+            elif (alias.asname and alias.asname not in ("plt", "mpl")
+                  and len(module) > 1 and module[1] != "pyplot"):
+                emitted.append(_alias_assignment(alias.asname, module[1]))
+        nodes = ([ast.Import(names=kept)] if kept else []) + emitted
+        return nodes or None
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
-        if (node.module or "").split(".")[0] in STRIPPED_IMPORTS:
+        module = node.module or ""
+        if module.split(".")[0] not in STRIPPED_IMPORTS:
+            return node
+        if module != "matplotlib":
             return None
-        return node
+        emitted = [_alias_assignment(alias.asname or alias.name, alias.name)
+                   for alias in node.names
+                   if (alias.asname or alias.name) not in ("plt", "mpl")]
+        return emitted or None
 
     def visit_If(self, node: ast.If):
         if "__main__" in ast.unparse(node.test):
