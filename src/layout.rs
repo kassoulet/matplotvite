@@ -52,6 +52,45 @@ pub(crate) fn axis_bounds(extent: (f64, f64), explicit: Option<(f64, f64)>) -> (
     explicit.unwrap_or_else(|| padded_range(extent.0, extent.1))
 }
 
+/// Matplotlib's `adjustable="datalim"`: widen the shorter data span around its
+/// centre so the fixed plotting area meets the requested aspect.
+///
+/// `scale` is the y-unit/x-unit display ratio (1.0 for `"equal"`); `plotting`
+/// is the area in pixels. The axes box is left untouched, which is what
+/// `axis("equal")` does, unlike `set_aspect`, which keeps the data limits and
+/// shrinks the box instead.
+pub(crate) fn aspect_datalim(
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    scale: f64,
+    plotting: (f64, f64),
+) -> ((f64, f64), (f64, f64)) {
+    let (pw, ph) = plotting;
+    let (dx, dy) = ((x1 - x0).abs(), (y1 - y0).abs());
+    if !scale.is_finite()
+        || scale <= 0.0
+        || !pw.is_finite()
+        || !ph.is_finite()
+        || pw <= 0.0
+        || ph <= 0.0
+        || dx <= 0.0
+        || dy <= 0.0
+    {
+        return ((x0, x1), (y0, y1));
+    }
+    // Data x-units per y-unit that fills the box at this aspect.
+    let want = scale * pw / ph;
+    if dx / dy > want {
+        let pad = (dx / want - dy) / 2.0;
+        ((x0, x1), (y0 - pad, y1 + pad))
+    } else if dx / dy < want {
+        let pad = (dy * want - dx) / 2.0;
+        ((x0 - pad, x1 + pad), (y0, y1))
+    } else {
+        ((x0, x1), (y0, y1))
+    }
+}
+
 /// Raw data ranges for a panel: series values plus image extents. Explicit
 /// limits are applied later by [`axis_bounds`], after any log transform.
 pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
@@ -247,6 +286,26 @@ mod tests {
         assert_eq!(
             auto_ticks(0.0, 3500.0, false),
             vec![0.0, 500.0, 1000.0, 1500.0, 2000.0, 2500.0, 3000.0, 3500.0]
+        );
+    }
+
+    #[test]
+    fn aspect_datalim_expands_the_short_span() {
+        // A wide box (285x180) needs 1.58 x-units per y-unit at equal aspect,
+        // so x grows around its centre and y stays put.
+        let (x, y) = aspect_datalim((-2.8, 2.8), (-2.2, 2.2), 1.0, (285.0, 180.0));
+        let want = 285.0 / 180.0 * 4.4;
+        assert_eq!(y, (-2.2, 2.2));
+        assert!((y.0 - -2.2).abs() < 1e-12 && (x.1 - want / 2.0).abs() < 1e-12);
+        // A tall box grows y instead.
+        let (x2, y2) = aspect_datalim((-4.0, 4.0), (-1.0, 1.0), 1.0, (200.0, 400.0));
+        let want2 = 8.0 * 400.0 / 200.0;
+        assert_eq!(x2, (-4.0, 4.0));
+        assert!((y2.1 - want2 / 2.0).abs() < 1e-12);
+        // A degenerate span or box leaves the limits alone.
+        assert_eq!(
+            aspect_datalim((0.0, 0.0), (0.0, 1.0), 1.0, (100.0, 100.0)),
+            ((0.0, 0.0), (0.0, 1.0))
         );
     }
 

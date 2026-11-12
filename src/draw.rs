@@ -7,7 +7,7 @@ use plotters::style::IntoFont;
 
 use crate::color::{color, colormap};
 use crate::image::{base64, image_png, image_rgb};
-use crate::layout::{auto_ticks, axis_bounds, panel_ranges, range};
+use crate::layout::{aspect_datalim, auto_ticks, axis_bounds, panel_ranges, range};
 use crate::model::{
     Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
 };
@@ -1668,8 +1668,10 @@ where
     // log-transformed) coordinate space. Explicit limits bypass it unchanged.
     (x0, x1) = axis_bounds((x0, x1), p.xlim.map(|(lo, hi)| (tx(lo), tx(hi))));
     (y0, y1) = axis_bounds((y0, y1), p.ylim.map(|(lo, hi)| (ty(lo), ty(hi))));
-    // A fixed aspect shrinks the plotting box instead of bending the data limits,
-    // like matplotlib's adjustable="box".
+    // A fixed aspect either shrinks the plotting box (matplotlib's
+    // adjustable="box", the set_aspect/imshow default) or bends the data
+    // limits so the box keeps its size (adjustable="datalim", chosen by
+    // axis("equal")).
     let title_size = text_px(p.title_size.unwrap_or(12.0).max(6.0), dpi)
         .max(6.0)
         .round() as u32;
@@ -1720,19 +1722,26 @@ where
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
-        let ratio = (x1 - x0).abs() / (y1 - y0).abs() / scale;
         let mut target: Option<DrawingArea<DB, plotters::coord::Shift>> = None;
-        if pw > 8 && ph > 8 && ratio.is_finite() && ratio > 0.0 {
-            let mut dw = 0i32;
-            let mut dh = 0i32;
-            if pw as f64 / ph as f64 > ratio {
-                dw = (pw as f64 - ratio * ph as f64).round() as i32;
+        if pw > 8 && ph > 8 {
+            if p.aspect_datalim {
+                ((x0, x1), (y0, y1)) =
+                    aspect_datalim((x0, x1), (y0, y1), scale, (pw as f64, ph as f64));
             } else {
-                dh = (ph as f64 - pw as f64 / ratio).round() as i32;
-            }
-            if dw > 0 || dh > 0 {
-                shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
-                target = Some(shrunk_area);
+                let ratio = (x1 - x0).abs() / (y1 - y0).abs() / scale;
+                if ratio.is_finite() && ratio > 0.0 {
+                    let mut dw = 0i32;
+                    let mut dh = 0i32;
+                    if pw as f64 / ph as f64 > ratio {
+                        dw = (pw as f64 - ratio * ph as f64).round() as i32;
+                    } else {
+                        dh = (ph as f64 - pw as f64 / ratio).round() as i32;
+                    }
+                    if dw > 0 || dh > 0 {
+                        shrunk_area = area.margin(dh / 2, dh - dh / 2, dw / 2, dw - dw / 2);
+                        target = Some(shrunk_area);
+                    }
+                }
             }
         }
         let mut rb = match &target {

@@ -459,6 +459,10 @@ pub(crate) struct Panel {
     /// (1.0 == "equal").
     #[pyo3(item)]
     pub(crate) aspect: Option<f64>,
+    /// `set_adjustable("datalim")`: widen the data limits instead of
+    /// shrinking the plot area to reach `aspect`.
+    #[pyo3(item)]
+    pub(crate) aspect_datalim: bool,
     #[pyo3(item)]
     pub(crate) contours: Vec<ContourItem>,
     #[pyo3(item)]

@@ -892,6 +892,57 @@ def test_aspect_numeric_halves_the_box(tmp_path):
     assert abs(w / h - 0.5) < 0.1
 
 
+def _axes_face_box(rows):
+    """Bounding box of the axes face colour in a decoded PNG."""
+    xs, ys = [], []
+    for y, row in enumerate(rows):
+        for i in range(0, len(row), 4):
+            r, g, b = row[i], row[i + 1], row[i + 2]
+            if g > 140 and r < 110 and b < 110:
+                xs.append(i // 4)
+                ys.append(y)
+    assert xs and ys
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
+def test_axis_equal_bends_the_data_limits_instead_of_the_box(tmp_path):
+    """`axis("equal")` fills the panel; `set_aspect` still shrinks the box."""
+    def render(adjustable):
+        fig = plt.figure((4, 3))
+        ax = plt.gca()
+        ax.set_facecolor("#00ff00")
+        ax.plot([-2.8, 2.8], [-2.2, 2.2])
+        ax.axis("equal")
+        if adjustable is not None:
+            ax.set_aspect("equal", adjustable=adjustable)
+        p = tmp_path / f"{adjustable}.png"
+        fig.savefig(p)
+        _, _, rows = decode_png_rgba(p.read_bytes())
+        return _axes_face_box(rows)
+
+    dw, dh = render("datalim")
+    bw, bh = render("box")
+    assert dw > bw  # datalim keeps the wide area; box mode narrows it
+    assert abs(dw / dh - 1.58) < 0.2
+    assert abs(bw / bh - 1.27) < 0.12
+
+
+def test_set_aspect_tracks_adjustable():
+    plt.figure((4, 3))
+    ax = plt.gca()
+    assert ax.get_adjustable() == "box"
+    ax.axis("equal")
+    assert ax.get_aspect() == 1.0 and ax.get_adjustable() == "datalim"
+    ax.set_aspect("equal", adjustable="box")
+    assert ax.get_adjustable() == "box"
+    ax.set_aspect("auto")
+    assert ax.get_aspect() is None and ax.get_adjustable() == "box"
+    ax.axis("scaled")
+    assert ax.get_aspect() == 1.0 and ax.get_adjustable() == "box"
+    with pytest.raises(ValueError):
+        ax.set_aspect("equal", adjustable="nonsense")
+
+
 def test_mixed_subplots_render(tmp_path):
     fig, axs = plt.subplots(1, 2, figsize=(8, 3))
     x = np.linspace(-2, 2, 20)

@@ -2348,6 +2348,7 @@ class Axes:
         self.hspans = []
         self.vspans = []
         self.aspect = None
+        self._adjustable = "box"
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
         self._sticky_x, self._sticky_y = [], []
@@ -2491,6 +2492,17 @@ class Axes:
 
     def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
         self.aspect = _norm_aspect(aspect)
+        if adjustable is not None:
+            self.set_adjustable(adjustable)
+
+    def set_adjustable(self, adjustable, share=False):
+        """'box' shrinks the plot area, 'datalim' bends the data limits."""
+        if adjustable not in ("box", "datalim"):
+            raise ValueError(
+                f"adjustable must be 'box' or 'datalim', got {adjustable!r}")
+        self._adjustable = adjustable
+
+    def get_adjustable(self): return self._adjustable
 
     def set_forward_navigation_events(self, visible): return None
     def get_forward_navigation_events(self): return "auto"
@@ -2760,8 +2772,11 @@ class Axes:
                 self._axis_off = True
             elif key in ("on", "true", "image"):
                 self._axis_off = False
-            elif key in ("equal", "scaled"):
-                self.set_aspect("equal")
+            elif key == "equal":
+                # Matplotlib bends the data limits here, unlike set_aspect.
+                self.set_aspect("equal", adjustable="datalim")
+            elif key == "scaled":
+                self.set_aspect("equal", adjustable="box")
             elif key == "auto":
                 self.set_aspect("auto")
             else:
@@ -4614,6 +4629,7 @@ class Axes:
                                 title_fontsize=legend_title, anchor=self.legend_anchor),
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
+                    aspect_datalim=self._adjustable == "datalim",
                     contours=contours,
                     errors=self.errors,
                     bars=bars,
