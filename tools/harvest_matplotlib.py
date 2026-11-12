@@ -89,6 +89,70 @@ def image_comparison_baselines(func: ast.FunctionDef) -> list[str] | None:
     return None
 
 
+def _literal(node: ast.AST, default=None):
+    """Evaluate a decorator argument written as a literal."""
+    try:
+        return ast.literal_eval(node)
+    except (ValueError, SyntaxError):
+        return default
+
+
+def image_comparison_options(func: ast.FunctionDef) -> dict[str, object]:
+    """Style, dpi and layout settings from an `@image_comparison` decorator.
+
+    Matplotlib's decorator drives the test style, the figure size and the
+    savefig arguments, so a snippet rendered without them compares a different
+    picture from the baseline.
+    """
+    options: dict[str, object] = {
+        "style": None, "dpi": 100, "remove_text": False, "tight": False,
+        "extensions": None, "tol": None,
+    }
+    for deco in func.decorator_list:
+        if not isinstance(deco, ast.Call):
+            continue
+        name = getattr(deco.func, "id", getattr(deco.func, "attr", ""))
+        if name != "image_comparison":
+            continue
+        for keyword in deco.keywords:
+            if keyword.arg is None:
+                continue
+            value = _literal(keyword.value, None)
+            if keyword.arg == "style":
+                options["style"] = value
+            elif keyword.arg == "remove_text":
+                options["remove_text"] = bool(value)
+            elif keyword.arg == "extensions":
+                options["extensions"] = value
+            elif keyword.arg == "tol":
+                options["tol"] = value
+            elif keyword.arg == "savefig_kwarg" and isinstance(value, dict):
+                if value.get("dpi") is not None:
+                    options["dpi"] = value["dpi"]
+                options["tight"] = value.get("bbox_inches") == "tight"
+    return options
+
+
+def _comparison_prefix(options: dict[str, object] | None) -> str:
+    """Match the test suite's figure size and style before running a body."""
+    if options is None:
+        return ""
+    lines = ['plt.rcdefaults()', 'plt.rcParams["figure.figsize"] = (8, 6)']
+    style = options.get("style")
+    if style:
+        lines.append(f"plt.style.use({style!r})")
+    return "\n".join(lines) + "\n"
+
+
+def _comparison_suffix(options: dict[str, object] | None) -> str:
+    """Save at the baseline dpi, honouring `savefig_kwarg={"bbox_inches": ...}`."""
+    options = options or {}
+    args = [f"dpi={options.get('dpi', 100)!r}"]
+    if options.get("tight"):
+        args.append('bbox_inches="tight"')
+    return f"\nplt.savefig(OUT, {', '.join(args)})\n"
+
+
 def find_examples_root(source: pathlib.Path) -> pathlib.Path | None:
     """Locate the gallery examples directory in a Matplotlib checkout."""
     for candidate in (source / "galleries/examples", source / "examples", source):
@@ -203,7 +267,7 @@ class _BodyStripper(_ExampleStripper):
         return None
 
 
-def prepare_body(source: str) -> str | None:
+def prepare_body(source: str, options: dict[str, object] | None = None) -> str | None:
     """Rewrite a test body into a runnable matplotvite snippet."""
     body = textwrap.dedent(source)
     if SKIP_RE.search(body):
@@ -217,7 +281,7 @@ def prepare_body(source: str) -> str | None:
     code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
     if not code:
         return None
-    return code + "\nplt.savefig(OUT, dpi=100)\n"
+    return _comparison_prefix(options) + code + _comparison_suffix(options)
 
 
 def _loaded_names(node: ast.AST) -> set[str]:
@@ -273,6 +337,7 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
             baselines = image_comparison_baselines(func)
             if baselines is None:
                 continue
+            options = image_comparison_options(func)
             images = [_resolve_baseline(tests_root, module_path.stem, name)
                       for name in baselines]
             body = textwrap.dedent("\n".join(
@@ -286,8 +351,9 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
                 "params": [arg.arg for arg in func.args.args],
                 "baselines": baselines,
                 "images": [str(p) for p in images],
+                "comparison": options,
                 "source": source,
-                "snippet": prepare_body(source),
+                "snippet": prepare_body(source, options),
             })
     return cases
 
@@ -432,6 +498,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             "status": "unsupported",
             "error": None,
             "ignored": 0,
+            "comparison": case.get("comparison"),
         }
         baseline = pathlib.Path(str(case["images"][0]))
         if case["params"]:

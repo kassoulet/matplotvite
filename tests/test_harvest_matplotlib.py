@@ -68,6 +68,23 @@ def test_harvest_includes_referenced_helpers_and_imports(tmp_path):
     assert "import matplotlib" not in case["snippet"]
 
 
+def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
+    root = tmp_path / "tests"
+    (root / "baseline_images" / "test_demo").mkdir(parents=True)
+    (root / "test_demo.py").write_text(
+        "@image_comparison(['styled.png'], style='mpl20', remove_text=True,\n"
+        "                   savefig_kwarg={'dpi': 40, 'bbox_inches': 'tight'})\n"
+        "def test_styled():\n"
+        "    plt.plot([0, 1])\n", encoding="utf-8")
+    case = harvest(root)[0]
+    assert case["comparison"] == {"style": "mpl20", "dpi": 40, "remove_text": True,
+                                  "tight": True, "extensions": None, "tol": None}
+    snippet = case["snippet"]
+    assert 'plt.rcParams["figure.figsize"] = (8, 6)' in snippet
+    assert "plt.style.use('mpl20')" in snippet
+    assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
+
+
 def test_prepare_body_skips_unrenderable_bodies():
     cleaned = prepare_body("    import matplotlib.pyplot as plt\n    plt.plot([1])\n")
     assert cleaned.startswith("plt.plot([1])")
