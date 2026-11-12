@@ -11,6 +11,13 @@ static FONT_SANS_BOLD: &[u8] = include_bytes!("../assets/fonts/DejaVuSans-Bold.t
 static FONT_SERIF: &[u8] = include_bytes!("../assets/fonts/GeistSerif-Regular.ttf");
 static FONT_MONO: &[u8] = include_bytes!("../assets/fonts/GeistMono-Regular.ttf");
 
+/// Font stack written into SVG text. The embedded face comes first so viewers
+/// with DejaVu Sans (including cairosvg on Linux) draw the same glyphs as the
+/// PNG/PDF backends, notably U+2212 MINUS SIGN, which some generic sans-serif
+/// fallbacks (Noto Sans here) do not contain. The generic entry keeps the SVG
+/// portable when the named face is unavailable.
+pub(crate) const SANS_FAMILY: &str = "DejaVu Sans, sans-serif";
+
 /// Advance width of `text` at `px`, using the embedded DejaVu Sans metrics.
 /// Falls back to the old character-count estimate if the font cannot load.
 pub(crate) fn text_width(text: &str, px: f64) -> f64 {
@@ -32,8 +39,12 @@ pub(crate) fn text_width(text: &str, px: f64) -> f64 {
 pub(crate) fn register_plotters_fonts() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        let _ = plotters::style::register_font("sans-serif", FontStyle::Normal, FONT_SANS);
-        let _ = plotters::style::register_font("sans-serif", FontStyle::Bold, FONT_SANS_BOLD);
+        // The SVG backend prints the family verbatim, so the stack name is a
+        // registration key as well as the CSS value.
+        for family in [SANS_FAMILY, "sans-serif"] {
+            let _ = plotters::style::register_font(family, FontStyle::Normal, FONT_SANS);
+            let _ = plotters::style::register_font(family, FontStyle::Bold, FONT_SANS_BOLD);
+        }
         let fonts: &[(&str, &[u8])] = &[("serif", FONT_SERIF), ("monospace", FONT_MONO)];
         for (name, bytes) in fonts {
             let _ = plotters::style::register_font(name, FontStyle::Normal, bytes);

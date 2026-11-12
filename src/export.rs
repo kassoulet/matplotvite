@@ -9,7 +9,7 @@ use rayon::prelude::*;
 
 use crate::color::color;
 use crate::draw::{draw_label, draw_panel, text_px};
-use crate::fonts::{fontdb, pdf_options};
+use crate::fonts::{fontdb, pdf_options, SANS_FAMILY};
 use crate::model::{Panel, PngCompression, Suptitle, TextItem};
 
 /// Figure-level marks (title, text and border) drawn after every panel.
@@ -348,7 +348,7 @@ fn decoration_fragment(
     {
         let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
         if let Some(ref s) = decorations.suptitle {
-            let style = ("sans-serif", text_px(s.size.max(6.0), dpi).round() as u32)
+            let style = (SANS_FAMILY, text_px(s.size.max(6.0), dpi).round() as u32)
                 .into_font()
                 .color(&BLACK);
             root.draw(&Text::new(

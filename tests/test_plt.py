@@ -109,6 +109,9 @@ def test_grid_defaults_and_unicode_minus(tmp_path):
     ax.set_xticks([-1, 0, 1])
     svg = fig.savefig(None, format="svg").decode()
     assert "−1" in svg
+    # Named first so viewers rasterise the minus sign with the embedded face
+    # instead of a generic fallback that may not contain U+2212.
+    assert 'font-family="DejaVu Sans, sans-serif"' in svg
 
 
 def test_empty_figure_saves_blank(tmp_path):

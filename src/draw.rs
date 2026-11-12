@@ -6,6 +6,7 @@ use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
 
 use crate::color::{color, colormap};
+use crate::fonts::SANS_FAMILY;
 use crate::image::{base64, image_png, image_rgb};
 use crate::layout::{aspect_datalim, auto_ticks, axis_bounds, panel_ranges, range};
 use crate::model::{
@@ -117,7 +118,7 @@ where
         )?;
     }
     let deg = rotation.rem_euclid(360.0);
-    let mut style = ("sans-serif", fs.round() as u32).into_font().color(&col);
+    let mut style = (SANS_FAMILY, fs.round() as u32).into_font().color(&col);
     if (45.0..135.0).contains(&deg) {
         style = style.transform(FontTransform::Rotate90);
     } else if (135.0..225.0).contains(&deg) {
@@ -239,7 +240,7 @@ fn symlog(value: f64, linthresh: f64) -> f64 {
 }
 
 fn rotated_style(size: f64, col: RGBAColor, rotation: f64, dpi: f64) -> TextStyle<'static> {
-    let style = ("sans-serif", text_px(size.max(6.0), dpi).round() as u32)
+    let style = (SANS_FAMILY, text_px(size.max(6.0), dpi).round() as u32)
         .into_font()
         .color(&col);
     let deg = rotation.rem_euclid(360.0);
@@ -780,7 +781,7 @@ where
         )?;
     }
     if !opts.title.is_empty() {
-        let style = ("sans-serif", title_fs.round() as u32)
+        let style = (SANS_FAMILY, title_fs.round() as u32)
             .into_font()
             .color(&text);
         area.draw(&Text::new(
@@ -836,7 +837,7 @@ where
                 area.draw(&Circle::new(((cx + 10.0) as i32, cy as i32), 5, c.filled()))?
             }
         }
-        let style = ("sans-serif", fs.round() as u32).into_font().color(&text);
+        let style = (SANS_FAMILY, fs.round() as u32).into_font().color(&text);
         area.draw(&Text::new(
             entry.label.clone(),
             ((cx + 28.0) as i32, cy as i32),
@@ -1740,7 +1741,7 @@ where
     // An empty caption still reserves a title band in plotters, which shifts
     // untitled panels down and breaks axes-rectangle placement.
     if p.aspect.is_none() && !p.title.is_empty() {
-        builder.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
+        builder.caption(&p.title, (SANS_FAMILY, title_size).into_font().color(&fg));
     }
     let mut chart = builder
         .x_label_area_size(if exact_axes { 30 } else { 45 })
@@ -1783,7 +1784,7 @@ where
             rb.margin_top(10 + twin_gap_px);
         }
         if !p.title.is_empty() {
-            rb.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
+            rb.caption(&p.title, (SANS_FAMILY, title_size).into_font().color(&fg));
         }
         chart = rb
             .x_label_area_size(45)
@@ -1857,8 +1858,8 @@ where
         } else {
             ""
         };
-        mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
-            .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
+        mesh.label_style((SANS_FAMILY, label_size).into_font().color(&fg))
+            .axis_desc_style((SANS_FAMILY, desc_size).into_font().color(&fg))
             .axis_style(fg.stroke_width(1))
             .x_labels(8)
             .y_labels(8)
@@ -3024,7 +3025,7 @@ where
         };
         let mut labels = chart.configure_series_labels();
         labels.position(position).label_font((
-            "sans-serif",
+            SANS_FAMILY,
             text_px(p.legend.fontsize.max(6.0), dpi).round() as u32,
         ));
         if p.legend.frameon {
