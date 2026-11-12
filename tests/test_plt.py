@@ -1548,6 +1548,22 @@ def test_violinplot_bodies_and_stats(tmp_path):
     assert s.count("<POLYLINE") >= 6
 
 
+def test_violinplot_body_stays_within_the_data_range(tmp_path):
+    data = [np.array([-2.7, -1.0, 0.2, 1.1, 2.4, 3.0, 4.8, 6.3])]
+    plt.figure()
+    ax = plt.gca()
+    result = ax.violinplot(data)
+    lo, hi = float(data[0].min()), float(data[0].max())
+    ys = result["bodies"][0].get_paths()[0]["y"]
+    assert ys.min() >= lo - 1e-9 and ys.max() <= hi + 1e-9
+    margin = 0.05 * (hi - lo)
+    y0, y1 = ax.get_ylim()
+    assert lo - margin <= y0 and y1 <= hi + margin
+    p = tmp_path / "violin_range.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_violinplot_horizontal_side_and_validation(tmp_path):
     data = [np.array([1.0, 2.0, 3.0, 4.0, 5.0])]
     plt.figure()

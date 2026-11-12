@@ -4993,7 +4993,9 @@ def _kde(values, points=100, bw_method=None):
     lo, hi = float(vals.min()), float(vals.max())
     if hi <= lo:
         lo, hi = lo - 1.0, hi + 1.0
-    grid = np.linspace(lo - 3.0 * bw, hi + 3.0 * bw, max(int(points), 2))
+    # Matplotlib evaluates the density between the data extremes only, so the
+    # violin ends exactly at its extrema and the extremes bars sit on the tips.
+    grid = np.linspace(lo, hi, max(int(points), 2))
     z = (grid[:, None] - vals[None, :]) / bw
     density = np.exp(-0.5 * z * z).sum(axis=1) / (n * bw * np.sqrt(2.0 * np.pi))
     return grid, density
