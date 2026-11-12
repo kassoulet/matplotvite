@@ -161,6 +161,13 @@ def _comparison_prefix(options: dict[str, object] | None) -> str:
         return ""
     lines = ['plt.rcdefaults()', 'plt.rcParams["figure.figsize"] = (8, 6)']
     style = options.get("style")
+    # Matplotlib's test suite uses `_classic_test`, which is the "classic" style
+    # plus a hinting patch that only exists inside Matplotlib; render with the
+    # nearest style matplotvite ships.
+    if isinstance(style, str) and style == "_classic_test":
+        style = "classic"
+    elif isinstance(style, (list, tuple)) and "_classic_test" in style:
+        style = "classic"
     if style:
         lines.append(f"plt.style.use({style!r})")
     return "\n".join(lines) + "\n"
@@ -398,6 +405,7 @@ def prepare_body(source: str, options: dict[str, object] | None = None) -> str |
     except SyntaxError:
         return None
     tree = _BodyStripper().visit(tree)
+    tree = _drop_unused_aliases(tree)
     tree = _PruneEmpty().visit(tree)
     code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
     if not code:
@@ -408,6 +416,38 @@ def prepare_body(source: str, options: dict[str, object] | None = None) -> str |
 def _loaded_names(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node)
             if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)}
+
+
+def _drop_unused_aliases(tree: ast.Module) -> ast.Module:
+    """Remove `alias = matplotlib.<module>` lines whose alias the body never uses.
+
+    Matplotlib's test modules import several submodules at module scope that a
+    given test does not touch; keeping those assignments would turn an unused
+    import into a misleading "module has no attribute" failure.
+    """
+    used = _loaded_names(tree)
+    kept = []
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and isinstance(node.value, ast.Attribute)
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id in ("matplotlib", "mpl")
+                and node.targets[0].id not in used):
+            continue
+        if isinstance(node, ast.Import):
+            node.names = [alias for alias in node.names
+                          if (alias.asname or alias.name.split(".")[0]) in used]
+            if not node.names:
+                continue
+        if isinstance(node, ast.ImportFrom):
+            node.names = [alias for alias in node.names
+                          if (alias.asname or alias.name) in used]
+            if not node.names:
+                continue
+        kept.append(node)
+    tree.body = kept
+    return tree
 
 
 def _module_context(module: ast.Module, text: str, func: ast.FunctionDef) -> str:

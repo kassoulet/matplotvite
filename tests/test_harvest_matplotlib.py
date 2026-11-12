@@ -398,3 +398,28 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     # not install; the case still counts as rendered and explains the gap.
     if rendered.get("metrics_error") is None:
         assert rendered["mismatch_pct"] is not None
+
+
+def test_classic_test_style_maps_to_classic():
+    body = prepare_body("plt.plot([0, 1])\n", {"style": "_classic_test", "dpi": 100,
+                                               "remove_text": False, "tight": False,
+                                               "extensions": None, "tol": None})
+    assert "plt.style.use('classic')" in body
+
+
+def test_unused_module_aliases_are_dropped():
+    body = prepare_body(
+        "import matplotlib.scale as mscales\n"
+        "import matplotlib.image as mimage\n"
+        "mimage.imread('x.png')\n"
+        "plt.plot([0, 1])\n")
+    assert "mscales" not in body
+    assert "mimage" in body
+
+
+def test_marker_style_is_exposed_as_a_module():
+    style = matplotvite.markers.MarkerStyle("o", fillstyle="none")
+    assert str(style) == "o"
+    assert style.get_fillstyle() == "none"
+    assert style.is_filled() is False
+    assert "'o'" in str(sorted(style.markers))

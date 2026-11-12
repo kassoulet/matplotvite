@@ -25,6 +25,7 @@ __all__ = (
     "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
+    "MarkerStyle", "markers", "mmarkers",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
@@ -5303,6 +5304,39 @@ def _plot_args(args, fmt):
 _MARKERS = set("os^v<>Dx+.*hHpPXd8|_1234")
 
 
+class MarkerStyle:
+    """Marker descriptor, as `matplotlib.markers.MarkerStyle`."""
+
+    markers = {**{name: None for name in sorted(_MARKERS)},
+               "None": None, "none": None, " ": None, "": None}
+    filled_markers = tuple("osD^v<>pP*hHX")
+
+    def __init__(self, marker="o", fillstyle=None, transform=None,
+                 capstyle=None, joinstyle=None):
+        if isinstance(marker, MarkerStyle):
+            marker = marker.get_marker()
+        self._marker = marker
+        self._fillstyle = "full" if fillstyle is None else str(fillstyle)
+
+    def get_marker(self): return self._marker
+    def set_marker(self, marker): self._marker = marker; return self
+    def get_fillstyle(self): return self._fillstyle
+    def set_fillstyle(self, fillstyle): self._fillstyle = str(fillstyle); return self
+    def get_transform(self): return _Transform()
+    def get_alt_transform(self): return _Transform()
+    def get_capstyle(self): return "butt"
+    def get_joinstyle(self): return "round"
+    def get_snap_threshold(self): return None
+    def is_filled(self):
+        return self._fillstyle == "full" and str(self._marker) in self.filled_markers
+    def get_path(self): return Path.unit_circle()
+    def get_alt_path(self): return None
+    def rotated(self, *args, **kwargs): return self
+    def scaled(self, *args, **kwargs): return self
+    def __str__(self): return str(self._marker)
+    def __repr__(self): return f"MarkerStyle({self._marker!r})"
+
+
 def _parse_fmt(fmt):
     """Split a matplotlib fmt string into (colour, linestyle, marker)."""
     color_map = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
@@ -7419,6 +7453,8 @@ mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           RegularPolyCollection=RegularPolyCollection,
                           EllipseCollection=EllipseCollection)
 collections = mcollections
+markers = _Namespace(MarkerStyle=MarkerStyle)
+mmarkers = markers
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          BboxTransformTo=_Transform, IdentityTransform=_Transform,
                          ScaledTranslation=_Transform, TransformedBbox=_TransformedBbox,
