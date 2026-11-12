@@ -1,3 +1,4 @@
+import os
 import re
 
 import numpy as np
@@ -1025,6 +1026,34 @@ def test_linear_locator_spreads_ticks_over_the_limits():
     lo, hi = ax.get_ylim()
     assert list(ax.get_yticks()) == pytest.approx([lo, (lo + hi) / 2, hi])
     assert len(ax._panel()["ticks"]["yticks"]) == 3
+
+
+def test_fill_draws_a_polygon_per_xy_group(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    ax.fill([0, 1, 2], [0, 1, 0], [0, 1, 2], [2, 3, 2])
+    # Matplotlib treats each x, y pair as its own polygon with the next cycle colour.
+    assert len(ax.bands) == 2
+    assert ax.bands[0]["color"] != ax.bands[1]["color"]
+    ax.fill([0, 1], [0, 1], "red")
+    assert len(ax.bands) == 3 and ax.bands[2]["color"] == "#ff0000"
+    with pytest.raises(TypeError):
+        ax.fill([0, 1], [0, 1], [2, 3])
+    p = tmp_path / "fill-groups.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_module_level_matshow_xkcd_and_data_path():
+    plt.rcdefaults()
+    plt.figure((4, 3))
+    plt.matshow(np.arange(6).reshape(2, 3))
+    ax = plt.gca()
+    assert ax.get_xlim() == (-0.5, 2.5)
+    assert ax.get_ylim() == (1.5, -0.5)
+    assert plt.xkcd() is None
+    assert os.path.isdir(plt.get_data_path())
+    assert ax.twin(object) is not ax
 
 
 def test_axes_tick_labels_are_text_like():

@@ -26,6 +26,7 @@ __all__ = (
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
+    "matshow", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
@@ -2606,8 +2607,8 @@ class Axes:
         """A second axes sharing the y axis, with its own x axis on top."""
         return self._make_twin("x")
 
-    def twin(self):
-        """Alias used by some axes-grid examples."""
+    def twin(self, *args, **kwargs):
+        """Alias used by some axes-grid examples; extra arguments are ignored."""
         return self.twinx()
 
     def _make_twin(self, axis):
@@ -3782,18 +3783,25 @@ class Axes:
                                     np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
     def fill(self, *args, color=None, alpha=None, label="", **kwargs):
-        """Closed polygon: `fill(x, y)` or `fill(x1, y1, x2, y2)`."""
-        c = color if color is not None else self._next_color()
-        if len(args) == 2:
-            self.bands.append(_band(_as_f64(self._xdate(args[0])), _as_f64(args[1]),
-                                    c, alpha, label))
-        elif len(args) == 4:
-            x1, y1, x2, y2 = (_as_f64(self._xdate(a) if i in (0, 2) else _as_f64(a))
-                              for i, a in enumerate(args))
-            self.bands.append(_band(np.concatenate([x1, x2[::-1]]),
-                                    np.concatenate([y1, y2[::-1]]), c, alpha, label))
-        else:
-            raise TypeError("fill expects (x, y) or (x1, y1, x2, y2)")
+        """Filled polygons: every `x, y` pair is one polygon, optionally
+        followed by its own colour, as in Matplotlib (`fill(x, y, x2, y2)`
+        draws two polygons, not one polygon through both)."""
+        groups, pair = [], []
+        for arg in args:
+            if isinstance(arg, str):
+                if not groups or groups[-1][1] is not None:
+                    raise TypeError("fill expects x, y pairs, optionally followed by a colour")
+                groups[-1] = (groups[-1][0], arg)
+                continue
+            pair.append(arg)
+            if len(pair) == 2:
+                groups.append((pair, None))
+                pair = []
+        if pair:
+            raise TypeError("fill expects x, y pairs, optionally followed by a colour")
+        for (x, y), spec in groups:
+            c = spec or color or self._next_color()
+            self.bands.append(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
 
     def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
@@ -5949,6 +5957,11 @@ def hist(*args, **kwargs): return gca().hist(*args, **kwargs)
 def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
 def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
 def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
+def matshow(A, fignum=None, **kwargs): return gca().matshow(A, **kwargs)
+def xkcd(scale=1, length=100, randomness=2):
+    """Matplotlib's sketch style has no renderer support; accept and ignore it."""
+    _ignored("xkcd")
+def get_data_path(): return os.path.dirname(os.path.abspath(__file__))
 def axhline(*args, **kwargs): return gca().axhline(*args, **kwargs)
 def axvline(*args, **kwargs): return gca().axvline(*args, **kwargs)
 def axhspan(*args, **kwargs): return gca().axhspan(*args, **kwargs)
