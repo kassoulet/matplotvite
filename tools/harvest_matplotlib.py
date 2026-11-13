@@ -410,6 +410,24 @@ def prepare_body(source: str, options: dict[str, object] | None = None) -> str |
     return _comparison_prefix(options) + code + _comparison_suffix(options)
 
 
+def _evaluated_names(node: ast.AST) -> set[str]:
+    """Identifiers used inside `eval`/`exec` strings.
+
+    `ticks/date_formatters_locators` picks its locator with
+    `eval("AutoDateLocator()")`, so the stripped `from matplotlib.dates import
+    ...` line has to be resolved from the string, not from an `ast.Name`.
+    """
+    names: set[str] = set()
+    for item in ast.walk(node):
+        if not (isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
+                and item.func.id in ("eval", "exec")):
+            continue
+        for arg in item.args:
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                names.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", arg.value))
+    return names
+
+
 def _loaded_names(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node)
             if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)}
@@ -551,7 +569,8 @@ def render(snippet: str, out_path: pathlib.Path,
     # have bound: `MaxNLocator`, `TABLEAU_COLORS`, `rand`, `ma`, ... otherwise
     # the case fails with a NameError that hides whether the API exists.
     try:
-        needed = _loaded_names(ast.parse(snippet))
+        tree = ast.parse(snippet)
+        needed = _loaded_names(tree) | _evaluated_names(tree)
     except SyntaxError:
         needed = set()
     for name in needed - set(namespace):

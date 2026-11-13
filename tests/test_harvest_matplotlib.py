@@ -86,6 +86,19 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
 
 
+def test_render_resolves_names_used_in_eval_strings(tmp_path):
+    # ticks/date_formatters_locators selects its locator via eval("AutoDateLocator()").
+    snippet = prepare_example(
+        "import matplotlib.dates as mdates\n"
+        "import matplotlib.pyplot as plt\n"
+        "plt.plot([1.0, 2.0], [3.0, 4.0])\n"
+        "plt.gca().xaxis.set_major_locator(eval('AutoDateLocator()'))\n")
+    assert snippet is not None
+    out = tmp_path / "eval-locator.png"
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
 def test_prepare_example_resolves_module_alias_imports():
     snippet = prepare_example(
         "import matplotlib.pyplot as plt\n"
