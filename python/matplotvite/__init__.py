@@ -2749,15 +2749,16 @@ class Axes:
             else:
                 glabel = label if index == 0 else ""
             style = linestyle or ls or "-"
-            gcolor, gmarker = color or c, marker
+            gcolor, gmarker = (color if color is not None else c), marker
             if gfmt:
                 f_color, f_style, f_marker = _parse_fmt(gfmt)
-                gcolor = gcolor or f_color
+                if gcolor is None:
+                    gcolor = f_color
                 if linestyle is None and ls is None:
                     style = f_style or style
                 if not gmarker:
                     gmarker = f_marker
-            line_color = gcolor or self._next_color()
+            line_color = gcolor if gcolor is not None else self._next_color()
             edge = markeredgecolor or mec
             xvals = self._xdate(gx)
             yvals = self._ycat(gy)
@@ -5697,7 +5698,9 @@ def _colors(colors):
         return []
     if isinstance(colors, str) or _is_rgb(colors):
         return [_norm_color(colors)]
-    return [_norm_color(c) for c in colors]
+    return [_color_alpha(c) if (isinstance(c, (tuple, list)) and len(c) == 2
+                                and not isinstance(c[0], (int, float)))
+            else _norm_color(c) for c in colors]
 
 
 def _contour_args(args, levels):
@@ -5910,11 +5913,13 @@ class GridSpec:
 
     def tight_layout(self, *args, **kwargs): return None
 
-    def subplots(self, nrows=1, ncols=1, **kwargs):
+    def subplots(self, nrows=None, ncols=None, **kwargs):
         """A new subplot grid on this gridspec's figure."""
         if self.figure is None:
             raise ValueError("a GridSpec needs a figure to create subplots")
-        return self.figure.subplots(nrows, ncols, **kwargs)
+        return self.figure.subplots(self.nrows if nrows is None else nrows,
+                                    self.ncols if ncols is None else ncols,
+                                    **kwargs)
 
     def _bounds(self, rows, cols):
         r0, r1 = rows

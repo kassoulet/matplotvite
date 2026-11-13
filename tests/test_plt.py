@@ -3646,3 +3646,21 @@ def test_prop_cycle_entries_and_colormap_colors_are_addressable():
     colors = plt.colormaps["Dark2"].colors
     assert len(colors) == 8 and len(colors[0]) == 3
     assert all(0.0 <= v <= 1.0 for v in colors[0])
+
+
+def test_colors_accept_alpha_pairs_and_plot_accepts_rgba_arrays():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    parts = ax.violinplot([np.arange(10.0), np.arange(10.0) + 1],
+                          facecolor=[("yellow", 0.3), ("blue", 0.3)])
+    assert parts["bodies"]
+    ax.plot([0, 1], color=np.array([0.1, 0.2, 0.3, 0.4]))
+
+
+def test_gridspec_subplots_uses_its_own_geometry():
+    plt.rcdefaults()
+    fig = plt.figure()
+    gs = fig.add_gridspec(3, hspace=0)
+    axs = gs.subplots(sharex=True, sharey=True)
+    assert len(axs) == 3
+    assert len(fig.get_axes()) == 3
