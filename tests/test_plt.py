@@ -3683,3 +3683,19 @@ def test_log_locator_places_decade_and_subsidiary_ticks():
     ax.set_ylim(1, 1000)
     ax.yaxis.set_major_locator(locator)
     assert list(ax.get_yticks()) == pytest.approx([1, 10, 100, 1000])
+
+
+def test_grouped_bar_returns_one_container_per_series():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    data = {"Bill Depth": (18.35, 18.43, 14.98),
+            "Bill Length": (38.79, 48.83, 47.50)}
+    result = ax.grouped_bar(data, tick_labels=("Adelie", "Chinstrap", "Gentoo"),
+                            group_spacing=1)
+    assert len(result.bar_containers) == 2
+    assert [len(c) for c in result.bar_containers] == [3, 3]
+    assert [c.get_label() for c in result.bar_containers] == [
+        "Bill Depth", "Bill Length"]
+    for container in result.bar_containers:
+        ax.bar_label(container, padding=3)
+    assert list(ax.get_xticks()) == pytest.approx([0.0, 1.2, 2.4])

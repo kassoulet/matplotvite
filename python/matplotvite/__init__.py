@@ -1377,6 +1377,9 @@ class _BarContainer(list):
         super().__init__(handles)
         self.label = label
 
+    def get_label(self): return str(self.label)
+    def set_label(self, label): self.label = str(label)
+
     @property
     def patches(self):
         return list(self)
@@ -2614,6 +2617,13 @@ class _SubplotPars:
             if hasattr(self, key):
                 setattr(self, key, value)
         return self
+
+
+class _GroupedBarResult:
+    """Result of `Axes.grouped_bar`: one bar container per data series."""
+
+    def __init__(self, bar_containers):
+        self.bar_containers = list(bar_containers)
 
 
 class Axes:
@@ -4122,6 +4132,35 @@ class Axes:
                               vertical=False))
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
                              str(label))
+
+    def grouped_bar(self, data, tick_labels=None, labels=None, bottom=None,
+                    group_spacing=None, colors=None, edgecolor=None, **kwargs):
+        """Side-by-side bars for several series, one `BarContainer` per series."""
+        if isinstance(data, dict):
+            series = [str(v) for v in (labels if labels is not None else data.keys())]
+            values = np.asarray(list(data.values()), dtype=np.float64).T
+        else:
+            values = np.asarray(data, dtype=np.float64)
+            series = [str(v) for v in (labels or [])]
+        if values.ndim != 2:
+            raise ValueError("grouped_bar expects a mapping or a 2-D array")
+        n, m = values.shape
+        if len(series) != m:
+            series = [f"series {i + 1}" for i in range(m)]
+        bar_width = 0.8 / m
+        gap = 0.0 if group_spacing is None else float(group_spacing) * bar_width
+        centers = np.arange(n, dtype=np.float64) * (m * bar_width + gap)
+        palette = _colors(colors) if colors is not None else []
+        containers = []
+        for i in range(m):
+            colour = palette[i % len(palette)] if palette else self._next_color()
+            containers.append(self.bar(
+                centers + (i - (m - 1) / 2.0) * bar_width, values[:, i],
+                width=bar_width, bottom=0.0 if bottom is None else bottom,
+                color=colour, edgecolor=edgecolor, label=series[i], **kwargs))
+        if tick_labels is not None:
+            self.set_xticks(centers, labels=list(tick_labels))
+        return _GroupedBarResult(containers)
 
     def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
                      alpha=None, label="", step=None, **kwargs):
@@ -6497,6 +6536,7 @@ def bar_label(container, labels=None, fmt="%g", label_type="edge", padding=0, **
     return gca().bar_label(container, labels=labels, fmt=fmt, label_type=label_type,
                            padding=padding, **kwargs)
 def barh(*args, **kwargs): return gca().barh(*args, **kwargs)
+def grouped_bar(*args, **kwargs): return gca().grouped_bar(*args, **kwargs)
 def boxplot(*args, **kwargs): return gca().boxplot(*args, **kwargs)
 def violinplot(*args, **kwargs): return gca().violinplot(*args, **kwargs)
 def pie(*args, **kwargs): return gca().pie(*args, **kwargs)
