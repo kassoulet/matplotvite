@@ -986,7 +986,7 @@ class _WeekdayLocator(_DateLocator):
 class _TimeLocator(_DateLocator):
     """Ticks on whole hours, minutes or seconds, `interval` steps apart."""
 
-    def __init__(self, interval=1, tz=None, unit="hours"):
+    def __init__(self, interval=1, tz=None, unit="hours", **kwargs):
         self.interval, self.unit = max(1, int(interval)), unit
 
     def tick_values(self, vmin, vmax):
@@ -1009,15 +1009,23 @@ class _TimeLocator(_DateLocator):
 
 
 class _HourLocator(_TimeLocator):
-    def __init__(self, interval=1, tz=None): super().__init__(interval, unit="hours")
+    def __init__(self, interval=1, tz=None, **kwargs):
+        super().__init__(interval, unit="hours", **kwargs)
 
 
 class _MinuteLocator(_TimeLocator):
-    def __init__(self, interval=1, tz=None): super().__init__(interval, unit="minutes")
+    def __init__(self, interval=1, tz=None, **kwargs):
+        super().__init__(interval, unit="minutes", **kwargs)
 
 
 class _SecondLocator(_TimeLocator):
-    def __init__(self, interval=1, tz=None): super().__init__(interval, unit="seconds")
+    def __init__(self, interval=1, tz=None, **kwargs):
+        super().__init__(interval, unit="seconds", **kwargs)
+
+
+def _rrule_wrapper(**kwargs):
+    """Placeholder for dateutil's rrule wrapper; its options are not used."""
+    return dict(kwargs)
 
 
 def _add_months(value, months):
@@ -6818,6 +6826,10 @@ dates = _Namespace(
     MonthLocator=_MonthLocator, DayLocator=_DayLocator, HourLocator=_HourLocator,
     MinuteLocator=_MinuteLocator, SecondLocator=_SecondLocator,
     MicrosecondLocator=_SecondLocator, WeekdayLocator=_WeekdayLocator,
+    ConciseDateFormatter=_AutoDateFormatter, RRuleLocator=_MonthLocator,
+    rrulewrapper=_rrule_wrapper, MO=0, TU=1, WE=2, TH=3, FR=4, SA=5, SU=6,
+    YEARLY="yearly", MONTHLY="monthly", WEEKLY="weekly", DAILY="daily",
+    HOURLY="hourly", MINUTELY="minutely", SECONDLY="secondly",
     epoch=_datetime.datetime(1970, 1, 1),
 )
 mdates = dates

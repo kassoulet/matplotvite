@@ -417,14 +417,18 @@ def _evaluated_names(node: ast.AST) -> set[str]:
     `eval("AutoDateLocator()")`, so the stripped `from matplotlib.dates import
     ...` line has to be resolved from the string, not from an `ast.Name`.
     """
+    evaluates = any(
+        isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
+        and item.func.id in ("eval", "exec")
+        for item in ast.walk(node))
+    if not evaluates:
+        return set()
+    # The date locator example keeps its expressions in a list and evaluates a
+    # variable, so every string literal becomes a candidate once eval is used.
     names: set[str] = set()
     for item in ast.walk(node):
-        if not (isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
-                and item.func.id in ("eval", "exec")):
-            continue
-        for arg in item.args:
-            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                names.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", arg.value))
+        if isinstance(item, ast.Constant) and isinstance(item.value, str):
+            names.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", item.value))
     return names
 
 
