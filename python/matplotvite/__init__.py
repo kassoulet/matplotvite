@@ -456,6 +456,7 @@ class _CycleList(list):
     """A prop-cycle list that also supports matplotlib's `by_key()` API."""
 
     def by_key(self): return {"color": list(self)}
+    def __call__(self): return [{"color": color} for color in self]
 
 
 class _CoordTransform:
@@ -4013,6 +4014,44 @@ class Axes:
         self._sticky_y += [ey0, ey1]
         return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
+    def arrow(self, x, y, dx, dy, width=0.001, length_includes_head=False,
+              head_width=None, head_length=None, shape="full", overhang=0.0,
+              head_starts_at_zero=False, **kwargs):
+        """Arrow from `(x, y)` by `(dx, dy)`, drawn as a filled polygon.
+
+        Widths and the head size are data units, as in Matplotlib; `shape` and
+        `overhang` are accepted but the head is drawn as a plain triangle.
+        """
+        x, y, dx, dy = (float(np.ravel(v)[0]) for v in (x, y, dx, dy))
+        head_width = 3.0 * width if head_width is None else float(head_width)
+        head_length = 5.0 * width if head_length is None else float(head_length)
+        length = float(np.hypot(dx, dy))
+        if not np.isfinite(length) or length <= 0.0:
+            raise ValueError("dx and dy must not both be zero")
+        ux, uy = dx / length, dy / length
+        nx, ny = -uy, ux
+        if length_includes_head:
+            tipx, tipy = x + dx, y + dy
+        else:
+            tipx, tipy = x + dx + ux * head_length, y + dy + uy * head_length
+        basex, basey = tipx - ux * head_length, tipy - uy * head_length
+        half_head, half_shaft = 0.5 * head_width, 0.5 * width
+        points = [
+            (x + nx * half_shaft, y + ny * half_shaft),
+            (basex + nx * half_shaft, basey + ny * half_shaft),
+            (basex + nx * half_head, basey + ny * half_head),
+            (tipx, tipy),
+            (basex - nx * half_head, basey - ny * half_head),
+            (basex - nx * half_shaft, basey - ny * half_shaft),
+            (x - nx * half_shaft, y - ny * half_shaft),
+        ]
+        patch = Polygon(points, closed=True,
+                        facecolor=kwargs.get("fc", kwargs.get("facecolor", "black")),
+                        edgecolor=kwargs.get("ec", kwargs.get("edgecolor", "none")),
+                        alpha=kwargs.get("alpha"))
+        self.add_patch(patch)
+        return patch
+
     def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None,
                  **kwargs):
         """Text at `xytext` with an arrow pointing at `xy`.
@@ -5980,9 +6019,17 @@ def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
 def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
 def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
 def matshow(A, fignum=None, **kwargs): return gca().matshow(A, **kwargs)
+class _IgnoredContext:
+    """Compatibility shim used as `with plt.<name>():`; draws nothing."""
+
+    def __enter__(self): return self
+    def __exit__(self, *exc_info): return False
+
+
 def xkcd(scale=1, length=100, randomness=2):
     """Matplotlib's sketch style has no renderer support; accept and ignore it."""
     _ignored("xkcd")
+    return _IgnoredContext()
 def get_data_path(): return os.path.dirname(os.path.abspath(__file__))
 def axhline(*args, **kwargs): return gca().axhline(*args, **kwargs)
 def axvline(*args, **kwargs): return gca().axvline(*args, **kwargs)
@@ -6241,6 +6288,15 @@ class _MColors:
     cnames = _CSS_COLORS
 
     @staticmethod
+    def rgb_to_hsv(rgb):
+        """Convert RGB triples (0-1) to HSV, as Matplotlib's `mcolors.rgb_to_hsv`."""
+        from colorsys import rgb_to_hsv as _convert
+        arr = np.asarray(rgb, dtype=float)
+        flat = arr.reshape(-1, 3)
+        out = np.asarray([_convert(float(r), float(g), float(b)) for r, g, b in flat])
+        return out.reshape(arr.shape)
+
+    @staticmethod
     def to_rgb(color): return _rgba_tuple(color)[:3]
 
     @staticmethod
@@ -6475,6 +6531,7 @@ MultipleLocator = _MultipleLocator
 MaxNLocator = _MaxNLocator
 FixedLocator = _FixedLocator
 LinearLocator = _LinearLocator
+NullLocator = _NoopLocator
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)

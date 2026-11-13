@@ -1077,7 +1077,8 @@ def test_module_level_matshow_xkcd_and_data_path():
     ax = plt.gca()
     assert ax.get_xlim() == (-0.5, 2.5)
     assert ax.get_ylim() == (1.5, -0.5)
-    assert plt.xkcd() is None
+    with plt.xkcd() as sketch:
+        assert sketch is not None
     assert os.path.isdir(plt.get_data_path())
     assert ax.twin(object) is not ax
 
