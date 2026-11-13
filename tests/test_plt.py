@@ -3542,3 +3542,16 @@ def test_gallery_subplot2grid_and_gridspec_updates():
     gs.update(top=0.8)
     assert gs.top == 0.8
     gs.tight_layout(fig)
+
+
+def test_inset_axes_accepts_point_bbox_to_anchor():
+    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes
+
+    plt.rcdefaults()
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    inset = inset_axes(ax, width="30%", height="25%", loc="upper right",
+                       bbox_to_anchor=(0.1, 0.2), borderpad=0)
+    assert inset in fig.get_axes()
+    parent = ax.get_position()
+    assert inset.get_position().width == pytest.approx(0.3 * parent.width)

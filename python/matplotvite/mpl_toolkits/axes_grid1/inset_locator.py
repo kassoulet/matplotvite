@@ -27,8 +27,11 @@ def _bounds(value):
     if hasattr(value, "bounds"):
         return tuple(float(v) for v in value.bounds)
     values = tuple(float(v) for v in value)
+    if len(values) == 2:
+        # A point anchor; the inset's own width/height supply the size.
+        return (values[0], values[1], 0.0, 0.0)
     if len(values) != 4:
-        raise ValueError("bbox_to_anchor must be a 4-tuple or Bbox")
+        raise ValueError("bbox_to_anchor must be a 2- or 4-tuple, or a Bbox")
     return values
 
 
