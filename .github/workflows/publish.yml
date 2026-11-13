@@ -4,28 +4,97 @@ on:
   push:
     tags:
       - "v*"
+  # Re-run an interrupted upload for an existing tag without tagging again.
+  workflow_dispatch:
 
 permissions:
   contents: read
-  # PyPI trusted publishing exchanges this OIDC token for a short-lived key.
-  id-token: write
 
 jobs:
-  publish:
-    name: Publish to PyPI
-    runs-on: ubuntu-latest
-    environment: pypi
+  wheels:
+    name: wheel (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            manylinux: auto
+            interpreter: python3.13
+          - name: linux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            manylinux: auto
+            interpreter: python3.13
+          - name: macos-arm64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            interpreter: python
+          - name: macos-x86_64
+            os: macos-15-intel
+            target: x86_64-apple-darwin
+            interpreter: python
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            interpreter: python
+          - name: windows-arm64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            interpreter: python
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          toolchain: stable
-      - name: Build and publish the abi3 wheel and sdist
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          # Same stable-ABI wheel as CI: one cp39-abi3 build serves every
+          # interpreter above 3.9, so the matrix only varies by platform.
+          args: --release --out dist --interpreter ${{ matrix.interpreter }}
+      - name: Build the sdist
+        # The tarball is platform independent, so exactly one job builds it.
+        if: matrix.name == 'linux-x86_64'
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          command: publish
-          manylinux: auto
-          args: --skip-existing
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wheel-${{ matrix.name }}
+          path: dist/*.whl
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.name == 'linux-x86_64'
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    name: Publish to PyPI
+    needs: wheels
+    runs-on: ubuntu-latest
+    # Must match the environment name registered in the PyPI trusted publisher.
+    environment: pypi
+    permissions:
+      # PyPI trusted publishing exchanges this OIDC token for a short-lived key.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdist
+          path: dist
+      - name: Upload the wheels and sdist to PyPI
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          command: upload
+          # Re-runs after a partial upload keep the files PyPI already has.
+          args: --skip-existing --non-interactive dist/*
