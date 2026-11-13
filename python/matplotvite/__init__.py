@@ -593,7 +593,12 @@ class Path:
 class _Bbox:
     """Minimal Bbox with the attribute names matplotlib tests reach for."""
 
-    def __init__(self, x0, y0, x1, y1):
+    def __init__(self, x0, y0=None, x1=None, y1=None):
+        if y0 is None:
+            # Matplotlib's `Bbox([[x0, y0], [x1, y1]])` corner-pair form.
+            points = np.asarray(x0, dtype=float).reshape(2, 2)
+            x0, y0, x1, y1 = (points[0][0], points[0][1],
+                              points[1][0], points[1][1])
         self.x0, self.y0, self.x1, self.y1 = float(x0), float(y0), float(x1), float(y1)
 
     @classmethod

@@ -3664,3 +3664,9 @@ def test_gridspec_subplots_uses_its_own_geometry():
     axs = gs.subplots(sharex=True, sharey=True)
     assert len(axs) == 3
     assert len(fig.get_axes()) == 3
+
+
+def test_bbox_accepts_corner_pairs():
+    box = plt.transforms.Bbox([[0.3, 0.4], [0.7, 0.6]])
+    assert (box.x0, box.y0, box.x1, box.y1) == pytest.approx((0.3, 0.4, 0.7, 0.6))
+    assert box.p0 == pytest.approx((0.3, 0.4)) and box.p1 == pytest.approx((0.7, 0.6))
