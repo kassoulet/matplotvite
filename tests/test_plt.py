@@ -1104,6 +1104,26 @@ def test_get_gridspec_supports_a_spanning_subplot(tmp_path):
     assert out.exists()
 
 
+def test_subplotspec_gridspec_helpers_and_twin_kwargs(tmp_path):
+    fig, axs = plt.subplots(2, 2)
+    gs = axs[0, 0].get_gridspec()
+    assert gs is not None
+    made = gs.subplots(1, 2)
+    assert np.asarray(made).size == 2
+    axbig = fig.add_subplot(gs[1, :])
+    spec = axbig.get_subplotspec()
+    assert spec is not None
+    assert spec.subgridspec(1, 2) is not None
+    axbig.twinx(delta_zorder=1)
+    axbig.annotate("point", (0.5, 0.5)).draggable()
+    # rcParams carries the font families marplot code reads directly.
+    assert plt.rcParams["font.sans-serif"]
+    fig.canvas.draw()
+    out = tmp_path / "subplotspec.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_compat_namespaces_for_cbook_path_and_fonts(tmp_path):
     assert plt.path is plt.mpath
     assert plt.path.Path is not None

@@ -660,6 +660,7 @@ class _TextArt:
         return self
 
     def get_bbox_patch(self): return self._bbox_patch
+    def draggable(self, *args, **kwargs): return self
 
 
 class _StemContainer:
@@ -2608,6 +2609,7 @@ class Axes:
         self._xticklabels = self._yticklabels = None
         self._x_date = False
         self._categories, self._ycategories = [], []
+        self._subplotspec = None
         self._inverted = [False, False]
         self._pos_override = None
         if rect_arg is not None and len(rect_arg) == 4:
@@ -2814,11 +2816,11 @@ class Axes:
         self._fig._cur = child
         return child
 
-    def twinx(self):
+    def twinx(self, **kwargs):
         """A second axes sharing the x axis, with its own y axis on the right."""
         return self._make_twin("y")
 
-    def twiny(self):
+    def twiny(self, **kwargs):
         """A second axes sharing the y axis, with its own x axis on top."""
         return self._make_twin("x")
 
@@ -3107,6 +3109,7 @@ class Axes:
     def get_xaxis_transform(self, which="grid"): return _Transform()
     def get_yaxis_transform(self, which="grid"): return _Transform()
     def get_gridspec(self): return getattr(self._fig, "_gridspec", None)
+    def get_subplotspec(self): return self._subplotspec
     def set_box_aspect(self, aspect, **kwargs): self._box_aspect = aspect
     def get_box_aspect(self): return self._box_aspect
     def set_axes_locator(self, locator): self._axes_locator = locator
@@ -5779,6 +5782,12 @@ class GridSpec:
 
     def tight_layout(self, *args, **kwargs): return None
 
+    def subplots(self, nrows=1, ncols=1, **kwargs):
+        """A new subplot grid on this gridspec's figure."""
+        if self.figure is None:
+            raise ValueError("a GridSpec needs a figure to create subplots")
+        return self.figure.subplots(nrows, ncols, **kwargs)
+
     def _bounds(self, rows, cols):
         r0, r1 = rows
         c0, c1 = cols
@@ -5922,6 +5931,7 @@ class Figure:
         ax._fig = self
         ax._pos_override = spec.gridspec._bounds(spec.rows, spec.cols)
         ax._bounds_are_axes = False
+        ax._subplotspec = spec
         self.axes.append(ax)
         self._cur = ax
         return ax
@@ -6200,6 +6210,9 @@ class _SubFigure:
         self.figure = figure
         self._bounds = tuple(bounds)
         self._zorder = 0
+
+    @property
+    def canvas(self): return self.figure.canvas
 
     def get_position(self):
         x, y, width, height = self._bounds
@@ -6505,6 +6518,10 @@ rcParams = _RcParams({
     "lines.linewidth": 1.5,
     "lines.markersize": 6.0,
     "font.size": 10.0,
+    "font.family": ["sans-serif"],
+    "font.sans-serif": ["DejaVu Sans"],
+    "font.serif": ["DejaVu Serif"],
+    "font.monospace": ["DejaVu Sans Mono"],
     "axes.labelsize": 10.0,
     "axes.titlesize": 12.0,
     "figure.titlesize": 14.0,

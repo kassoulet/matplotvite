@@ -89,6 +89,10 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
 
 
+def test_system_exit_from_a_main_guard_is_unsupported():
+    assert failure_status("SystemExit: 2") == "unsupported"
+
+
 def test_sample_data_is_found_next_to_the_matplotlib_sources():
     data = find_sample_data()
     if data is None:

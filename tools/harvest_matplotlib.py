@@ -358,6 +358,8 @@ def failure_status(error: str | None) -> str:
     if not error:
         return "failed"
     kind, _, detail = error.partition(":")
+    if kind == "SystemExit":
+        return "unsupported"
     if kind == "NameError":
         match = re.search(r"name '([^']+)' is not defined", detail)
         name = match.group(1) if match else ""
@@ -608,7 +610,7 @@ def render(snippet: str, out_path: pathlib.Path,
                 candidate = sample_data / pathlib.Path(str(fname)).name
                 if candidate.exists():
                     return candidate
-            return matplotvite.cbook.get_sample_data(fname, *args, **kwargs)
+            raise NotImplementedError(f"sample data {fname!r} is not available")
 
         class _CbookProxy:
             def __getattr__(self, name):
@@ -639,9 +641,13 @@ def render(snippet: str, out_path: pathlib.Path,
             if ignored_calls is not None:
                 ignored_calls.clear()
             np.random.seed(0)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", RuntimeWarning)
-                exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", RuntimeWarning)
+                    exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
+            except SystemExit as exc:
+                # Gallery scripts that parse argv exit from their main guard.
+                return f"SystemExit: {exc}"
             if not out_path.exists():
                 return "no figure saved"
             return None
