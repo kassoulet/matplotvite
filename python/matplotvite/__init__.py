@@ -49,6 +49,9 @@ _INTERP_FALLBACKS = {name: "bicubic" for name in (
     "bessel", "gaussian", "spline16", "spline36", "hanning", "hamming",
     "hermite", "kaiser", "quadric", "catrom", "mitchell", "lanczos",
     "blackman")}
+# Colormaps built from an explicit colour list, registered by name so the
+# renderer can sample them like any bundled map.
+_CUSTOM_CMAPS: dict[str, list[tuple[int, int, int]]] = {}
 _SHORT_COLORS = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
 _TAB10 = {"tab:blue": "#1f77b4", "tab:orange": "#ff7f0e", "tab:green": "#2ca02c",
@@ -247,7 +250,10 @@ def _cmap_lookup(name):
     base = text[:-2] if reverse else text
     colors = _CMAP_DATA.get(base)
     if colors is None:
-        canonical = next((key for key in _CMAP_DATA if key.lower() == base.lower()), None)
+        colors = _CUSTOM_CMAPS.get(base)
+    if colors is None:
+        canonical = next((key for key in (*_CMAP_DATA, *_CUSTOM_CMAPS)
+                          if key.lower() == base.lower()), None)
         if canonical is None:
             raise ValueError(f"unsupported colormap: {name!r}")
         base = canonical
@@ -259,6 +265,9 @@ def _cmap_name(cmap):
     """Canonical registry name; `None` picks up the `image.cmap` rcParam."""
     if isinstance(cmap, Colormap):
         return cmap.name
+    custom = getattr(cmap, "name", None)
+    if custom is not None and str(custom) in _CUSTOM_CMAPS:
+        return str(custom)
     if cmap is None:
         cmap = rcParams.get("image.cmap", "viridis")
     base, _, reverse = _cmap_lookup(cmap)
@@ -375,6 +384,18 @@ class _ColormapRegistry:
             return get_cmap(name)
         except ValueError:
             return default
+
+    def register(self, cmap, name=None, force=False):
+        """Make a colormap built from a colour list resolvable by name."""
+        target = str(name or getattr(cmap, "name", ""))
+        rgb = getattr(cmap, "_rgb", None)
+        if not target or rgb is None or len(rgb) == 0:
+            raise ValueError("only colormaps built from a colour list can be registered")
+        if target in _CUSTOM_CMAPS and not force:
+            return None
+        _CUSTOM_CMAPS[target] = [tuple(int(round(float(v) * 255)) for v in row[:3])
+                                 for row in np.asarray(rgb)]
+        return None
 
 
 colormaps = _ColormapRegistry()
@@ -6760,22 +6781,49 @@ class _SymLogNorm(_Normalize):
 
 
 class _ListedColormap:
-    def __init__(self, colors, name="from_list"):
+    def __init__(self, colors, name="from_list", N=256, over=None, under=None,
+                 bad=None):
+        if isinstance(colors, str) and not isinstance(name, str):
+            # Matplotlib's own order is `(name, segmentdata)`.
+            colors, name = name, colors
+        if isinstance(colors, dict) and "red" in colors:
+            # LinearSegmentedColormap's segment data: interpolate each channel.
+            positions = np.linspace(0.0, 1.0, 256)
+            channels = []
+            for channel in ("red", "green", "blue"):
+                points = np.asarray(colors[channel], dtype=np.float64)
+                channels.append(np.interp(positions, points[:, 0], points[:, 1]))
+            colors = list(zip(*channels))
         self.colors = [_norm_color(c) for c in colors]
         self.name, self.N = str(name), len(self.colors)
+        self._over, self._under, self._bad = over, under, bad
+        _CUSTOM_CMAPS[self.name] = [
+            tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+            for c in self.colors
+            if isinstance(c, str) and c.startswith("#") and len(c) >= 7]
+
+    @property
+    def _rgb(self):
+        return np.asarray(_CUSTOM_CMAPS[self.name], dtype=np.float64) / 255.0
+
+    def reversed(self, name=None):
+        return _ListedColormap(list(reversed(self.colors)),
+                               name or f"{self.name}_r")
+
+    def set_over(self, color): self._over = color
+    def set_under(self, color): self._under = color
+    def set_bad(self, color): self._bad = color
 
     @classmethod
     def from_list(cls, name, colors, N=256):
         if colors and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
-            colors = [c for _, c in colors]
-        return cls(colors, name)
+            colors = [c for _, c in sorted(colors)]
+        return cls(colors, name, N=N)
 
     def __call__(self, X, alpha=None, bytes=False):
         arr = np.asarray(X, dtype=float)
         index = np.clip((arr * self.N).astype(int), 0, self.N - 1)
-        rgb = np.asarray([[int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)]
-                          for c in self.colors], dtype=float) / 255.0
-        out = rgb[index]
+        out = self._rgb[index]
         return out.astype(np.uint8) if bytes else out
 
 

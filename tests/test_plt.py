@@ -3611,3 +3611,19 @@ def test_contour_reuses_contourset_and_cycles_linewidths():
     ax.contour(cs, levels=cs.levels[::2], colors="r")
     ax.contour(z, linewidths=np.arange(0.5, 2.0, 0.5))
     assert cs.get_linewidth().size == 1
+
+
+def test_custom_colormaps_resolve_by_name():
+    plt.rcdefaults()
+    cmap = plt.mcolors.LinearSegmentedColormap.from_list(
+        "my_list", [(1, 0, 0), (0, 1, 0)], N=8)
+    fig, ax = plt.subplots()
+    ax.imshow(np.arange(16.0).reshape(4, 4), cmap=cmap)
+    assert plt.get_cmap("my_list").N >= 2
+    segment = plt.mcolors.LinearSegmentedColormap(
+        "segmented", {"red": [(0, 1, 1), (1, 0, 0)],
+                      "green": [(0, 0, 0), (1, 1, 1)],
+                      "blue": [(0, 0, 0), (1, 0, 0)]})
+    ax.contourf(np.arange(16.0).reshape(4, 4), cmap=segment)
+    plt.colormaps.register(segment)
+    assert "segmented" in plt.colormaps
