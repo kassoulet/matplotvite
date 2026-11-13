@@ -994,6 +994,32 @@ def test_axes_set_dispatch(tmp_path):
         ax.set(nonexistent=1)
 
 
+def test_string_categories_plot_on_the_y_axis(tmp_path):
+    fig, ax = plt.subplots()
+    ax.plot([1.0, 2.0, 3.0], ["low", "mid", "high"], marker="o")
+    # Matplotlib draws the categories at 0, 1, 2 and labels the ticks with them.
+    assert list(ax.get_yticks()) == [0.0, 1.0, 2.0]
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["low", "mid", "high"]
+    lo, hi = ax.get_ylim()
+    assert -0.1 <= lo <= 0.0 and 2.0 <= hi <= 2.1
+    out = tmp_path / "categories.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
+def test_barh_string_categories_label_the_y_axis(tmp_path):
+    fig, ax = plt.subplots()
+    ax.barh(["alpha", "beta"], [3.0, 5.0])
+    assert list(ax.get_yticks()) == [0.0, 1.0]
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["alpha", "beta"]
+    ax.scatter([0.5], ["gamma"])
+    # Categories accumulate across calls, as Matplotlib's units do.
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["alpha", "beta", "gamma"]
+    out = tmp_path / "categories-h.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_major_locators_place_ticks(tmp_path):
     plt.rcdefaults()
     fig, ax = plt.subplots()

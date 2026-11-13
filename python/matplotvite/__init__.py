@@ -2393,7 +2393,7 @@ class Axes:
         self._xlocator = self._ylocator = None
         self._xticklabels = self._yticklabels = None
         self._x_date = False
-        self._categories = []
+        self._categories, self._ycategories = [], []
         self._inverted = [False, False]
         self._pos_override = None
         if rect_arg is not None and len(rect_arg) == 4:
@@ -2487,12 +2487,13 @@ class Axes:
             line_color = gcolor or self._next_color()
             edge = markeredgecolor or mec
             xvals = self._xdate(gx)
+            yvals = self._ycat(gy)
             series_style = drawstyle
             if drawstyle == "steps-mid":
-                xvals, gy = _mid_steps(xvals, gy)
+                xvals, yvals = _mid_steps(xvals, yvals)
                 series_style = "steps-post"
             handle = _series(
-                xvals, gy, glabel, line_color, linestyle=style,
+                xvals, yvals, glabel, line_color, linestyle=style,
                 linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
                 marker=gmarker or "",
                 markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
@@ -2960,6 +2961,7 @@ class Axes:
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.show_legend, self.xlim, self.ylim = False, None, None
         self._xticks = self._yticks = None
+        self._categories, self._ycategories = [], []
         self._xlocator = self._ylocator = None
         self.xaxis._locator = self.yaxis._locator = None
         self._xticklabels = self._yticklabels = None
@@ -2991,6 +2993,26 @@ class Axes:
             mapped = np.asarray([index[label] for label in labels], dtype=np.float64)
             return mapped.reshape(array.shape)
         return values
+
+    def _ycat(self, values):
+        """Map string categories to y positions and label their ticks.
+
+        The x axis keeps its categories on the panel instead (they only matter
+        for the tick labels), but the y axis has to write the ticks here: the
+        panel reads `_yticks`/`_yticklabels` directly.
+        """
+        if not _looks_like_categories(values):
+            return values
+        array = np.asarray(values)
+        labels = [str(v) for v in array.ravel()]
+        for label in labels:
+            if label not in self._ycategories:
+                self._ycategories.append(label)
+        index = {label: i for i, label in enumerate(self._ycategories)}
+        self._yticks = [float(i) for i in range(len(self._ycategories))]
+        self._yticklabels = list(self._ycategories)
+        mapped = np.asarray([index[label] for label in labels], dtype=np.float64)
+        return mapped.reshape(array.shape)
 
     def set_xticks(self, ticks, labels=None, rotation=None, fontsize=None,
                    color=None, **kwargs):
@@ -3749,7 +3771,7 @@ class Axes:
     def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
              align="center", alpha=None, linewidth=None, **kwargs):
         """Horizontal bars, stored as the same rectangles as `bar`."""
-        y = _as_f64(y)
+        y = _as_f64(self._ycat(y))
         n = y.size
         w, h, l = _fill(width, n), _fill(height, n), _fill(left, n)
         if align not in ("center", "edge"):
@@ -4015,7 +4037,7 @@ class Axes:
             x = data[x] if isinstance(x, str) else x
             y = data[y] if isinstance(y, str) else y
         x = _as_f64(self._xdate(x))
-        y = _as_f64(y)
+        y = _as_f64(self._ycat(y))
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
         n = y.size
