@@ -199,6 +199,8 @@ class _ExampleStripper(ast.NodeTransformer):
         kept, emitted = [], []
         for alias in node.names:
             module = alias.name.split(".")
+            if module[0] == "mpl_toolkits" and alias.asname:
+                alias = ast.alias(name=f"matplotvite.{alias.name}", asname=alias.asname)
             if module[0] not in STRIPPED_IMPORTS:
                 kept.append(alias)
             elif (alias.asname and alias.asname not in ("plt", "mpl")
@@ -209,6 +211,10 @@ class _ExampleStripper(ast.NodeTransformer):
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
         module = node.module or ""
+        if module.split(".")[0] == "mpl_toolkits":
+            # The shim lives inside matplotvite (it must not shadow Matplotlib's package).
+            node.module = f"matplotvite.{module}"
+            return node
         if module.split(".")[0] not in STRIPPED_IMPORTS:
             return node
         if module != "matplotlib":
@@ -330,7 +336,7 @@ def failure_status(error: str | None) -> str:
 
     A `NameError` for a name matplotvite already exposes is the harvester's
     fault (the import line was stripped); any other undefined name, a missing
-    attribute or an unimplemented option needs API work; the rest is a bug in
+    attribute or an unimplemented option needs API work; a missing third-party module is unsupported; the rest is a bug in
     a feature matplotvite claims to support.
     """
     if not error:
@@ -344,6 +350,12 @@ def failure_status(error: str | None) -> str:
         return "needs-api"
     if kind in ("AttributeError", "NotImplementedError"):
         return "needs-api"
+    if kind == "ImportError" and "matplotvite" in detail:
+        return "needs-api"
+    if kind == "ModuleNotFoundError":
+        # A missing matplotvite shim is an API gap; any other missing package
+        # (PIL, gi, real Matplotlib for `units/*`) is the environment's fault.
+        return "needs-api" if "matplotvite" in detail else "unsupported"
     return "bug"
 
 

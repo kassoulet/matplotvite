@@ -345,3 +345,16 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     # not install; the case still counts as rendered and explains the gap.
     if rendered.get("metrics_error") is None:
         assert rendered["mismatch_pct"] is not None
+
+
+def test_failure_status_classifies_missing_modules():
+    assert failure_status("ModuleNotFoundError: No module named 'PIL'") == "unsupported"
+    assert failure_status(
+        "ModuleNotFoundError: No module named 'matplotvite.mpl_toolkits.axisartist'") == "needs-api"
+    assert failure_status(
+        "ImportError: cannot import name 'Divider' from 'matplotvite.mpl_toolkits.axes_grid1'") == "needs-api"
+
+
+def test_mpl_toolkits_imports_are_routed_to_the_shim():
+    code = prepare_example("from mpl_toolkits.axes_grid1 import inset_locator\nx = 1\n")
+    assert "from matplotvite.mpl_toolkits.axes_grid1 import inset_locator" in code
