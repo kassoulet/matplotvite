@@ -91,7 +91,7 @@ def test_png_compression_invalid(tmp_path):
 def test_svg(tmp_path):
     p = tmp_path / "a.svg"
     plt.savefig(_fig() and p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert s.startswith("<svg") and "sq" in s and "</svg>" in s
 
 
@@ -165,7 +165,7 @@ def test_dpi_and_format_override(tmp_path):
 
     svg = tmp_path / "out.dat"
     plt.savefig(svg, format="svg")
-    assert svg.read_text().startswith("<svg")
+    assert svg.read_text(encoding="utf-8").startswith("<svg")
 
 
 def test_tight_bbox_crops_whitespace(tmp_path):
@@ -176,7 +176,7 @@ def test_tight_bbox_crops_whitespace(tmp_path):
 
     svg = tmp_path / "tight.svg"
     plt.savefig(svg, bbox_inches="tight")
-    assert 'viewBox="0 0 400 300"' not in svg.read_text()
+    assert 'viewBox="0 0 400 300"' not in svg.read_text(encoding="utf-8")
 
     pdf = tmp_path / "tight.pdf"
     plt.savefig(pdf, bbox_inches="tight")
@@ -227,7 +227,7 @@ def test_tight_bbox_with_colored_background(tmp_path):
     # The background must not force the vector tight box back to full canvas.
     svg = tmp_path / "tight-red.svg"
     fig.savefig(svg, bbox_inches="tight")
-    text = svg.read_text()
+    text = svg.read_text(encoding="utf-8")
     assert 'viewBox="0 0 400 300"' not in text
     assert 'fill="#FF0000"' in text
 
@@ -248,7 +248,7 @@ def test_transparent_drops_background(tmp_path):
     plt.figure((4, 3)); plt.plot([1, 2, 3])
     p = tmp_path / "t.svg"
     plt.savefig(p, transparent=True)
-    assert 'fill="#FFFFFF"' not in p.read_text()
+    assert 'fill="#FFFFFF"' not in p.read_text(encoding="utf-8")
 
 
 def test_bad_savefig_kwargs(tmp_path):
@@ -288,7 +288,7 @@ def test_text_annotations(tmp_path):
     plt.text(0.1, 0.9, "second", ha="center", va="top")
     svg = tmp_path / "t.svg"
     fig.savefig(svg)
-    s = svg.read_text()
+    s = svg.read_text(encoding="utf-8")
     assert "hi there" in s and "second" in s
     fig.savefig(tmp_path / "t.png")
     assert (tmp_path / "t.png").stat().st_size > 0
@@ -304,7 +304,7 @@ def test_imshow_renders(tmp_path):
     plt.imshow(np.linspace(0, 1, 100).reshape(10, 10))
     svg = tmp_path / "im.svg"
     plt.savefig(svg)
-    s = svg.read_text()
+    s = svg.read_text(encoding="utf-8")
     assert "<image" in s and "data:image/png;base64," in s
     plt.savefig(tmp_path / "im.png")
     assert (tmp_path / "im.png").stat().st_size > 0
@@ -324,7 +324,7 @@ def test_text_newline_draws_separate_lines(tmp_path):
     plt.text(0.1, 0.5, "first\nsecond\n  indented\n\ttabbed")
     p = tmp_path / "multiline.svg"
     plt.savefig(p)
-    svg = p.read_text()
+    svg = p.read_text(encoding="utf-8")
     ys = {}
     for name in ("first", "second"):
         match = re.search(rf'<text x="-?\d+" y="(\d+)"[^>]*>\s*{name}', svg)
@@ -355,7 +355,7 @@ def test_imshow_rgb_handle_and_errors(tmp_path):
 
 def _image_box(svg_path):
     m = re.search(r'<image x="[-\d]+" y="[-\d]+" width="(\d+)" height="(\d+)"',
-                  svg_path.read_text())
+                  svg_path.read_text(encoding="utf-8"))
     return int(m.group(1)), int(m.group(2))
 
 
@@ -399,7 +399,7 @@ def test_annotate_arrow(tmp_path):
     plt.annotate("plain", xy=(0.1, 0.1))
     p = tmp_path / "ann.svg"
     fig.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "peak" in s and "plain" in s
     assert "<polygon" in s  # arrow head
 
@@ -412,7 +412,7 @@ def test_text_stays_in_its_panel(tmp_path):
     p = tmp_path / "panels.svg"
     fig.savefig(p)
     xs = {m.group(2): int(m.group(1))
-          for m in re.finditer(r'<text x="(-?\d+)"[^>]*>\s*(\w)', p.read_text())}
+          for m in re.finditer(r'<text x="(-?\d+)"[^>]*>\s*(\w)', p.read_text(encoding="utf-8"))}
     assert 0 < xs["L"] < 400 < xs["R"] < 800
 
 
@@ -420,7 +420,7 @@ def test_text_only_figure(tmp_path):
     plt.figure()
     plt.text(0.5, 0.5, "lonely")
     plt.savefig(tmp_path / "only.svg")
-    assert "lonely" in (tmp_path / "only.svg").read_text()
+    assert "lonely" in (tmp_path / "only.svg").read_text(encoding="utf-8")
 
 
 def test_single_subplots_returns_axes_and_pyplot_targets_current(tmp_path):
@@ -429,7 +429,7 @@ def test_single_subplots_returns_axes_and_pyplot_targets_current(tmp_path):
     second = plt.subplot(1, 2, 2)
     assert second in fig.axes
     plt.title("via pyplot"); ax.plot([1, 2]); plt.savefig(tmp_path / "s.svg")
-    assert "via pyplot" in (tmp_path / "s.svg").read_text()
+    assert "via pyplot" in (tmp_path / "s.svg").read_text(encoding="utf-8")
 
 
 def test_subplot_three_digit_shorthand():
@@ -469,7 +469,7 @@ def test_contour_lines(tmp_path):
     assert cs.levels == [0.1, 0.5, 0.9]
     p = tmp_path / "c.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     # Marching-squares cells are joined into one polyline per contour rather
     # than emitting an element for every cell.
     assert 3 <= s.count("<polyline") < 30 and "</svg>" in s
@@ -482,7 +482,7 @@ def test_contourf_fills(tmp_path):
     assert cs.levels == [0.0, 10.0, 20.0, 30.0]
     p = tmp_path / "cf.svg"
     plt.savefig(p)
-    assert p.read_text().count("<polygon") > 10
+    assert p.read_text(encoding="utf-8").count("<polygon") > 10
 
 
 def test_contour_linewidths_and_alpha(tmp_path):
@@ -491,7 +491,7 @@ def test_contour_linewidths_and_alpha(tmp_path):
     plt.contour(x, y, z, levels=[0.2, 0.6], linewidths=4, alpha=0.5)
     p = tmp_path / "cw.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert re.search(r'stroke-width="4"', s)
     assert re.search(r'opacity="0\.5', s)
 
@@ -499,7 +499,7 @@ def test_contour_linewidths_and_alpha(tmp_path):
     plt.contourf(x, y, z, levels=[0.2, 0.6], alpha=0.25)
     p2 = tmp_path / "cfa.svg"
     plt.savefig(p2)
-    assert re.search(r'opacity="0\.25', p2.read_text())
+    assert re.search(r'opacity="0\.25', p2.read_text(encoding="utf-8"))
 
 
 def test_contour_linewidths_cycle_across_levels():
@@ -537,7 +537,7 @@ def test_errorbar_bars_and_caps(tmp_path):
     plt.legend()
     p = tmp_path / "eb.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "err" in s
     assert s.count("<polyline") >= 9
 
@@ -572,7 +572,7 @@ def test_legend_orders_lines_before_patches_and_collections(tmp_path):
     ax.legend()
     p = tmp_path / "legend_order.svg"
     fig.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     order = [re.search(rf">\s*{name}\s*<", s).start()
              for name in ("line", "bars", "band", "dots")]
     assert order == sorted(order)
@@ -587,7 +587,7 @@ def test_legend_frame_radius_scales_with_font_size(tmp_path):
         p = tmp_path / f"legend_{fontsize}.svg"
         fig.savefig(p)
         match = re.search(r'<polygon opacity="0.8" fill="#FFFFFF" points="([^"]+)"',
-                          p.read_text())
+                          p.read_text(encoding="utf-8"))
         assert match is not None
         points = [tuple(float(v) for v in pair.split(","))
                   for pair in match.group(1).split()]
@@ -606,7 +606,7 @@ def test_text_bbox_draws_axes_and_figure_frames(tmp_path):
                                            edgecolor="gray"))
     p = tmp_path / "text-bbox.svg"
     fig.savefig(p)
-    svg = p.read_text()
+    svg = p.read_text(encoding="utf-8")
     assert svg.count("#808080") >= 2
     assert svg.count("#FFFFFF") >= 2
 
@@ -618,7 +618,7 @@ def test_colorbar_strip(tmp_path):
     cb.set_label("height")
     p = tmp_path / "cb.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "height" in s
     assert s.count("<rect") + s.count("<polygon") > 60
 
@@ -637,7 +637,7 @@ def test_equal_aspect_draws_title_once(tmp_path):
     plt.title("Aspect title")
     p = tmp_path / "aspect_title.svg"
     plt.savefig(p)
-    assert p.read_text().count("Aspect title") == 1
+    assert p.read_text(encoding="utf-8").count("Aspect title") == 1
 
 
 def test_scatter_sizes_and_cmap(tmp_path):
@@ -645,7 +645,7 @@ def test_scatter_sizes_and_cmap(tmp_path):
     plt.scatter([1, 2, 3], [1, 4, 9], s=[20, 60, 120], c=[0.0, 0.5, 1.0], marker="s")
     p = tmp_path / "sc.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert s.count("<rect") >= 4 and "</svg>" in s
 
 
@@ -703,7 +703,7 @@ def test_contour_explicit_colors_are_used(tmp_path):
     plt.contour(x, y, z, levels=[0.2, 0.6], colors=["red", "blue"])
     p = tmp_path / "colors.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#0000FF" in s
 
 
@@ -728,7 +728,7 @@ def test_colorbar_from_explicit_mappable(tmp_path):
     assert cb.get_label() == "amp"
     p = tmp_path / "cbm.svg"
     fig.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "amp" in s
     # min/mid/max tick labels come from the level range (plotters pads with newlines)
     assert re.search(r">\s*0\s*</text>", s) and re.search(r">\s*1\s*</text>", s)
@@ -744,7 +744,7 @@ def test_colorbar_from_scatter_and_scalar_mappable(tmp_path):
     assert ax._panel()["colorbar"] is not None
     p = tmp_path / "scatter_cb.svg"
     fig.savefig(p)
-    assert "value" in p.read_text()
+    assert "value" in p.read_text(encoding="utf-8")
 
     fig, ax = plt.subplots(figsize=(6, 3))
     sm = plt.ScalarMappable(cmap="magma")
@@ -803,7 +803,7 @@ def test_scatter_stroke_and_dot_markers(tmp_path):
     plt.scatter([3], [1.5], marker=".", c="blue")
     p = tmp_path / "mk.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert s.count("<polyline") >= 4 and s.count("<circle") >= 1
 
 
@@ -825,7 +825,7 @@ def test_scatter_alpha_reaches_the_svg(tmp_path):
     plt.scatter([1], [1], alpha=0.4)
     p = tmp_path / "alpha.svg"
     plt.savefig(p)
-    assert re.search(r'opacity="0\.[34]', p.read_text())
+    assert re.search(r'opacity="0\.[34]', p.read_text(encoding="utf-8"))
 
 
 def test_errorbar_fmt_line_and_xerr_only(tmp_path):
@@ -833,7 +833,7 @@ def test_errorbar_fmt_line_and_xerr_only(tmp_path):
     plt.errorbar([1, 2], [1, 2], xerr=0.3, fmt="r--")
     p = tmp_path / "ebx.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert s.count("<polyline") >= 3  # two bars plus the connecting line
     assert "#FF0000" in s.upper()
 
@@ -845,7 +845,7 @@ def test_errorbar_negative_errors_are_absolute(tmp_path):
         plt.errorbar([1, 2], [3, 4], yerr=err)
         p = tmp_path / f"eb{i}.svg"
         plt.savefig(p)
-        out.append(p.read_text())
+        out.append(p.read_text(encoding="utf-8"))
     assert out[0] == out[1]
 
 
@@ -857,7 +857,7 @@ def test_imshow_vmin_changes_pixels(tmp_path):
         plt.imshow(z, vmin=vmin, vmax=1.0, cmap="gray")
         p = tmp_path / f"im_{vmin}.svg"
         plt.savefig(p)
-        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text()).group(1))
+        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text(encoding="utf-8")).group(1))
     assert uris[0] != uris[1]
 
 
@@ -869,14 +869,14 @@ def test_imshow_alpha_and_interpolation(tmp_path):
         plt.imshow(z, cmap="gray", alpha=alpha)
         p = tmp_path / f"alpha_{alpha}.svg"
         plt.savefig(p)
-        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text()).group(1))
+        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text(encoding="utf-8")).group(1))
     assert len(set(uris)) == 3
 
     plt.figure((3, 3))
     plt.imshow(z, interpolation="nearest")
     p = tmp_path / "nearest.svg"
     plt.savefig(p)
-    assert "image-rendering:pixelated" in p.read_text()
+    assert "image-rendering:pixelated" in p.read_text(encoding="utf-8")
 
     plt.figure((3, 3))
     plt.imshow(z, interpolation="spline16")
@@ -993,7 +993,7 @@ def test_axes_set_dispatch(tmp_path):
     assert list(ax.get_xticks()) == [0.0, 2.5, 5.0]
     p = tmp_path / "set.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "T" in s and "t" in s and "v" in s
     with pytest.raises(AttributeError):
         ax.set(nonexistent=1)
@@ -1014,7 +1014,7 @@ def test_major_locators_place_ticks(tmp_path):
                                     2500.0, 3000.0, 3500.0])
     p = tmp_path / "locators.svg"
     plt.savefig(p)
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     assert "0.25" in text and "3500" in text
     # The locator wins over a tick list set before it, as in Matplotlib.
     ax.set_xticks([0.5])
@@ -1032,7 +1032,7 @@ def test_axis_major_formatter_decides_the_tick_text(tmp_path):
     assert ax._panel()["ticks"]["xticklabels"] == ["a", "b", "c"]
     p = tmp_path / "formatter.svg"
     plt.savefig(p)
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     assert re.findall(r">\s*([abc])\s*<", text) == ["a", "b", "c"]
     # `Axis.set` forwards locator and formatter keywords.
     ax.yaxis.set(major_locator=plt.MultipleLocator(2), label="V")
@@ -1127,13 +1127,13 @@ def test_hidden_and_removed_axes_are_not_drawn(tmp_path):
     axs[1].set_visible(False)
     p = tmp_path / "hidden.svg"
     fig.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "keep" in s and "gone" not in s
 
     axs[1].set_visible(True)
     axs[1].remove()
     fig.savefig(p)
-    assert "gone" not in p.read_text()
+    assert "gone" not in p.read_text(encoding="utf-8")
 
     fig = plt.figure()
     plt.plot([1, 2])
@@ -1152,7 +1152,7 @@ def test_axis_off_hides_ticks_but_keeps_plot(tmp_path):
     ax.set_axis_off()
     off = tmp_path / "off.svg"
     plt.savefig(off)
-    a, b = plain.read_text(), off.read_text()
+    a, b = plain.read_text(encoding="utf-8"), off.read_text(encoding="utf-8")
     assert "visible title" in b
     assert a.count("<text") > b.count("<text")
     ax.set_axis_on()
@@ -1178,7 +1178,7 @@ def test_pyplot_axis_dispatches_to_current_axes(tmp_path):
     assert plt.gca().get_ylim() == (-1.0, 1.0)
     p = tmp_path / "pyplot-axis.svg"
     plt.savefig(p)
-    assert p.read_text().startswith("<svg")
+    assert p.read_text(encoding="utf-8").startswith("<svg")
 
 
 def test_axes_inversion_and_rendering(tmp_path):
@@ -1248,7 +1248,7 @@ def test_axes_clear_empties_the_figure(tmp_path):
     assert ax.get_xlim() == pytest.approx((-0.05, 1.05))
     p = tmp_path / "empty.svg"
     plt.savefig(p)
-    assert "gone" not in p.read_text()
+    assert "gone" not in p.read_text(encoding="utf-8")
 
 
 def test_figure_introspection_and_add_axes(tmp_path):
@@ -1280,7 +1280,7 @@ def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
         match = re.search(
             r'<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" '
             r'opacity="1" fill="#FF0000"',
-            p.read_text(),
+            p.read_text(encoding="utf-8"),
         )
         assert match is not None
         x, y, w, h = (int(v) for v in match.groups())
@@ -1303,7 +1303,7 @@ def test_mpl_toolkits_inset_axes(tmp_path):
     assert zoomed.get_xlim() != ax.get_xlim()
     p = tmp_path / "toolkit-inset.svg"
     fig.savefig(p)
-    assert "#FF0000" in p.read_text().upper()
+    assert "#FF0000" in p.read_text(encoding="utf-8").upper()
 
 
 def test_inset_axes_png_keeps_parent_and_child_content():
@@ -1334,7 +1334,7 @@ def test_inset_axes_is_placed_in_axes_fraction(tmp_path):
     assert inset in fig.get_axes()
     p = tmp_path / "inset.svg"
     fig.savefig(p)
-    assert "#FF0000" in p.read_text().upper()
+    assert "#FF0000" in p.read_text(encoding="utf-8").upper()
 
 
 def test_plot_linestyles_and_width(tmp_path):
@@ -1342,7 +1342,7 @@ def test_plot_linestyles_and_width(tmp_path):
     plt.plot([0, 1, 2], [0, 1, 0], linestyle="--", linewidth=5)
     p = tmp_path / "dash.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert 'stroke-width="5"' in s
     assert s.count("<polyline") > 5  # the dash pattern splits the line
 
@@ -1353,7 +1353,7 @@ def test_plot_markers_and_colors(tmp_path):
     plt.plot([0, 1], [1, 0], marker="x", markeredgecolor="blue")
     p = tmp_path / "markers.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<CIRCLE") >= 2
     assert "#FF0000" in s and "#0000FF" in s
 
@@ -1363,7 +1363,7 @@ def test_plot_fmt_string(tmp_path):
     plt.plot([0, 1, 2], [2, 1, 0], "g--")
     p = tmp_path / "fmt.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#008000" in s and s.count("<POLYLINE") > 3
 
 
@@ -1372,7 +1372,7 @@ def test_plot_alpha_and_bad_drawstyle(tmp_path):
     plt.plot([0, 1], [0, 1], alpha=0.3)
     p = tmp_path / "alpha.svg"
     plt.savefig(p)
-    assert re.search(r'opacity="0\.[23]', p.read_text())
+    assert re.search(r'opacity="0\.[23]', p.read_text(encoding="utf-8"))
     with pytest.raises(ValueError):
         plt.plot([0, 1], [0, 1], drawstyle="steps-middle")
     # Repeated data sets are valid; a dangling numeric third arg is not.
@@ -1435,7 +1435,7 @@ def test_plot_legend_still_works_with_markers(tmp_path):
     plt.legend()
     p = tmp_path / "legend.svg"
     plt.savefig(p)
-    assert "marked" in p.read_text()
+    assert "marked" in p.read_text(encoding="utf-8")
 
 
 def test_pcolormesh_renders_image(tmp_path):
@@ -1447,7 +1447,7 @@ def test_pcolormesh_renders_image(tmp_path):
     plt.pcolormesh(x, y, z, cmap="gray")
     p = tmp_path / "pm.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "<image" in s and "data:image/png;base64," in s
     assert plt.gca().get_aspect() == 1.0
     w, h = _image_box(p)
@@ -1485,7 +1485,7 @@ def test_pcolormesh_vmin_changes_cells(tmp_path):
         plt.pcolormesh(z, vmin=vmin, vmax=1.0, cmap="gray")
         p = tmp_path / f"pm_{vmin}.svg"
         plt.savefig(p)
-        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text()).group(1))
+        uris.append(re.search(r'href="data:image/png;base64,([^"]+)"', p.read_text(encoding="utf-8")).group(1))
     assert uris[0] != uris[1]
 
 
@@ -1494,7 +1494,7 @@ def test_bar_renders_rectangles(tmp_path):
     plt.bar([1, 2, 3], [3, 1, 2], width=0.5, color="red", edgecolor="black")
     p = tmp_path / "bar.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<RECT") >= 4  # background plus one per bar
     assert "#FF0000" in s
 
@@ -1512,7 +1512,7 @@ def test_bar_yerr_and_validation(tmp_path):
     plt.bar([1, 2], [3, 4], yerr=0.5, capsize=0)
     p = tmp_path / "bar_err.svg"
     plt.savefig(p)
-    assert p.read_text().count("<polyline") >= 2
+    assert p.read_text(encoding="utf-8").count("<polyline") >= 2
     with pytest.raises(ValueError):
         plt.bar([1, 2], [1, 2], align="middle")
     with pytest.raises(ValueError):
@@ -1533,12 +1533,12 @@ def test_fill_between_polygon(tmp_path):
     plt.fill_between(x, np.sin(x), 0.5, color="tab:blue", alpha=0.35)
     p = tmp_path / "fb.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<POLYGON") >= 1
     assert "#1F77B4" in s
     lo, hi = plt.gca().get_ylim()
     assert lo <= 0.5 and hi >= 1.0
-    assert len(re.findall(r'<polygon[^>]*points="', p.read_text())) == 1
+    assert len(re.findall(r'<polygon[^>]*points="', p.read_text(encoding="utf-8"))) == 1
 
 
 def test_fill_between_where_splits_runs(tmp_path):
@@ -1547,7 +1547,7 @@ def test_fill_between_where_splits_runs(tmp_path):
     plt.fill_between(x, x, 0, where=(x > 2) & (x < 6), color="red")
     p = tmp_path / "fbw.svg"
     plt.savefig(p)
-    pts = re.findall(r'<polygon[^>]*points="([^"]+)"', p.read_text())
+    pts = re.findall(r'<polygon[^>]*points="([^"]+)"', p.read_text(encoding="utf-8"))
     assert len(pts) == 1
     assert len(pts[0].split()) == 6  # x = 3, 4, 5 forward, then the three back
     with pytest.raises(ValueError):
@@ -1577,7 +1577,7 @@ def test_axhline_vline_spans(tmp_path):
     ax.axvspan(2, 3, color="pink", alpha=0.4)
     p = tmp_path / "refs.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#0000FF" in s
     assert s.count("<POLYLINE") >= 2
     assert s.count("<RECT") >= 3  # background plus two bands
@@ -1596,7 +1596,7 @@ def test_hist_counts_and_edges(tmp_path):
     assert np.allclose(np.diff(edges), edges[1] - edges[0])
     p = tmp_path / "hist.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<RECT") >= 9  # background plus one per bin
     assert "#FF7F0E" in s
 
@@ -1643,7 +1643,7 @@ def test_boxplot_stats_and_labels(tmp_path):
     assert [t.get_text() for t in ax.get_xticklabels()] == ["a", "b"]
     p = tmp_path / "box.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<POLYLINE") >= 5  # median, two whiskers and two caps
     assert "#FF7F0E" in s
 
@@ -1660,7 +1660,7 @@ def test_boxplot_uses_matplotlib_style_defaults(tmp_path):
     assert xs.max() - xs.min() == pytest.approx(0.25)  # half the 0.5 box width
     p = tmp_path / "box_style.svg"
     plt.savefig(p)
-    assert "#000000" in p.read_text().upper()
+    assert "#000000" in p.read_text(encoding="utf-8").upper()
 
 
 def test_boxplot_horizontal_notch_and_fliers(tmp_path):
@@ -1673,7 +1673,7 @@ def test_boxplot_horizontal_notch_and_fliers(tmp_path):
     assert ax.get_yticklabels()[0].get_text() == "1"
     p = tmp_path / "boxh.svg"
     plt.savefig(p)
-    assert "#FF0000" in p.read_text().upper()
+    assert "#FF0000" in p.read_text(encoding="utf-8").upper()
     with pytest.raises(ValueError):
         ax.boxplot(data, orientation="diagonal")
     with pytest.raises(ValueError):
@@ -1708,7 +1708,7 @@ def test_boxplot_draws_default_outliers(tmp_path):
     p = tmp_path / "box_fliers.svg"
     plt.savefig(p)
     # Matplotlib's default flier is a hollow circle with a black 1 pt edge.
-    circles = [line for line in p.read_text().splitlines() if "<circle" in line]
+    circles = [line for line in p.read_text(encoding="utf-8").splitlines() if "<circle" in line]
     assert circles and all('fill="none"' in line.lower() for line in circles)
 
 
@@ -1725,7 +1725,7 @@ def test_violinplot_bodies_and_stats(tmp_path):
     assert result["bodies"][0].get_facecolor() == plt._CYCLE[0]
     p = tmp_path / "violin.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<POLYGON") >= 2
     assert s.count("<POLYLINE") >= 6
 
@@ -1769,7 +1769,7 @@ def test_violinplot_horizontal_side_and_validation(tmp_path):
     assert result["bodies"][0].get_paths()[0]["x"].size > 2
     p = tmp_path / "violinh.svg"
     plt.savefig(p)
-    assert p.read_text().upper().count("<POLYGON") >= 1
+    assert p.read_text(encoding="utf-8").upper().count("<POLYGON") >= 1
     with pytest.raises(ValueError):
         ax.violinplot(data, side="middle")
     with pytest.raises(ValueError):
@@ -1800,7 +1800,7 @@ def test_hist2d_counts_edges_and_image(tmp_path):
     assert ax.get_aspect() is None
     p = tmp_path / "hist2d.svg"
     plt.savefig(p)
-    assert '<image' in p.read_text() and "data:image/png;base64," in p.read_text()
+    assert '<image' in p.read_text(encoding="utf-8") and "data:image/png;base64," in p.read_text(encoding="utf-8")
     plt.savefig(tmp_path / "hist2d.png")
     assert (tmp_path / "hist2d.png").stat().st_size > 0
     with pytest.raises(ValueError):
@@ -1820,7 +1820,7 @@ def test_hexbin_cells_and_mincnt(tmp_path):
     assert np.all(occupied.get_array() >= 1)
     p = tmp_path / "hexbin.svg"
     plt.savefig(p)
-    assert p.read_text().upper().count("<POLYGON") >= coll.get_array().size
+    assert p.read_text(encoding="utf-8").upper().count("<POLYGON") >= coll.get_array().size
     with pytest.raises(ValueError):
         ax.hexbin([1, 2], [1])
     with pytest.raises(ValueError):
@@ -1853,7 +1853,7 @@ def test_quiver_arrows_and_extents(tmp_path):
     assert ax.get_ylim() == pytest.approx((0.9, 3.1))
     p = tmp_path / "quiver.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<POLYGON") >= 2  # one filled arrow each
     assert "#FF0000" in s and "#008000" in s
 
@@ -1921,7 +1921,7 @@ def test_bar_label_places_values(tmp_path):
     assert labels == ["3", "1", "2"]
     p = tmp_path / "bl.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     for value in ("3", "1", "2"):
         assert re.search(rf">\s*{value}\s*<", s)
     with pytest.raises(ValueError):
@@ -1953,7 +1953,7 @@ def test_bar_handle_facecolor_and_legend(tmp_path):
     ax.legend()
     p = tmp_path / "bl3.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "#FF0000" in s.upper()
     assert re.search(r">\s*bars\s*<", s)
     assert bars[0].get_height() == 2.0 and bars[0].get_width() == 0.8
@@ -1976,7 +1976,7 @@ def test_step_and_stairs(tmp_path):
         "steps-post", "steps-post", "steps-pre"]
     p = tmp_path / "step.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<POLYGON") >= 1
     with pytest.raises(ValueError):
         ax.step([0, 1], [0, 1], where="sideways")
@@ -2003,7 +2003,7 @@ def test_hlines_vlines(tmp_path):
     ax.vlines([0.5, 1.5], 0, 3, colors="green")
     p = tmp_path / "hl.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#0000FF" in s and "#008000" in s
     assert s.count("<POLYLINE") >= 3
     lo, hi = ax.get_xlim()
@@ -2022,7 +2022,7 @@ def test_log_scales(tmp_path):
     assert ax.get_yscale() == "log" and ax.get_xscale() == "linear"
     p = tmp_path / "log.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert "#FF0000" in s.upper()
     assert re.search(r">\s*100\s*<", s), "decade tick label missing"
     plt.figure()
@@ -2031,7 +2031,7 @@ def test_log_scales(tmp_path):
     assert ax.get_xscale() == "log" and ax.get_yscale() == "log"
     q = tmp_path / "log2.svg"
     plt.savefig(q)
-    assert re.search(r">\s*0\.1\s*<", q.read_text())
+    assert re.search(r">\s*0\.1\s*<", q.read_text(encoding="utf-8"))
     plt.figure()
     plt.semilogx(x, x)
     plt.xscale("log")
@@ -2064,7 +2064,7 @@ def test_grid_draws_and_toggles(tmp_path):
     ax.grid(True)
     with_grid = tmp_path / "grid.svg"
     plt.savefig(with_grid)
-    assert len(with_grid.read_text()) > len(plain.read_text())
+    assert len(with_grid.read_text(encoding="utf-8")) > len(plain.read_text(encoding="utf-8"))
     assert ax.show_grid is True
     ax.grid()
     assert ax.show_grid is False
@@ -2083,7 +2083,7 @@ def test_tick_params_and_axline(tmp_path):
     ax.axline((2, 0), (2, 3), color="blue")
     p = tmp_path / "axline.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#008000" in s and "#0000FF" in s
     # axline never moves the data limits
     assert ax.get_xlim() == (0.0, 4.0) and ax.get_ylim() == (0.0, 4.0)
@@ -2117,7 +2117,7 @@ def test_stem_plot(tmp_path):
     ax.stem([1, 3, 2], linefmt="r-", markerfmt="bo", basefmt="-")
     p = tmp_path / "stem.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#0000FF" in s
     assert s.count("<CIRCLE") >= 3
     with pytest.raises(ValueError):
@@ -2140,7 +2140,7 @@ def test_pie_wedges_labels(tmp_path):
     assert texts[1].get_text() == "b"
     p = tmp_path / "pie.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#008000" in s
     assert s.count("<POLYGON") >= 3
     assert ax.get_xlim() == (-1.25, 1.25)
@@ -2156,7 +2156,7 @@ def test_pyplot_stem_pie_stackplot_and_bar_label(tmp_path):
     assert len(wedges) == len(texts) == len(autotexts) == 2
     pie = tmp_path / "pyplot-pie.svg"
     plt.savefig(pie)
-    assert pie.read_text().count("<polygon") >= 2
+    assert pie.read_text(encoding="utf-8").count("<polygon") >= 2
 
     plt.figure()
     plt.stem([1, 3, 2], linefmt="r-")
@@ -2170,7 +2170,7 @@ def test_pyplot_stem_pie_stackplot_and_bar_label(tmp_path):
 
     p = tmp_path / "pyplot-shims.svg"
     plt.savefig(p)
-    assert p.read_text().count("<rect") >= 3
+    assert p.read_text(encoding="utf-8").count("<rect") >= 3
 
 
 def test_stackplot_layers(tmp_path):
@@ -2180,7 +2180,7 @@ def test_stackplot_layers(tmp_path):
     ax.stackplot(x, [1, 1, 1, 1], [1, 2, 1, 2], colors=["red", "green"])
     p = tmp_path / "stack.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#008000" in s
     assert s.count("<POLYGON") >= 2
     ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
@@ -2197,7 +2197,7 @@ def test_eventplot_and_broken_barh(tmp_path):
     ax.broken_barh([(0, 1), (2, 0.5)], (2, 0.5), colors="blue")
     p = tmp_path / "events.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#008000" in s and "#0000FF" in s
     assert s.count("<POLYLINE") >= 3
     assert s.count("<RECT") >= 3  # background plus two bars
@@ -2235,7 +2235,7 @@ def test_log_base_two(tmp_path):
     ax.plot(x, [2, 4, 8, 16])
     p = tmp_path / "logbase.svg"
     plt.savefig(p)
-    assert re.search(r">\s*(2|4|8)\s*<", p.read_text())
+    assert re.search(r">\s*(2|4|8)\s*<", p.read_text(encoding="utf-8"))
 
 
 def test_scatter_and_fill_legend(tmp_path):
@@ -2246,7 +2246,7 @@ def test_scatter_and_fill_legend(tmp_path):
     ax.legend()
     p = tmp_path / "legend.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert re.search(r">\s*dots\s*<", s) and re.search(r">\s*band\s*<", s)
 
 
@@ -2257,7 +2257,7 @@ def test_errorbar_markers_and_stem_horizontal(tmp_path):
     ax.stem([1, 2], [3, 4], orientation="horizontal")
     p = tmp_path / "em.svg"
     plt.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert s.count("<CIRCLE") >= 4  # two errorbar markers plus two stem markers
     with pytest.raises(ValueError):
         ax.stem([1], orientation="diagonal")
@@ -2271,7 +2271,7 @@ def test_line_widths_and_broken_barh_style(tmp_path):
     ax.broken_barh([(0, 1)], (2, 1), colors="blue", edgecolor="red", alpha=0.5)
     p = tmp_path / "lw.svg"
     plt.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert 'stroke-width="4"' in s and 'stroke-width="5"' in s
 
 
@@ -2283,20 +2283,20 @@ def test_hist_step_and_bottom(tmp_path):
     assert counts.sum() == 20 and len(edges) == 6
     filled = tmp_path / "hfilled.svg"
     plt.savefig(filled)
-    assert "<POLYGON" in filled.read_text().upper()
+    assert "<POLYGON" in filled.read_text(encoding="utf-8").upper()
     plt.figure()
     ax = plt.gca()
     ax.hist(np.arange(20.0), bins=5, histtype="step", color="green", bottom=2)
     stepped = tmp_path / "hstep.svg"
     plt.savefig(stepped)
-    assert "<POLYLINE" in stepped.read_text().upper()
-    assert "#008000" in stepped.read_text().upper()
+    assert "<POLYLINE" in stepped.read_text(encoding="utf-8").upper()
+    assert "#008000" in stepped.read_text(encoding="utf-8").upper()
     plt.figure()
     ax = plt.gca()
     ax.hist(np.arange(5.0), bins=5, bottom=1.0)
     bottomed = tmp_path / "hbottom.svg"
     plt.savefig(bottomed)
-    assert "<RECT" in bottomed.read_text().upper()  # bars are rectangles
+    assert "<RECT" in bottomed.read_text(encoding="utf-8").upper()  # bars are rectangles
     lo, _ = ax.get_ylim()
     assert 0.5 < lo < 1.5  # bars offset by bottom=1.0
 
@@ -2310,7 +2310,7 @@ def test_stackplot_sym_baseline(tmp_path):
     assert lo < 0 < hi
     p = tmp_path / "sym.svg"
     plt.savefig(p)
-    assert "<POLYGON" in p.read_text().upper()
+    assert "<POLYGON" in p.read_text(encoding="utf-8").upper()
     with pytest.raises(NotImplementedError):
         ax.stackplot(x, [1, 1, 1], baseline="wiggle")
 
@@ -2335,7 +2335,7 @@ def test_css_colors_and_color_specs(tmp_path):
     plt.plot([0, 1], [0, 1], color="rebeccapurple")
     p = tmp_path / "css.svg"
     plt.savefig(p)
-    assert "#663399" in p.read_text().upper()
+    assert "#663399" in p.read_text(encoding="utf-8").upper()
 
 
 def test_m16_api_compatibility():
@@ -2512,7 +2512,7 @@ def test_categorical_x_axis(tmp_path):
     assert labels == ["Mon", "Tue", "Wed"]
     p = tmp_path / "bar-categories.svg"
     plt.savefig(p)
-    assert "Mon" in p.read_text() and "Wed" in p.read_text()
+    assert "Mon" in p.read_text(encoding="utf-8") and "Wed" in p.read_text(encoding="utf-8")
 
 
 def test_pandas_dataframe_and_series_input():
@@ -2566,7 +2566,7 @@ def test_mathtext_titles_labels_and_text(tmp_path):
     assert ax.title == "x²" and ax.xlabel == "α" and ax.ylabel == "β₀"
     p = tmp_path / "mathtext.svg"
     plt.savefig(p)
-    svg = p.read_text()
+    svg = p.read_text(encoding="utf-8")
     assert "x²" in svg and "β₀" in svg and "e^(-x)" in svg
 
 
@@ -2608,7 +2608,7 @@ def test_rgb_tuples_work_across_artists(tmp_path):
     ax.scatter([0], [1], c=(0, 1, 0))
     p = tmp_path / "tuples.svg"
     fig.savefig(p)
-    svg = p.read_text().upper()
+    svg = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in svg and "#0000FF" in svg and "#00FF00" in svg
 
     with pytest.raises(ValueError):
@@ -2642,7 +2642,7 @@ def test_xticks_labels_rotation_and_tick_params(tmp_path):
     assert panel["ticks"]["ystyle"]["labelcolor"] == "#0000ff"
     p = tmp_path / "ticks.svg"
     fig.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert re.search(r">\s*A\s*<", s) and re.search(r">\s*LO\s*<", s)
     assert "#FF0000" in s
 
@@ -2656,7 +2656,7 @@ def test_grid_style_and_axis(tmp_path):
     assert panel["linestyle"] == "--"
     p = tmp_path / "grid.svg"
     fig.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s
     assert "<POLYLINE" in s  # dashed manual gridlines
 
@@ -2669,7 +2669,7 @@ def test_custom_legend_layout(tmp_path):
     ax.legend(ncol=2, title="key", loc="upper left", frameon=False, fontsize=9)
     p = tmp_path / "legend.svg"
     fig.savefig(p)
-    s = p.read_text()
+    s = p.read_text(encoding="utf-8")
     assert re.search(r">\s*key\s*<", s) and re.search(r">\s*one\s*<", s)
     assert re.search(r">\s*three\s*<", s)
     assert s.upper().count("<POLYLINE") >= 3
@@ -2684,7 +2684,7 @@ def test_text_transforms_resolve(tmp_path):
     assert x == pytest.approx(5.0) and y == pytest.approx(5.0)
     p = tmp_path / "text.svg"
     fig.savefig(p)
-    assert re.search(r">\s*mid\s*<", p.read_text())
+    assert re.search(r">\s*mid\s*<", p.read_text(encoding="utf-8"))
 
 
 def test_title_fontsize(tmp_path):
@@ -2696,7 +2696,7 @@ def test_title_fontsize(tmp_path):
     assert panel["title_size"] == 20.0 and panel["xlabel_size"] == 14.0
     p = tmp_path / "font.svg"
     fig.savefig(p)
-    sizes = [float(v) for v in re.findall(r'font-size="([\d.]+)"', p.read_text())]
+    sizes = [float(v) for v in re.findall(r'font-size="([\d.]+)"', p.read_text(encoding="utf-8"))]
     assert max(sizes) > 16  # title is the largest text
     assert any(18.5 < v < 20.5 for v in sizes)  # xlabel at 14pt
 
@@ -2882,7 +2882,7 @@ def test_subplot_mosaic_labels_and_empty_cells(tmp_path):
     axes["right"].plot([0, 1], [1, 0])
     p = tmp_path / "mosaic.svg"
     fig.savefig(p)
-    assert p.read_text().startswith("<svg")
+    assert p.read_text(encoding="utf-8").startswith("<svg")
     fig2, only = plt.subplot_mosaic([[".", "a"]])
     assert list(only) == ["a"]
     assert fig2 is plt.gcf()
@@ -2916,10 +2916,10 @@ def test_twinx_adds_right_axis_on_the_same_panel(tmp_path):
     assert twin._panel()["ticks"]["hide_xlabels"]
     p = tmp_path / "twinx.svg"
     fig.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#0000FF" in s
     assert "#C44E52" in s and "#4C72B0" in s
-    assert "right" in p.read_text()
+    assert "right" in p.read_text(encoding="utf-8")
 
 
 def test_twinx_png_keeps_primary_and_twin_axes():
@@ -3000,8 +3000,8 @@ def test_set_prop_cycle_controls_default_colors(tmp_path):
     assert ax.bars[-1]["colors"] == ["#0000ff"]
     p = tmp_path / "cycle.svg"
     fig.savefig(p)
-    assert "#FF0000" in p.read_text().upper()
-    assert "#008000" in p.read_text().upper()
+    assert "#FF0000" in p.read_text(encoding="utf-8").upper()
+    assert "#008000" in p.read_text(encoding="utf-8").upper()
     with pytest.raises(ValueError):
         ax.set_prop_cycle()
 
@@ -3031,7 +3031,7 @@ def test_suptitle_renders_above_the_grid(tmp_path):
     fig.suptitle("Figure title", fontsize=16)
     p = tmp_path / "suptitle.svg"
     fig.savefig(p)
-    assert re.search(r">\s*Figure title\s*<", p.read_text())
+    assert re.search(r">\s*Figure title\s*<", p.read_text(encoding="utf-8"))
     assert fig.savefig(None, format="png")[:8] == b"\x89PNG\r\n\x1a\n"
     plt.suptitle("pyplot title")
     assert plt.gcf()._suptitle["text"] == "pyplot title"
@@ -3042,13 +3042,13 @@ def test_figure_text_needs_no_axes_and_is_not_clipped(tmp_path):
     fig.text(0.5, 0.5, "figure text", ha="center", va="center", fontsize=16, color="red")
     p = tmp_path / "figtext.svg"
     fig.savefig(p)
-    assert re.search(r">\s*figure text\s*<", p.read_text())
+    assert re.search(r">\s*figure text\s*<", p.read_text(encoding="utf-8"))
     # It sits above the panels, spanning the grid rather than one cell.
     fig2, _ = plt.subplots(1, 2)
     fig2.text(0.5, 0.95, "across panels", ha="center")
     p2 = tmp_path / "figtext_grid.svg"
     fig2.savefig(p2)
-    assert "across panels" in p2.read_text()
+    assert "across panels" in p2.read_text(encoding="utf-8")
     # Text properties the renderer cannot draw yet are accepted, but a typo is not.
     fig2.text(0.1, 0.1, "rotated", rotation=45, usetex=False)
     with pytest.raises(TypeError):
@@ -3064,7 +3064,7 @@ def test_figure_and_savefig_colors_and_bytes(tmp_path):
     fig.gca().plot([0, 1], [0, 1])
     p = tmp_path / "bg.svg"
     fig.savefig(p)
-    s = p.read_text().upper()
+    s = p.read_text(encoding="utf-8").upper()
     assert 'FILL="#FF0000"' in s
     assert 'STROKE="#0000FF"' in s
     data = fig.savefig(None, format="png")
@@ -3128,7 +3128,7 @@ def test_image_interpolation_rc_default(tmp_path):
         assert ax.images[0]["interpolation"] == "antialiased"
         p = tmp_path / "smooth.svg"
         fig.savefig(p)
-        assert "image-rendering:pixelated" not in p.read_text()
+        assert "image-rendering:pixelated" not in p.read_text(encoding="utf-8")
     finally:
         plt.rcParams["image.interpolation"] = old
 
@@ -3572,7 +3572,7 @@ def test_symlog_scale_renders_symmetric_decade_ticks(tmp_path):
     assert axes.get_yscale() == "symlog"
     p = tmp_path / "symlog.svg"
     figure.savefig(p)
-    assert "−1000" in p.read_text()
+    assert "−1000" in p.read_text(encoding="utf-8")
 
 
 def test_clabel_labels_contours(tmp_path):
@@ -3588,7 +3588,7 @@ def test_clabel_labels_contours(tmp_path):
     assert all(isinstance(t[9], float) for t in axes.texts)
     p = tmp_path / "clabel.svg"
     figure.savefig(p)
-    assert "0.75" in p.read_text()
+    assert "0.75" in p.read_text(encoding="utf-8")
     with pytest.raises(NotImplementedError):
         contours.clabel(manual=True)
 
@@ -3603,7 +3603,7 @@ def test_text_rotation_applies_to_axes_and_figure_text(tmp_path):
     assert axes.texts[0].get_rotation() == 90.0
     p = tmp_path / "rotated.svg"
     figure.savefig(p)
-    svg = p.read_text()
+    svg = p.read_text(encoding="utf-8")
     assert "upright" in svg and "sideways" in svg
     assert svg.count('transform="rotate(90') == 2
 

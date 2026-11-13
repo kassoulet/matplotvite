@@ -75,5 +75,5 @@ def test_write_gallery_ranks_capabilities(tmp_path: Path):
     assert "3 Seaborn examples: 1 pass, 1 needs-API, 1 unsupported" in index
     assert "line + band with hue/style grouping (1 example)" in index
     assert "hierarchical clustering" in index
-    manifest = json.loads((tmp_path / "gallery" / "manifest.json").read_text())
+    manifest = json.loads((tmp_path / "gallery" / "manifest.json").read_text(encoding="utf-8"))
     assert [case["status"] for case in manifest] == ["pass", "needs-api", "unsupported"]

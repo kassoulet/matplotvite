@@ -70,7 +70,7 @@ kw = collections.defaultdict(collections.Counter)  # name -> kwarg -> n
 where = collections.defaultdict(set)
 for f in files:
     try:
-        tree = ast.parse(f.read_text())
+        tree = ast.parse(f.read_text(encoding="utf-8"))
     except SyntaxError:
         continue
     for n in ast.walk(tree):
@@ -172,7 +172,7 @@ if update_baseline:
 if check:
     if not baseline_path.exists():
         sys.exit(f"no baseline at {baseline_path}; create one with --update-baseline")
-    prev = json.loads(baseline_path.read_text())
+    prev = json.loads(baseline_path.read_text(encoding="utf-8"))
     prev_names = set(prev.get("supported_names", []))
     lost = sorted(prev_names - set(supported_names))
     gained = sorted(set(supported_names) - prev_names)
