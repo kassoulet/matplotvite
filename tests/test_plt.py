@@ -3627,3 +3627,22 @@ def test_custom_colormaps_resolve_by_name():
     ax.contourf(np.arange(16.0).reshape(4, 4), cmap=segment)
     plt.colormaps.register(segment)
     assert "segmented" in plt.colormaps
+
+
+def test_scatter_data_keyword_resolves_every_column():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    data = {"a": np.arange(5), "b": np.arange(5) * 2.0,
+            "c": np.arange(5) * 3.0, "d": np.full(5, 20.0)}
+    ax.scatter("a", "b", c="c", s="d", data=data)
+    assert len(ax.scatter_pts) == 1
+
+
+def test_prop_cycle_entries_and_colormap_colors_are_addressable():
+    plt.rcdefaults()
+    plt.style.use("ggplot")
+    assert list(plt.rcParams["axes.prop_cycle"])[2]["color"].startswith("#")
+    plt.rcdefaults()
+    colors = plt.colormaps["Dark2"].colors
+    assert len(colors) == 8 and len(colors[0]) == 3
+    assert all(0.0 <= v <= 1.0 for v in colors[0])

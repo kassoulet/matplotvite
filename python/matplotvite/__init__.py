@@ -52,6 +52,10 @@ _INTERP_FALLBACKS = {name: "bicubic" for name in (
 # Colormaps built from an explicit colour list, registered by name so the
 # renderer can sample them like any bundled map.
 _CUSTOM_CMAPS: dict[str, list[tuple[int, int, int]]] = {}
+# Named font sizes, in points, as Matplotlib's `font.size` scale defines them.
+_FONT_SIZE_NAMES = {"xx-small": 5.79, "x-small": 6.94, "small": 8.33,
+                    "medium": 10.0, "large": 12.0, "x-large": 14.4,
+                    "xx-large": 17.28}
 _SHORT_COLORS = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
 _TAB10 = {"tab:blue": "#1f77b4", "tab:orange": "#ff7f0e", "tab:green": "#2ca02c",
@@ -484,11 +488,23 @@ class _PropCycler:
         return f"Cycler(color={self._colors!r})"
 
 
+class _CycleColor(str):
+    """A cycle colour that also answers `entry["color"]`, as Cycler entries do."""
+
+    def __getitem__(self, key):
+        if key == "color":
+            return str(self)
+        return super().__getitem__(key)
+
+
 class _CycleList(list):
     """A prop-cycle list that also supports matplotlib's `by_key()` API."""
 
-    def by_key(self): return {"color": list(self)}
-    def __call__(self): return [{"color": color} for color in self]
+    def __init__(self, values=()):
+        super().__init__(_CycleColor(v) for v in values)
+
+    def by_key(self): return {"color": [str(c) for c in self]}
+    def __call__(self): return [{"color": str(c)} for c in self]
 
 
 class _CoordTransform:
@@ -4391,6 +4407,8 @@ class Axes:
         if data is not None:
             x = data[x] if isinstance(x, str) else x
             y = data[y] if isinstance(y, str) else y
+            c = data[c] if isinstance(c, str) else c
+            s = data[s] if isinstance(s, str) else s
         x = _as_f64(self._xdate(x))
         y = _as_f64(self._ycat(y))
         if x.size != y.size:
@@ -4710,8 +4728,12 @@ class Axes:
         if not pairs:
             return None
         n = len(pairs)
+        ypos = yrange[0]
+        if isinstance(ypos, str):
+            # Matplotlib maps string coordinates to categorical positions.
+            ypos = float(self._ycat([ypos])[0])
         self.bars.append(dict(left=np.array([a for a, _ in pairs]),
-                              bottom=np.full(n, float(yrange[0])),
+                              bottom=np.full(n, float(ypos)),
                               width=np.array([b for _, b in pairs]),
                               height=np.full(n, float(yrange[1])),
                               colors=_bar_colors(colors, n),
@@ -4750,6 +4772,9 @@ class Axes:
         if axis not in ("x", "y", "both"):
             raise ValueError(f"unsupported tick axis: {axis!r}")
         self.tick_params_box.update(kwargs)
+        if isinstance(kwargs.get("labelsize"), str):
+            kwargs["labelsize"] = _FONT_SIZE_NAMES.get(
+                str(kwargs["labelsize"]).lower(), kwargs["labelsize"])
         axes = ("x", "y") if axis == "both" else (axis,)
         for name in axes:
             self._tick_style(name, **{
@@ -5572,6 +5597,8 @@ def _scatter_colors(c, n):
     if isinstance(c, str) or _is_rgb(c):
         return None, [_norm_color(c)]
     a = np.asarray(c)
+    if a.ndim == 2 and a.shape[1] in (3, 4):
+        return None, [_norm_color(row) for row in a]
     if a.dtype.kind in "fiu":
         v = np.asarray(a, dtype=np.float64).ravel()
         if v.size == 1:
@@ -5933,7 +5960,7 @@ class Colorbar:
         self._e = entry
         self.ax = _ColorbarAxes()
 
-    def set_label(self, label): self._e["label"] = str(label)
+    def set_label(self, label, **kwargs): self._e["label"] = str(label)
     def get_label(self): return self._e["label"]
     def add_lines(self, *args, **kwargs): return None
     def minorticks_on(self): return None
@@ -7239,6 +7266,12 @@ color_sequences = {
        for name in _QUALITATIVE_CMAPS if name in _CMAP_DATA},
     "tableau": list(_CYCLE),
     "petroff": ["#000000", "#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#8c564b"],
+    "okabe_ito": ["#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                  "#0072B2", "#D55E00", "#CC79A7", "#000000"],
+    "petroff6": ["#000000", "#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#8c564b"],
+    "petroff8": ["#000000", "#1f77b4", "#2ca02c", "#d62728", "#9467bd",
+                  "#8c564b", "#e377c2", "#7f7f7f"],
+    "petroff10": list(_CYCLE),
 }
 
 
@@ -7330,6 +7363,17 @@ _STYLE_PRESETS = {
         "ytick.color": "#073642", "grid.color": "#93a1a1",
         "axes.prop_cycle": ["#268bd2", "#2aa198", "#859900", "#b58900", "#cb4b16",
                             "#dc322f", "#d33682", "#6c71c4"],
+    },
+    "petroff6": {
+        "axes.prop_cycle": ["#000000", "#1f77b4", "#2ca02c", "#d62728",
+                            "#9467bd", "#8c564b"],
+    },
+    "petroff8": {
+        "axes.prop_cycle": ["#000000", "#1f77b4", "#2ca02c", "#d62728",
+                            "#9467bd", "#8c564b", "#e377c2", "#7f7f7f"],
+    },
+    "petroff10": {
+        "axes.prop_cycle": list(_CYCLE),
     },
     "classic": {
         "figure.facecolor": "#ffffff", "axes.facecolor": "#ffffff",
