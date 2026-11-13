@@ -2992,6 +2992,45 @@ def test_auto_and_twin_axes_report_the_ticks_they_draw():
     assert {f"{v:g}" for v in ax.get_xticks()} <= drawn
 
 
+def _over_white(rows):
+    """Composite RGBA rows over white so a transparent render can be compared."""
+    out = []
+    for row in rows:
+        px = []
+        for i in range(0, len(row), 4):
+            alpha = row[i + 3] / 255.0
+            px.append([min(255.0, row[i + k] * alpha + 255.0 * (1 - alpha))
+                       for k in range(3)])
+        out.append(px)
+    return out
+
+
+def test_direct_and_svg_png_paths_rasterise_the_same_ticks():
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.plot([0, 1, 2, 3, 4], [-2, 1, 4, 9, 16])
+    ax.set_title("t")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.grid(True)
+    direct = decode_png_rgba(fig.savefig(format="png"))
+    # A transparent background is not eligible for the direct bitmap path, so
+    # this is the same panel drawn into an SVG document and rasterised by resvg.
+    svg = decode_png_rgba(fig.savefig(format="png", transparent=True))
+    assert direct[:2] == svg[:2]
+    assert any(row[i + 3] < 255 for row in svg[2] for i in range(0, len(row), 4))
+    worst = differing = total = 0
+    for row_a, row_b in zip(_over_white(direct[2]), _over_white(svg[2])):
+        for x in range(len(row_a)):
+            total += 1
+            diff = max(abs(row_a[x][k] - row_b[x][k]) for k in range(3))
+            worst = max(worst, diff)
+            differing += diff > 32
+    # The manual ticks, their labels and the gridlines land on the same pixels
+    # in both renderers; only anti-aliasing separates them.
+    assert differing == 0 and total > 100_000
+    assert worst <= 8
+
+
 def test_twiny_adds_top_axis_on_the_same_panel(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.plot([0, 1, 2], [10, 20, 30])
