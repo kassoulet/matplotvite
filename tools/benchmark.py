@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from importlib.util import find_spec
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,10 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-if str(ROOT / "python") not in sys.path:
+# The in-tree sources are only a fallback: when a matplotvite is installed (the
+# wheel test job installs one) it must win, because the checkout has no compiled
+# extension to import from `python/`.
+if find_spec("matplotvite") is None and str(ROOT / "python") not in sys.path:
     sys.path.insert(0, str(ROOT / "python"))
 
 import numpy as np
