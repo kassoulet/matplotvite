@@ -11,8 +11,37 @@ permissions:
   contents: read
 
 jobs:
+  check-version:
+    name: tag matches package version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Compare the tag with the version in pyproject.toml
+        # PyPI rejects a duplicate version, so a mistyped tag would build every
+        # wheel and only fail at the upload. Stop before the matrix starts.
+        if: github.ref_type == 'tag'
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import sys
+          import tomllib
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          wanted = tag[1:] if tag.startswith("v") else tag
+          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+          version = project["project"]["version"]
+          if wanted != version:
+              sys.exit(f"tag {tag} does not match pyproject version {version}")
+          print(f"tag {tag} matches version {version}")
+          PY
+
   wheels:
     name: wheel (${{ matrix.name }})
+    needs: check-version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

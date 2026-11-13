@@ -16,14 +16,24 @@ only Python runtime dependency.
 - [Architecture](architecture.md)
 - [Supported API](#whats-supported)
 
-## Build from source
+## Install
+
+```bash
+pip install matplotvite
+```
+
+Wheels are published to PyPI from each `v*` version tag: Linux (x86_64, aarch64),
+macOS (arm64, x86_64) and Windows (x64, arm64). They use the stable ABI, so a single
+wheel serves CPython 3.9 and newer; other platforms install from the sdist.
+
+No release is tagged yet, so use the source build below until the first `v*` tag.
+
+### Build from source
 
 ```bash
 pip install maturin numpy
 maturin develop --release
 ```
-
-No package release is currently published; build the extension from the repository.
 
 ## Measured performance
 
