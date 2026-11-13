@@ -2971,6 +2971,27 @@ def test_twinx_left_axis_keeps_tick_density_and_label_spacing():
     assert 0 < tick_left - label_right <= 14
 
 
+def test_auto_and_twin_axes_report_the_ticks_they_draw():
+    x = np.linspace(0, 12, 140)
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    ax.plot(x, 20 + 8 * np.sin(x / 2.0))
+    twin = ax.twinx()
+    twin.plot(x, 101 + 3 * np.cos(x / 3.0))
+    drawn = {t.strip() for t in re.findall(
+        r"<text[^>]*>([^<]*)</text>", fig.savefig(format="svg").decode())}
+    # 11.2 to 28.8 fits nine labels in 2s, 97.7 to 104.3 seven in 1s, and the
+    # automatic x axis seven in 2s: round locator values, not a linspace.
+    assert [f"{v:g}" for v in ax.get_yticks()] == [
+        "12", "14", "16", "18", "20", "22", "24", "26", "28"]
+    assert [f"{v:g}" for v in twin.get_yticks()] == [
+        "98", "99", "100", "101", "102", "103", "104"]
+    assert list(ax.get_xticks()) == pytest.approx([0, 2, 4, 6, 8, 10, 12])
+    # Every reported tick is drawn, so the accessor cannot drift from the SVG.
+    assert {f"{v:g}" for v in ax.get_yticks()} <= drawn
+    assert {f"{v:g}" for v in twin.get_yticks()} <= drawn
+    assert {f"{v:g}" for v in ax.get_xticks()} <= drawn
+
+
 def test_twiny_adds_top_axis_on_the_same_panel(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.plot([0, 1, 2], [10, 20, 30])

@@ -978,6 +978,61 @@ def _nice_step(raw, steps):
     return steps[-1] * max(1, int(_math.ceil(raw / steps[-1])))
 
 
+def _round_ticks(lo, hi, target=8):
+    """Ascending round tick positions on a 1/2/2.5/5/10 step.
+
+    Mirrors `nice_ticks` in `src/layout.rs`: the step is the candidate whose
+    ratio to `span / target` is closest among those whose labels fit the
+    budget, so a 17.6 span uses 2s rather than 5s.
+    """
+    if not (np.isfinite(lo) and np.isfinite(hi)) or hi == lo:
+        return []
+    if hi < lo:
+        lo, hi = hi, lo
+    raw = (hi - lo) / max(target, 1)
+    if not raw > 0:
+        return []
+    mag = 10.0 ** _math.floor(_math.log10(raw))
+    step = 10.0 * mag
+    best = _math.inf
+    for norm in (1.0, 2.0, 2.5, 5.0, 10.0):
+        candidate = norm * mag
+        count = int(_math.floor(hi / candidate + 1e-9)
+                    - _math.ceil(lo / candidate - 1e-9) + 1.0)
+        if count <= target + 1:
+            score = abs(_math.log(candidate / raw))
+            if score < best:
+                best, step = score, candidate
+    # Multiply an integer index by the step so a zero cannot print as -5e-17.
+    index = _math.ceil(lo / step)
+    out = []
+    while index * step <= hi + step * 1e-9 and len(out) < 50:
+        out.append(index * step)
+        index += 1.0
+    return out
+
+
+def _auto_ticks(lo, hi, log=False, base=10.0):
+    """Ticks for an axis with none set: decades on a log axis, else round values.
+
+    This is `auto_ticks` in `src/layout.rs`; the panel hands the result to the
+    renderer, so the drawn ticks and `get_xticks()`/`get_yticks()` agree. A
+    degenerate span falls back to the old six evenly spaced positions.
+    """
+    if log:
+        if hi < lo:
+            lo, hi = hi, lo
+        llo = _math.log(max(lo, 1e-300), base)
+        lhi = _math.log(max(hi, 1e-300), base)
+        start, end = _math.ceil(llo), _math.floor(lhi)
+        if end >= start and end - start <= 12:
+            return [float(base ** k) for k in range(int(start), int(end) + 1)]
+    ticks = _round_ticks(lo, hi)
+    if ticks:
+        return ticks
+    return [float(v) for v in np.linspace(lo, hi, 6)]
+
+
 def _date_ticks(lo, hi):
     """Calendar-aligned tick positions and labels for a date-number range."""
     if not (np.isfinite(lo) and np.isfinite(hi)) or hi <= lo:
@@ -3468,13 +3523,34 @@ class Axes:
         ticks = ticks[np.isfinite(ticks)]
         return [float(v) for v in ticks] or None
 
+    def _drawn_ticks(self, axis):
+        """The positions `_panel` hands the renderer when no ticks were set."""
+        base = float(getattr(self, "log_base", 10.0))
+        if axis == "x":
+            lo, hi = self.get_xlim()
+            scale = self.xscale
+            if self._x_date and scale == "linear":
+                asc = (lo, hi) if lo <= hi else (hi, lo)
+                ticks = _date_ticks(*asc)[0]
+                return list(reversed(ticks)) if lo > hi else ticks
+            if self._categories:
+                return [float(i) for i in range(len(self._categories))]
+            if scale == "symlog":
+                return _symlog_ticks(lo, hi, self.symlog_linthresh_x)[0]
+            return _auto_ticks(lo, hi, scale == "log", base)
+        lo, hi = self.get_ylim()
+        scale = self.yscale
+        if scale == "symlog":
+            return _symlog_ticks(lo, hi, self.symlog_linthresh_y)[0]
+        return _auto_ticks(lo, hi, scale == "log", base)
+
     def get_xticks(self, minor=False):
         if self._xticks is not None:
             return np.asarray(self._xticks)
         ticks = self._locator_ticks("x")
         if ticks is not None:
             return np.asarray(ticks)
-        return np.linspace(*self.get_xlim(), 6)
+        return np.asarray(self._drawn_ticks("x"))
 
     def get_yticks(self, minor=False):
         if self._yticks is not None:
@@ -3482,7 +3558,7 @@ class Axes:
         ticks = self._locator_ticks("y")
         if ticks is not None:
             return np.asarray(ticks)
-        return np.linspace(*self.get_ylim(), 6)
+        return np.asarray(self._drawn_ticks("y"))
 
     def set_xticklabels(self, labels, **kwargs):
         self._xticklabels = [str(v) for v in np.asarray(labels).ravel()]
@@ -5239,6 +5315,15 @@ class Axes:
                 yticks, yticklabels = _symlog_ticks(y0, y1, self.symlog_linthresh_y)
             elif yticklabels is None:
                 yticklabels = [_symlog_label(v) for v in yticks]
+        # plotters would pick its own mesh key points, which Python cannot see.
+        # Choose the auto ticks here instead and pass them down, so the drawn
+        # axis, its gridlines and get_xticks()/get_yticks() hold one list.
+        if xticks is None:
+            xticks = _auto_ticks(x0, x1, self.xscale == "log",
+                                 float(getattr(self, "log_base", 10.0)))
+        if yticks is None:
+            yticks = _auto_ticks(y0, y1, self.yscale == "log",
+                                 float(getattr(self, "log_base", 10.0)))
         return dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     font_family=_font_family(),
                     title_family=self.title_family,
