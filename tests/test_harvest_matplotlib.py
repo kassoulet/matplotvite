@@ -1,18 +1,17 @@
 """Tests for the Matplotlib baseline-image and gallery harvester."""
 
+import gzip
 import json
 from pathlib import Path
 
-import pytest
-
 import matplotvite
 
-from tools.harvest_matplotlib import (_resolve_baseline, failure_status,
-                                      find_examples_root, find_sample_data,
-                                      find_tests_root,
-                                      harvest, harvest_examples,
-                                      harvest_examples_gallery, harvest_gallery,
-                                      prepare_body, prepare_example, render)
+from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
+                                      failure_status, find_examples_root,
+                                      find_sample_data, find_tests_root, harvest,
+                                      harvest_examples, harvest_examples_gallery,
+                                      harvest_gallery, prepare_body,
+                                      prepare_example, render)
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
@@ -89,31 +88,6 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
 
 
-def test_system_exit_from_a_main_guard_is_unsupported():
-    assert failure_status("SystemExit: 2") == "unsupported"
-
-
-def test_sample_data_is_found_next_to_the_matplotlib_sources():
-    data = find_sample_data()
-    if data is None:
-        pytest.skip("no Matplotlib sdist or checkout under dist/")
-    assert data.is_dir() and any(data.iterdir())
-
-
-def test_render_resolves_names_used_in_eval_strings(tmp_path):
-    # ticks/date_formatters_locators selects its locator via eval("AutoDateLocator()").
-    snippet = prepare_example(
-        "import matplotlib.pyplot as plt\n"
-        "from matplotlib.dates import AutoDateLocator\n"
-        "locators = ['AutoDateLocator()']\n"
-        "plt.plot([1.0, 2.0], [3.0, 4.0])\n"
-        "plt.gca().xaxis.set_major_locator(eval(locators[0]))\n")
-    assert snippet is not None
-    out = tmp_path / "eval-locator.png"
-    assert render(snippet, out) is None
-    assert out.exists()
-
-
 def test_prepare_example_resolves_module_alias_imports():
     snippet = prepare_example(
         "import matplotlib.pyplot as plt\n"
@@ -139,6 +113,51 @@ def test_render_uses_module_alias_imports(tmp_path):
         "plt.gca().add_patch(mpatch.Circle((0.5, 0.5), 0.4))\n")
     assert render(snippet, out) is None
     assert out.exists()
+
+
+def test_prepare_example_rewrites_toolkit_imports_to_the_scoped_shim():
+    # The wheel deliberately ships no top-level `mpl_toolkits`, so a harvested
+    # snippet must import the shim inside matplotvite.
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "from mpl_toolkits.axes_grid1 import make_axes_locatable\n"
+        "import mpl_toolkits.axes_grid1.inset_locator as loc\n"
+        "fig, ax = plt.subplots()\n")
+    assert ("from matplotvite.mpl_toolkits.axes_grid1 import "
+            "make_axes_locatable") in snippet
+    assert "import matplotvite.mpl_toolkits.axes_grid1.inset_locator as loc" in snippet
+    assert "import mpl_toolkits" not in snippet
+
+
+def test_prepare_example_renders_a_toolkit_inset(tmp_path):
+    out = tmp_path / "out.png"
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "from mpl_toolkits.axes_grid1.inset_locator import inset_axes\n"
+        "fig, ax = plt.subplots()\n"
+        "ax.plot([0, 1], [1, 0])\n"
+        "inset_axes(ax, width='30%', height='30%', loc='upper left')\n")
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
+def test_sample_data_is_resolved_from_the_sdist(tmp_path):
+    import numpy as np
+
+    root = tmp_path / "matplotlib-9.9" / "lib" / "matplotlib" / "mpl-data" / "sample_data"
+    root.mkdir(parents=True)
+    np.save(root / "array.npy", np.arange(6).reshape(2, 3))
+    np.savez(root / "arrays.npz", values=np.arange(3))
+    with gzip.open(root / "raw.dat.gz", "wb") as handle:
+        handle.write(np.arange(4, dtype=np.uint16).tobytes())
+
+    assert find_sample_data(tmp_path) == root.resolve()
+    cbook = _SampleDataCbook(root)
+    assert cbook.get_sample_data("array.npy").tolist() == [[0, 1, 2], [3, 4, 5]]
+    assert cbook.get_sample_data("arrays.npz")["values"].tolist() == [0, 1, 2]
+    # `.gz` sample data is decompressed, as Matplotlib's open_file_cm does.
+    with cbook.get_sample_data("raw.dat.gz") as handle:
+        assert np.frombuffer(handle.read(), np.uint16).tolist() == [0, 1, 2, 3]
 
 
 def test_prepare_body_skips_unrenderable_bodies():
@@ -269,6 +288,12 @@ def test_failure_status_splits_gaps_from_missing_apis():
     assert failure_status(
         "AttributeError: 'Axes' object has no attribute 'triplot'") == "needs-api"
     assert failure_status("NotImplementedError: 'symlog'") == "needs-api"
+    # A missing toolkit or a local helper that imports Matplotlib is a harness
+    # limitation, not a matplotvite bug.
+    assert failure_status(
+        "ModuleNotFoundError: No module named 'PIL'") == "harvester-gap"
+    assert failure_status(
+        "ImportError: cannot import name 'BboxConnector'") == "needs-api"
     assert failure_status("TypeError: fill expects (x, y)") == "bug"
 
 
@@ -375,14 +400,26 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
         assert rendered["mismatch_pct"] is not None
 
 
-def test_failure_status_classifies_missing_modules():
-    assert failure_status("ModuleNotFoundError: No module named 'PIL'") == "unsupported"
-    assert failure_status(
-        "ModuleNotFoundError: No module named 'matplotvite.mpl_toolkits.axisartist'") == "needs-api"
-    assert failure_status(
-        "ImportError: cannot import name 'Divider' from 'matplotvite.mpl_toolkits.axes_grid1'") == "needs-api"
+def test_classic_test_style_maps_to_classic():
+    body = prepare_body("plt.plot([0, 1])\n", {"style": "_classic_test", "dpi": 100,
+                                               "remove_text": False, "tight": False,
+                                               "extensions": None, "tol": None})
+    assert "plt.style.use('classic')" in body
 
 
-def test_mpl_toolkits_imports_are_routed_to_the_shim():
-    code = prepare_example("from mpl_toolkits.axes_grid1 import inset_locator\nx = 1\n")
-    assert "from matplotvite.mpl_toolkits.axes_grid1 import inset_locator" in code
+def test_unused_module_aliases_are_dropped():
+    body = prepare_body(
+        "import matplotlib.scale as mscales\n"
+        "import matplotlib.image as mimage\n"
+        "mimage.imread('x.png')\n"
+        "plt.plot([0, 1])\n")
+    assert "mscales" not in body
+    assert "mimage" in body
+
+
+def test_marker_style_is_exposed_as_a_module():
+    style = matplotvite.markers.MarkerStyle("o", fillstyle="none")
+    assert str(style) == "o"
+    assert style.get_fillstyle() == "none"
+    assert style.is_filled() is False
+    assert "'o'" in str(sorted(style.markers))

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import gzip
 import html
 import importlib.util
 import json
@@ -41,14 +42,18 @@ SKIP_RE = re.compile(r"pytest\.|check_figures_equal\(|\binput\(|themes\.|savefig
 
 # Imports the renderer supplies itself or never needs: pytest is a test-only
 # dependency, and bodies that use it are skipped by SKIP_RE.
-STRIPPED_IMPORTS = ("matplotlib", "numpy", "pytest")
+STRIPPED_IMPORTS = ("matplotlib", "mpl_toolkits", "numpy", "pytest")
+
+# The toolkit shims ship inside matplotvite so the wheel never shadows
+# Matplotlib's own top-level `mpl_toolkits` namespace.
+TOOLKITS_PACKAGE = "matplotvite.mpl_toolkits"
 
 # Aliases used by Matplotlib's tests after a stripped `from numpy... import`.
 NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
 
 # Matplotvite namespaces that hold names the top-level `__all__` does not.
 COMPAT_NAMESPACES = ("ticker", "cm", "colors", "patches", "path", "transforms",
-                     "collections", "lines", "gridspec", "patheffects", "dates")
+                     "collections", "lines", "gridspec", "patheffects")
 
 
 def compat_name(name: str):
@@ -156,6 +161,13 @@ def _comparison_prefix(options: dict[str, object] | None) -> str:
         return ""
     lines = ['plt.rcdefaults()', 'plt.rcParams["figure.figsize"] = (8, 6)']
     style = options.get("style")
+    # Matplotlib's test suite uses `_classic_test`, which is the "classic" style
+    # plus a hinting patch that only exists inside Matplotlib; render with the
+    # nearest style matplotvite ships.
+    if isinstance(style, str) and style == "_classic_test":
+        style = "classic"
+    elif isinstance(style, (list, tuple)) and "_classic_test" in style:
+        style = "classic"
     if style:
         lines.append(f"plt.style.use({style!r})")
     return "\n".join(lines) + "\n"
@@ -178,7 +190,7 @@ def find_examples_root(source: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
-def _alias_assignment(target: str, module: str) -> ast.Assign:
+def _alias_assignment(target: str, module: str) -> ast.Expr:
     """`target = matplotlib.<module>`, or `target = plt` for pyplot.
 
     The namespace binds `matplotlib` to matplotvite, so the assignment keeps a
@@ -192,6 +204,14 @@ def _alias_assignment(target: str, module: str) -> ast.Assign:
     return ast.Assign(targets=[ast.Name(id=target, ctx=ast.Store())], value=value)
 
 
+def _toolkit_import(alias: ast.alias) -> ast.Assign:
+    """`import matplotlib` line that binds a toolkit submodule to its alias."""
+    suffix = alias.name.split(".", 1)[1] if "." in alias.name else ""
+    target = alias.asname or alias.name.split(".")[0]
+    return ast.parse(
+        f"import {TOOLKITS_PACKAGE}{'.' + suffix if suffix else ''} as {target}").body[0]
+
+
 class _ExampleStripper(ast.NodeTransformer):
     """Drop Matplotlib/NumPy imports and the interactive tail of a gallery script."""
 
@@ -199,9 +219,9 @@ class _ExampleStripper(ast.NodeTransformer):
         kept, emitted = [], []
         for alias in node.names:
             module = alias.name.split(".")
-            if module[0] == "mpl_toolkits" and alias.asname:
-                alias = ast.alias(name=f"matplotvite.{alias.name}", asname=alias.asname)
-            if module[0] not in STRIPPED_IMPORTS:
+            if module[0] == "mpl_toolkits":
+                emitted.append(_toolkit_import(alias))
+            elif module[0] not in STRIPPED_IMPORTS:
                 kept.append(alias)
             elif (alias.asname and alias.asname not in ("plt", "mpl")
                   and len(module) > 1 and module[1] != "pyplot"):
@@ -212,9 +232,8 @@ class _ExampleStripper(ast.NodeTransformer):
     def visit_ImportFrom(self, node: ast.ImportFrom):
         module = node.module or ""
         if module.split(".")[0] == "mpl_toolkits":
-            # The shim lives inside matplotvite (it must not shadow Matplotlib's package).
-            node.module = f"matplotvite.{module}"
-            return node
+            rewritten = f"{TOOLKITS_PACKAGE}{'.' + module.split('.', 1)[1] if '.' in module else ''}"
+            return ast.ImportFrom(module=rewritten, names=node.names, level=0)
         if module.split(".")[0] not in STRIPPED_IMPORTS:
             return node
         if module != "matplotlib":
@@ -226,16 +245,7 @@ class _ExampleStripper(ast.NodeTransformer):
 
     def visit_If(self, node: ast.If):
         if "__main__" in ast.unparse(node.test):
-            # Gallery scripts draw inside the main guard, so hoist its body; the
-            # guard was removed before and took every figure with it (blank
-            # renders in mandelbrot, hinton_demo, arrow_demo and others).
-            hoisted: list[ast.stmt] = []
-            for child in node.body:
-                visited = self.visit(child)
-                if visited is None:
-                    continue
-                hoisted.extend(visited if isinstance(visited, list) else [visited])
-            return hoisted
+            return None
         return self.generic_visit(node)
 
     def visit_Expr(self, node: ast.Expr):
@@ -316,13 +326,6 @@ OUT_OF_SCOPE_CATEGORIES = frozenset({
     "animation", "mplot3d", "user_interfaces", "widgets",
 })
 
-# Scripts whose figure is drawn from event callbacks or a child process: a
-# still render says nothing about matplotvite, so they are not judged.
-INTERACTIVE_EXAMPLES = frozenset({
-    "event_handling/data_browser", "event_handling/poly_editor",
-    "misc/multiprocess_sgskip",
-})
-
 
 def _nonwhite_pixels(path: pathlib.Path) -> int | None:
     """Sampled non-white pixel count, using the stdlib decoder in tests/."""
@@ -352,28 +355,25 @@ def failure_status(error: str | None) -> str:
 
     A `NameError` for a name matplotvite already exposes is the harvester's
     fault (the import line was stripped); any other undefined name, a missing
-    attribute or an unimplemented option needs API work; a missing third-party module is unsupported; the rest is a bug in
+    attribute or an unimplemented option needs API work; the rest is a bug in
     a feature matplotvite claims to support.
     """
     if not error:
         return "failed"
     kind, _, detail = error.partition(":")
-    if kind == "SystemExit":
-        return "unsupported"
+    if kind == "ModuleNotFoundError":
+        # The snippet needs a module the harness does not supply: a toolkit
+        # (mpl_toolkits), an optional image library (PIL) or a local helper
+        # that imports Matplotlib itself.
+        return "harvester-gap"
     if kind == "NameError":
         match = re.search(r"name '([^']+)' is not defined", detail)
         name = match.group(1) if match else ""
         if name and (name in NUMPY_ALIASES or compat_name(name) is not None):
             return "harvester-gap"
         return "needs-api"
-    if kind in ("AttributeError", "NotImplementedError"):
+    if kind in ("AttributeError", "ImportError", "NotImplementedError"):
         return "needs-api"
-    if kind == "ImportError" and "matplotvite" in detail:
-        return "needs-api"
-    if kind == "ModuleNotFoundError":
-        # A missing matplotvite shim is an API gap; any other missing package
-        # (PIL, gi, real Matplotlib for `units/*`) is the environment's fault.
-        return "needs-api" if "matplotvite" in detail else "unsupported"
     return "bug"
 
 
@@ -405,6 +405,7 @@ def prepare_body(source: str, options: dict[str, object] | None = None) -> str |
     except SyntaxError:
         return None
     tree = _BodyStripper().visit(tree)
+    tree = _drop_unused_aliases(tree)
     tree = _PruneEmpty().visit(tree)
     code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
     if not code:
@@ -412,31 +413,41 @@ def prepare_body(source: str, options: dict[str, object] | None = None) -> str |
     return _comparison_prefix(options) + code + _comparison_suffix(options)
 
 
-def _evaluated_names(node: ast.AST) -> set[str]:
-    """Identifiers used inside `eval`/`exec` strings.
-
-    `ticks/date_formatters_locators` picks its locator with
-    `eval("AutoDateLocator()")`, so the stripped `from matplotlib.dates import
-    ...` line has to be resolved from the string, not from an `ast.Name`.
-    """
-    evaluates = any(
-        isinstance(item, ast.Call) and isinstance(item.func, ast.Name)
-        and item.func.id in ("eval", "exec")
-        for item in ast.walk(node))
-    if not evaluates:
-        return set()
-    # The date locator example keeps its expressions in a list and evaluates a
-    # variable, so every string literal becomes a candidate once eval is used.
-    names: set[str] = set()
-    for item in ast.walk(node):
-        if isinstance(item, ast.Constant) and isinstance(item.value, str):
-            names.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", item.value))
-    return names
-
-
 def _loaded_names(node: ast.AST) -> set[str]:
     return {item.id for item in ast.walk(node)
             if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)}
+
+
+def _drop_unused_aliases(tree: ast.Module) -> ast.Module:
+    """Remove `alias = matplotlib.<module>` lines whose alias the body never uses.
+
+    Matplotlib's test modules import several submodules at module scope that a
+    given test does not touch; keeping those assignments would turn an unused
+    import into a misleading "module has no attribute" failure.
+    """
+    used = _loaded_names(tree)
+    kept = []
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and isinstance(node.value, ast.Attribute)
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id in ("matplotlib", "mpl")
+                and node.targets[0].id not in used):
+            continue
+        if isinstance(node, ast.Import):
+            node.names = [alias for alias in node.names
+                          if (alias.asname or alias.name.split(".")[0]) in used]
+            if not node.names:
+                continue
+        if isinstance(node, ast.ImportFrom):
+            node.names = [alias for alias in node.names
+                          if (alias.asname or alias.name) in used]
+            if not node.names:
+                continue
+        kept.append(node)
+    tree.body = kept
+    return tree
 
 
 def _module_context(module: ast.Module, text: str, func: ast.FunctionDef) -> str:
@@ -508,22 +519,41 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
     return cases
 
 
-SAMPLE_DATA_GLOBS = ("dist/mpl-sdist/*/lib/matplotlib/mpl-data/sample_data",
-                     "dist/mpl-src/lib/matplotlib/mpl-data/sample_data")
+class _SampleDataCbook:
+    """`cbook` backed by the Matplotlib checkout's bundled sample data."""
+
+    def __init__(self, root: pathlib.Path): self._root = root.resolve()
+
+    def get_sample_data(self, fname, asfileobj=True, np_load=False):
+        path = pathlib.Path(str(fname))
+        candidate = path if path.is_absolute() else self._root / path
+        if not candidate.exists():
+            raise FileNotFoundError(f"no sample data {fname!r} in {self._root}")
+        if np_load or candidate.suffix.lower() in (".npz", ".npy"):
+            return np.load(candidate, allow_pickle=False)
+        if candidate.suffix.lower() == ".gz":
+            return gzip.open(candidate, "rb")
+        return open(candidate, "rb") if asfileobj else str(candidate)
 
 
-def find_sample_data() -> pathlib.Path | None:
-    """Matplotlib's sample_data directory, when a checkout or sdist is present."""
-    for pattern in SAMPLE_DATA_GLOBS:
-        for candidate in sorted(pathlib.Path(".").glob(pattern)):
-            if candidate.is_dir():
-                return candidate
+def find_sample_data(source: pathlib.Path) -> pathlib.Path | None:
+    """Locate `mpl-data/sample_data` in a checkout or an unpacked sdist."""
+    candidates = [source / "lib/matplotlib/mpl-data/sample_data",
+                  source / "mpl-data/sample_data",
+                  *sorted(source.glob("*/lib/matplotlib/mpl-data/sample_data")),
+                  *sorted(pathlib.Path("dist/mpl-sdist").glob(
+                      "*/lib/matplotlib/mpl-data/sample_data"))]
+    for candidate in candidates:
+        if candidate.is_dir():
+            # Resolve now: snippets run from a scratch working directory.
+            return candidate.resolve()
     return None
 
 
 def render(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
-           ignored: list[str] | None = None) -> str | None:
+           ignored: list[str] | None = None,
+           sample_data: pathlib.Path | None = None) -> str | None:
     """Render a snippet with matplotvite; return an error string or None.
 
     When `ignored` is provided, append the names of compatibility shims that
@@ -562,34 +592,20 @@ def render(snippet: str, out_path: pathlib.Path,
         ("Triangulation", getattr(mpl_tri, "Triangulation", None)),
     ) if value is not None}
 
-    sample_data = find_sample_data()
-
-    def get_sample_data(fname, *args, **kwargs):
-        if sample_data is not None:
-            candidate = sample_data / pathlib.Path(str(fname)).name
-            if candidate.exists():
-                return candidate
-        raise NotImplementedError(f"sample data {fname!r} is not available")
-
-    class _SampleCbook:
-        """`cbook` with sample data resolved against the Matplotlib sources."""
-
-        def __getattr__(self, name):
-            if name == "get_sample_data":
-                return get_sample_data
-            return getattr(matplotvite.cbook, name)
-
     class _MplProxy:
         def __getattr__(self, name):
-            if name == "cbook":
-                return mpl_cbook if mpl_cbook is not None else _SampleCbook()
+            if name == "cbook" and mpl_cbook is not None:
+                return mpl_cbook
             if name in mpl_helpers:
                 return mpl_helpers[name]
             return getattr(matplotvite, name)
 
-    # Always proxy so `matplotlib.cbook` can be resolved even without real
-    # Matplotlib installed.
-    mpl_namespace = _MplProxy()
+    sample_cbook = (_SampleDataCbook(sample_data)
+                    if mpl_cbook is None and sample_data is not None else None)
+    if sample_cbook is not None:
+        mpl_helpers["cbook"] = sample_cbook
+    mpl_namespace = (_MplProxy() if (mpl_cbook is not None or sample_cbook is not None)
+                     else matplotvite)
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
     namespace.update(mpl_helpers)
@@ -607,8 +623,7 @@ def render(snippet: str, out_path: pathlib.Path,
     # have bound: `MaxNLocator`, `TABLEAU_COLORS`, `rand`, `ma`, ... otherwise
     # the case fails with a NameError that hides whether the API exists.
     try:
-        tree = ast.parse(snippet)
-        needed = _loaded_names(tree) | _evaluated_names(tree)
+        needed = _loaded_names(ast.parse(snippet))
     except SyntaxError:
         needed = set()
     for name in needed - set(namespace):
@@ -618,12 +633,10 @@ def render(snippet: str, out_path: pathlib.Path,
         value = compat_name(name)
         if value is not None:
             namespace[name] = value
-    if mpl_cbook is not None:
-        namespace["cbook"] = mpl_cbook
-        namespace["get_sample_data"] = mpl_cbook.get_sample_data
-    else:
-        namespace["cbook"] = _SampleCbook()
-        namespace["get_sample_data"] = get_sample_data
+    cbook_namespace = mpl_cbook if mpl_cbook is not None else sample_cbook
+    if cbook_namespace is not None:
+        namespace["cbook"] = cbook_namespace
+        namespace["get_sample_data"] = cbook_namespace.get_sample_data
     if mpl_font_text is not None:
         namespace["_gen_multi_font_text"] = mpl_font_text
     ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)
@@ -644,13 +657,9 @@ def render(snippet: str, out_path: pathlib.Path,
             if ignored_calls is not None:
                 ignored_calls.clear()
             np.random.seed(0)
-            try:
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore", RuntimeWarning)
-                    exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
-            except SystemExit as exc:
-                # Gallery scripts that parse argv exit from their main guard.
-                return f"SystemExit: {exc}"
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
             if not out_path.exists():
                 return "no figure saved"
             return None
@@ -812,6 +821,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         print(f"No gallery examples found under {source}.")
         return 1
     cases = harvest_examples(examples_root)
+    sample_data = find_sample_data(source)
     out.mkdir(parents=True, exist_ok=True)
     rows: list[str] = []
     statuses: dict[str, list[int]] = {}
@@ -823,9 +833,6 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         if case["snippet"] is None:
             entry["status"] = "unsupported"
             entry["error"] = "interactive or unparseable"
-        elif case["id"] in INTERACTIVE_EXAMPLES:
-            entry["status"] = "unsupported"
-            entry["error"] = "drawn from event callbacks"
         elif case["category"] in OUT_OF_SCOPE_CATEGORIES:
             entry["status"] = "unsupported"
             entry["error"] = f"{case['category']} is out of scope"
@@ -834,7 +841,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
             ignored: list[str] = []
             entry["error"] = render(str(case["snippet"]), ours,
                                     pathlib.Path(str(case["path"])).parent,
-                                    ignored=ignored)
+                                    ignored=ignored, sample_data=sample_data)
             entry["ignored"] = len(ignored)
             entry["status"] = ("rendered" if entry["error"] is None
                                else failure_status(str(entry["error"])))

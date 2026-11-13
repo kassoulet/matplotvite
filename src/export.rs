@@ -348,7 +348,7 @@ fn decoration_fragment(
     {
         let root = SVGBackend::with_string(&mut svg, size).into_drawing_area();
         if let Some(ref s) = decorations.suptitle {
-            let style = ("sans-serif", text_px(s.size.max(6.0), dpi).round() as u32)
+            let style = (s.family, text_px(s.size.max(6.0), dpi).round() as u32)
                 .into_font()
                 .color(&BLACK);
             root.draw(&Text::new(
@@ -358,7 +358,7 @@ fn decoration_fragment(
             ))
             .map_err(|e| e.to_string())?;
         }
-        for (x, y, text, colour, size, ha, va, bbox) in decorations.texts {
+        for (x, y, text, colour, size, ha, va, bbox, rotation, family) in decorations.texts {
             // Figure coordinates are fractions of the canvas, like `fig.text`.
             draw_label(
                 &root,
@@ -370,7 +370,9 @@ fn decoration_fragment(
                 ha,
                 va,
                 bbox.as_ref(),
+                *rotation,
                 1.0 / 1.24,
+                family,
             )
             .map_err(|e| e.to_string())?;
         }

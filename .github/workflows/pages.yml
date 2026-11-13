@@ -58,6 +58,7 @@ jobs:
           python tools/harvest_matplotlib.py --source /tmp/mpl-sdist --out dist/mpl-corpus
           python tools/harvest_matplotlib.py --examples /tmp/mpl-src --out dist/mpl-examples
           python tools/harvest_seaborn.py --source /tmp/sns-src --out dist/seaborn-gallery
+          python tools/visual_compare.py dist/visual-svg --format svg
           python tools/build_pages.py --out dist --galleries-only
 
       - name: Setup Pages

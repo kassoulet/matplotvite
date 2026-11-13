@@ -81,6 +81,7 @@
 ### 0.2.8 Font sizes
 - [x] `title(fontsize=)`, `xlabel(fontsize=)`, `ylabel(fontsize=)`, and `text(fontsize=)`
 - [x] Global `rcParams` font size (`font.size`, `axes.labelsize`, `axes.titlesize`, `legend.fontsize`)
+- [x] Font families backed by the embedded faces: `rcParams["font.family"]` selects DejaVu Sans / Geist Serif / Geist Mono, and `title`, `xlabel`, `ylabel`, `text`, `suptitle` and `legend` accept `fontfamily=`
 
 ---
 
@@ -179,7 +180,7 @@
 
 ### 0.5.4 Packaging & distribution
 - [x] Type stubs (`.pyi`) and `py.typed` for IDE autocomplete and mypy
-- [x] Wheel CI: `cp39-abi3` wheels for manylinux (x86_64, aarch64), macOS arm64 and Windows x86_64, smoke-tested on the supported Python versions
+- [x] Wheel CI: `cp39-abi3` wheels for manylinux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64, arm64); the full test suite runs against the installed wheel, and the sdist is built and rebuilt into a wheel to prove the source distribution is complete
 - [x] `maturin publish` GitHub Action on tag push
 
 ### 0.5.5 Performance

@@ -45,6 +45,7 @@ fn render(
         edgecolor,
         compression,
         suptitle,
+        suptitle_family,
         suptitle_size,
         suptitle_x,
         suptitle_y,
@@ -96,6 +97,7 @@ fn render(
     let background = figure_background(transparent, facecolor.as_deref());
     let title = (!suptitle.is_empty()).then_some(Suptitle {
         text: &suptitle,
+        family: &suptitle_family,
         size: suptitle_size,
         x: suptitle_x,
         y: suptitle_y,

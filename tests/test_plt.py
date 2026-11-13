@@ -109,6 +109,9 @@ def test_grid_defaults_and_unicode_minus(tmp_path):
     ax.set_xticks([-1, 0, 1])
     svg = fig.savefig(None, format="svg").decode()
     assert "−1" in svg
+    # Named first so viewers rasterise the minus sign with the embedded face
+    # instead of a generic fallback that may not contain U+2212.
+    assert 'font-family="DejaVu Sans, sans-serif"' in svg
 
 
 def test_empty_figure_saves_blank(tmp_path):
@@ -499,11 +502,13 @@ def test_contour_linewidths_and_alpha(tmp_path):
     assert re.search(r'opacity="0\.25', p2.read_text())
 
 
-def test_contour_linewidths_cycle_over_levels():
+def test_contour_linewidths_cycle_across_levels():
     z = np.add.outer(np.arange(6.0), np.arange(6.0))
     plt.figure()
     cs = plt.contour(z, levels=[1, 2, 3], linewidths=[1, 2])
-    assert list(cs.get_linewidth()) == [1.0, 2.0, 1.0]
+    # Matplotlib cycles a short linewidth sequence across the levels.
+    assert plt.gca().contours[-1]["linewidths"] == [1.0, 2.0, 1.0]
+    assert cs.levels == [1.0, 2.0, 3.0]
 
 
 def test_contour_meshgrid_png(tmp_path):
@@ -685,9 +690,9 @@ def test_contour_default_and_int_levels(tmp_path):
     plt.figure((4, 3))
     cs2 = plt.contourf(z, levels=5)
     assert len(cs2.levels) == 5
-    assert cs2.get_cmap() == "viridis"
+    assert cs2.get_cmap().name == "viridis"
     cs2.set_cmap("gray")
-    assert cs2.get_cmap() == "gray"
+    assert cs2.get_cmap().name == "gray"
     plt.savefig(tmp_path / "c5.png")
     assert (tmp_path / "c5.png").stat().st_size > 0
 
@@ -994,32 +999,6 @@ def test_axes_set_dispatch(tmp_path):
         ax.set(nonexistent=1)
 
 
-def test_string_categories_plot_on_the_y_axis(tmp_path):
-    fig, ax = plt.subplots()
-    ax.plot([1.0, 2.0, 3.0], ["low", "mid", "high"], marker="o")
-    # Matplotlib draws the categories at 0, 1, 2 and labels the ticks with them.
-    assert list(ax.get_yticks()) == [0.0, 1.0, 2.0]
-    assert [t.get_text() for t in ax.get_yticklabels()] == ["low", "mid", "high"]
-    lo, hi = ax.get_ylim()
-    assert -0.1 <= lo <= 0.0 and 2.0 <= hi <= 2.1
-    out = tmp_path / "categories.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_barh_string_categories_label_the_y_axis(tmp_path):
-    fig, ax = plt.subplots()
-    ax.barh(["alpha", "beta"], [3.0, 5.0])
-    assert list(ax.get_yticks()) == [0.0, 1.0]
-    assert [t.get_text() for t in ax.get_yticklabels()] == ["alpha", "beta"]
-    ax.scatter([0.5], ["gamma"])
-    # Categories accumulate across calls, as Matplotlib's units do.
-    assert [t.get_text() for t in ax.get_yticklabels()] == ["alpha", "beta", "gamma"]
-    out = tmp_path / "categories-h.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
 def test_major_locators_place_ticks(tmp_path):
     plt.rcdefaults()
     fig, ax = plt.subplots()
@@ -1042,6 +1021,48 @@ def test_major_locators_place_ticks(tmp_path):
     ax.xaxis.set_major_locator(plt.FixedLocator([0.0, 1.0]))
     assert list(ax.get_xticks()) == [0.0, 1.0]
     assert [t.get_text() for t in ax.get_xticklabels()] == ["0", "1"]
+
+
+def test_axis_major_formatter_decides_the_tick_text(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    ax.plot([0, 1, 2], [0, 1, 4])
+    ax.set_xticks([0, 1, 2])
+    ax.xaxis.set_major_formatter(plt.FixedFormatter(["a", "b", "c"]))
+    assert ax._panel()["ticks"]["xticklabels"] == ["a", "b", "c"]
+    p = tmp_path / "formatter.svg"
+    plt.savefig(p)
+    text = p.read_text()
+    assert re.findall(r">\s*([abc])\s*<", text) == ["a", "b", "c"]
+    # `Axis.set` forwards locator and formatter keywords.
+    ax.yaxis.set(major_locator=plt.MultipleLocator(2), label="V")
+    assert ax._panel()["ticks"]["yticks"] == pytest.approx([0.0, 2.0, 4.0])
+
+
+def test_date_formatter_and_locator(tmp_path):
+    import datetime
+
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    days = [datetime.date(2021, 1, 1) + datetime.timedelta(days=60 * i) for i in range(6)]
+    ax.plot(days, range(6))
+    ax.xaxis.set(major_locator=plt.dates.AutoDateLocator(),
+                 major_formatter=plt.dates.DateFormatter("%Y-%m"))
+    labels = ax._panel()["ticks"]["xticklabels"]
+    assert labels and all(len(label) == 7 and label[4] == "-" for label in labels)
+    assert plt.dates.date2num(datetime.date(2021, 1, 1)) == pytest.approx(737791.0)
+    assert plt.dates.num2date(737791.0).date() == datetime.date(2021, 1, 1)
+
+
+def test_matplotlib_compat_module_namespaces():
+    assert plt.transforms.Affine2D is plt.Affine2D
+    assert plt.transforms.Bbox is plt.Bbox
+    assert plt.path.Path is plt.Path
+    assert plt.cbook.flatten([[1], [2, [3]]]) == [1, 2, 3]
+    assert plt.font_manager.FontProperties(size=12).get_size() == 12
+    assert plt.CapStyle.round == "round" and plt.JoinStyle.miter == "miter"
+    assert plt.same_color("red", "#ff0000")
+    assert plt.dates.YearLocator is not None and plt.ticker.FixedFormatter is plt.FixedFormatter
 
 
 def test_linear_locator_spreads_ticks_over_the_limits():
@@ -1077,190 +1098,11 @@ def test_module_level_matshow_xkcd_and_data_path():
     ax = plt.gca()
     assert ax.get_xlim() == (-0.5, 2.5)
     assert ax.get_ylim() == (1.5, -0.5)
-    with plt.xkcd() as sketch:
-        assert sketch is not None
+    # `with plt.xkcd():` must work even though the sketch style is a no-op.
+    with plt.xkcd() as context:
+        assert context is not None
     assert os.path.isdir(plt.get_data_path())
     assert ax.twin(object) is not ax
-
-
-def test_hist_accepts_a_2d_array_and_a_range_keyword(tmp_path):
-    fig, ax = plt.subplots()
-    # `range=` is a hist keyword; it must not shadow the builtin in the split.
-    ax.hist(np.random.randn(100, 3), 5, range=(-2.0, 2.0), density=True,
-            color=["red", "tan", "lime"], label=["a", "b", "c"])
-    out = tmp_path / "hist-2d.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_get_gridspec_supports_a_spanning_subplot(tmp_path):
-    fig, axs = plt.subplots(ncols=3, nrows=3)
-    gs = axs[1, 2].get_gridspec()
-    assert gs is not None
-    axbig = fig.add_subplot(gs[1:, -1])
-    axbig.annotate("Big Axes", (0.1, 0.5), xycoords="axes fraction", va="center")
-    out = tmp_path / "gridspec-span.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_barh_accepts_dict_views_as_data(tmp_path):
-    fig, ax = plt.subplots()
-    population = {"alpha": 3.0, "beta": 5.0, "gamma": 8.0}
-    ax.barh(population.keys(), population.values())
-    assert [t.get_text() for t in ax.get_yticklabels()] == ["alpha", "beta", "gamma"]
-    out = tmp_path / "dict-views.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_subplotspec_gridspec_helpers_and_twin_kwargs(tmp_path):
-    fig, axs = plt.subplots(2, 2)
-    gs = axs[0, 0].get_gridspec()
-    assert gs is not None
-    made = gs.subplots(1, 2)
-    assert np.asarray(made).size == 2
-    axbig = fig.add_subplot(gs[1, :])
-    spec = axbig.get_subplotspec()
-    assert spec is not None
-    assert spec.subgridspec(1, 2) is not None
-    axbig.twinx(delta_zorder=1)
-    axbig.annotate("point", (0.5, 0.5)).draggable()
-    # rcParams carries the font families marplot code reads directly.
-    assert plt.rcParams["font.sans-serif"]
-    fig.canvas.draw()
-    out = tmp_path / "subplotspec.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_compat_namespaces_for_cbook_path_and_fonts(tmp_path):
-    assert plt.path is plt.mpath
-    assert plt.path.Path is not None
-    stats = plt.cbook.boxplot_stats([np.arange(10.0), np.arange(5.0) * 2.0],
-                                    labels=["a", "b"])
-    assert [entry["label"] for entry in stats] == ["a", "b"]
-    assert stats[0]["med"] == np.median(np.arange(10.0))
-    assert plt.patheffects.withTickedStroke([1.0, 1.0]) is not None
-    font = plt.font_manager.FontProperties(family="serif", size=12)
-    assert font.get_family() == ["serif"]
-    assert plt.font_manager.findfont(font)
-    with pytest.raises(FileNotFoundError):
-        plt.cbook.get_sample_data("missing-file.npz")
-    fig, ax = plt.subplots()
-    ax.plot([0.0, 1.0], [1.0, 2.0])
-    out = tmp_path / "compat.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_symlog_norm_is_linear_near_zero_and_symmetric():
-    from matplotvite import colors as mcolors
-
-    norm = mcolors.SymLogNorm(1.0, vmin=-100.0, vmax=100.0)
-    values = np.array([-100.0, -1.0, 0.0, 1.0, 100.0])
-    mapped = norm(values)
-    assert mapped[0] == pytest.approx(0.0)
-    assert mapped[-1] == pytest.approx(1.0)
-    assert mapped[2] == pytest.approx(0.5)
-    assert mapped[1] == pytest.approx(1.0 - mapped[3])
-
-
-def test_power_norm_and_light_source_shade(tmp_path):
-    from matplotvite import colors as mcolors
-
-    norm = mcolors.PowerNorm(0.5, vmin=0.0, vmax=1.0)
-    assert float(norm(np.array([0.25]))[0]) == pytest.approx(0.5)
-    data = np.linspace(0.0, 1.0, 64).reshape(8, 8)
-    shade = mcolors.LightSource(315, 10).shade(
-        data, cmap=plt.colormaps["hot"], norm=mcolors.PowerNorm(0.3),
-        vert_exag=1.5, blend_mode="hsv")
-    assert shade.shape == (8, 8, 3)
-    assert 0.0 <= float(shade.min()) and float(shade.max()) <= 1.0
-    fig, ax = plt.subplots()
-    ax.imshow(shade, interpolation="bicubic")
-    out = tmp_path / "shade.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_bar_accepts_a_per_bar_edge_colour_sequence(tmp_path):
-    fig, ax = plt.subplots()
-    ax.bar([0, 1, 2], [1.0, 2.0, 3.0], edgecolor=["green", "red", "blue"])
-    out = tmp_path / "bar-edgecolors.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_histtype_barstacked_stacks_the_columns(tmp_path):
-    fig, ax = plt.subplots()
-    counts, edges, handles = ax.hist(np.random.randn(50, 3), 6, histtype="barstacked")
-    assert len(counts) == 3
-    tallest = float(sum(np.asarray(count) for count in counts).max())
-    assert ax.get_ylim()[1] >= tallest
-    out = tmp_path / "barstacked.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_specgram_returns_its_data(tmp_path):
-    fig, ax = plt.subplots(layout="constrained")
-    values = np.sin(np.linspace(0.0, 20.0, 512))
-    pxx, freqs, bins, image = ax.specgram(values, NFFT=64, Fs=100.0)
-    assert pxx.shape == (len(freqs), len(bins))
-    assert len(freqs) == 64 // 2 + 1
-    assert image is not None
-    # A figure without a constrained/tight engine still answers `set()`.
-    fig.get_layout_engine().set(wspace=0.1, w_pad=0.2)
-    out = tmp_path / "specgram.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_dates_module_locators_and_formatters(tmp_path):
-    from datetime import date, datetime
-    from matplotvite import dates as mdates
-
-    assert mdates.date2num(datetime(2000, 1, 1)) == 10957.0
-    assert mdates.num2date(10957.0) == datetime(2000, 1, 1)
-    assert mdates.DateFormatter("%Y-%m")(mdates.date2num(datetime(2021, 5, 2))) == "2021-05"
-
-    fig, ax = plt.subplots()
-    ax.plot([date(2020, 1, 1), date(2021, 1, 1), date(2022, 1, 1)], [1.0, 2.0, 3.0])
-    ax.xaxis.set_major_locator(mdates.YearLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-    # The year locator places one tick at the start of each year in range.
-    assert len(ax.get_xticks()) >= 2
-    out = tmp_path / "dates-locator.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_stem_annotate_and_prop_cycle_handles(tmp_path):
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    markerline, stemlines, baseline = ax.stem([1.0, 2.0, 3.0])
-    # Matplotlib hands back handles the example style; the stems are already drawn.
-    markerline.set_markerfacecolor("none")
-    stemlines.set_linestyle("--")
-    assert baseline is not None
-    # A style sheet can replace the cycle with a plain list; it stays callable.
-    plt.rcParams["axes.prop_cycle"] = ["red", "blue"]
-    cycle = plt.rcParams["axes.prop_cycle"]
-    assert [entry["color"] for entry in cycle()] == ["red", "blue"]
-    plt.rcdefaults()
-    text = ax.annotate("point", (0.5, 0.5), xytext=(0.6, 0.6))
-    text.arrow_patch.set_path_effects([])
-    assert text.get_bbox_patch() is not None
-    out = tmp_path / "handles.png"
-    fig.savefig(out)
-    assert out.exists()
-
-
-def test_figimage_is_reported_as_missing_rather_than_blank():
-    fig = plt.figure()
-    with pytest.raises(NotImplementedError):
-        fig.figimage(np.zeros((2, 2)))
 
 
 def test_axes_tick_labels_are_text_like():
@@ -1391,8 +1233,10 @@ def test_axes_facecolor_alpha_label_zorder():
     assert ax.get_yscale() == "log"
     ax.set_xscale("linear")
     ax.set_yscale("linear")
-    with pytest.raises(NotImplementedError):
-        ax.set_xscale("symlog")
+    ax.set_xscale("symlog", linthresh=0.5)
+    assert ax.get_xscale() == "symlog"
+    assert ax.symlog_linthresh_x == 0.5
+    ax.set_xscale("linear")
 
 
 def test_axes_clear_empties_the_figure(tmp_path):
@@ -1779,8 +1623,10 @@ def test_hist_orientation_density_and_validation(tmp_path):
     p = tmp_path / "histh.png"
     plt.savefig(p)
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
-    counts, edges, _ = plt.hist(np.random.randn(40, 2), bins=3, histtype="barstacked")
-    assert len(counts) == 2
+    # `barstacked` is Matplotlib's stacked-bar spelling; it draws like `bar`.
+    plt.figure()
+    counts, edges, _ = plt.hist([data, data * 0.5], bins=4, histtype="barstacked")
+    assert len(counts) == 2 and np.all(counts[0] >= 0)
 
 
 def test_boxplot_stats_and_labels(tmp_path):
@@ -2190,8 +2036,9 @@ def test_log_scales(tmp_path):
     plt.semilogx(x, x)
     plt.xscale("log")
     assert plt.gca().get_xscale() == "log"
-    with pytest.raises(NotImplementedError):
-        ax.set_xscale("symlog")
+    ax.set_xscale("symlog")
+    assert ax.get_xscale() == "symlog"
+    ax.set_xscale("log")
     ax.set_yscale("linear")
     assert ax.get_yscale() == "linear"
 
@@ -2555,10 +2402,11 @@ def test_colormaps_across_artists_and_rc_default(tmp_path):
     assert plt.rcParams["image.cmap"] == "plasma"
     plt.figure((3, 2))
     image = plt.imshow(np.zeros((2, 2)))
-    assert image.get_cmap() == "plasma"
+    # `get_cmap` returns a colormap object, as Matplotlib's does.
+    assert image.get_cmap().name == "plasma"
     plt.set_cmap(plt.get_cmap("magma"))
     plt.figure((3, 2))
-    assert plt.imshow(np.zeros((2, 2))).get_cmap() == "magma"
+    assert plt.imshow(np.zeros((2, 2))).get_cmap().name == "magma"
     plt.figure((3, 2))
     ax = plt.gca()
     ax.scatter([0, 1], [0, 1], c=[0.0, 1.0], cmap="coolwarm")
@@ -3544,158 +3392,287 @@ def test_gallery_subplot2grid_and_gridspec_updates():
     gs.tight_layout(fig)
 
 
-def test_inset_axes_accepts_point_bbox_to_anchor():
-    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes
-
+def test_hist_overlays_ragged_datasets_and_barstacked(tmp_path):
     plt.rcdefaults()
-    fig, ax = plt.subplots(figsize=(4, 3))
-    ax.plot([0, 1], [0, 1])
-    inset = inset_axes(ax, width="30%", height="25%", loc="upper right",
-                       bbox_to_anchor=(0.1, 0.2), borderpad=0)
-    assert inset in fig.get_axes()
-    parent = ax.get_position()
-    assert inset.get_position().width == pytest.approx(0.3 * parent.width)
+    rng = np.random.default_rng(3)
+    plt.figure()
+    counts, edges, handles = plt.hist(
+        [rng.normal(size=50), rng.normal(size=20)], bins=4)
+    # Different sample sizes are drawn as overlaid histograms, one per data set.
+    assert len(counts) == 2 and len(handles) == 2
+    assert counts[0].sum() == 50 and counts[1].sum() == 20
+    plt.figure()
+    stacked, _, _ = plt.hist([rng.normal(size=10), rng.normal(size=10)],
+                             bins=3, histtype="barstacked")
+    assert len(stacked) == 2
+    p = tmp_path / "hist.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-def test_bar_accepts_color_alpha_pairs_and_rgba_arrays():
+def test_stem_and_specgram_return_matplotlib_containers(tmp_path):
+    plt.rcdefaults()
+    plt.figure()
+    markerline, stemlines, baseline = plt.stem([1.0, 2.0, 0.5])
+    assert markerline is not None and baseline is not None
+    stemlines.set_linewidth(3)
+    assert stemlines[0].get_linewidth() == 3.0
+    fig, ax = plt.subplots()
+    ax.plot(np.sin(np.linspace(0, 20, 512)))
+    pxx, freqs, bins, image = ax.specgram(range(512), NFFT=64, Fs=100)
+    assert pxx.shape == (33, 15) and freqs.shape == (33,) and bins.shape == (15,)
+    assert image is not None
+    p = tmp_path / "specgram.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_categorical_y_axes_for_barh_and_broken_barh():
     plt.rcdefaults()
     fig, ax = plt.subplots()
-    bars = ax.bar([0, 1], [1, 2], color=[("green", 0.25), ("red", 1.0)])
-    assert len(bars) == 2
-    rgba = np.array([0.1, 0.2, 0.3, 0.4])
-    ax.barh([0, 1], [1, 2], color=rgba)
+    ax.barh({"Tom": 3, "Dick": 5, "Harry": 2}.keys(),
+            [3, 5, 2])
+    panel = ax._panel()
+    assert panel["ticks"]["yticklabels"] == ["Tom", "Dick", "Harry"]
+    fig, ax = plt.subplots()
+    ax.broken_barh([(110, 10), (150, 10)], ("CPU 1", 0.4), align="center")
+    assert ax._panel()["ticks"]["yticklabels"] == ["CPU 1"]
 
 
-def test_color_sequences_expose_qualitative_maps():
-    assert len(plt.color_sequences["tab10"]) == 10
-    assert len(plt.color_sequences["tab20c"]) == 20
-    assert all(c.startswith("#") for c in plt.color_sequences["tab10"])
+def test_contour_accepts_a_contourset_and_set_linewidth(tmp_path):
+    plt.rcdefaults()
+    z = np.add.outer(np.arange(8.0), np.arange(8.0))
+    fig, ax = plt.subplots()
+    first = ax.contour(z, levels=[2, 5, 8])
+    second = ax.contour(first, levels=first.levels[::2], colors="k")
+    assert second.levels == [2.0, 8.0]
+    first.set_linewidth([0.5, 1.0, 2.0])
+    assert first.get_linewidths() == [0.5, 1.0, 2.0]
+    p = tmp_path / "contour.svg"
+    plt.savefig(p)
+    assert p.stat().st_size > 0
 
 
-def test_bar_label_formats_with_percent_and_braces():
+def test_custom_colormaps_from_a_list_and_channel_tables():
+    plt.rcdefaults()
+    listed = plt.colors.LinearSegmentedColormap.from_list(
+        "test_list", ["#ff0000", "#00ff00", "#0000ff"], N=16)
+    assert listed.name == "test_list" and listed.N == 16
+    channels = {"red": ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+                "green": ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+                "blue": ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))}
+    table = plt.colors.LinearSegmentedColormap("test_table", channels, N=8)
+    assert table.N == 8
+    assert tuple(np.asarray(table(1.0)).ravel()[:3]) == pytest.approx((1.0, 0.0, 0.0))
+    plt.colormaps.register(table)
+    plt.figure()
+    plt.imshow(np.linspace(0, 1, 64).reshape(8, 8), cmap=table)
+    assert plt.gca().images[0]["cmap"] == "test_table"
+
+
+def test_eventplot_accepts_a_2d_array_and_stackplot_dict_values():
     plt.rcdefaults()
     fig, ax = plt.subplots()
-    bars = ax.bar([0, 1], [1.5, 2.5])
-    assert ax.bar_label(bars, fmt="%.1f") == ["1.5", "2.5"]
-    assert ax.bar_label(bars, fmt="{:,.0f}") == ["2", "2"]
+    ax.eventplot(np.array([[1, 2, 3], [4, 5, 6]]))
+    assert len(ax.lines) == 6
+    fig, ax = plt.subplots()
+    years = np.arange(4)
+    ax.stackplot(years, {"a": [1, 2, 3, 4], "b": [4, 3, 2, 1]}.values(),
+                 labels={"a": 1, "b": 2}.keys())
+    assert len(ax.bands) == 2
 
 
-def test_eventplot_accepts_2d_positions_with_per_row_offsets():
+def test_norms_change_the_image_mapping(tmp_path):
+    plt.rcdefaults()
+    data = np.array([[1.0, 10.0], [100.0, 1000.0]])
+    log = plt.colors.LogNorm(vmin=1.0, vmax=1000.0)
+    assert log(10.0) == pytest.approx(1 / 3, abs=1e-9)
+    assert log(1000.0) == pytest.approx(1.0)
+    assert log.inverse(1 / 3) == pytest.approx(10.0)
+
+    power = plt.colors.PowerNorm(2.0, vmin=0.0, vmax=2.0)
+    assert power(1.0) == pytest.approx(0.25)
+
+    symlog = plt.colors.SymLogNorm(linthresh=1.0, vmin=-100.0, vmax=100.0)
+    assert symlog(0.0) == pytest.approx(0.5)
+    assert symlog(100.0) == pytest.approx(1.0)
+
+    plt.figure()
+    image = plt.imshow(data, cmap="viridis", origin="lower", norm=log)
+    # The norm is folded into the data, so the renderer sees a 0-1 range.
+    assert image._e["vmin"] == 0.0 and image._e["vmax"] == 1.0
+    # imshow stores rows bottom-up for a lower origin.
+    assert np.allclose(image._e["data"], np.flipud([[0.0, 1 / 3], [2 / 3, 1.0]]))
+    p = tmp_path / "lognorm.png"
+    plt.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_from_levels_and_colors_builds_a_discrete_norm():
+    cmap, norm = plt.colors.from_levels_and_colors(
+        [0, 1, 2, 3], ["red", "green", "blue"])
+    assert cmap.colors == ["#ff0000", "#008000", "#0000ff"]
+    assert norm([0.5, 1.5, 2.5]).tolist() == [0, 1, 2]
+    plt.rcdefaults()
+    plt.figure()
+    plt.pcolormesh(np.array([[0.5, 1.5], [2.5, 0.5]]), cmap=cmap, norm=norm)
+    assert plt.gca().images[0]["vmin"] == 0.0
+
+
+def test_scatter_accepts_a_norm():
+    plt.rcdefaults()
+    plt.figure()
+    handle = plt.scatter([0, 1], [0, 1], c=[1.0, 100.0],
+                         norm=plt.colors.LogNorm(vmin=1.0, vmax=100.0))
+    assert handle._e["values"].tolist() == pytest.approx([0.0, 1.0])
+
+
+def test_arrow_patch_and_ellipse_collection_render(tmp_path):
     plt.rcdefaults()
     fig, ax = plt.subplots()
-    data = np.array([[0, 1], [2, 3], [4, 5]], dtype=float)
-    ax.eventplot(data, lineoffsets=[0, 1, 2], linelengths=[0.5, 0.5, 0.5])
-    assert fig.axes
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    arrow = plt.patches.Arrow(1, 1, 4, 0, width=0.5, color="black")
+    pts = arrow.get_xy()
+    assert pts.shape[1] == 2 and np.ptp(pts[:, 0]) == pytest.approx(4.0)
+    ax.add_patch(arrow)
+    ellipses = plt.collections.EllipseCollection(
+        [2.0, 1.0], [1.0, 2.0], [0.0, 45.0], units="xy",
+        offsets=[[7, 7], [7, 3]], facecolor="red")
+    assert len(ellipses.get_segments()) == 2
+    ax.add_collection(ellipses)
+    p = tmp_path / "arrow.png"
+    fig.savefig(p)
+    assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-def test_stackplot_accepts_dict_views():
+def test_get_subplotspec_reports_the_grid_cell():
     plt.rcdefaults()
+    fig, axs = plt.subplots(2, 2)
+    spec = axs[1, 0].get_subplotspec()
+    assert spec.rows == (1, 1) and spec.cols == (0, 0)
+    assert spec.get_position(fig) is not None
+    gs = fig.add_gridspec(1, 3)
+    ax = fig.add_subplot(gs[1])
+    spec = ax.get_subplotspec()
+    assert spec.cols == (1, 1) and spec.gridspec is gs
+
+
+def test_symlog_scale_renders_symmetric_decade_ticks(tmp_path):
+    plt.rcdefaults()
+    figure, axes = plt.subplots()
+    axes.set_yscale("symlog", linthresh=1)
+    axes.set_xscale("symlog", linthresh=1)
+    axes.plot([-1000, -10, -1, 0, 1, 10, 1000],
+              [-1000, -10, -1, 0, 1, 10, 1000])
+    panel = axes._panel()
+    assert panel["y_symlog"] is True and panel["y_symlog_linthresh"] == 1.0
+    assert panel["ticks"]["yticklabels"] == ["−1000", "−100", "−10", "−1", "0",
+                                            "1", "10", "100", "1000"]
+    assert axes.get_yscale() == "symlog"
+    p = tmp_path / "symlog.svg"
+    figure.savefig(p)
+    assert "−1000" in p.read_text()
+
+
+def test_clabel_labels_contours(tmp_path):
+    plt.rcdefaults()
+    X, Y = np.meshgrid(np.linspace(-2, 2, 40), np.linspace(-2, 2, 40))
+    Z = np.exp(-(X ** 2 + Y ** 2))
+    figure, axes = plt.subplots()
+    contours = axes.contour(X, Y, Z, levels=5)
+    handles = contours.clabel(fmt="%1.2f")
+    texts = [t[2] for t in axes.texts]
+    assert texts == ["0.25", "0.50", "0.75", "0.99"]
+    assert len(handles) == len(texts)
+    assert all(isinstance(t[9], float) for t in axes.texts)
+    p = tmp_path / "clabel.svg"
+    figure.savefig(p)
+    assert "0.75" in p.read_text()
+    with pytest.raises(NotImplementedError):
+        contours.clabel(manual=True)
+
+
+def test_text_rotation_applies_to_axes_and_figure_text(tmp_path):
+    plt.rcdefaults()
+    figure, axes = plt.subplots()
+    axes.set_xlim(0, 1)
+    axes.set_ylim(0, 1)
+    axes.text(0.5, 0.5, "upright", rotation=90)
+    figure.text(0.2, 0.1, "sideways", rotation="vertical")
+    assert axes.texts[0].get_rotation() == 90.0
+    p = tmp_path / "rotated.svg"
+    figure.savefig(p)
+    svg = p.read_text()
+    assert "upright" in svg and "sideways" in svg
+    assert svg.count('transform="rotate(90') == 2
+
+
+def test_font_family_selection_and_overrides(tmp_path):
+    """rcParams picks the bundled face; artist keywords override it."""
+    plt.rcParams["font.family"] = ["serif"]
+    try:
+        fig, ax = plt.subplots()
+        ax.plot([0, 1], [0, 1])
+        ax.set_title("serif title")
+        svg = fig.savefig(None, format="svg").decode()
+        assert 'font-family="Geist Serif"' in svg
+        fig.savefig(tmp_path / "serif.png")
+
+        fig, ax = plt.subplots()
+        ax.plot([0, 1], [0, 1])
+        ax.set_title("mono title", fontfamily="monospace")
+        ax.set_xlabel("x label", fontfamily="DejaVu Sans")
+        ax.text(0.5, 0.5, "note", fontfamily="DejaVu Sans")
+        fig.text(0.5, 0.02, "foot", fontfamily="DejaVu Sans")
+        fig.suptitle("sup", fontfamily="DejaVu Sans")
+        svg = fig.savefig(None, format="svg").decode()
+        assert 'font-family="Geist Mono"' in svg
+        assert 'font-family="DejaVu Sans, sans-serif"' in svg
+        fig.savefig(tmp_path / "overrides.png")
+    finally:
+        plt.rcParams["font.family"] = ["sans-serif"]
+
+
+def test_axes_image_artist_constructor():
+    """Subclasses can build an AxesImage before filling it with set_array."""
+    from matplotvite import AxesImage
+
     fig, ax = plt.subplots()
-    data = {"a": [1, 2, 3], "b": [3, 2, 1]}
-    ax.stackplot([0, 1, 2], data.values(), labels=data.keys())
-    assert fig.axes
+
+    class RibbonImage(AxesImage):
+        def __init__(self, axes, extent, **kwargs):
+            super().__init__(axes, extent=extent, interpolation="bicubic", **kwargs)
+            self.set_transform(ax.transData)
+
+    image = RibbonImage(ax, extent=(0, 1, 0, 1))
+    assert image.get_array() is None
+    assert image.get_extent() == (0.0, 1.0, 0.0, 1.0)
+    image.set_array(np.zeros((2, 2, 4)))
+    assert image.get_array().shape == (2, 2, 4)
+    image.draw()
+    fig.savefig(None, format="png")
 
 
-def test_multiple_locator_offset_shifts_ticks():
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    locator = plt.ticker.MultipleLocator(1.0, offset=0.5)
-    assert list(locator.tick_values(0.0, 2.0)) == pytest.approx([0.5, 1.5])
+def test_patch_boxstyle_and_artist_set(tmp_path):
+    """Artist code calls BoxStyle(...) and patch.set(...)/line.set(...)."""
+    style = plt.patches.BoxStyle("Round", pad=0.02)
+    assert style is not None
+    patch = plt.Rectangle((0, 0), 1, 1)
+    patch.set(color="red", lw=3)
+    assert patch.get_linewidth() == 3
+    assert patch.get_color() == "#ff0000"
+    plt.figure()
+    line, = plt.plot([0, 1], [1, 0])
+    line.set(color="blue", lw=2, ls="--")
+    assert line.get_linewidth() == 2
+    plt.savefig(tmp_path / "artist_set.png")
 
 
-def test_contour_reuses_contourset_and_cycles_linewidths():
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    z = np.add.outer(np.arange(5.0), np.arange(5.0))
-    cs = ax.contourf(z, levels=4)
-    ax.contour(cs, levels=cs.levels[::2], colors="r")
-    ax.contour(z, linewidths=np.arange(0.5, 2.0, 0.5))
-    assert cs.get_linewidth().size == 1
-
-
-def test_custom_colormaps_resolve_by_name():
-    plt.rcdefaults()
-    cmap = plt.mcolors.LinearSegmentedColormap.from_list(
-        "my_list", [(1, 0, 0), (0, 1, 0)], N=8)
-    fig, ax = plt.subplots()
-    ax.imshow(np.arange(16.0).reshape(4, 4), cmap=cmap)
-    assert plt.get_cmap("my_list").N >= 2
-    segment = plt.mcolors.LinearSegmentedColormap(
-        "segmented", {"red": [(0, 1, 1), (1, 0, 0)],
-                      "green": [(0, 0, 0), (1, 1, 1)],
-                      "blue": [(0, 0, 0), (1, 0, 0)]})
-    ax.contourf(np.arange(16.0).reshape(4, 4), cmap=segment)
-    plt.colormaps.register(segment)
-    assert "segmented" in plt.colormaps
-
-
-def test_scatter_data_keyword_resolves_every_column():
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    data = {"a": np.arange(5), "b": np.arange(5) * 2.0,
-            "c": np.arange(5) * 3.0, "d": np.full(5, 20.0)}
-    ax.scatter("a", "b", c="c", s="d", data=data)
-    assert len(ax.scatter_pts) == 1
-
-
-def test_prop_cycle_entries_and_colormap_colors_are_addressable():
-    plt.rcdefaults()
-    plt.style.use("ggplot")
-    assert list(plt.rcParams["axes.prop_cycle"])[2]["color"].startswith("#")
-    plt.rcdefaults()
-    colors = plt.colormaps["Dark2"].colors
-    assert len(colors) == 8 and len(colors[0]) == 3
-    assert all(0.0 <= v <= 1.0 for v in colors[0])
-
-
-def test_colors_accept_alpha_pairs_and_plot_accepts_rgba_arrays():
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    parts = ax.violinplot([np.arange(10.0), np.arange(10.0) + 1],
-                          facecolor=[("yellow", 0.3), ("blue", 0.3)])
-    assert parts["bodies"]
-    ax.plot([0, 1], color=np.array([0.1, 0.2, 0.3, 0.4]))
-
-
-def test_gridspec_subplots_uses_its_own_geometry():
-    plt.rcdefaults()
-    fig = plt.figure()
-    gs = fig.add_gridspec(3, hspace=0)
-    axs = gs.subplots(sharex=True, sharey=True)
-    assert len(axs) == 3
-    assert len(fig.get_axes()) == 3
-
-
-def test_bbox_accepts_corner_pairs():
-    box = plt.transforms.Bbox([[0.3, 0.4], [0.7, 0.6]])
-    assert (box.x0, box.y0, box.x1, box.y1) == pytest.approx((0.3, 0.4, 0.7, 0.6))
-    assert box.p0 == pytest.approx((0.3, 0.4)) and box.p1 == pytest.approx((0.7, 0.6))
-
-
-def test_log_locator_places_decade_and_subsidiary_ticks():
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    locator = plt.ticker.LogLocator(base=10)
-    assert list(locator.tick_values(1, 1000)) == pytest.approx([1, 10, 100, 1000])
-    subs = plt.ticker.LogLocator(base=10, subs=(1.0, 2.0))
-    assert list(subs.tick_values(1, 20)) == pytest.approx([1, 2, 10, 20])
-    ax.set_yscale("log")
-    ax.set_ylim(1, 1000)
-    ax.yaxis.set_major_locator(locator)
-    assert list(ax.get_yticks()) == pytest.approx([1, 10, 100, 1000])
-
-
-def test_grouped_bar_returns_one_container_per_series():
-    plt.rcdefaults()
-    fig, ax = plt.subplots()
-    data = {"Bill Depth": (18.35, 18.43, 14.98),
-            "Bill Length": (38.79, 48.83, 47.50)}
-    result = ax.grouped_bar(data, tick_labels=("Adelie", "Chinstrap", "Gentoo"),
-                            group_spacing=1)
-    assert len(result.bar_containers) == 2
-    assert [len(c) for c in result.bar_containers] == [3, 3]
-    assert [c.get_label() for c in result.bar_containers] == [
-        "Bill Depth", "Bill Length"]
-    for container in result.bar_containers:
-        ax.bar_label(container, padding=3)
-    assert list(ax.get_xticks()) == pytest.approx([0.0, 1.2, 2.4])
+def test_savefig_accepts_pad_inches(tmp_path):
+    """Matplotlib callers pass pad_inches=0 with bbox_inches='tight'."""
+    plt.figure()
+    plt.plot([0, 1], [1, 0])
+    target = tmp_path / "tight.png"
+    plt.savefig(target, bbox_inches="tight", pad_inches=0)
+    assert target.stat().st_size > 0

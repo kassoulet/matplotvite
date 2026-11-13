@@ -31,7 +31,9 @@ pub(crate) fn draw_label<DB: DrawingBackend>(
     ha: &str,
     va: &str,
     bbox: Option<&TextBBox>,
+    rotation: f64,
     line_scale: f64,
+    family: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -115,7 +117,15 @@ where
             radius,
         )?;
     }
-    let style = ("sans-serif", fs.round() as u32).into_font().color(&col);
+    let deg = rotation.rem_euclid(360.0);
+    let mut style = (family, fs.round() as u32).into_font().color(&col);
+    if (45.0..135.0).contains(&deg) {
+        style = style.transform(FontTransform::Rotate90);
+    } else if (135.0..225.0).contains(&deg) {
+        style = style.transform(FontTransform::Rotate180);
+    } else if (225.0..315.0).contains(&deg) {
+        style = style.transform(FontTransform::Rotate270);
+    }
     for (index, line) in lines.iter().enumerate() {
         if line.is_empty() {
             continue;
@@ -222,8 +232,21 @@ where
     Ok(())
 }
 
-fn rotated_style(size: f64, col: RGBAColor, rotation: f64, dpi: f64) -> TextStyle<'static> {
-    let style = ("sans-serif", text_px(size.max(6.0), dpi).round() as u32)
+/// Symmetric-log transform used by `symlog` axes: linear near zero, then
+/// logarithmic on both sides of `±linthresh`.
+fn symlog(value: f64, linthresh: f64) -> f64 {
+    let l = if linthresh > 0.0 { linthresh } else { 1.0 };
+    value.signum() * l * (1.0 + value.abs() / l).ln()
+}
+
+fn rotated_style<'a>(
+    size: f64,
+    col: RGBAColor,
+    rotation: f64,
+    dpi: f64,
+    family: &'a str,
+) -> TextStyle<'a> {
+    let style = (family, text_px(size.max(6.0), dpi).round() as u32)
         .into_font()
         .color(&col);
     let deg = rotation.rem_euclid(360.0);
@@ -271,6 +294,8 @@ where
     let to_chart_x = |v: f64| {
         if p.x_log {
             v.max(f64::MIN_POSITIVE).log(log_base)
+        } else if p.x_symlog {
+            symlog(v, p.x_symlog_linthresh)
         } else {
             v
         }
@@ -278,6 +303,8 @@ where
     let to_chart_y = |v: f64| {
         if p.y_log {
             v.max(f64::MIN_POSITIVE).log(log_base)
+        } else if p.y_symlog {
+            symlog(v, p.y_symlog_linthresh)
         } else {
             v
         }
@@ -388,8 +415,14 @@ where
                 xtick_col.stroke_width(xtick_w),
             ))?;
             if !label.is_empty() && !p.ticks.hide_xlabels {
-                let style = rotated_style(xstyle.labelsize, xlabel_col, xstyle.rotation, dpi)
-                    .pos(Pos::new(HPos::Center, vpos));
+                let style = rotated_style(
+                    xstyle.labelsize,
+                    xlabel_col,
+                    xstyle.rotation,
+                    dpi,
+                    &p.font_family,
+                )
+                .pos(Pos::new(HPos::Center, vpos));
                 area.draw(&Text::new(label.clone(), (px, label_y), style))?;
             }
         }
@@ -423,8 +456,14 @@ where
                 ytick_col.stroke_width(ytick_w),
             ))?;
             if !label.is_empty() && !p.ticks.hide_ylabels {
-                let style = rotated_style(ystyle.labelsize, ylabel_col, ystyle.rotation, dpi)
-                    .pos(Pos::new(hpos, VPos::Center));
+                let style = rotated_style(
+                    ystyle.labelsize,
+                    ylabel_col,
+                    ystyle.rotation,
+                    dpi,
+                    &p.font_family,
+                )
+                .pos(Pos::new(hpos, VPos::Center));
                 area.draw(&Text::new(label.clone(), (label_x, py), style))?;
             }
         }
@@ -434,8 +473,9 @@ where
     let xlabel_col = p.xlabel_color.as_deref().map(color).unwrap_or(fg);
     if side == "right" && !p.ylabel.is_empty() {
         let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
-        let style =
-            rotated_style(size, ylabel_col, 270.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        let family = p.ylabel_family.as_deref().unwrap_or(&p.font_family);
+        let style = rotated_style(size, ylabel_col, 270.0, dpi, family)
+            .pos(Pos::new(HPos::Center, VPos::Center));
         // Sit just past the widest right-hand tick label (matplotlib's
         // labelpad of 4 pt) instead of at a fixed offset in the reserved gap.
         let label_px = text_px(ystyle.labelsize.max(6.0), dpi);
@@ -451,8 +491,14 @@ where
         ))?;
     } else if side == "top" && !p.xlabel.is_empty() {
         let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
-        let style =
-            rotated_style(size, xlabel_col, 0.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+        let style = rotated_style(
+            size,
+            xlabel_col,
+            0.0,
+            dpi,
+            p.xlabel_family.as_deref().unwrap_or(&p.font_family),
+        )
+        .pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
             p.xlabel.clone(),
             ((left + right) / 2, top - gap + 10),
@@ -461,8 +507,14 @@ where
     } else if side.is_empty() {
         if p.ylabel_color.is_some() && !p.ylabel.is_empty() {
             let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
-            let style = rotated_style(size, ylabel_col, 270.0, dpi)
-                .pos(Pos::new(HPos::Center, VPos::Center));
+            let style = rotated_style(
+                size,
+                ylabel_col,
+                270.0,
+                dpi,
+                p.ylabel_family.as_deref().unwrap_or(&p.font_family),
+            )
+            .pos(Pos::new(HPos::Center, VPos::Center));
             // Sit just left of the widest tick label instead of 52 px out,
             // which left a visible hole between the label and its ticks.
             let label_px = text_px(ystyle.labelsize.max(6.0), dpi);
@@ -479,8 +531,14 @@ where
         }
         if p.xlabel_color.is_some() && !p.xlabel.is_empty() {
             let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
-            let style =
-                rotated_style(size, xlabel_col, 0.0, dpi).pos(Pos::new(HPos::Center, VPos::Center));
+            let style = rotated_style(
+                size,
+                xlabel_col,
+                0.0,
+                dpi,
+                p.xlabel_family.as_deref().unwrap_or(&p.font_family),
+            )
+            .pos(Pos::new(HPos::Center, VPos::Center));
             area.draw(&Text::new(
                 p.xlabel.clone(),
                 ((left + right) / 2, bottom + 34),
@@ -760,7 +818,7 @@ where
         )?;
     }
     if !opts.title.is_empty() {
-        let style = ("sans-serif", title_fs.round() as u32)
+        let style = (opts.family.as_str(), title_fs.round() as u32)
             .into_font()
             .color(&text);
         area.draw(&Text::new(
@@ -816,7 +874,9 @@ where
                 area.draw(&Circle::new(((cx + 10.0) as i32, cy as i32), 5, c.filled()))?
             }
         }
-        let style = ("sans-serif", fs.round() as u32).into_font().color(&text);
+        let style = (opts.family.as_str(), fs.round() as u32)
+            .into_font()
+            .color(&text);
         area.draw(&Text::new(
             entry.label.clone(),
             ((cx + 28.0) as i32, cy as i32),
@@ -1202,6 +1262,7 @@ where
 /// A vertical gradient strip with min/mid/max ticks and an optional axis label.
 /// `plot` is the main chart's plotting rectangle in panel-local pixels; the
 /// strip spans exactly that vertical range, like a matplotlib colorbar.
+#[allow(clippy::too_many_arguments)]
 fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     plot: (i32, i32, i32, i32),
@@ -1210,6 +1271,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     vmax: f64,
     label: &str,
     line_scale: f64,
+    family: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -1250,7 +1312,9 @@ where
                 "left",
                 "center",
                 None,
+                0.0,
                 line_scale,
+                family,
             )?;
         }
     }
@@ -1265,7 +1329,9 @@ where
             "left",
             "top",
             None,
+            0.0,
             line_scale,
+            family,
         )?;
     }
     Ok(())
@@ -1641,6 +1707,8 @@ where
     let tx = |v: f64| {
         if p.x_log {
             v.max(f64::MIN_POSITIVE).log(base)
+        } else if p.x_symlog {
+            symlog(v, p.x_symlog_linthresh)
         } else {
             v
         }
@@ -1648,17 +1716,19 @@ where
     let ty = |v: f64| {
         if p.y_log {
             v.max(f64::MIN_POSITIVE).log(base)
+        } else if p.y_symlog {
+            symlog(v, p.y_symlog_linthresh)
         } else {
             v
         }
     };
-    if p.x_log {
+    if p.x_log || p.x_symlog {
         (x0, x1) = (tx(x0), tx(x1));
         if x1 <= x0 {
             x1 = x0 + 1.0;
         }
     }
-    if p.y_log {
+    if p.y_log || p.y_symlog {
         (y0, y1) = (ty(y0), ty(y1));
         if y1 <= y0 {
             y1 = y0 + 1.0;
@@ -1690,6 +1760,12 @@ where
                 || p.grid.alpha.is_some()
                 || p.grid.linestyle.is_some()));
     let exact_axes = p.axes_bounds;
+    // Fixed margins at 25 px + 45 px label bands only fit tall panels. On a
+    // short subplot row they consume the whole cell, leaving a few pixels for
+    // the data (Matplotlib budgets these margins as a fraction of the axes).
+    let panel_h = area.dim_in_pixel().1 as f64;
+    let margin = (panel_h / 10.0).clamp(4.0, 25.0).round() as u32;
+    let label_area = (panel_h / 5.0).clamp(8.0, 45.0).round() as u32;
     let shrunk_area;
     let mut builder = ChartBuilder::on(area);
     if exact_axes {
@@ -1700,7 +1776,7 @@ where
         builder.margin_right(25);
         builder.margin_top(25);
     } else {
-        builder.margin(25);
+        builder.margin(margin);
         if colorbar.is_some() {
             builder.margin_right(125);
         } else if twin_reserve == "y" {
@@ -1714,11 +1790,19 @@ where
     // An empty caption still reserves a title band in plotters, which shifts
     // untitled panels down and breaks axes-rectangle placement.
     if p.aspect.is_none() && !p.title.is_empty() {
-        builder.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
+        builder.caption(
+            &p.title,
+            (
+                p.title_family.as_deref().unwrap_or(&p.font_family),
+                title_size,
+            )
+                .into_font()
+                .color(&fg),
+        );
     }
     let mut chart = builder
-        .x_label_area_size(if exact_axes { 30 } else { 45 })
-        .y_label_area_size(if exact_axes { 40 } else { 45 })
+        .x_label_area_size(if exact_axes { 30 } else { label_area })
+        .y_label_area_size(if exact_axes { 40 } else { label_area })
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
@@ -1748,7 +1832,7 @@ where
             Some(a) => ChartBuilder::on(a),
             None => ChartBuilder::on(area),
         };
-        rb.margin(25);
+        rb.margin(margin);
         if colorbar.is_some() {
             rb.margin_right(125);
         } else if twin_reserve == "y" {
@@ -1757,11 +1841,19 @@ where
             rb.margin_top(10 + twin_gap_px);
         }
         if !p.title.is_empty() {
-            rb.caption(&p.title, ("sans-serif", title_size).into_font().color(&fg));
+            rb.caption(
+                &p.title,
+                (
+                    p.title_family.as_deref().unwrap_or(&p.font_family),
+                    title_size,
+                )
+                    .into_font()
+                    .color(&fg),
+            );
         }
         chart = rb
-            .x_label_area_size(45)
-            .y_label_area_size(45)
+            .x_label_area_size(label_area)
+            .y_label_area_size(label_area)
             .build_cartesian_2d(x0..x1, y0..y1)?;
     }
     if let Some(fc) = &p.facecolor {
@@ -1821,18 +1913,20 @@ where
             // contributes the axis spines and descriptions.
             mesh.disable_mesh().set_all_tick_mark_size(0);
         }
-        let x_desc = if twin_side.is_empty() && p.xlabel_color.is_none() {
-            p.xlabel.as_str()
-        } else {
-            ""
-        };
-        let y_desc = if twin_side.is_empty() && p.ylabel_color.is_none() {
-            p.ylabel.as_str()
-        } else {
-            ""
-        };
-        mesh.label_style(("sans-serif", label_size).into_font().color(&fg))
-            .axis_desc_style(("sans-serif", desc_size).into_font().color(&fg))
+        let x_desc =
+            if twin_side.is_empty() && p.xlabel_color.is_none() && p.xlabel_family.is_none() {
+                p.xlabel.as_str()
+            } else {
+                ""
+            };
+        let y_desc =
+            if twin_side.is_empty() && p.ylabel_color.is_none() && p.ylabel_family.is_none() {
+                p.ylabel.as_str()
+            } else {
+                ""
+            };
+        mesh.label_style((p.font_family.as_str(), label_size).into_font().color(&fg))
+            .axis_desc_style((p.font_family.as_str(), desc_size).into_font().color(&fg))
             .axis_style(fg.stroke_width(1))
             .x_labels(8)
             .y_labels(8)
@@ -2010,7 +2104,25 @@ where
                     let col =
                         RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
                             .mix(alpha);
-                    area.draw(&Polygon::new(pts, col.filled()))?;
+                    // Matplotlib's hexbin uses edgecolors="face". Plotters'
+                    // polygon ignores strokes, so grow each cell about its
+                    // centre instead: adjacent fills overlap and the white
+                    // antialiased seam between them disappears.
+                    let n = pts.len() as f64;
+                    let cx = pts.iter().map(|p| p.0 as f64).sum::<f64>() / n;
+                    let cy = pts.iter().map(|p| p.1 as f64).sum::<f64>() / n;
+                    let grown: Vec<(i32, i32)> = pts
+                        .iter()
+                        .map(|&(x, y)| {
+                            let (dx, dy) = (x as f64 - cx, y as f64 - cy);
+                            let len = (dx * dx + dy * dy).sqrt().max(1.0);
+                            (
+                                (x as f64 + dx / len).round() as i32,
+                                (y as f64 + dy / len).round() as i32,
+                            )
+                        })
+                        .collect();
+                    area.draw(&Polygon::new(grown, col.filled()))?;
                 }
                 if !band.label.is_empty() {
                     let hex = &band.cell_colors[..6];
@@ -2075,9 +2187,11 @@ where
                     continue;
                 }
                 area.draw(&Rectangle::new([(xl, yt), (xr, yb)], col.filled()))?;
-                if let Some(ec) = &bars.edgecolor {
-                    let ecol = color(ec).stroke_width(1);
-                    area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
+                if let Some(edges) = &bars.edgecolor {
+                    if let Some(ec) = edges.get(i % edges.len().max(1)) {
+                        let ecol = color(ec).stroke_width(1);
+                        area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
+                    }
                 }
             }
             if !bars.label.is_empty() {
@@ -2766,8 +2880,13 @@ where
         // map_coordinate yields canvas-absolute pixels; the panel's own area re-applies
         // its origin, so anything drawn on it shifts back to cell-local pixels.
         let base = area.get_base_pixel();
-        for (x, y, s, c, size, ha, va, bbox) in &p.texts {
+        for (x, y, s, c, size, ha, va, bbox, rotation, family) in &p.texts {
             let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
+            let font = if family.is_empty() {
+                p.font_family.as_str()
+            } else {
+                family.as_str()
+            };
             draw_label(
                 area,
                 base,
@@ -2778,10 +2897,12 @@ where
                 ha,
                 va,
                 bbox.as_ref(),
+                *rotation,
                 line_scale,
+                font,
             )?;
         }
-        for (text, xy, xytext, c, size) in &p.annotations {
+        for (text, xy, xytext, c, size, family) in &p.annotations {
             let target = chart_area.map_coordinate(&(tx(xy.0), ty(xy.1)));
             let anchor = match xytext {
                 Some(t) => chart_area.map_coordinate(&(tx(t.0), ty(t.1))),
@@ -2800,7 +2921,13 @@ where
                 "left",
                 "baseline",
                 None,
+                0.0,
                 line_scale,
+                if family.is_empty() {
+                    p.font_family.as_str()
+                } else {
+                    family.as_str()
+                },
             )?;
         }
         for item in &p.images {
@@ -2994,7 +3121,7 @@ where
         };
         let mut labels = chart.configure_series_labels();
         labels.position(position).label_font((
-            "sans-serif",
+            p.legend.family.as_str(),
             text_px(p.legend.fontsize.max(6.0), dpi).round() as u32,
         ));
         if p.legend.frameon {
@@ -3023,6 +3150,7 @@ where
             *vmax,
             label,
             line_scale,
+            p.font_family.as_str(),
         )?;
     }
     Ok(())
