@@ -8,7 +8,7 @@
 
 ## Release status
 
-- **Current version: 0.6.0** — milestones 0.1 through 0.6 are complete.
+- **Current version: 0.6.1-alpha** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.

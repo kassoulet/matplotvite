@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "matplotvite"
-version = "0.6.0"
+version = "0.6.1-alpha"
 description = "Matplotlib-style static plots rendered in Rust, with numpy as the only Python dependency"
 readme = "README.md"
 requires-python = ">=3.9"

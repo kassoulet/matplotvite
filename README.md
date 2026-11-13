@@ -1,7 +1,7 @@
 # Matplotvite
 
 [![CI](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml/badge.svg)](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-0.6.1--alpha-blue)](ROADMAP.md)
 
 > **Experimental.** Matplotvite is under active development. Its API may change
 > between releases, and it does not cover the full matplotlib surface. Validate
@@ -26,7 +26,7 @@ Wheels are published to PyPI from each `v*` version tag: Linux (x86_64, aarch64)
 macOS (arm64, x86_64) and Windows (x64, arm64). They use the stable ABI, so a single
 wheel serves CPython 3.9 and newer; other platforms install from the sdist.
 
-No release is tagged yet, so use the source build below until the first `v*` tag.
+The latest release is 0.6.0; version tags after it publish automatically.
 
 ### Build from source
 
