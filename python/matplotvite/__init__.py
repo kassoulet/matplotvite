@@ -777,8 +777,17 @@ def _span(values):
     return _span_extent(ext)
 
 
+def _sequence(values):
+    """A list for dict views, generators and other one-shot iterables."""
+    if (not isinstance(values, (list, tuple, str, bytes, np.ndarray, np.number))
+            and hasattr(values, "__iter__")):
+        return list(values)
+    return values
+
+
 def _looks_like_categories(values):
     """True for string scalars or sequences, which matplotlib treats as categories."""
+    values = _sequence(values)
     if isinstance(values, str):
         return True
     try:
@@ -3221,6 +3230,7 @@ class Axes:
 
     def _xdate(self, values):
         """Convert date-like or categorical x values to numbers and mark the axis."""
+        values = _sequence(values)
         if _looks_like_dates(values):
             self._x_date = True
             return _date_to_num(values)
@@ -3242,6 +3252,7 @@ class Axes:
         for the tick labels), but the y axis has to write the ticks here: the
         panel reads `_yticks`/`_yticklabels` directly.
         """
+        values = _sequence(values)
         if not _looks_like_categories(values):
             return values
         array = np.asarray(values)
@@ -5298,6 +5309,9 @@ def _line_styles(styles, n):
 
 
 def _as_f64(v):
+    # `barh(table.keys(), table.values())` and similar pass dict views or
+    # generators; materialise them before NumPy sees a scalar object.
+    v = _sequence(v)
     arr = np.asarray(v)
     if arr.dtype.kind == "O":
         def number(item):

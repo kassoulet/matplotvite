@@ -1104,6 +1104,16 @@ def test_get_gridspec_supports_a_spanning_subplot(tmp_path):
     assert out.exists()
 
 
+def test_barh_accepts_dict_views_as_data(tmp_path):
+    fig, ax = plt.subplots()
+    population = {"alpha": 3.0, "beta": 5.0, "gamma": 8.0}
+    ax.barh(population.keys(), population.values())
+    assert [t.get_text() for t in ax.get_yticklabels()] == ["alpha", "beta", "gamma"]
+    out = tmp_path / "dict-views.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_subplotspec_gridspec_helpers_and_twin_kwargs(tmp_path):
     fig, axs = plt.subplots(2, 2)
     gs = axs[0, 0].get_gridspec()

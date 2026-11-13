@@ -562,15 +562,34 @@ def render(snippet: str, out_path: pathlib.Path,
         ("Triangulation", getattr(mpl_tri, "Triangulation", None)),
     ) if value is not None}
 
+    sample_data = find_sample_data()
+
+    def get_sample_data(fname, *args, **kwargs):
+        if sample_data is not None:
+            candidate = sample_data / pathlib.Path(str(fname)).name
+            if candidate.exists():
+                return candidate
+        raise NotImplementedError(f"sample data {fname!r} is not available")
+
+    class _SampleCbook:
+        """`cbook` with sample data resolved against the Matplotlib sources."""
+
+        def __getattr__(self, name):
+            if name == "get_sample_data":
+                return get_sample_data
+            return getattr(matplotvite.cbook, name)
+
     class _MplProxy:
         def __getattr__(self, name):
-            if name == "cbook" and mpl_cbook is not None:
-                return mpl_cbook
+            if name == "cbook":
+                return mpl_cbook if mpl_cbook is not None else _SampleCbook()
             if name in mpl_helpers:
                 return mpl_helpers[name]
             return getattr(matplotvite, name)
 
-    mpl_namespace = matplotvite if mpl_cbook is None else _MplProxy()
+    # Always proxy so `matplotlib.cbook` can be resolved even without real
+    # Matplotlib installed.
+    mpl_namespace = _MplProxy()
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
     namespace.update(mpl_helpers)
@@ -603,23 +622,7 @@ def render(snippet: str, out_path: pathlib.Path,
         namespace["cbook"] = mpl_cbook
         namespace["get_sample_data"] = mpl_cbook.get_sample_data
     else:
-        sample_data = find_sample_data()
-
-        def get_sample_data(fname, *args, **kwargs):
-            if sample_data is not None:
-                candidate = sample_data / pathlib.Path(str(fname)).name
-                if candidate.exists():
-                    return candidate
-            raise NotImplementedError(f"sample data {fname!r} is not available")
-
-        class _CbookProxy:
-            def __getattr__(self, name):
-                return getattr(matplotvite.cbook, name)
-
-            def get_sample_data(self, fname, *args, **kwargs):
-                return get_sample_data(fname, *args, **kwargs)
-
-        namespace["cbook"] = _CbookProxy()
+        namespace["cbook"] = _SampleCbook()
         namespace["get_sample_data"] = get_sample_data
     if mpl_font_text is not None:
         namespace["_gen_multi_font_text"] = mpl_font_text
