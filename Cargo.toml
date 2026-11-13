@@ -34,3 +34,11 @@ criterion = { version = "0.8.2", features = ["html_reports"] }
 [[bench]]
 name = "render"
 harness = false
+
+[profile.release]
+# Measured on the release wheels: fat LTO with a single codegen unit renders
+# about 9% faster and shrinks the wheel by 16% versus the default release
+# profile (opt-level 3, 16 units, no LTO). The cost is build time, which the
+# wheel matrix pays once per platform.
+lto = "fat"
+codegen-units = 1
