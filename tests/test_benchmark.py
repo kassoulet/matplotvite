@@ -108,6 +108,10 @@ def test_build_pages_generation(tmp_path):
     assert "Matplotlib-compatible" in gallery_html
     assert "histogram_density.png" in gallery_html
 
+    # Deployed pages name the commit they were built from.
+    assert "Built from commit" in gallery_html
+    assert "/commit/" in gallery_html
+
     bench_html = (tmp_path / "benchmarks.html").read_text(encoding="utf-8")
     assert "Static rendering benchmarks" in bench_html
     assert "End-to-end latency" in bench_html
