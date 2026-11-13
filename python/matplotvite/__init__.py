@@ -7027,6 +7027,42 @@ class _MultipleLocator(_Locator):
                            for i in range(count)])
 
 
+class _LogLocator(_Locator):
+    """Ticks at powers of `base`, optionally at `subs` multiples of each power."""
+
+    def __init__(self, base=10.0, subs=(1.0,), numticks=None, **kwargs):
+        self.base = float(base)
+        self.subs = subs
+        self.numticks = numticks
+
+    def set_params(self, base=None, subs=None, numticks=None):
+        if base is not None:
+            self.base = float(base)
+        if subs is not None:
+            self.subs = subs
+        if numticks is not None:
+            self.numticks = numticks
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = sorted((float(vmin), float(vmax)))
+        if hi <= 0.0:
+            return np.array([], dtype=float)
+        lo = lo if lo > 0.0 else hi * 1e-12
+        base = self.base if self.base > 1.0 else 10.0
+        first = int(_math.floor(_math.log(lo, base))) - 1
+        last = int(_math.ceil(_math.log(hi, base))) + 1
+        if self.subs is None:
+            subs = (1.0,)
+        elif np.isscalar(self.subs):
+            subs = (float(self.subs),)
+        else:
+            subs = tuple(float(s) for s in np.ravel(self.subs))
+        values = [sub * base ** exp
+                  for exp in range(first, last + 1) for sub in subs]
+        values = [v for v in values if lo * (1 - 1e-9) <= v <= hi * (1 + 1e-9)]
+        return np.asarray(sorted(values), dtype=float)
+
+
 class _MaxNLocator(_Locator):
     """Roughly `nbins` "nice" ticks, as `ticker.MaxNLocator`."""
 
@@ -7249,7 +7285,7 @@ dates = _Namespace(
 mdates = dates
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
-    LinearLocator=_LinearLocator, LogLocator=_NoopLocator, MaxNLocator=_MaxNLocator,
+    LinearLocator=_LinearLocator, LogLocator=_LogLocator, MaxNLocator=_MaxNLocator,
     NullLocator=_NoopLocator, AutoMinorLocator=_NoopLocator, Formatter=_NoopFormatter,
     FuncFormatter=_NoopFormatter, FormatStrFormatter=_NoopFormatter,
     StrMethodFormatter=_NoopFormatter, ScalarFormatter=_NoopFormatter,
@@ -7260,6 +7296,7 @@ MultipleLocator = _MultipleLocator
 MaxNLocator = _MaxNLocator
 FixedLocator = _FixedLocator
 LinearLocator = _LinearLocator
+LogLocator = _LogLocator
 NullLocator = _NoopLocator
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
