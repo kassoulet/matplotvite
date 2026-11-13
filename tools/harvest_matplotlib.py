@@ -226,7 +226,16 @@ class _ExampleStripper(ast.NodeTransformer):
 
     def visit_If(self, node: ast.If):
         if "__main__" in ast.unparse(node.test):
-            return None
+            # Gallery scripts draw inside the main guard, so hoist its body; the
+            # guard was removed before and took every figure with it (blank
+            # renders in mandelbrot, hinton_demo, arrow_demo and others).
+            hoisted: list[ast.stmt] = []
+            for child in node.body:
+                visited = self.visit(child)
+                if visited is None:
+                    continue
+                hoisted.extend(visited if isinstance(visited, list) else [visited])
+            return hoisted
         return self.generic_visit(node)
 
     def visit_Expr(self, node: ast.Expr):
@@ -305,6 +314,13 @@ BLANK_THRESHOLD = 50
 # GUI toolkit, an interactive backend or 3-D axes (out of scope).
 OUT_OF_SCOPE_CATEGORIES = frozenset({
     "animation", "mplot3d", "user_interfaces", "widgets",
+})
+
+# Scripts whose figure is drawn from event callbacks or a child process: a
+# still render says nothing about matplotvite, so they are not judged.
+INTERACTIVE_EXAMPLES = frozenset({
+    "event_handling/data_browser", "event_handling/poly_editor",
+    "misc/multiprocess_sgskip",
 })
 
 
@@ -743,6 +759,9 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         if case["snippet"] is None:
             entry["status"] = "unsupported"
             entry["error"] = "interactive or unparseable"
+        elif case["id"] in INTERACTIVE_EXAMPLES:
+            entry["status"] = "unsupported"
+            entry["error"] = "drawn from event callbacks"
         elif case["category"] in OUT_OF_SCOPE_CATEGORIES:
             entry["status"] = "unsupported"
             entry["error"] = f"{case['category']} is out of scope"
