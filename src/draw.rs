@@ -933,6 +933,7 @@ fn draw_projected_caps<DB: DrawingBackend, C: Color + Copy>(
     pts: &[(i32, i32)],
     col: C,
     width: u32,
+    caps: (bool, bool),
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -942,7 +943,11 @@ where
     }
     let half = width as f64 / 2.0;
     let last = pts.len() - 1;
-    for (end, inward) in [(pts[0], pts[1]), (pts[last], pts[last - 1])] {
+    let ends = [(pts[0], pts[1]), (pts[last], pts[last - 1])];
+    for ((end, inward), wanted) in ends.into_iter().zip([caps.0, caps.1]) {
+        if !wanted {
+            continue;
+        }
         let (dx, dy) = ((end.0 - inward.0) as f64, (end.1 - inward.1) as f64);
         let len = (dx * dx + dy * dy).sqrt();
         if !len.is_finite() || len <= 0.0 {
@@ -955,6 +960,87 @@ where
         area.draw(&PathElement::new(vec![end, tip], col.stroke_width(width)))?;
     }
     Ok(())
+}
+
+/// Clip one pixel-space segment to `(xmin, xmax, ymin, ymax)` with Liang–Barsky,
+/// so a line that leaves the axes is cut at the spine instead of drawn over the
+/// labels and the neighbouring panels.
+fn clip_segment(
+    a: (i32, i32),
+    b: (i32, i32),
+    rect: (f64, f64, f64, f64),
+) -> Option<((i32, i32), (i32, i32))> {
+    let (xmin, xmax, ymin, ymax) = rect;
+    let (ax, ay) = (a.0 as f64, a.1 as f64);
+    let (dx, dy) = (b.0 as f64 - ax, b.1 as f64 - ay);
+    let (mut t0, mut t1) = (0.0_f64, 1.0_f64);
+    for (p, q) in [
+        (-dx, ax - xmin),
+        (dx, xmax - ax),
+        (-dy, ay - ymin),
+        (dy, ymax - ay),
+    ] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+            continue;
+        }
+        let r = q / p;
+        if p < 0.0 {
+            if r > t1 {
+                return None;
+            }
+            t0 = t0.max(r);
+        } else {
+            if r < t0 {
+                return None;
+            }
+            t1 = t1.min(r);
+        }
+    }
+    let at = |t: f64| {
+        let x = (ax + dx * t).round() as i32;
+        let y = (ay + dy * t).round() as i32;
+        (
+            x.clamp(xmin.round() as i32, xmax.round() as i32),
+            y.clamp(ymin.round() as i32, ymax.round() as i32),
+        )
+    };
+    Some((at(t0), at(t1)))
+}
+
+/// Split a polyline into the runs that stay inside the axes rectangle. An
+/// unclipped polyline comes back as one run, unchanged.
+fn clip_polyline(pts: &[(i32, i32)], rect: (f64, f64, f64, f64)) -> Vec<Vec<(i32, i32)>> {
+    let mut runs: Vec<Vec<(i32, i32)>> = Vec::new();
+    let mut run: Vec<(i32, i32)> = Vec::new();
+    for pair in pts.windows(2) {
+        match clip_segment(pair[0], pair[1], rect) {
+            Some((start, end)) => {
+                if run.last() != Some(&start) {
+                    if run.len() >= 2 {
+                        runs.push(std::mem::take(&mut run));
+                    } else {
+                        run.clear();
+                    }
+                    run.push(start);
+                }
+                run.push(end);
+            }
+            None => {
+                if run.len() >= 2 {
+                    runs.push(std::mem::take(&mut run));
+                } else {
+                    run.clear();
+                }
+            }
+        }
+    }
+    if run.len() >= 2 {
+        runs.push(run);
+    }
+    runs
 }
 
 /// Finish and draw one run of a polyline. The backend already gives every path
@@ -2488,16 +2574,29 @@ where
                 "--" => (lw * 3.7, lw * 1.6),
                 _ => (lw * 6.4, lw * 1.6),
             };
-            let px: Vec<(i32, i32)> = {
+            let (px, clip) = {
                 let chart_area = chart.plotting_area();
-                pts.iter()
+                let (xr, yr) = chart_area.get_pixel_range();
+                let px: Vec<(i32, i32)> = pts
+                    .iter()
                     .map(|p| {
                         let (x, y) = chart_area.map_coordinate(p);
                         (x - base.0, y - base.1)
                     })
-                    .collect()
+                    .collect();
+                (
+                    px,
+                    (
+                        (xr.start - base.0) as f64,
+                        (xr.end - base.0) as f64,
+                        (yr.start - base.1) as f64,
+                        (yr.end - base.1) as f64,
+                    ),
+                )
             };
-            draw_dashed(area, &px, col, width, dash, gap)?;
+            for run in clip_polyline(&px, clip) {
+                draw_dashed(area, &run, col, width, dash, gap)?;
+            }
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
@@ -2520,20 +2619,40 @@ where
                 }
             }
         } else {
-            let chart_area = chart.plotting_area();
-            let px: Vec<(i32, i32)> = pts
-                .iter()
-                .map(|p| {
-                    let (x, y) = chart_area.map_coordinate(p);
-                    (x - base.0, y - base.1)
-                })
-                .collect();
-            if has_sharp_join(&px, width) {
-                draw_solid_polyline(area, &px, col, width)?;
-            } else {
-                area.draw(&PathElement::new(px.clone(), col.stroke_width(width)))?;
+            let (px, clip) = {
+                let chart_area = chart.plotting_area();
+                let (xr, yr) = chart_area.get_pixel_range();
+                let px: Vec<(i32, i32)> = pts
+                    .iter()
+                    .map(|p| {
+                        let (x, y) = chart_area.map_coordinate(p);
+                        (x - base.0, y - base.1)
+                    })
+                    .collect();
+                (
+                    px,
+                    (
+                        (xr.start - base.0) as f64,
+                        (xr.end - base.0) as f64,
+                        (yr.start - base.1) as f64,
+                        (yr.end - base.1) as f64,
+                    ),
+                )
+            };
+            // Caps belong to the data ends only: a run cut by the axes must stop
+            // flush at the spine rather than growing half a line width past it.
+            for run in clip_polyline(&px, clip) {
+                let caps = (
+                    px.first() == Some(&run[0]),
+                    px.last() == Some(&run[run.len() - 1]),
+                );
+                if has_sharp_join(&run, width) {
+                    draw_solid_polyline(area, &run, col, width)?;
+                } else {
+                    area.draw(&PathElement::new(run.clone(), col.stroke_width(width)))?;
+                }
+                draw_projected_caps(area, &run, col, width, caps)?;
             }
-            draw_projected_caps(area, &px, col, width)?;
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
@@ -2566,8 +2685,13 @@ where
             let r = marker_radius(s.markersize * s.markersize);
             let stroke = s.mew.max(1.0).round() as u32;
             let chart_area = chart.plotting_area();
+            let (clip_x, clip_y) = chart_area.get_pixel_range();
             for (xv, yv) in xs.iter().zip(ys.iter()) {
                 let (px, py) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
+                // Markers outside the axes are clipped away like the line is.
+                if !clip_x.contains(&px) || !clip_y.contains(&py) {
+                    continue;
+                }
                 if let Some(layer) = series_marker_layer.as_mut() {
                     draw_marker_raster(
                         layer,
@@ -3159,4 +3283,44 @@ where
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod clip_tests {
+    use super::{clip_polyline, clip_segment};
+
+    const RECT: (f64, f64, f64, f64) = (0.0, 100.0, 0.0, 50.0);
+
+    #[test]
+    fn inside_segments_are_untouched() {
+        assert_eq!(
+            clip_segment((10, 10), (90, 40), RECT),
+            Some(((10, 10), (90, 40)))
+        );
+    }
+
+    #[test]
+    fn segments_are_cut_at_the_axes_edge() {
+        assert_eq!(
+            clip_segment((-10, 25), (110, 25), RECT),
+            Some(((0, 25), (100, 25)))
+        );
+        assert_eq!(
+            clip_segment((50, -10), (50, 60), RECT),
+            Some(((50, 0), (50, 50)))
+        );
+    }
+
+    #[test]
+    fn fully_outside_segments_are_dropped() {
+        assert_eq!(clip_segment((-10, -10), (-5, 60), RECT), None);
+    }
+
+    #[test]
+    fn a_polyline_is_split_around_an_outside_gap() {
+        let runs = clip_polyline(&[(50, 25), (50, 60), (60, 60), (60, 25)], RECT);
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0], vec![(50, 25), (50, 50)]);
+        assert_eq!(runs[1], vec![(60, 50), (60, 25)]);
+    }
 }

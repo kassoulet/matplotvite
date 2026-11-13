@@ -23,6 +23,28 @@ def test_png(tmp_path):
     assert int.from_bytes(b[16:20], "big") == 400 and int.from_bytes(b[20:24], "big") == 300
 
 
+def test_series_are_clipped_to_the_axes_limits():
+    """A line outside xlim/ylim stops at the spine instead of crossing the margins."""
+    plt.figure((4, 3), dpi=100)
+    plt.plot([-1, 2], [-5, 10], color="red", linewidth=4)
+    plt.xlim(0, 1)
+    plt.ylim(0, 5)
+    width, height, rows = decode_png_rgba(plt.savefig(format="png"))
+
+    def red(x, y):
+        i = x * 4
+        return rows[y][i] > 170 and rows[y][i + 1] < 90 and rows[y][i + 2] < 90
+
+    painted = [(x, y) for y in range(height) for x in range(width) if red(x, y)]
+    assert painted, "the clipped line vanished entirely"
+    xs = [x for x, _ in painted]
+    ys = [y for _, y in painted]
+    # The axes margins are about 25 px wide; an unclipped series paints into them.
+    band_x, band_y = width // 20, height // 20
+    assert min(xs) >= band_x and max(xs) <= width - band_x
+    assert min(ys) >= band_y and max(ys) <= height - band_y
+
+
 def _mean_abs_channel_diff(a_rows, b_rows):
     """Mean |difference| over the RGB channels of two decoded PNGs."""
     total = 0
