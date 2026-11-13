@@ -3,10 +3,13 @@
 import json
 from pathlib import Path
 
+import pytest
+
 import matplotvite
 
 from tools.harvest_matplotlib import (_resolve_baseline, failure_status,
-                                      find_examples_root, find_tests_root,
+                                      find_examples_root, find_sample_data,
+                                      find_tests_root,
                                       harvest, harvest_examples,
                                       harvest_examples_gallery, harvest_gallery,
                                       prepare_body, prepare_example, render)
@@ -84,6 +87,13 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert 'plt.rcParams["figure.figsize"] = (8, 6)' in snippet
     assert "plt.style.use('mpl20')" in snippet
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
+
+
+def test_sample_data_is_found_next_to_the_matplotlib_sources():
+    data = find_sample_data()
+    if data is None:
+        pytest.skip("no Matplotlib sdist or checkout under dist/")
+    assert data.is_dir() and any(data.iterdir())
 
 
 def test_render_resolves_names_used_in_eval_strings(tmp_path):

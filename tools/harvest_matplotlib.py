@@ -506,6 +506,19 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
     return cases
 
 
+SAMPLE_DATA_GLOBS = ("dist/mpl-sdist/*/lib/matplotlib/mpl-data/sample_data",
+                     "dist/mpl-src/lib/matplotlib/mpl-data/sample_data")
+
+
+def find_sample_data() -> pathlib.Path | None:
+    """Matplotlib's sample_data directory, when a checkout or sdist is present."""
+    for pattern in SAMPLE_DATA_GLOBS:
+        for candidate in sorted(pathlib.Path(".").glob(pattern)):
+            if candidate.is_dir():
+                return candidate
+    return None
+
+
 def render(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
            ignored: list[str] | None = None) -> str | None:
@@ -587,6 +600,25 @@ def render(snippet: str, out_path: pathlib.Path,
     if mpl_cbook is not None:
         namespace["cbook"] = mpl_cbook
         namespace["get_sample_data"] = mpl_cbook.get_sample_data
+    else:
+        sample_data = find_sample_data()
+
+        def get_sample_data(fname, *args, **kwargs):
+            if sample_data is not None:
+                candidate = sample_data / pathlib.Path(str(fname)).name
+                if candidate.exists():
+                    return candidate
+            return matplotvite.cbook.get_sample_data(fname, *args, **kwargs)
+
+        class _CbookProxy:
+            def __getattr__(self, name):
+                return getattr(matplotvite.cbook, name)
+
+            def get_sample_data(self, fname, *args, **kwargs):
+                return get_sample_data(fname, *args, **kwargs)
+
+        namespace["cbook"] = _CbookProxy()
+        namespace["get_sample_data"] = get_sample_data
     if mpl_font_text is not None:
         namespace["_gen_multi_font_text"] = mpl_font_text
     ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)

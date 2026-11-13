@@ -1104,6 +1104,38 @@ def test_get_gridspec_supports_a_spanning_subplot(tmp_path):
     assert out.exists()
 
 
+def test_compat_namespaces_for_cbook_path_and_fonts(tmp_path):
+    assert plt.path is plt.mpath
+    assert plt.path.Path is not None
+    stats = plt.cbook.boxplot_stats([np.arange(10.0), np.arange(5.0) * 2.0],
+                                    labels=["a", "b"])
+    assert [entry["label"] for entry in stats] == ["a", "b"]
+    assert stats[0]["med"] == np.median(np.arange(10.0))
+    assert plt.patheffects.withTickedStroke([1.0, 1.0]) is not None
+    font = plt.font_manager.FontProperties(family="serif", size=12)
+    assert font.get_family() == ["serif"]
+    assert plt.font_manager.findfont(font)
+    with pytest.raises(FileNotFoundError):
+        plt.cbook.get_sample_data("missing-file.npz")
+    fig, ax = plt.subplots()
+    ax.plot([0.0, 1.0], [1.0, 2.0])
+    out = tmp_path / "compat.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
+def test_symlog_norm_is_linear_near_zero_and_symmetric():
+    from matplotvite import colors as mcolors
+
+    norm = mcolors.SymLogNorm(1.0, vmin=-100.0, vmax=100.0)
+    values = np.array([-100.0, -1.0, 0.0, 1.0, 100.0])
+    mapped = norm(values)
+    assert mapped[0] == pytest.approx(0.0)
+    assert mapped[-1] == pytest.approx(1.0)
+    assert mapped[2] == pytest.approx(0.5)
+    assert mapped[1] == pytest.approx(1.0 - mapped[3])
+
+
 def test_power_norm_and_light_source_shade(tmp_path):
     from matplotvite import colors as mcolors
 

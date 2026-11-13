@@ -6635,6 +6635,33 @@ class _LightSource:
         return np.clip(rgb * intensity[..., np.newaxis], 0.0, 1.0)
 
 
+class _SymLogNorm(_Normalize):
+    """Symmetric log normalisation, as `mcolors.SymLogNorm`."""
+
+    def __init__(self, linthresh, linscale=1.0, vmin=None, vmax=None, base=10,
+                 clip=False):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.linthresh, self.linscale = float(linthresh), float(linscale)
+        self.base = float(base)
+
+    def _transform(self, value):
+        values = np.asarray(value, dtype=float)
+        linear = self.linscale / (1.0 - self.base ** -1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            logarithmic = (self.linthresh * (linear + np.log(np.abs(values) / self.linthresh)
+                                            / np.log(self.base)))
+        return np.where(np.abs(values) <= self.linthresh, values * linear,
+                        np.sign(values) * logarithmic)
+
+    def __call__(self, value, clip=None):
+        transformed = self._transform(value)
+        lo = float(self._transform(self.vmin)) if self.vmin is not None else np.nanmin(transformed)
+        hi = float(self._transform(self.vmax)) if self.vmax is not None else np.nanmax(transformed)
+        if not hi > lo:
+            lo, hi = lo - 0.5, hi + 0.5
+        return np.clip((transformed - lo) / (hi - lo), 0.0, 1.0)
+
+
 class _ListedColormap:
     def __init__(self, colors, name="from_list"):
         self.colors = [_norm_color(c) for c in colors]
@@ -6675,6 +6702,7 @@ class _MColors:
     ListedColormap = _ListedColormap
     LinearSegmentedColormap = _ListedColormap
     PowerNorm = _PowerNorm
+    SymLogNorm = _SymLogNorm
     LightSource = _LightSource
     TABLEAU_COLORS = dict(_TAB10)
     BASE_COLORS = {name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
@@ -6892,6 +6920,11 @@ class _PathEffects:
     def withStroke(*args, **kwargs): return _PathEffects.Stroke()
 
     @staticmethod
+    def withTickedStroke(*args, **kwargs):
+        _ignored("patheffects.withTickedStroke")
+        return _PathEffects.Stroke()
+
+    @staticmethod
     def withSimplePatchShadow(*args, **kwargs): return _PathEffects.SimplePatchShadow()
 
 
@@ -6914,6 +6947,97 @@ cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches
 mpath = _Namespace(Path=Path)
+path = mpath
+
+
+class _FontProperties:
+    """Enough of `font_manager.FontProperties` for text kwargs to pass through."""
+
+    def __init__(self, family=None, style=None, variant=None, weight=None,
+                 stretch=None, size=None, fname=None, **kwargs):
+        self.family, self.style, self.variant = family, style, variant
+        self.weight, self.stretch, self.size = weight, stretch, size
+        self.fname = fname
+
+    def get_family(self):
+        return [self.family] if isinstance(self.family, str) else list(self.family or [])
+    def get_style(self): return self.style or "normal"
+    def get_weight(self): return self.weight or "normal"
+    def get_size(self): return self.size
+    def get_file(self): return self.fname
+    def copy(self):
+        return _FontProperties(self.family, self.style, self.variant, self.weight,
+                               self.stretch, self.size, self.fname)
+
+
+def _findfont(prop=None, fallback_to_default=True, rebuild_if_missing=True):
+    """Path to the bundled DejaVu Sans, which is the face the renderer draws."""
+    package = os.path.dirname(os.path.abspath(__file__))
+    for root in (os.path.join(package, "assets", "fonts"),
+                 os.path.join(os.path.dirname(os.path.dirname(package)),
+                              "assets", "fonts")):
+        candidate = os.path.join(root, "DejaVuSans.ttf")
+        if os.path.exists(candidate):
+            return candidate
+    return "DejaVu Sans"
+
+
+font_manager = _Namespace(findfont=_findfont, FontProperties=_FontProperties)
+
+
+class _Cbook:
+    """`matplotlib.cbook` stand-ins: sample data, boxplot stats, and no-ops."""
+
+    def get_sample_data(self, fname, asfileobj=False, **kwargs):
+        """Path to a sample data file; matplotvite ships none, so the harvester
+        and users must point at the Matplotlib sources."""
+        name = os.path.basename(str(fname))
+        candidate = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "mpl-data", "sample_data", name)
+        if not os.path.exists(candidate):
+            raise FileNotFoundError(
+                f"sample data {name!r} is not bundled with matplotvite")
+        return open(candidate, "rb") if asfileobj else candidate
+
+    def boxplot_stats(self, X, whis=1.5, labels=None, autorange=False, meanline=False,
+                      zscores=False):
+        """The summary `boxplot` draws, one dict per column."""
+        if isinstance(X, np.ndarray) and X.ndim == 2:
+            columns = [X[:, i] for i in range(X.shape[1])]
+        elif isinstance(X, np.ndarray) and X.ndim == 1:
+            columns = [X]
+        else:
+            columns = [np.asarray(item, dtype=float).ravel() for item in X]
+        stats = []
+        for index, column in enumerate(columns):
+            column = np.asarray(column, dtype=float).ravel()
+            values = column[np.isfinite(column)]
+            if values.size == 0:
+                continue
+            q1, med, q3 = (float(v) for v in np.percentile(values, [25, 50, 75]))
+            iqr = q3 - q1
+            inside = values[(values >= q1 - whis * iqr) & (values <= q3 + whis * iqr)]
+            whislo = float(inside.min()) if inside.size else float(values.min())
+            whishi = float(inside.max()) if inside.size else float(values.max())
+            fliers = values[(values < whislo) | (values > whishi)]
+            label = labels[index] if labels is not None and index < len(labels) else ""
+            stats.append(dict(label=str(label), mean=float(values.mean()), med=med,
+                              q1=q1, q3=q3, whislo=whislo, whishi=whishi,
+                              fliers=[float(v) for v in fliers]))
+        return stats
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+
+        def ignored(*args, **kwargs):
+            _ignored(f"cbook.{name}")
+            return None
+
+        return ignored
+
+
+cbook = _Cbook()
 mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           PolyCollection=PolyCollection, PatchCollection=PatchCollection,
                           EventCollection=EventCollection, PathCollection=PathCollection,
