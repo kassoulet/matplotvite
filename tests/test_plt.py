@@ -1083,6 +1083,33 @@ def test_module_level_matshow_xkcd_and_data_path():
     assert ax.twin(object) is not ax
 
 
+def test_stem_annotate_and_prop_cycle_handles(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    markerline, stemlines, baseline = ax.stem([1.0, 2.0, 3.0])
+    # Matplotlib hands back handles the example style; the stems are already drawn.
+    markerline.set_markerfacecolor("none")
+    stemlines.set_linestyle("--")
+    assert baseline is not None
+    # A style sheet can replace the cycle with a plain list; it stays callable.
+    plt.rcParams["axes.prop_cycle"] = ["red", "blue"]
+    cycle = plt.rcParams["axes.prop_cycle"]
+    assert [entry["color"] for entry in cycle()] == ["red", "blue"]
+    plt.rcdefaults()
+    text = ax.annotate("point", (0.5, 0.5), xytext=(0.6, 0.6))
+    text.arrow_patch.set_path_effects([])
+    assert text.get_bbox_patch() is not None
+    out = tmp_path / "handles.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
+def test_figimage_is_reported_as_missing_rather_than_blank():
+    fig = plt.figure()
+    with pytest.raises(NotImplementedError):
+        fig.figimage(np.zeros((2, 2)))
+
+
 def test_axes_tick_labels_are_text_like():
     plt.figure()
     ax = plt.gca()

@@ -634,17 +634,43 @@ class _TextEntry(tuple):
     def get_bbox(self): return self[8]
 
 
+class _IgnoredArtist:
+    """Artist stand-in for returned handles whose styling we cannot apply."""
+
+    def __getattr__(self, name):
+        if not name.startswith("set_"):
+            raise AttributeError(name)
+
+        def ignored(*args, **kwargs):
+            _ignored(f"Artist.{name}")
+            return self
+
+        return ignored
+
+
 class _TextArt:
     """Return value for text creation; carries the mutable bbox patch."""
 
     def __init__(self):
         self._bbox_patch = _BboxPatch()
+        self.arrow_patch = _IgnoredArtist()
 
     def set_path_effects(self, effects):
         _ignored("Text.set_path_effects")
         return self
 
     def get_bbox_patch(self): return self._bbox_patch
+
+
+class _StemContainer:
+    """Unpackable `(markerline, stemlines, baseline)`, as `stem` returns."""
+
+    def __init__(self):
+        self.markerline = _IgnoredArtist()
+        self.stemlines = _IgnoredArtist()
+        self.baseline = _IgnoredArtist()
+
+    def __iter__(self): return iter((self.markerline, self.stemlines, self.baseline))
 
 
 class Text(_TextArt):
@@ -4067,6 +4093,7 @@ class Axes:
         self.annotations.append((_mathtext(text), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size))
+        return _TextArt()
 
     def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
                 vmin=None, vmax=None, data=None, **kwargs):
@@ -4514,6 +4541,7 @@ class Axes:
                     self.vlines([float(bottom)], float(y.min()), float(y.max()),
                                 colors=colour,
                                 linewidths=rcParams.get("lines.linewidth", 1.5))
+        return _StemContainer()
 
     def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
             normalize=True, shadow=False, **kwargs):
@@ -5733,7 +5761,10 @@ class Figure:
         return self
 
     def legend(self, *args, **kwargs): return _LegendHandle()
-    def figimage(self, *args, **kwargs): return None
+    def figimage(self, *args, **kwargs):
+        """Figure-level images have no renderer support; say so instead of
+        saving a blank canvas."""
+        raise NotImplementedError("figure-level images (figimage) are not supported")
     def add_subfigure(self, *args, **kwargs):
         return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
 
@@ -6176,7 +6207,24 @@ def setp(obj, *args, **kwargs):
 def grid(*args, **kwargs): return gca().grid(*args, **kwargs)
 def tick_params(*args, **kwargs): return gca().tick_params(*args, **kwargs)
 def axline(*args, **kwargs): return gca().axline(*args, **kwargs)
-rcParams = {
+class _RcParams(dict):
+    """rcParams that keep `axes.prop_cycle` callable like Matplotlib's Cycler.
+
+    A style sheet can replace the cycle with a plain list, which then raised
+    `'list' object is not callable` for `plt.rcParams['axes.prop_cycle']()`.
+    """
+
+    def __getitem__(self, key):
+        value = super().__getitem__(key)
+        if key == "axes.prop_cycle" and not callable(value):
+            return _CycleList(value)
+        return value
+
+    def get(self, key, default=None):
+        return self[key] if key in self else default
+
+
+rcParams = _RcParams({
     "figure.figsize": (6.4, 4.8),
     "figure.dpi": 100.0,
     "lines.linewidth": 1.5,
@@ -6198,7 +6246,7 @@ rcParams = {
     "text.color": "#000000",
     "text.parse_math": True,
     "grid.color": "#b0b0b0",
-}
+})
 _RC_DEFAULTS = dict(rcParams)
 
 
@@ -6516,8 +6564,8 @@ mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           EventCollection=EventCollection, PathCollection=PathCollection,
                           RegularPolyCollection=RegularPolyCollection)
 collections = mcollections
-mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
-                         offset_copy=_offset_copy)
+mtransforms = _Namespace(Transform=_Transform, IdentityTransform=_Transform,
+                         Affine2D=Affine2D, Bbox=_Bbox, offset_copy=_offset_copy)
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
     LinearLocator=_LinearLocator, LogLocator=_NoopLocator, MaxNLocator=_MaxNLocator,
