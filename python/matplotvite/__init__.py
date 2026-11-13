@@ -3476,6 +3476,9 @@ class Axes:
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
              label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
         """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
+        if histtype == "barstacked":
+            # Matplotlib's stacked bars are `stacked=True` with the bar renderer.
+            histtype, stacked = "bar", True
         if histtype not in ("bar", "step", "stepfilled"):
             raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
         if data is not None and isinstance(x, str):
@@ -6550,6 +6553,75 @@ class _BoundaryNorm(_Normalize):
         return np.clip(np.digitize(value, self.boundaries) - 1, 0, self.ncolors - 1)
 
 
+class _PowerNorm(_Normalize):
+    """Normalize to 0-1 and raise it to `gamma`, as `mcolors.PowerNorm`."""
+
+    def __init__(self, gamma, vmin=None, vmax=None, clip=False):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.gamma = float(gamma)
+
+    def __call__(self, value, clip=None):
+        values = np.asarray(value, dtype=float)
+        lo = np.nanmin(values) if self.vmin is None else float(self.vmin)
+        hi = np.nanmax(values) if self.vmax is None else float(self.vmax)
+        if not hi > lo:
+            lo, hi = lo - 0.5, hi + 0.5
+        return ((np.clip(values, lo, hi) - lo) / (hi - lo)) ** self.gamma
+
+
+def _cmap_rgb(cmap, normed):
+    """Sample a colormap object or registered name at `normed` in 0-1."""
+    rgb = getattr(cmap, "_rgb", None)
+    if rgb is None:
+        _, table, reverse = _cmap_lookup(getattr(cmap, "name", cmap))
+        rgb = np.asarray(table, dtype=np.float64) / 255.0
+        if reverse:
+            rgb = rgb[::-1]
+    values = np.clip(np.asarray(normed, dtype=np.float64), 0.0, 1.0)
+    index = np.clip((values * (len(rgb) - 1)).round().astype(int), 0, len(rgb) - 1)
+    return rgb[index]
+
+
+class _LightSource:
+    """Shaded relief, as `mcolors.LightSource.shade` / `hillshade`."""
+
+    def __init__(self, azdeg=315, altdeg=45, hsv_min_val=0.0, hsv_max_val=1.0,
+                 hsv_min_sat=1.0, hsv_max_sat=0.0):
+        self.azdeg, self.altdeg = float(azdeg), float(altdeg)
+        self.hsv_min_val, self.hsv_max_val = float(hsv_min_val), float(hsv_max_val)
+        self.hsv_min_sat, self.hsv_max_sat = float(hsv_min_sat), float(hsv_max_sat)
+
+    def hillshade(self, elevation, vert_exag=1, dx=1, dy=1, fraction=1.0):
+        """Illumination intensity (0-255) for an elevation array."""
+        grad_y, grad_x = np.gradient(
+            np.asarray(elevation, dtype=float) * float(vert_exag),
+            float(dy), float(dx))
+        slope = np.pi / 2.0 - np.arctan(np.hypot(grad_x, grad_y))
+        aspect = np.arctan2(-grad_x, grad_y)
+        azimuth = np.deg2rad(360.0 - self.azdeg)
+        altitude = np.deg2rad(self.altdeg)
+        shaded = (np.sin(altitude) * np.sin(slope)
+                  + np.cos(altitude) * np.cos(slope) * np.cos(azimuth - aspect))
+        return np.clip(255.0 * (shaded + 1.0) / 2.0, 0.0, 255.0)
+
+    def shade(self, data, cmap, norm=None, blend_mode="overlay", vmin=None, vmax=None,
+              vert_exag=1, dx=1, dy=1, fraction=1.0, **kwargs):
+        """RGB image of `data` coloured through `cmap` and lit from `azdeg`."""
+        values = np.asarray(data, dtype=float)
+        if norm is None:
+            lo = np.nanmin(values) if vmin is None else float(vmin)
+            hi = np.nanmax(values) if vmax is None else float(vmax)
+            norm = _PowerNorm(1.0, vmin=lo, vmax=hi)
+        rgb = _cmap_rgb(cmap, norm(values))
+        intensity = self.hillshade(values, vert_exag, dx, dy, fraction) / 255.0
+        if blend_mode == "hsv":
+            hsv = _MColors.rgb_to_hsv(rgb)
+            hsv[..., 2] = intensity
+            return np.clip(_MColors.hsv_to_rgb(hsv), 0.0, 1.0)
+        # Other blend modes fall back to plain modulation.
+        return np.clip(rgb * intensity[..., np.newaxis], 0.0, 1.0)
+
+
 class _ListedColormap:
     def __init__(self, colors, name="from_list"):
         self.colors = [_norm_color(c) for c in colors]
@@ -6589,6 +6661,8 @@ class _MColors:
     Colormap = Colormap
     ListedColormap = _ListedColormap
     LinearSegmentedColormap = _ListedColormap
+    PowerNorm = _PowerNorm
+    LightSource = _LightSource
     TABLEAU_COLORS = dict(_TAB10)
     BASE_COLORS = {name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
@@ -6601,6 +6675,15 @@ class _MColors:
         arr = np.asarray(rgb, dtype=float)
         flat = arr.reshape(-1, 3)
         out = np.asarray([_convert(float(r), float(g), float(b)) for r, g, b in flat])
+        return out.reshape(arr.shape)
+
+    @staticmethod
+    def hsv_to_rgb(hsv):
+        """Convert HSV triples to RGB, the inverse of `rgb_to_hsv`."""
+        from colorsys import hsv_to_rgb as _convert
+        arr = np.asarray(hsv, dtype=float)
+        flat = arr.reshape(-1, 3)
+        out = np.asarray([_convert(float(h), float(s), float(v)) for h, s, v in flat])
         return out.reshape(arr.shape)
 
     @staticmethod

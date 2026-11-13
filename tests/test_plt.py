@@ -1104,6 +1104,35 @@ def test_get_gridspec_supports_a_spanning_subplot(tmp_path):
     assert out.exists()
 
 
+def test_power_norm_and_light_source_shade(tmp_path):
+    from matplotvite import colors as mcolors
+
+    norm = mcolors.PowerNorm(0.5, vmin=0.0, vmax=1.0)
+    assert float(norm(np.array([0.25]))[0]) == pytest.approx(0.5)
+    data = np.linspace(0.0, 1.0, 64).reshape(8, 8)
+    shade = mcolors.LightSource(315, 10).shade(
+        data, cmap=plt.colormaps["hot"], norm=mcolors.PowerNorm(0.3),
+        vert_exag=1.5, blend_mode="hsv")
+    assert shade.shape == (8, 8, 3)
+    assert 0.0 <= float(shade.min()) and float(shade.max()) <= 1.0
+    fig, ax = plt.subplots()
+    ax.imshow(shade, interpolation="bicubic")
+    out = tmp_path / "shade.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
+def test_histtype_barstacked_stacks_the_columns(tmp_path):
+    fig, ax = plt.subplots()
+    counts, edges, handles = ax.hist(np.random.randn(50, 3), 6, histtype="barstacked")
+    assert len(counts) == 3
+    tallest = float(sum(np.asarray(count) for count in counts).max())
+    assert ax.get_ylim()[1] >= tallest
+    out = tmp_path / "barstacked.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_specgram_returns_its_data(tmp_path):
     fig, ax = plt.subplots(layout="constrained")
     values = np.sin(np.linspace(0.0, 20.0, 512))
@@ -1680,8 +1709,8 @@ def test_hist_orientation_density_and_validation(tmp_path):
     p = tmp_path / "histh.png"
     plt.savefig(p)
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
-    with pytest.raises(NotImplementedError):
-        plt.hist(data, histtype="barstacked")
+    counts, edges, _ = plt.hist(np.random.randn(40, 2), bins=3, histtype="barstacked")
+    assert len(counts) == 2
 
 
 def test_boxplot_stats_and_labels(tmp_path):
