@@ -288,10 +288,18 @@ def test_failure_status_splits_gaps_from_missing_apis():
     assert failure_status(
         "AttributeError: 'Axes' object has no attribute 'triplot'") == "needs-api"
     assert failure_status("NotImplementedError: 'symlog'") == "needs-api"
-    # A missing toolkit or a local helper that imports Matplotlib is a harness
-    # limitation, not a matplotvite bug.
+    # A module matplotvite does not ship is API work. Pillow, a GUI toolkit or
+    # real Matplotlib is the environment's, and an unknown local helper is
+    # still the harness's.
     assert failure_status(
-        "ModuleNotFoundError: No module named 'PIL'") == "harvester-gap"
+        "ModuleNotFoundError: No module named 'matplotvite.tri'") == "needs-api"
+    assert failure_status(
+        "ModuleNotFoundError: No module named 'mpl_toolkits.axisartist'"
+    ) == "needs-api"
+    assert failure_status(
+        "ModuleNotFoundError: No module named 'PIL'") == "unsupported"
+    assert failure_status(
+        "ModuleNotFoundError: No module named 'mymodule'") == "harvester-gap"
     assert failure_status(
         "ImportError: cannot import name 'BboxConnector'") == "needs-api"
     assert failure_status("TypeError: fill expects (x, y)") == "bug"

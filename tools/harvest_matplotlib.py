@@ -326,6 +326,11 @@ OUT_OF_SCOPE_CATEGORIES = frozenset({
     "animation", "mplot3d", "user_interfaces", "widgets",
 })
 
+# Modules the harness cannot supply and that are not matplotvite's to provide:
+# a GUI toolkit, the image library the gallery job installs, and real Matplotlib
+# (the `units/*` examples import its test helpers).
+ENVIRONMENT_MODULES = frozenset({"PIL", "gi", "wx", "matplotlib"})
+
 
 def _nonwhite_pixels(path: pathlib.Path) -> int | None:
     """Sampled non-white pixel count, using the stdlib decoder in tests/."""
@@ -362,9 +367,15 @@ def failure_status(error: str | None) -> str:
         return "failed"
     kind, _, detail = error.partition(":")
     if kind == "ModuleNotFoundError":
-        # The snippet needs a module the harness does not supply: a toolkit
-        # (mpl_toolkits), an optional image library (PIL) or a local helper
-        # that imports Matplotlib itself.
+        # Only a module the harness failed to supply is a harvester gap. A
+        # missing matplotvite shim is API work, and a GUI toolkit, Pillow or
+        # real Matplotlib belongs to the environment, not to either.
+        match = re.search(r"No module named '([^']+)'", detail)
+        root = (match.group(1) if match else "").split(".")[0]
+        if root in ENVIRONMENT_MODULES:
+            return "unsupported"
+        if root in ("matplotvite", "mpl_toolkits"):
+            return "needs-api"
         return "harvester-gap"
     if kind == "NameError":
         match = re.search(r"name '([^']+)' is not defined", detail)
