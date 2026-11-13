@@ -13,6 +13,7 @@ can't go stale when the wrapper grows.
 options:
   --check             compare against the baseline and exit 1 on any regression
                       (drops a supported API name, or lowers the call-site count)
+  --json              print the coverage counts as JSON and skip writing the report
   --baseline PATH     baseline json (default: tools/trace_baseline.json)
   --update-baseline   rewrite the baseline json from the current tree
 """
@@ -26,6 +27,7 @@ import matplotvite
 
 argv = sys.argv[1:]
 check = "--check" in argv
+json_output = "--json" in argv
 update_baseline = "--update-baseline" in argv
 baseline_path = pathlib.Path(__file__).with_name("trace_baseline.json")
 positional = []
@@ -148,11 +150,12 @@ for name in sorted(kw, key=lambda n: -sum(kw[n].values())):
 if not any_bad:
     out.append("none")
 
-if not check:
+if not check and not json_output:
     pathlib.Path(positional[1] if len(positional) > 1 else "TRACE.md").write_text(
         "\n".join(out) + "\n"
     )
-print(out[4])
+if not json_output:
+    print(out[4])
 
 supported_names = sorted(
     f"{kind}.{name}" for kind, names in SUPPORTED.items() for name in names
@@ -164,6 +167,10 @@ baseline = {
     "supported": ok,
     "supported_names": supported_names,
 }
+
+if json_output:
+    print(json.dumps({k: v for k, v in baseline.items() if k != "supported_names"}))
+    sys.exit(0)
 
 if update_baseline:
     baseline_path.write_text(json.dumps(baseline, indent=2) + "\n")

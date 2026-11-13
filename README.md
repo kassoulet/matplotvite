@@ -1,7 +1,7 @@
 # Matplotvite
 
 [![CI](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml/badge.svg)](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.5.0-blue)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](ROADMAP.md)
 
 > **Experimental.** Matplotvite is under active development. Its API may change
 > between releases, and it does not cover the full matplotlib surface. Validate
@@ -152,7 +152,9 @@ plt.savefig("contours.png")
   `markerfacecolor`/`mfc`, `markeredgecolor`/`mec`, `markeredgewidth`/`mew`, `alpha`,
   `drawstyle="steps-pre"|"steps-post"`, and fmt shorthand (`plot(x, y, "r--o")`)
 - Titles, labels, legends and text accept a small `$...$` math subset: `x^2`,
-  subscripts, fractions, roots and Greek/symbol commands such as `\alpha`
+  `e^{-x}`, subscripts, fractions, roots and Greek/symbol commands such as `\alpha`
+  (DejaVu Sans renders letters and signs as Unicode scripts; the Geist faces keep
+  a parenthesized fallback for glyphs they do not contain)
 - Colors: all 148 CSS4 names (plus `tab:*` aliases), hex strings, RGB/RGBA tuples,
   `C0`–`C9` and `0`–`9` cycle references, and `"none"`/`"transparent"`
 - `scatter(x, y, s=, c=, alpha=, cmap=, marker=)` — per-point sizes and colours,
@@ -161,11 +163,16 @@ plt.savefig("contours.png")
   `(2, N)` asymmetric errors, optional caps, and `fmt` markers
 - `quiver(X, Y, U, V)` / `quiver(U, V)` — vector-field arrows with `scale`,
   `pivot`, per-arrow colours and head sizing
+- `specgram(x, NFFT=, Fs=, noverlap=, cmap=)` — short-time spectrum computed with
+  NumPy and drawn through `imshow`
 - `bar(x, height, width=, bottom=, color=, edgecolor=, align=, alpha=, yerr=)` and
   `barh(...)` — single or per-bar colours, optional edge and error bars; returns a
   `BarContainer` whose handles support `set_facecolor`/`set_alpha`, with a legend swatch
   when labelled
-- `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars
+- `bar_label(container, labels=, fmt=, label_type=, padding=)` — value labels on bars;
+  `padding` is in points, like Matplotlib
+- `grouped_bar(data, tick_labels=, labels=, bottom=)` — side-by-side bars for a
+  mapping or 2-D array, returning one `BarContainer` per series
 - `hist(x, bins=, density=, cumulative=, orientation=, color=)` — drawn over `bar` (or as a `step`/`stepfilled` outline),
   returning `(counts, edges, handles)`; for safety, a 1-D histogram is capped at 4096 bins (Matplotlib has no such cap)
 - `step(x, y, where="pre"|"post"|"mid")` and `stairs(values, edges=, baseline=, fill=)` —
@@ -222,6 +229,10 @@ plt.savefig("contours.png")
   the image path; returns `(counts, xedges, yedges, image)`
 - `hexbin(x, y, gridsize=, C=, cmap=, mincnt=)` — hexagonal binning with
   colormap-mapped cells; returns a collection of counts and cell centres
+- `matshow(Z, ...)` — a 2-D array through `imshow`, defaulting to an equal aspect
+  and the origin at the top
+- `contours.clabel(levels=, fmt=, colors=, fontsize=)` — label each contour level
+  at the midpoint of its longest segment (`manual=True` raises)
 - `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes
 
 ### Axes and layout
@@ -232,12 +243,16 @@ plt.savefig("contours.png")
   cardinal/2-tuple locations, multi-column layouts, titles and axes-fraction anchors
 - `xticks(ticks, labels=, rotation=, fontsize=)` / `yticks(...)` — manual ticks whose
   labels, rotation and size are rendered
+- Tick locators and formatters through `ax.xaxis` / `ax.yaxis`: `MultipleLocator`,
+  `MaxNLocator`, `LinearLocator`, `LogLocator`, `FixedLocator` and `FixedFormatter`;
+  the resulting tick positions and labels are rendered
 - `tick_params(axis=, labelsize=, length=, width=, color=, rotation=)` — label and tick
   mark styling
 - `grid(visible, axis="both", linestyle=, linewidth=, alpha=, color=)` — styled gridlines
 - `text(x, y, s, color=, fontsize=, ha=, va=, transform=)` — data, `ax.transAxes` or
   `fig.transFigure` coordinates, with `\n` line breaks; `annotate(text, xy, xytext=)`
-  adds a straight arrow
+  adds a straight arrow, and `fig.text(...)` / `plt.figtext(...)` place
+  figure-fraction text above the panels
 - `set_aspect("equal" | "auto" | <number>)` — shrinks the plotting box, like
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `savefig(path | file-like | None, format=, dpi=, bbox_inches="tight", transparent=,
@@ -245,7 +260,9 @@ plt.savefig("contours.png")
   the page is sized from `figsize`) and lossless WebP; no path returns `bytes`. PNG
   compression is `"fast"` (default), `"default"`, or `"best"`
 - `GridSpec` and `SubplotSpec` via `fig.add_gridspec(...)`, including row/column spans
-  and `width_ratios`/`height_ratios`
+  and `width_ratios`/`height_ratios`; `subplot2grid((rows, cols), (row, col),
+  rowspan=, colspan=)` for the same layout shortcut
+- `figaspect(aspect)` returns a `(width, height)` pair for an aspect ratio
 - `ax.inset_axes([x, y, w, h])` for child axes placed in parent-axes fractions
 - `fig.add_axes([x, y, w, h])` where the rectangle is the plotting area, not a panel
   that includes tick and label margins
@@ -274,19 +291,24 @@ positions/labels are honoured by the renderer.
 ### Compatibility no-ops
 
 `show`, `draw`, `pause`, `ion`, `ioff`, `update`, `margins`, `autoscale`,
-`set_clip_on`, and `set_path_effects` are accepted for source compatibility.
-Shims that cannot affect the renderer emit a one-time `RuntimeWarning`, and the
-harvested gallery manifests count ignored calls per case.
+`set_clip_on`, `set_path_effects`, `xkcd`, `quiverkey`, `label_outer`,
+`secondary_xaxis`/`secondary_yaxis`, `set_xmargin`/`set_ymargin` and
+`locator_params` are accepted for source compatibility. `psd` and
+`magnitude_spectrum` are accepted and draw nothing, and `barbs` is drawn as a
+quiver of arrows. Shims that cannot affect the renderer emit a one-time
+`RuntimeWarning`, and the harvested gallery manifests count ignored calls per case.
 
 ### Not supported
 
-- `streamplot`, polar plots, 3-D axes, and other specialised matplotlib modules
+- `streamplot`, polar plots, 3-D axes, `Axes.table`, tripcolor/tricontour, and
+  other specialised matplotlib modules
+- a pandas `.plot()` backend (planned for 0.7)
 - interactive display (planned for a future GPUI-based version)
 
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite matplotvite
-accepts — currently **9 254 / 10 098 (91%)**. CI re-runs the trace against
+accepts — currently **9 602 / 10 098 (95%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples and benchmarks

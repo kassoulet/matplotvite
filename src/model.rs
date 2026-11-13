@@ -196,7 +196,7 @@ pub(crate) struct TextBBox {
 }
 
 /// (x, y, text, color, font size, horizontal align, vertical align, bbox,
-/// rotation in degrees, font family).
+/// rotation in degrees, font family, offset in points).
 pub(crate) type TextItem = (
     f64,
     f64,
@@ -208,6 +208,7 @@ pub(crate) type TextItem = (
     Option<TextBBox>,
     f64,
     String,
+    (f64, f64),
 );
 
 /// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper,

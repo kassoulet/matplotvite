@@ -1524,7 +1524,8 @@ def test_bar_updates_limits():
     ax = plt.gca()
     ax.bar([2], [5], width=2, bottom=1)
     assert ax.get_xlim() == pytest.approx((0.9, 3.1))
-    assert ax.get_ylim() == pytest.approx((0.75, 6.25))
+    # The bar baseline is a sticky edge, as in Matplotlib, so it sits on the axis.
+    assert ax.get_ylim() == pytest.approx((1.0, 6.25))
 
 
 def test_fill_between_polygon(tmp_path):
@@ -1741,6 +1742,30 @@ def test_violinplot_uses_one_body_colour_and_body_lines(tmp_path):
     p = tmp_path / "violin_style.png"
     plt.savefig(p)
     assert p.stat().st_size > 0
+
+
+def test_violinplot_bodies_have_no_outline_unless_asked(tmp_path):
+    plt.figure()
+    ax = plt.gca()
+    ax.violinplot([np.linspace(0, 1, 10)], showextrema=False)
+    plain = tmp_path / "violin_plain.svg"
+    plt.savefig(plain)
+
+    plt.figure()
+    ax = plt.gca()
+    ax.violinplot([np.linspace(0, 1, 10)], showextrema=False, edgecolor="red")
+    outlined = tmp_path / "violin_outline.svg"
+    plt.savefig(outlined)
+
+    bodies = [
+        line for line in plain.read_text(encoding="utf-8").splitlines()
+        if "<polygon" in line
+    ]
+    assert bodies and all("stroke" not in line for line in bodies)
+    assert any(
+        "<polyline" in line.lower() and "#ff0000" in line.lower()
+        for line in outlined.read_text(encoding="utf-8").splitlines()
+    )
 
 
 def test_violinplot_body_stays_within_the_data_range(tmp_path):
@@ -2548,8 +2573,10 @@ def test_mathtext_titles_labels_and_text(tmp_path):
 
     assert _mathtext("$x^2$") == "x²"
     assert _mathtext("$x^{10}$") == "x¹⁰"
-    assert _mathtext("$e^{-x}$") == "e^(-x)"
-    assert _mathtext("$A_{i-1}$") == "A_(i-1)"
+    assert _mathtext("$e^{-x}$") == "e⁻ˣ"
+    assert _mathtext("$A_{i-1}$") == "Aᵢ₋₁"
+    # Geist has only the Unicode script digits, so it keeps the readable fallback.
+    assert _mathtext("$e^{-x}$", "Geist Serif") == "e^(-x)"
     assert _mathtext("$\\alpha$ and $\\beta_1$") == "α and β₁"
     assert _mathtext("$\\sqrt{x}$") == "√x"
     assert _mathtext("plain text") == "plain text"
@@ -2567,7 +2594,7 @@ def test_mathtext_titles_labels_and_text(tmp_path):
     p = tmp_path / "mathtext.svg"
     plt.savefig(p)
     svg = p.read_text(encoding="utf-8")
-    assert "x²" in svg and "β₀" in svg and "e^(-x)" in svg
+    assert "x²" in svg and "β₀" in svg and "e⁻ˣ" in svg
 
 
 def test_unchanged_figure_reuses_encoded_bytes(monkeypatch):

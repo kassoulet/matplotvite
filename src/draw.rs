@@ -2880,8 +2880,13 @@ where
         // map_coordinate yields canvas-absolute pixels; the panel's own area re-applies
         // its origin, so anything drawn on it shifts back to cell-local pixels.
         let base = area.get_base_pixel();
-        for (x, y, s, c, size, ha, va, bbox, rotation, family) in &p.texts {
-            let pos = chart_area.map_coordinate(&(tx(*x), ty(*y)));
+        for (x, y, s, c, size, ha, va, bbox, rotation, family, offset) in &p.texts {
+            let mapped = chart_area.map_coordinate(&(tx(*x), ty(*y)));
+            // Offsets are points, positive up, like Matplotlib's text offsets.
+            let pos = (
+                mapped.0 + (offset.0 * dpi / 72.0).round() as i32,
+                mapped.1 - (offset.1 * dpi / 72.0).round() as i32,
+            );
             let font = if family.is_empty() {
                 p.font_family.as_str()
             } else {

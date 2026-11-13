@@ -358,12 +358,16 @@ fn decoration_fragment(
             ))
             .map_err(|e| e.to_string())?;
         }
-        for (x, y, text, colour, size, ha, va, bbox, rotation, family) in decorations.texts {
+        for (x, y, text, colour, size, ha, va, bbox, rotation, family, offset) in decorations.texts
+        {
             // Figure coordinates are fractions of the canvas, like `fig.text`.
             draw_label(
                 &root,
                 (0, 0),
-                ((x * w as f64) as i32, ((1.0 - y) * h as f64) as i32),
+                (
+                    (x * w as f64) as i32 + (offset.0 * dpi / 72.0).round() as i32,
+                    ((1.0 - y) * h as f64) as i32 - (offset.1 * dpi / 72.0).round() as i32,
+                ),
                 text,
                 color(colour),
                 text_px(*size, dpi).max(1.0),

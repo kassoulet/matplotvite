@@ -149,11 +149,25 @@ _MATH_SYMBOLS = {
     "prod": "∏", "int": "∫", "partial": "∂", "nabla": "∇", "sqrt": "√",
     "propto": "∝", "sim": "∼", "ldots": "…", "dots": "…",
 }
-# Geist includes the Unicode superscript and subscript digits but not the
-# modifier letters or subscript operators. Unsupported scripts fall back to
+# DejaVu Sans carries the Unicode superscript and subscript digits, signs and
+# modifier letters. Geist only has the digits, so those scripts fall back to
 # parenthesized baseline notation instead of rendering missing-glyph boxes.
 _SUPERSCRIPTS = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 _SUBSCRIPTS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+_MATH_SUPERSCRIPTS = str.maketrans({
+    **{ord(ch): out for ch, out in zip("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")},
+    **{ord(ch): out for ch, out in zip("+-=()", "⁺⁻⁼⁽⁾")},
+    **{ord(ch): out for ch, out in zip("ABCDEGHIJKLMNOPRTUVW",
+                                     "ᴬᴮᴰᴱᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᴿᵀᵁⱽᵂ")},
+    **{ord(ch): out for ch, out in zip("abcdefghijklmnoprstuvwxyz",
+                                     "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖʳˢᵗᵘᵛʷˣʸᶻ")},
+})
+_MATH_SUBSCRIPTS = str.maketrans({
+    **{ord(ch): out for ch, out in zip("0123456789", "₀₁₂₃₄₅₆₇₈₉")},
+    **{ord(ch): out for ch, out in zip("+-=()", "₊₋₌₍₎")},
+    **{ord(ch): out for ch, out in zip("aehijklmnoprstuvx",
+                                     "ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ")},
+})
 
 
 def _math_script(body, table, marker):
@@ -222,7 +236,7 @@ def _text_props(fontdict, kwargs):
     return transform, fontsize, colour, ha, va, bbox, rotation, family
 
 
-def _mathtext(text):
+def _mathtext(text, family=None):
     """Render a small `$...$` TeX subset as Unicode for the text renderer."""
     value = str(text)
     if not rcParams.get("text.parse_math", True):
@@ -230,6 +244,7 @@ def _mathtext(text):
     parts = value.split("$")
     if len(parts) % 2 == 0:
         return value
+    full_scripts = _font_family(family).startswith("DejaVu")
 
     def segment(body):
         body = _re.sub(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", r"\1/\2", body)
@@ -242,7 +257,7 @@ def _mathtext(text):
             r"\^\{([^{}]*)\}|\^(\S)",
             lambda m: _math_script(
                 m.group(1) if m.group(1) is not None else m.group(2),
-                _SUPERSCRIPTS,
+                _MATH_SUPERSCRIPTS if full_scripts else _SUPERSCRIPTS,
                 "^",
             ),
             body,
@@ -251,7 +266,7 @@ def _mathtext(text):
             r"_\{([^{}]*)\}|_(\S)",
             lambda m: _math_script(
                 m.group(1) if m.group(1) is not None else m.group(2),
-                _SUBSCRIPTS,
+                _MATH_SUBSCRIPTS if full_scripts else _SUBSCRIPTS,
                 "_",
             ),
             body,
@@ -3658,10 +3673,11 @@ class Axes:
                     raise AttributeError(f"Axes.set() does not support {key!r}")
                 setter(value)
 
-    def text(self, x, y, s, fontdict=None, **kwargs):
+    def text(self, x, y, s, fontdict=None, offset=(0.0, 0.0), **kwargs):
         """Place text at (x, y); `transform` may be `ax.transAxes` or
-        `fig.transFigure` to use axes- or figure-fraction coordinates. Other
-        Matplotlib text properties are accepted but not drawn yet."""
+        `fig.transFigure` to use axes- or figure-fraction coordinates. `offset`
+        shifts the glyphs by that many points from the anchor. Other Matplotlib
+        text properties are accepted but not drawn yet."""
         transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
             fontdict, kwargs)
         if ha not in ("left", "center", "right"):
@@ -3677,9 +3693,10 @@ class Axes:
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         x = _as_f64(self._xdate(x) if kind == "data" else x)
         y = _as_f64(y)
-        self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s),
+        self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s, family),
                                       _norm_color(colour), size, ha, va, kind, bbox,
-                                      rotation, family)))
+                                      rotation, family,
+                                      (float(offset[0]), float(offset[1])))))
         return _TextArt()
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
@@ -4145,9 +4162,11 @@ class Axes:
             colors = [self._next_color()]
         alpha = kwargs.get("alpha")
         body_alpha = 0.3 if alpha is None else float(alpha)
-        # Extrema, means, medians and quantiles use the body colour.
-        line_color = _single_color(
-            kwargs.get("linecolor", kwargs.get("edgecolor")), colors[0])
+        # Extrema, means, medians and quantiles use the body colour. Bodies are
+        # plain translucent fills with no outline, like Matplotlib's
+        # fill_between path; an explicit edge colour is the only thing drawn.
+        edge = kwargs.get("linecolor", kwargs.get("edgecolor"))
+        line_color = _single_color(edge, colors[0])
         out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
         if quantiles is not None:
             out["cquantiles"] = []
@@ -4192,7 +4211,7 @@ class Axes:
             entry = _band(xs, ys, color, body_alpha)
             self.bands.append(entry)
             out["bodies"].append(_ViolinBody(entry, color))
-            if line_color is not None:
+            if edge is not None:
                 outline = np.append(xs, xs[0])
                 outline_y = np.append(ys, ys[0])
                 self._stats_line(outline, outline_y, line_color)
@@ -4242,6 +4261,8 @@ class Axes:
         if align not in ("center", "edge"):
             raise ValueError(f"unsupported align: {align!r}")
         left = x - w / 2.0 if align == "center" else x
+        # Matplotlib pins each bar's baseline so autoscaling keeps it on the axis.
+        self._sticky_y += [float(v) for v in np.asarray(b).ravel()]
         colors = _bar_colors(color if color is not None else self._next_color(), n)
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
                               colors=colors,
@@ -4276,18 +4297,18 @@ class Axes:
                 x = float(group["left"][index] + group["width"][index] / 2.0)
                 anchor = float(group["bottom"][index])
                 if label_type == "edge":
-                    y, va = anchor + length + float(padding), "bottom"
+                    y, va, shift = anchor + length, "bottom", (0.0, float(padding))
                 else:
-                    y, va = anchor + length / 2.0, "center"
+                    y, va, shift = anchor + length / 2.0, "center", (0.0, 0.0)
                 ha = "center"
             else:
                 length = float(group["width"][index])
                 y = float(group["bottom"][index] + group["height"][index] / 2.0)
                 anchor = float(group["left"][index])
                 if label_type == "edge":
-                    x, ha = anchor + length + float(padding), "left"
+                    x, ha, shift = anchor + length, "left", (float(padding), 0.0)
                 else:
-                    x, ha = anchor + length / 2.0, "center"
+                    x, ha, shift = anchor + length / 2.0, "center", (0.0, 0.0)
                 va = "center"
             if texts is not None:
                 text = texts[i]
@@ -4298,7 +4319,8 @@ class Axes:
             else:
                 text = str(fmt).format(length)
             self.text(x, y, text, color=kwargs.get("color", "black"),
-                      fontsize=kwargs.get("fontsize", 10), ha=ha, va=va)
+                      fontsize=kwargs.get("fontsize", 10), ha=ha, va=va,
+                      offset=shift)
             out.append(text)
         return out
 
@@ -4327,6 +4349,7 @@ class Axes:
         if align not in ("center", "edge"):
             raise ValueError(f"unsupported align: {align!r}")
         bottom = y - h / 2.0 if align == "center" else y
+        self._sticky_x += [float(v) for v in np.asarray(l).ravel()]
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
                               colors=_bar_colors(color if color is not None else self._next_color(), n),
                               edgecolor=(_bar_colors(edgecolor, n)
@@ -4606,7 +4629,7 @@ class Axes:
         xytext = kwargs.get("xytext", xytext)
         xy = _as_f64(xy)
         xytext = None if xytext is None else _as_f64(xytext)
-        self.annotations.append((_mathtext(text), (float(xy[0]), float(xy[1])),
+        self.annotations.append((_mathtext(text, family), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size, family or ""))
 
@@ -4792,21 +4815,24 @@ class Axes:
         return ContourSet(entry, axes=self)
 
     def set_title(self, t, fontsize=None, **kwargs):
-        self.title = _mathtext(t)
+        family = _family_override(kwargs)
+        self.title = _mathtext(t, family)
         self.title_size = self._size_or(fontsize, "axes.titlesize")
-        self.title_family = _family_override(kwargs)
+        self.title_family = family
 
     def set_xlabel(self, t, fontsize=None, **kwargs):
-        self.xlabel = _mathtext(t)
+        family = _family_override(kwargs)
+        self.xlabel = _mathtext(t, family)
         self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
-        self.xlabel_family = _family_override(kwargs)
+        self.xlabel_family = family
         if "color" in kwargs or "labelcolor" in kwargs:
             self.xlabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
     def set_ylabel(self, t, fontsize=None, **kwargs):
-        self.ylabel = _mathtext(t)
+        family = _family_override(kwargs)
+        self.ylabel = _mathtext(t, family)
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
-        self.ylabel_family = _family_override(kwargs)
+        self.ylabel_family = family
         if "color" in kwargs or "labelcolor" in kwargs:
             self.ylabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
@@ -4882,7 +4908,7 @@ class Axes:
         if fontsize is not None:
             self.legend_fontsize = _font_size(fontsize, rcParams.get("legend.fontsize", 10.0))
         if title is not None:
-            self.legend_title = _mathtext(title)
+            self.legend_title = _mathtext(title, _font_family(fontfamily))
         if title_fontsize is not None:
             self.legend_title_fontsize = _font_size(title_fontsize, 11.0)
         if fontfamily is not None:
@@ -5383,7 +5409,7 @@ class Axes:
 
     def _resolve_text(self, t, x0, x1, y0, y1):
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
-        x, y, s, c, size, ha, va, kind, bbox, rotation, family = t
+        x, y, s, c, size, ha, va, kind, bbox, rotation, family, shift = t
         if kind == "axes":
             x, y = x0 + x * (x1 - x0), y0 + y * (y1 - y0)
         elif kind == "figure":
@@ -5392,7 +5418,7 @@ class Axes:
             fx0, fy0 = col / cols, (rows - 1 - row) / rows
             x = x0 + (x - fx0) * cols * (x1 - x0)
             y = y0 + (y - fy0) * rows * (y1 - y0)
-        return (x, y, s, c, size, ha, va, bbox, rotation, family)
+        return (x, y, s, c, size, ha, va, bbox, rotation, family, shift)
 
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
@@ -6383,8 +6409,9 @@ class Figure:
     def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
         """Draw a figure-level title above the panel grid."""
         size = _font_size(fontsize, rcParams.get("figure.titlesize", 14.0))
-        self._suptitle = dict(text=_mathtext(t), size=size, x=float(x), y=float(y),
-                              family=_family_override(kwargs))
+        family = _family_override(kwargs)
+        self._suptitle = dict(text=_mathtext(t, family), size=size, x=float(x),
+                              y=float(y), family=family)
         return None
 
     def text(self, x, y, s, fontdict=None, **kwargs):
@@ -6400,9 +6427,9 @@ class Figure:
         size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         values = _as_f64((x, y))
-        self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s),
+        self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s, family),
                                    _norm_color(colour), size, ha, va, bbox, rotation,
-                                   family))
+                                   family, (0.0, 0.0)))
         return _TextArt()
 
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):

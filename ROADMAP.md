@@ -1,15 +1,14 @@
 # Matplotvite — Roadmap
 
 > Tracking progress toward a NumPy-only, Rust-rendered subset of Matplotlib's static API.
-> TRACE.md baseline: **9 254 / 10 098 call sites covered (91%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **9 602 / 10 098 call sites covered (95%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `matplotvite` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
 
 ## Release status
 
-- **Current version: 0.5.0** — milestones 0.1 through 0.5 are complete.
-- **0.6** targets performance and visual fidelity; see the section below.
+- **Current version: 0.6.0** — milestones 0.1 through 0.6 are complete.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
@@ -198,7 +197,7 @@
 
 ---
 
-## 🎯 0.6 — Performance & fidelity
+## ✅ 0.6 — Performance & fidelity (done)
 
 > Goal: widen the speed gap and tighten visual parity without giving up vector output.
 > Target: no workload below 4× matplotlib and a tracked gallery pixel-diff budget.

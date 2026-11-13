@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import shutil
 import statistics
+import subprocess
 import sys
 import time
 
@@ -145,7 +146,7 @@ def shared_navbar(current_page: str) -> str:
     return f"""
   <nav class="topnav">
     <div class="nav-container">
-      <a href="index.html" class="nav-logo">Matplotvite<span class="logo-version">0.5</span></a>
+      <a href="index.html" class="nav-logo">Matplotvite<span class="logo-version">0.6</span></a>
       <div class="nav-links">
         <a href="index.html" class="nav-link{gallery_active}">Examples</a>
         <a href="galleries.html" class="nav-link{galleries_active}">Galleries</a>
@@ -371,6 +372,51 @@ def shared_css() -> str:
     """
 
 
+def coverage_stats() -> dict[str, object]:
+    """Return the matplotlib test-suite coverage counts shown on the site.
+
+    The reports in `TRACE.md` and `tools/trace_baseline.json` are kept in sync by
+    CI. When the pinned matplotlib is installed its tests are rescanned live, so
+    the site shows current coverage; otherwise the baseline is reused.
+    """
+    stats: dict[str, object] = {}
+    spec = importlib.util.find_spec("matplotlib")
+    tests_dir = Path(spec.origin).parent / "tests" if spec and spec.origin else None
+    if tests_dir is not None and tests_dir.is_dir():
+        scanned = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "trace_unsupported.py"),
+             str(tests_dir), "--json"],
+            capture_output=True, text=True,
+        )
+        if scanned.returncode == 0:
+            try:
+                stats = json.loads(scanned.stdout)
+            except json.JSONDecodeError:
+                stats = {}
+    if not stats:
+        stats = json.loads(
+            (ROOT / "tools" / "trace_baseline.json").read_text(encoding="utf-8")
+        )
+    stats["percent"] = 100 * int(stats["supported"]) // max(int(stats["total"]), 1)
+    return stats
+
+
+def coverage_counter_html(coverage: dict[str, object]) -> str:
+    """Render the live coverage statistic beside the gallery coverage table."""
+    supported = int(coverage["supported"])
+    total = int(coverage["total"])
+    files = int(coverage["files"])
+    version = html.escape(str(coverage["matplotlib"]))
+    percent = int(coverage["percent"])
+    return f"""
+      <div class="coverage-counter">
+        <p class="coverage-percent">{percent}<span>%</span></p>
+        <p class="coverage-count">{supported:,} / {total:,} call sites</p>
+        <div class="coverage-meter" aria-hidden="true"><span style="width: {percent}%"></span></div>
+        <p class="coverage-source">Static scan of {files} matplotlib {version} test files. The CI trace job re-runs this check and fails on any drop.</p>
+      </div>"""
+
+
 def gallery_css() -> str:
     """Return styles specific to the example gallery."""
     return """
@@ -468,6 +514,35 @@ def gallery_css() -> str:
       font-weight: 600;
     }
     .coverage-table td:last-child { color: var(--muted); }
+
+    .coverage-counter { margin-top: 0.5rem; }
+    .coverage-percent {
+      color: var(--text);
+      font-family: var(--serif);
+      font-size: 2.3rem;
+      line-height: 1.1;
+    }
+    .coverage-percent span { color: var(--muted); font-size: 1.2rem; }
+    .coverage-count {
+      margin-top: 0.25rem;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.74rem;
+    }
+    .coverage-meter {
+      margin-top: 0.7rem;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .coverage-meter span { display: block; height: 100%; background: var(--accent); }
+    .coverage-source {
+      margin-top: 0.7rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
 
     .gallery-section { padding: 3rem 0 0; }
     .section-header {
@@ -649,9 +724,13 @@ def gallery_js() -> str:
     """
 
 
-def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
+def generate_gallery_html(samples_info: list[dict[str, object]],
+                          coverage: dict[str, object] | None = None) -> str:
     """Generate index.html from the rendered sample metadata."""
     categories = list(dict.fromkeys(str(s["category"]) for s in samples_info))
+    coverage_html = coverage_counter_html(
+        coverage if coverage is not None else coverage_stats()
+    )
 
     cat_buttons = ['<button class="filter-btn active" data-filter="all">All</button>']
     for cat in categories:
@@ -770,7 +849,10 @@ def generate_gallery_html(samples_info: list[dict[str, object]]) -> str:
     </section>
 
     <section class="coverage-section">
-      <p class="side-heading">Coverage</p>
+      <div class="coverage-aside">
+        <p class="side-heading">Coverage</p>
+        {coverage_html}
+      </div>
       <table class="coverage-table">
         <thead>
           <tr><th>Area</th><th>Examples in this gallery</th></tr>
@@ -1411,7 +1493,7 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
       OS: {html.escape(str(sys_info.get("os", "Linux")))} ({html.escape(str(sys_info.get("arch", "x86_64")))})<br>
       Python: {html.escape(str(sys_info.get("python_version", "3.x")))};
       matplotlib: {html.escape(str(sys_info.get("matplotlib_version", "3.11.2")))};
-      Matplotvite: {html.escape(str(sys_info.get("matplotvite_version", "0.5.0")))}<br>
+      Matplotvite: {html.escape(str(sys_info.get("matplotvite_version", "0.6.0")))}<br>
       Measured: {html.escape(str(sys_info.get("timestamp", "unknown")))}<br>
       Reproduce: <code>python tools/benchmark.py</code>
     </div>
