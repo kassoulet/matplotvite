@@ -109,7 +109,11 @@ def _norm_color(c):
 
 
 def _is_rgb(c):
-    """True for a tuple/list of 3 or 4 numeric channel values."""
+    """True for a tuple/list/array of 3 or 4 numeric channel values."""
+    if isinstance(c, np.ndarray):
+        if c.shape not in ((3,), (4,)):
+            return False
+        c = c.tolist()
     return (isinstance(c, (tuple, list)) and len(c) in (3, 4)
             and all(isinstance(v, (int, float, np.number)) for v in c))
 
@@ -5449,6 +5453,15 @@ def _cmap_colors(cmap, values):
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
 
 
+def _color_alpha(value):
+    """Normalize a `(colour, alpha)` pair, as bar() accepts per-bar."""
+    base = _norm_color(value[0])
+    if base in (None, "none"):
+        return base
+    alpha = float(np.clip(float(value[1]), 0.0, 1.0))
+    return base[:7] + f"{int(round(alpha * 255)):02x}"
+
+
 def _first_color(value):
     """One colour from a possibly per-artist colour sequence."""
     if value is None or isinstance(value, str) or _is_rgb(value):
@@ -5457,7 +5470,13 @@ def _first_color(value):
         items = list(np.asarray(value, dtype=object).ravel())
     except (TypeError, ValueError):
         return value
-    return items[0] if items else None
+    if not items:
+        return None
+    first = items[0]
+    if (isinstance(first, (tuple, list)) and len(first) == 2
+            and not isinstance(first[0], (int, float))):
+        return first[0]
+    return first
 
 
 def _bar_colors(color, n):
@@ -5472,7 +5491,11 @@ def _bar_colors(color, n):
         vals = [_norm_color(row) for row in array]
         if len(vals) in (1, n):
             return vals
-    vals = [_norm_color(v) for v in np.asarray(color, dtype=object).ravel()]
+    entries = (list(color) if isinstance(color, (list, tuple))
+               else list(np.asarray(color, dtype=object).ravel()))
+    vals = [_color_alpha(v) if (isinstance(v, (tuple, list)) and len(v) == 2
+                                and not isinstance(v[0], (int, float)))
+            else _norm_color(v) for v in entries]
     if len(vals) not in (1, n):
         raise ValueError("color must be a single colour or one per bar")
     return vals

@@ -3555,3 +3555,12 @@ def test_inset_axes_accepts_point_bbox_to_anchor():
     assert inset in fig.get_axes()
     parent = ax.get_position()
     assert inset.get_position().width == pytest.approx(0.3 * parent.width)
+
+
+def test_bar_accepts_color_alpha_pairs_and_rgba_arrays():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    bars = ax.bar([0, 1], [1, 2], color=[("green", 0.25), ("red", 1.0)])
+    assert len(bars) == 2
+    rgba = np.array([0.1, 0.2, 0.3, 0.4])
+    ax.barh([0, 1], [1, 2], color=rgba)
