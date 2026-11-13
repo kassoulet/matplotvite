@@ -29,13 +29,12 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
-      - name: Build matplotvite and base site
+      - name: Build matplotvite
         run: |
           python -m venv .venv
           . .venv/bin/activate
           pip install -c .github/requirements-ci.txt maturin numpy pandas "matplotlib==3.11.2" pypdfium2 cairosvg
           maturin develop --release
-          python tools/build_pages.py --out dist
 
       - name: Fetch the harvested sources
         run: |
@@ -59,7 +58,8 @@ jobs:
           python tools/harvest_matplotlib.py --examples /tmp/mpl-src --out dist/mpl-examples
           python tools/harvest_seaborn.py --source /tmp/sns-src --out dist/seaborn-gallery
           python tools/visual_compare.py dist/visual-svg --format svg
-          python tools/build_pages.py --out dist --galleries-only
+          # Built after the galleries so the coverage section can summarise them.
+          python tools/build_pages.py --out dist
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

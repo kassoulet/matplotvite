@@ -96,6 +96,18 @@ def test_criterion_guard_warns_unless_fail_is_requested(tmp_path, monkeypatch, c
 
 def test_build_pages_generation(tmp_path):
     """Verify that build_pages generates both the gallery and the benchmark page."""
+    manifest_dir = tmp_path / "mpl-corpus"
+    manifest_dir.mkdir(parents=True)
+    (manifest_dir / "manifest.json").write_text(
+        json.dumps([
+            {"status": "rendered"},
+            {"status": "rendered"},
+            {"status": "needs-api"},
+            {"status": "failed"},
+            {"status": "unsupported"},
+        ]),
+        encoding="utf-8",
+    )
     build_pages(tmp_path)
 
     assert (tmp_path / "index.html").exists()
@@ -111,6 +123,11 @@ def test_build_pages_generation(tmp_path):
     # Deployed pages name the commit they were built from.
     assert "Built from commit" in gallery_html
     assert "/commit/" in gallery_html
+
+    # The coverage section breaks the gallery cases down by outcome.
+    assert "5 comparison-gallery cases" in gallery_html
+    assert "40% covered" in gallery_html
+    assert "needs API" in gallery_html
 
     bench_html = (tmp_path / "benchmarks.html").read_text(encoding="utf-8")
     assert "Static rendering benchmarks" in bench_html

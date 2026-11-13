@@ -404,12 +404,42 @@ def shared_css() -> str:
     """
 
 
-def coverage_stats() -> dict[str, object]:
+GALLERY_STATUS_BUCKETS = {
+    # A case counts as covered when matplotvite produced its image.
+    "covered": ("rendered", "pass", "no baseline"),
+    "needs-api": ("needs-api",),
+    # Blank renders, crashes and harvester-side gaps all failed to produce a figure.
+    "failed": ("failed", "bug", "blank", "harvester-gap"),
+    "unsupported": ("unsupported",),
+}
+
+
+def gallery_status_breakdown(out_dir: Path) -> dict[str, int]:
+    """Group comparison-gallery case statuses into the four coverage outcomes."""
+    counts: Counter[str] = Counter()
+    for _, directory, _ in GALLERY_PAGES:
+        manifest = out_dir / directory / "manifest.json"
+        if manifest.exists():
+            cases = json.loads(manifest.read_text(encoding="utf-8"))
+            counts.update(str(case.get("status")) for case in cases)
+    if not counts:
+        return {}
+    breakdown = {
+        bucket: sum(counts[status] for status in statuses)
+        for bucket, statuses in GALLERY_STATUS_BUCKETS.items()
+    }
+    breakdown["cases"] = sum(breakdown.values())
+    breakdown["other"] = sum(counts.values()) - breakdown["cases"]
+    return breakdown
+
+
+def coverage_stats(out_dir: Path | None = None) -> dict[str, object]:
     """Return the matplotlib test-suite coverage counts shown on the site.
 
     The reports in `TRACE.md` and `tools/trace_baseline.json` are kept in sync by
     CI. When the pinned matplotlib is installed its tests are rescanned live, so
-    the site shows current coverage; otherwise the baseline is reused.
+    the site shows current coverage; otherwise the baseline is reused. With
+    `out_dir`, the comparison galleries generated there are summarised by status.
     """
     stats: dict[str, object] = {}
     spec = importlib.util.find_spec("matplotlib")
@@ -430,6 +460,10 @@ def coverage_stats() -> dict[str, object]:
             (ROOT / "tools" / "trace_baseline.json").read_text(encoding="utf-8")
         )
     stats["percent"] = 100 * int(stats["supported"]) // max(int(stats["total"]), 1)
+    if out_dir is not None:
+        breakdown = gallery_status_breakdown(out_dir)
+        if breakdown:
+            stats["galleries"] = breakdown
     return stats
 
 
@@ -446,7 +480,32 @@ def coverage_counter_html(coverage: dict[str, object]) -> str:
         <p class="coverage-count">{supported:,} / {total:,} call sites</p>
         <div class="coverage-meter" aria-hidden="true"><span style="width: {percent}%"></span></div>
         <p class="coverage-source">Static scan of {files} matplotlib {version} test files. The CI trace job re-runs this check and fails on any drop.</p>
+        {gallery_breakdown_html(coverage.get("galleries"))}
       </div>"""
+
+
+def gallery_breakdown_html(breakdown: object) -> str:
+    """List the comparison-gallery outcomes under the call-site counter."""
+    if not isinstance(breakdown, dict) or not breakdown.get("cases"):
+        return ""
+    labels = (
+        ("covered", "covered"),
+        ("needs-api", "needs API"),
+        ("failed", "failed"),
+        ("unsupported", "unsupported"),
+    )
+    cases = int(breakdown["cases"])
+    covered = int(breakdown["covered"])
+    items = "".join(
+        f'<li><span class="coverage-status-count">{int(breakdown[key]):,}</span>'
+        f'<span class="coverage-status-label">{label}</span></li>'
+        for key, label in labels
+    )
+    other = int(breakdown.get("other", 0))
+    extra = f" and {other:,} with another status" if other else ""
+    return f"""
+        <ul class="coverage-status">{items}</ul>
+        <p class="coverage-source">{cases:,} comparison-gallery cases, {100 * covered // cases}% covered{extra}. A case needs API when the call exists in matplotlib but not here; it failed when matplotvite could not render it.</p>"""
 
 
 def gallery_css() -> str:
@@ -574,6 +633,27 @@ def gallery_css() -> str:
       color: var(--muted);
       font-size: 0.78rem;
       line-height: 1.45;
+    }
+    .coverage-status {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.55rem 1rem;
+      margin-top: 1.1rem;
+      padding: 0;
+      list-style: none;
+    }
+    .coverage-status li { display: flex; flex-direction: column; }
+    .coverage-status-count {
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    .coverage-status-label {
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     .gallery-section { padding: 3rem 0 0; }
@@ -1828,7 +1908,7 @@ def build_pages(out_dir: Path) -> None:
 
     (out_dir / ".nojekyll").touch()
 
-    gallery_html = generate_gallery_html(samples_info)
+    gallery_html = generate_gallery_html(samples_info, coverage_stats(out_dir))
     index_path = out_dir / "index.html"
     index_path.write_text(gallery_html, encoding="utf-8")
     gallery_size = format_bytes(len(gallery_html.encode("utf-8")))
