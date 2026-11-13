@@ -19,3 +19,6 @@ env/
 
 # Output
 visual/
+
+# Agent review notes, kept local only.
+review.md
