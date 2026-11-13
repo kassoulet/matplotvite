@@ -43,6 +43,12 @@ _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
           "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
 # Only the one-letter colors matplotvite can render are honoured in fmt strings.
 _FMT_COLORS = {"b": "blue", "g": "green", "r": "red", "k": "black"}
+# Matplotlib's filter-based image interpolations; the rasteriser has no kernel
+# for them, so they render with the closest built-in filter.
+_INTERP_FALLBACKS = {name: "bicubic" for name in (
+    "bessel", "gaussian", "spline16", "spline36", "hanning", "hamming",
+    "hermite", "kaiser", "quadric", "catrom", "mitchell", "lanczos",
+    "blackman")}
 _SHORT_COLORS = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
 _TAB10 = {"tab:blue": "#1f77b4", "tab:orange": "#ff7f0e", "tab:green": "#2ca02c",
@@ -157,7 +163,8 @@ _IGNORED_TEXT_KWARGS = frozenset(
     "family figure font fontfamily fontname fontproperties font_properties "
     "fontstretch fontstyle fontvariant fontweight gid in_layout linespacing ma "
     "math_fontfamily multialignment parse_math path_effects picker rasterized "
-    "rotation rotation_mode sketch_params snap style url usetex verticalalignment "
+    "rotation rotation_mode rotation_point sketch_params snap style url usetex "
+    "transform_rotates_text variant verticalalignment "
     "visible weight wrap zorder".split()
 )
 
@@ -1037,15 +1044,15 @@ class _SecondLocator(_TimeLocator):
         super().__init__(interval, unit="seconds", **kwargs)
 
 
-def _rrule_wrapper(**kwargs):
+def _rrule_wrapper(rrule=None, **kwargs):
     """Placeholder for dateutil's rrule wrapper; its options are not used."""
-    return dict(kwargs)
+    return dict(kwargs, rrule=rrule)
 
 
 class _RRuleLocator(_MonthLocator):
     """Monthly ticks for an rrule expression; the rrule options are ignored."""
 
-    def __init__(self, rrule=None, tz=None, **kwargs):
+    def __init__(self, rrule=None, tz=None, *args, **kwargs):
         super().__init__(tz=tz)
 
 
@@ -3477,6 +3484,9 @@ class Axes:
             raise ValueError("extent must be (left, right, bottom, top)")
         if interp == "auto":
             interp = "antialiased"
+        # Matplotlib also ships filter-based interpolations the rasteriser has
+        # no kernel for; the nearest built-in keeps the example's intent.
+        interp = _INTERP_FALLBACKS.get(interp, interp)
         if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
             raise ValueError(f"unsupported interpolation: {setting!r}")
         opacity = 1.0 if alpha is None else float(alpha)
@@ -4040,7 +4050,14 @@ class Axes:
                 else:
                     x, ha = anchor + length / 2.0, "center"
                 va = "center"
-            text = texts[i] if texts is not None else fmt % length
+            if texts is not None:
+                text = texts[i]
+            elif callable(fmt):
+                text = str(fmt(length))
+            elif "%" in str(fmt):
+                text = str(fmt) % length
+            else:
+                text = str(fmt).format(length)
             self.text(x, y, text, color=kwargs.get("color", "black"),
                       fontsize=kwargs.get("fontsize", 10), ha=ha, va=va)
             out.append(text)
@@ -4504,6 +4521,12 @@ class Axes:
         return self._add_contour(args, levels, colors, cmap, True, linewidths, alpha)
 
     def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None, alpha=None):
+        if args and isinstance(args[0], ContourSet):
+            # `contour(other_set, levels=...)` re-draws the same field.
+            source = args[0]._e
+            if len(args) > 1:
+                levels = args[1]
+            args = (source["x"], source["y"], source["z"])
         x, y, z, levels = _contour_args(args, levels)
         levels = _levels(z, levels, allow_single=not filled)
         if linewidths is None:
@@ -4513,7 +4536,8 @@ class Axes:
         else:
             widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
         if widths and len(widths) not in (1, len(levels)):
-            raise ValueError("linewidths must be a scalar or match the number of levels")
+            # Matplotlib reuses a short width list across the remaining levels.
+            widths = [widths[i % len(widths)] for i in range(len(levels))]
         opacity = 1.0 if alpha is None else float(alpha)
         if not np.isfinite(opacity):
             raise ValueError("alpha must be finite")
@@ -4630,7 +4654,9 @@ class Axes:
                   colors=None, linestyles=None, linewidths=None, **kwargs):
         """One short line per event position, one row per positions array."""
         rows = positions
-        if not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
+        if isinstance(rows, np.ndarray) and rows.ndim == 2:
+            rows = list(rows)
+        elif not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
             rows = [rows]
         rows = [np.asarray(r, dtype=np.float64).ravel() for r in rows]
         if not rows:
@@ -4841,11 +4867,16 @@ class Axes:
         if baseline not in ("zero", "sym"):
             raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
         x = np.asarray(x, dtype=np.float64).ravel()
+        labels = list(labels) if labels is not None else []
         layers = []
         for y in ys:
+            if not isinstance(y, (list, tuple, np.ndarray)):
+                y = list(y) if hasattr(y, "__iter__") else y
             a = np.asarray(y, dtype=np.float64)
             if a.ndim == 2 and a.shape[0] == x.size:
                 layers.extend(a[:, i] for i in range(a.shape[1]))
+            elif a.ndim == 2 and a.shape[1] == x.size:
+                layers.extend(a[i, :] for i in range(a.shape[0]))
             else:
                 layers.append(a.ravel())
         if not layers:
@@ -5670,6 +5701,18 @@ class ContourSet:
 
     def get_cmap(self): return self._e["cmap"]
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
+    def get_linewidth(self):
+        widths = self._e["linewidths"]
+        if not widths:
+            return np.asarray([float(rcParams.get("lines.linewidth", 1.5))])
+        return np.asarray(widths, dtype=np.float64)
+
+    def set_linewidth(self, value):
+        if np.isscalar(value):
+            self._e["linewidths"] = [float(value)]
+        else:
+            self._e["linewidths"] = [float(v) for v in np.ravel(value)]
+
     def set_clim(self, vmin=None, vmax=None): pass
     def set(self, **kwargs): return self
     def clabel(self, *args, **kwargs): return []
@@ -6878,20 +6921,25 @@ def _locator_value(value):
 class _MultipleLocator(_Locator):
     """Ticks at multiples of `base`, as `ticker.MultipleLocator`."""
 
-    def __init__(self, base=1.0):
+    def __init__(self, base=1.0, offset=0.0):
         self.base = float(base)
+        self.offset = float(offset or 0.0)
 
-    def set_params(self, base=None):
+    def set_params(self, base=None, offset=None):
         if base is not None:
             self.base = float(base)
+        if offset is not None:
+            self.offset = float(offset)
 
     def tick_values(self, vmin, vmax):
         lo, hi = _locator_span(vmin, vmax)
         base = self.base if self.base > 0 else 1.0
+        lo, hi = lo - self.offset, hi - self.offset
         first = _math.ceil(lo / base - 1e-9) * base
         last = _math.floor(hi / base + 1e-9) * base
         count = int(round((last - first) / base)) + 1 if last >= first else 0
-        return np.asarray([_locator_value(first + i * base) for i in range(count)])
+        return np.asarray([_locator_value(first + i * base + self.offset)
+                           for i in range(count)])
 
 
 class _MaxNLocator(_Locator):
@@ -7133,8 +7181,17 @@ gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
 lines = _Namespace(Line2D=Line2D)
 patheffects = _PathEffects()
 path_effects = patheffects
-color_sequences = {"tableau": list(_CYCLE), "petroff": ["#000000", "#1f77b4", "#2ca02c",
-                                                        "#d62728", "#9467bd", "#8c564b"]}
+# The discrete qualitative maps double as colour sequences, as in Matplotlib.
+_QUALITATIVE_CMAPS = ("tab10", "tab20", "tab20b", "tab20c", "Pastel1",
+                      "Pastel2", "Paired", "Set1", "Set2", "Set3", "Dark2",
+                      "Accent")
+color_sequences = {
+    **{name: ["#%02x%02x%02x" % tuple(int(v) for v in rgb)
+              for rgb in _CMAP_DATA[name]]
+       for name in _QUALITATIVE_CMAPS if name in _CMAP_DATA},
+    "tableau": list(_CYCLE),
+    "petroff": ["#000000", "#1f77b4", "#2ca02c", "#d62728", "#9467bd", "#8c564b"],
+}
 
 
 def rc(group=None, **kwargs):

@@ -499,11 +499,11 @@ def test_contour_linewidths_and_alpha(tmp_path):
     assert re.search(r'opacity="0\.25', p2.read_text())
 
 
-def test_contour_linewidths_validation():
+def test_contour_linewidths_cycle_over_levels():
     z = np.add.outer(np.arange(6.0), np.arange(6.0))
     plt.figure()
-    with pytest.raises(ValueError):
-        plt.contour(z, levels=[1, 2, 3], linewidths=[1, 2])
+    cs = plt.contour(z, levels=[1, 2, 3], linewidths=[1, 2])
+    assert list(cs.get_linewidth()) == [1.0, 2.0, 1.0]
 
 
 def test_contour_meshgrid_png(tmp_path):
@@ -3564,3 +3564,50 @@ def test_bar_accepts_color_alpha_pairs_and_rgba_arrays():
     assert len(bars) == 2
     rgba = np.array([0.1, 0.2, 0.3, 0.4])
     ax.barh([0, 1], [1, 2], color=rgba)
+
+
+def test_color_sequences_expose_qualitative_maps():
+    assert len(plt.color_sequences["tab10"]) == 10
+    assert len(plt.color_sequences["tab20c"]) == 20
+    assert all(c.startswith("#") for c in plt.color_sequences["tab10"])
+
+
+def test_bar_label_formats_with_percent_and_braces():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    bars = ax.bar([0, 1], [1.5, 2.5])
+    assert ax.bar_label(bars, fmt="%.1f") == ["1.5", "2.5"]
+    assert ax.bar_label(bars, fmt="{:,.0f}") == ["2", "2"]
+
+
+def test_eventplot_accepts_2d_positions_with_per_row_offsets():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    data = np.array([[0, 1], [2, 3], [4, 5]], dtype=float)
+    ax.eventplot(data, lineoffsets=[0, 1, 2], linelengths=[0.5, 0.5, 0.5])
+    assert fig.axes
+
+
+def test_stackplot_accepts_dict_views():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    data = {"a": [1, 2, 3], "b": [3, 2, 1]}
+    ax.stackplot([0, 1, 2], data.values(), labels=data.keys())
+    assert fig.axes
+
+
+def test_multiple_locator_offset_shifts_ticks():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    locator = plt.ticker.MultipleLocator(1.0, offset=0.5)
+    assert list(locator.tick_values(0.0, 2.0)) == pytest.approx([0.5, 1.5])
+
+
+def test_contour_reuses_contourset_and_cycles_linewidths():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    z = np.add.outer(np.arange(5.0), np.arange(5.0))
+    cs = ax.contourf(z, levels=4)
+    ax.contour(cs, levels=cs.levels[::2], colors="r")
+    ax.contour(z, linewidths=np.arange(0.5, 2.0, 0.5))
+    assert cs.get_linewidth().size == 1
