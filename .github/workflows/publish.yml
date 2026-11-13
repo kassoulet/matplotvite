@@ -19,9 +19,11 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Compare the tag with the version in pyproject.toml
+      - name: Compare the tag with the version in pyproject.toml, Cargo.toml and Cargo.lock
         # PyPI rejects a duplicate version, so a mistyped tag would build every
-        # wheel and only fail at the upload. Stop before the matrix starts.
+        # wheel and only fail at the upload. Stop before the matrix starts, and
+        # make sure the three manifests agree so the published metadata is not
+        # split between different versions.
         if: github.ref_type == 'tag'
         run: |
           python - <<'PY'
@@ -30,13 +32,28 @@ jobs:
           import sys
           import tomllib
 
+          def load(path):
+              return tomllib.loads(pathlib.Path(path).read_text())
+
           tag = os.environ["GITHUB_REF_NAME"]
           wanted = tag[1:] if tag.startswith("v") else tag
-          project = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
-          version = project["project"]["version"]
-          if wanted != version:
-              sys.exit(f"tag {tag} does not match pyproject version {version}")
-          print(f"tag {tag} matches version {version}")
+          cargo = load("Cargo.toml")["package"]
+          locked = next(
+              (item["version"] for item in load("Cargo.lock")["package"] if item["name"] == cargo["name"]),
+              None,
+          )
+          if locked is None:
+              sys.exit(f"{cargo['name']} is missing from Cargo.lock")
+          versions = {
+              "pyproject.toml": load("pyproject.toml")["project"]["version"],
+              "Cargo.toml": cargo["version"],
+              "Cargo.lock": locked,
+          }
+          mismatched = {path: version for path, version in versions.items() if version != wanted}
+          if mismatched:
+              found = ", ".join(f"{path} says {version}" for path, version in mismatched.items())
+              sys.exit(f"tag {tag} does not match: {found}")
+          print(f"tag {tag} matches " + ", ".join(f"{path} {version}" for path, version in versions.items()))
           PY
 
   wheels:
