@@ -1028,6 +1028,13 @@ def _rrule_wrapper(**kwargs):
     return dict(kwargs)
 
 
+class _RRuleLocator(_MonthLocator):
+    """Monthly ticks for an rrule expression; the rrule options are ignored."""
+
+    def __init__(self, rrule=None, tz=None, **kwargs):
+        super().__init__(tz=tz)
+
+
 def _add_months(value, months):
     total = value.year * 12 + (value.month - 1) + int(months)
     year, month = divmod(total, 12)
@@ -6826,7 +6833,7 @@ dates = _Namespace(
     MonthLocator=_MonthLocator, DayLocator=_DayLocator, HourLocator=_HourLocator,
     MinuteLocator=_MinuteLocator, SecondLocator=_SecondLocator,
     MicrosecondLocator=_SecondLocator, WeekdayLocator=_WeekdayLocator,
-    ConciseDateFormatter=_AutoDateFormatter, RRuleLocator=_MonthLocator,
+    ConciseDateFormatter=_AutoDateFormatter, RRuleLocator=_RRuleLocator,
     rrulewrapper=_rrule_wrapper, MO=0, TU=1, WE=2, TH=3, FR=4, SA=5, SU=6,
     YEARLY="yearly", MONTHLY="monthly", WEEKLY="weekly", DAILY="daily",
     HOURLY="hourly", MINUTELY="minutely", SECONDLY="secondly",
