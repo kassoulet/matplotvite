@@ -1083,6 +1083,20 @@ def test_module_level_matshow_xkcd_and_data_path():
     assert ax.twin(object) is not ax
 
 
+def test_specgram_returns_its_data(tmp_path):
+    fig, ax = plt.subplots(layout="constrained")
+    values = np.sin(np.linspace(0.0, 20.0, 512))
+    pxx, freqs, bins, image = ax.specgram(values, NFFT=64, Fs=100.0)
+    assert pxx.shape == (len(freqs), len(bins))
+    assert len(freqs) == 64 // 2 + 1
+    assert image is not None
+    # A figure without a constrained/tight engine still answers `set()`.
+    fig.get_layout_engine().set(wspace=0.1, w_pad=0.2)
+    out = tmp_path / "specgram.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_dates_module_locators_and_formatters(tmp_path):
     from datetime import date, datetime
     from matplotvite import dates as mdates

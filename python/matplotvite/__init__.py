@@ -638,7 +638,7 @@ class _IgnoredArtist:
     """Artist stand-in for returned handles whose styling we cannot apply."""
 
     def __getattr__(self, name):
-        if not name.startswith("set_"):
+        if name != "set" and not name.startswith("set_"):
             raise AttributeError(name)
 
         def ignored(*args, **kwargs):
@@ -3030,7 +3030,31 @@ class Axes:
                 labels.append(entry["label"])
         return handles, labels
 
-    def specgram(self, *args, **kwargs): return None
+    def specgram(self, x, NFFT=256, Fs=2.0, Fc=0.0, cmap=None, vmin=None, vmax=None,
+                 **kwargs):
+        """Spectrogram of `x` as a log-power image; returns `(Pxx, freqs, bins, image)`."""
+        signal = _as_f64(x)
+        nfft = max(1, int(NFFT))
+        overlap = nfft // 2
+        step = max(1, nfft - overlap)
+        starts = list(range(0, max(1, signal.size - nfft + 1), step))
+        taper = np.hanning(nfft)
+        columns = []
+        for start in starts:
+            chunk = signal[start:start + nfft]
+            if chunk.size < nfft:
+                chunk = np.pad(chunk, (0, nfft - chunk.size))
+            columns.append(np.abs(np.fft.rfft(chunk * taper)) ** 2)
+        Pxx = np.asarray(columns, dtype=np.float64).T
+        freqs = np.fft.rfftfreq(nfft, d=1.0 / float(Fs)) + float(Fc)
+        bins = (np.asarray(starts, dtype=np.float64) + nfft / 2.0) / float(Fs)
+        extent = (float(bins[0]) if bins.size else 0.0,
+                  float(bins[-1]) if bins.size else 1.0,
+                  float(freqs[0]), float(freqs[-1]))
+        image = self.imshow(10.0 * np.log10(Pxx + 1e-12), aspect="auto", cmap=cmap,
+                            vmin=vmin, vmax=vmax, extent=extent, origin="lower")
+        return Pxx, freqs, bins, image
+
     def psd(self, *args, **kwargs): return None
     def magnitude_spectrum(self, *args, **kwargs): return None
     def set_rorigin(self, value): return None
@@ -4832,7 +4856,16 @@ class Axes:
     def tight_layout(self, **kwargs): return None
     def subplots_adjust(self, **kwargs): return None
     def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
-    def get_layout_engine(self): return getattr(self, "layout_engine", None)
+    def get_layout_engine(self):
+        """The engine set with `set_layout_engine`, or a shim when the figure asks
+        for a constrained/tight layout; `None` otherwise, as Matplotlib."""
+        engine = getattr(self, "layout_engine", None)
+        if engine is not None:
+            return engine
+        layout = getattr(self, "layout", None)
+        if layout is None:
+            layout = getattr(getattr(self, "_fig", None), "layout", None)
+        return _IgnoredArtist() if layout in ("constrained", "tight") else None
     def set_in_layout(self, b): self.in_layout = bool(b)
     def get_in_layout(self): return getattr(self, "in_layout", True)
 
@@ -5754,8 +5787,10 @@ class Colorbar:
 
 
 class Figure:
-    def __init__(self, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None):
+    def __init__(self, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None,
+                 layout=None):
         self.figsize = _validate_figsize(figsize)
+        self.layout = layout
         self.grid, self.axes, self._cur = (1, 1), [], None
         self._colorbar = None
         self.dpi = _validate_dimension(
@@ -5921,7 +5956,16 @@ class Figure:
     def tight_layout(self, **kwargs): return None
     def subplots_adjust(self, *args, **kwargs): return None
     def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
-    def get_layout_engine(self): return getattr(self, "layout_engine", None)
+    def get_layout_engine(self):
+        """The engine set with `set_layout_engine`, or a shim when the figure asks
+        for a constrained/tight layout; `None` otherwise, as Matplotlib."""
+        engine = getattr(self, "layout_engine", None)
+        if engine is not None:
+            return engine
+        layout = getattr(self, "layout", None)
+        if layout is None:
+            layout = getattr(getattr(self, "_fig", None), "layout", None)
+        return _IgnoredArtist() if layout in ("constrained", "tight") else None
     def get_axes(self): return list(self.axes)
     def get_dpi(self): return self.dpi or DPI
     def get_facecolor(self): return self.facecolor or "white"
@@ -6148,7 +6192,8 @@ class _SubFigure:
 _fig = None
 
 
-def figure(*args, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None, **kwargs):
+def figure(*args, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None,
+           layout=None, **kwargs):
     """Create a figure; a leading scalar or string is accepted as matplotlib's
     figure number and ignored, while a leading sequence sets `figsize`."""
     global _fig
@@ -6161,7 +6206,8 @@ def figure(*args, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None, 
                 figsize = second
             else:
                 dpi = second
-    _fig = Figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
+    _fig = Figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
+                  layout=layout)
     return _fig
 
 
@@ -6171,8 +6217,10 @@ def close(*_): global _fig; _fig = None
 
 
 def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
-             edgecolor=None, sharex=False, sharey=False, squeeze=True, **kwargs):
-    fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
+             edgecolor=None, sharex=False, sharey=False, squeeze=True, layout=None,
+             **kwargs):
+    fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
+                 layout=layout)
     return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey, squeeze=squeeze)
 
 
