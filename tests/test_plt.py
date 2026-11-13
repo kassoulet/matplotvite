@@ -3676,3 +3676,16 @@ def test_savefig_accepts_pad_inches(tmp_path):
     target = tmp_path / "tight.png"
     plt.savefig(target, bbox_inches="tight", pad_inches=0)
     assert target.stat().st_size > 0
+
+
+def test_log_locator_places_decade_and_subsidiary_ticks():
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    locator = plt.ticker.LogLocator(base=10)
+    assert list(locator.tick_values(1, 1000)) == pytest.approx([1, 10, 100, 1000])
+    subs = plt.ticker.LogLocator(base=10, subs=(1.0, 2.0))
+    assert list(subs.tick_values(1, 20)) == pytest.approx([1, 2, 10, 20])
+    ax.set_yscale("log")
+    ax.set_ylim(1, 1000)
+    ax.yaxis.set_major_locator(locator)
+    assert list(ax.get_yticks()) == pytest.approx([1, 10, 100, 1000])
