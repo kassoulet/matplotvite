@@ -1083,6 +1083,25 @@ def test_module_level_matshow_xkcd_and_data_path():
     assert ax.twin(object) is not ax
 
 
+def test_dates_module_locators_and_formatters(tmp_path):
+    from datetime import date, datetime
+    from matplotvite import dates as mdates
+
+    assert mdates.date2num(datetime(2000, 1, 1)) == 10957.0
+    assert mdates.num2date(10957.0) == datetime(2000, 1, 1)
+    assert mdates.DateFormatter("%Y-%m")(mdates.date2num(datetime(2021, 5, 2))) == "2021-05"
+
+    fig, ax = plt.subplots()
+    ax.plot([date(2020, 1, 1), date(2021, 1, 1), date(2022, 1, 1)], [1.0, 2.0, 3.0])
+    ax.xaxis.set_major_locator(mdates.YearLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    # The year locator places one tick at the start of each year in range.
+    assert len(ax.get_xticks()) >= 2
+    out = tmp_path / "dates-locator.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_stem_annotate_and_prop_cycle_handles(tmp_path):
     plt.rcdefaults()
     fig, ax = plt.subplots()

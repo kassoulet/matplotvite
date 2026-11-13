@@ -48,7 +48,7 @@ NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
 
 # Matplotvite namespaces that hold names the top-level `__all__` does not.
 COMPAT_NAMESPACES = ("ticker", "cm", "colors", "patches", "path", "transforms",
-                     "collections", "lines", "gridspec", "patheffects")
+                     "collections", "lines", "gridspec", "patheffects", "dates")
 
 
 def compat_name(name: str):

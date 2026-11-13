@@ -848,6 +848,178 @@ def _date_label(value):
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
+# -- `matplotlib.dates` ---------------------------------------------------
+# The renderer stores dates as proleptic ordinals; the public helpers speak
+# Matplotlib's numbers, which count days from 1970-01-01.
+_MPL_EPOCH_ORDINAL = _datetime.date(1970, 1, 1).toordinal()
+
+
+def date2num(d):
+    """Matplotlib date number for a date/datetime (days since 1970-01-01)."""
+    return float(_datetime_to_num(d)) - _MPL_EPOCH_ORDINAL
+
+
+def num2date(x, tz=None):
+    """Naive datetime for a Matplotlib date number."""
+    return _date_from_num(float(x) + _MPL_EPOCH_ORDINAL)
+
+
+def datestr2num(d, default=None):
+    """ISO date strings to Matplotlib date numbers."""
+    if isinstance(d, str):
+        return date2num(_datetime.datetime.fromisoformat(d))
+    return np.asarray([date2num(_datetime.datetime.fromisoformat(str(v))) for v in d],
+                      dtype=float)
+
+
+class _DateFormatter:
+    """`strftime` formatter; the panel applies `_fmt` to a date axis."""
+
+    def __init__(self, fmt, tz=None):
+        self._fmt = fmt
+
+    def __call__(self, x, pos=None):
+        return _date_from_num(float(x) + _MPL_EPOCH_ORDINAL).strftime(self._fmt)
+
+    def set_axis(self, axis): return None
+    def set_tzinfo(self, tz): return None
+    def get_offset(self): return ""
+
+
+class _AutoDateFormatter(_DateFormatter):
+    def __init__(self, locator=None, tz=None):
+        super().__init__("%Y-%m-%d")
+
+
+class _DateLocator:
+    """Base for the calendar locators; values are renderer date numbers."""
+
+    def __init__(self, tz=None, **kwargs): pass
+    def set_axis(self, axis): return None
+    def set_params(self, **kwargs): return None
+
+    def __call__(self, vmin=None, vmax=None):
+        if vmin is None or vmax is None:
+            return np.array([], dtype=float)
+        return self.tick_values(vmin, vmax)
+
+
+def _date_span(vmin, vmax):
+    return (vmin, vmax) if vmin <= vmax else (vmax, vmin)
+
+
+class _AutoDateLocator(_DateLocator):
+    def tick_values(self, vmin, vmax):
+        lo, hi = _date_span(vmin, vmax)
+        return np.asarray(_date_ticks(lo, hi)[0], dtype=float)
+
+
+class _YearLocator(_DateLocator):
+    def __init__(self, base=1, month=1, day=1, tz=None):
+        self.base, self.month, self.day = max(1, int(base)), int(month), int(day)
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _date_span(vmin, vmax)
+        ticks = [_datetime_to_num(_datetime.datetime(year, self.month, self.day))
+                 for year in range(_date_from_num(lo).year, _date_from_num(hi).year + 1)
+                 if year % self.base == 0]
+        return np.asarray(ticks, dtype=float)
+
+
+class _MonthLocator(_DateLocator):
+    def __init__(self, bymonth=None, bymonthday=1, interval=1, tz=None):
+        self.bymonth = [int(m) for m in bymonth] if bymonth else list(range(1, 13))
+        self.bymonthday, self.interval = int(bymonthday), max(1, int(interval))
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _date_span(vmin, vmax)
+        current = _date_from_num(lo).replace(day=1, hour=0, minute=0, second=0,
+                                             microsecond=0)
+        ticks = []
+        while _datetime_to_num(current) <= hi + 1e-9 and len(ticks) < 80:
+            if current.month in self.bymonth:
+                ticks.append(_datetime_to_num(
+                    current.replace(day=min(self.bymonthday, 28))))
+            current = _add_months(current, self.interval)
+        return np.asarray([t for t in ticks if t >= lo - 1e-9], dtype=float)
+
+
+class _DayLocator(_DateLocator):
+    def __init__(self, bymonth=None, bymonthday=None, interval=1, tz=None):
+        self.bymonth = [int(m) for m in bymonth] if bymonth else None
+        self.bymonthday = [int(d) for d in bymonthday] if bymonthday else None
+        self.interval = max(1, int(interval))
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _date_span(vmin, vmax)
+        day = _date_from_num(lo).replace(hour=0, minute=0, second=0, microsecond=0)
+        step = _datetime.timedelta(days=self.interval)
+        if _datetime_to_num(day) < lo - 1e-9:
+            day += step
+        ticks = []
+        while _datetime_to_num(day) <= hi + 1e-9 and len(ticks) < 200:
+            if ((self.bymonth is None or day.month in self.bymonth)
+                    and (self.bymonthday is None or day.day in self.bymonthday)):
+                ticks.append(_datetime_to_num(day))
+            day += step
+        return np.asarray(ticks, dtype=float)
+
+
+class _WeekdayLocator(_DateLocator):
+    def __init__(self, byweekday=0, interval=1, tz=None):
+        self.byweekday, self.interval = int(byweekday), max(1, int(interval))
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _date_span(vmin, vmax)
+        day = _date_from_num(lo).replace(hour=0, minute=0, second=0, microsecond=0)
+        step = _datetime.timedelta(days=self.interval * 7)
+        day += _datetime.timedelta(days=(self.byweekday - day.weekday()) % 7)
+        if _datetime_to_num(day) < lo - 1e-9:
+            day += step
+        ticks = []
+        while _datetime_to_num(day) <= hi + 1e-9 and len(ticks) < 200:
+            ticks.append(_datetime_to_num(day))
+            day += step
+        return np.asarray(ticks, dtype=float)
+
+
+class _TimeLocator(_DateLocator):
+    """Ticks on whole hours, minutes or seconds, `interval` steps apart."""
+
+    def __init__(self, interval=1, tz=None, unit="hours"):
+        self.interval, self.unit = max(1, int(interval)), unit
+
+    def tick_values(self, vmin, vmax):
+        lo, hi = _date_span(vmin, vmax)
+        start = _date_from_num(lo)
+        if self.unit == "hours":
+            start = start.replace(minute=0, second=0, microsecond=0)
+        elif self.unit == "minutes":
+            start = start.replace(second=0, microsecond=0)
+        else:
+            start = start.replace(microsecond=0)
+        step = _datetime.timedelta(**{self.unit: self.interval})
+        if _datetime_to_num(start) < lo - 1e-9:
+            start += step
+        ticks = []
+        while _datetime_to_num(start) <= hi + 1e-9 and len(ticks) < 200:
+            ticks.append(_datetime_to_num(start))
+            start += step
+        return np.asarray(ticks, dtype=float)
+
+
+class _HourLocator(_TimeLocator):
+    def __init__(self, interval=1, tz=None): super().__init__(interval, unit="hours")
+
+
+class _MinuteLocator(_TimeLocator):
+    def __init__(self, interval=1, tz=None): super().__init__(interval, unit="minutes")
+
+
+class _SecondLocator(_TimeLocator):
+    def __init__(self, interval=1, tz=None): super().__init__(interval, unit="seconds")
+
+
 def _add_months(value, months):
     total = value.year * 12 + (value.month - 1) + int(months)
     year, month = divmod(total, 12)
@@ -4745,6 +4917,10 @@ class Axes:
                     xticks, xticklabels = list(reversed(xticks)), list(reversed(xticklabels))
             elif xticklabels is None:
                 xticklabels = [_date_label(float(v)) for v in xticks]
+            date_format = getattr(getattr(self.xaxis, "_formatter", None), "_fmt", None)
+            if date_format:
+                xticklabels = [_date_from_num(float(v)).strftime(date_format)
+                               for v in xticks]
         elif self._categories and xticks is None:
             xticks = [float(i) for i in range(len(self._categories))]
             xticklabels = list(self._categories)
@@ -6566,6 +6742,17 @@ mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
 collections = mcollections
 mtransforms = _Namespace(Transform=_Transform, IdentityTransform=_Transform,
                          Affine2D=Affine2D, Bbox=_Bbox, offset_copy=_offset_copy)
+transforms = mtransforms
+dates = _Namespace(
+    date2num=date2num, num2date=num2date, datestr2num=datestr2num,
+    DateFormatter=_DateFormatter, AutoDateFormatter=_AutoDateFormatter,
+    AutoDateLocator=_AutoDateLocator, YearLocator=_YearLocator,
+    MonthLocator=_MonthLocator, DayLocator=_DayLocator, HourLocator=_HourLocator,
+    MinuteLocator=_MinuteLocator, SecondLocator=_SecondLocator,
+    MicrosecondLocator=_SecondLocator, WeekdayLocator=_WeekdayLocator,
+    epoch=_datetime.datetime(1970, 1, 1),
+)
+mdates = dates
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
     LinearLocator=_LinearLocator, LogLocator=_NoopLocator, MaxNLocator=_MaxNLocator,
