@@ -1083,6 +1083,27 @@ def test_module_level_matshow_xkcd_and_data_path():
     assert ax.twin(object) is not ax
 
 
+def test_hist_accepts_a_2d_array_and_a_range_keyword(tmp_path):
+    fig, ax = plt.subplots()
+    # `range=` is a hist keyword; it must not shadow the builtin in the split.
+    ax.hist(np.random.randn(100, 3), 5, range=(-2.0, 2.0), density=True,
+            color=["red", "tan", "lime"], label=["a", "b", "c"])
+    out = tmp_path / "hist-2d.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
+def test_get_gridspec_supports_a_spanning_subplot(tmp_path):
+    fig, axs = plt.subplots(ncols=3, nrows=3)
+    gs = axs[1, 2].get_gridspec()
+    assert gs is not None
+    axbig = fig.add_subplot(gs[1:, -1])
+    axbig.annotate("Big Axes", (0.1, 0.5), xycoords="axes fraction", va="center")
+    out = tmp_path / "gridspec-span.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_specgram_returns_its_data(tmp_path):
     fig, ax = plt.subplots(layout="constrained")
     values = np.sin(np.linspace(0.0, 20.0, 512))

@@ -3471,13 +3471,13 @@ class Axes:
             try:
                 candidate = np.asarray(x, dtype=np.float64)
                 if candidate.ndim == 2:
-                    datasets = [candidate[i] for i in range(candidate.shape[0])]
+                    datasets = [candidate[:, i] for i in np.arange(candidate.shape[1])]
                 elif candidate.ndim == 1:
                     datasets = [candidate]
             except (TypeError, ValueError):
                 datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
         elif isinstance(x, np.ndarray) and x.ndim == 2:
-            datasets = [x[i] for i in range(x.shape[0])]
+            datasets = [x[:, i] for i in np.arange(x.shape[1])]
         if datasets is not None and len(datasets) > 1 and stacked:
             edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
             counts_list = []
@@ -3513,6 +3513,23 @@ class Axes:
                     handles.append(self.plot(sx, np.repeat(running + count, 2),
                                              color=colour, label=text)[0])
                 running = running + count
+            return counts_list, edges, handles
+        if datasets is not None and len(datasets) > 1:
+            # Matplotlib draws one histogram per column, side by side, each with
+            # its own entry in a per-dataset `color`/`label` list.
+            counts_list, handles, edges = [], [], None
+            for i, dataset in enumerate(datasets):
+                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
+                          else color)
+                text = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
+                        else label)
+                counts, edges, drawn = self.hist(
+                    dataset, bins=bins, range=range, density=density, weights=weights,
+                    cumulative=cumulative, bottom=bottom, histtype=histtype,
+                    align=align, orientation=orientation, color=colour, label=text,
+                    alpha=alpha, edgecolor=edgecolor)
+                counts_list.append(np.asarray(counts, dtype=np.float64))
+                handles.append(drawn)
             return counts_list, edges, handles
         data = (datasets[0] if datasets is not None and len(datasets) == 1
                 else np.asarray(x, dtype=np.float64).ravel())
@@ -5916,6 +5933,9 @@ class Figure:
     def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True,
                  **kwargs):
         nrows, ncols = _validate_grid_shape(nrows, ncols)
+        # `ax.get_gridspec()` must hand back the grid the subplots sit on, so a
+        # spanning `fig.add_subplot(gs[1:, -1])` can replace a block of them.
+        self._gridspec = GridSpec(nrows, ncols, figure=self)
         axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
         if len(axs) == 1 and squeeze:
