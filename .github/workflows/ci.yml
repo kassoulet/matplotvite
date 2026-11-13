@@ -91,6 +91,9 @@ jobs:
 
   wheels:
     name: wheel (${{ matrix.name }})
+    # Release artifacts are only worth minutes of runner time once the code is
+    # known to compile, lint and pass the suite on every supported interpreter.
+    needs: [prek, lint, test]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
