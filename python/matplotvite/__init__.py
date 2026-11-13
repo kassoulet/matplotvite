@@ -3541,11 +3541,13 @@ class Axes:
                           else color)
                 text = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
                         else label)
+                edge_colour = (edgecolor[i] if isinstance(edgecolor, (list, tuple))
+                               and i < len(edgecolor) else edgecolor)
                 counts, edges, drawn = self.hist(
                     dataset, bins=bins, range=range, density=density, weights=weights,
                     cumulative=cumulative, bottom=bottom, histtype=histtype,
                     align=align, orientation=orientation, color=colour, label=text,
-                    alpha=alpha, edgecolor=edgecolor)
+                    alpha=alpha, edgecolor=edge_colour)
                 counts_list.append(np.asarray(counts, dtype=np.float64))
                 handles.append(drawn)
             return counts_list, edges, handles
@@ -3977,7 +3979,7 @@ class Axes:
         left = x - w / 2.0 if align == "center" else x
         colors = _bar_colors(color if color is not None else self._next_color(), n)
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
-                              colors=colors, edgecolor=_norm_color(edgecolor),
+                              colors=colors, edgecolor=_norm_color(_first_color(edgecolor)),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=True))
         if yerr is not None:
@@ -4037,7 +4039,7 @@ class Axes:
         bottom = y - h / 2.0 if align == "center" else y
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
                               colors=_bar_colors(color if color is not None else self._next_color(), n),
-                              edgecolor=_norm_color(edgecolor),
+                              edgecolor=_norm_color(_first_color(edgecolor)),
                               alpha=None if alpha is None else float(alpha), label=str(label),
                               vertical=False))
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
@@ -5428,6 +5430,17 @@ def _cmap_colors(cmap, values):
         index = n - 1 - index
     rgb = table[index]
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
+
+
+def _first_color(value):
+    """One colour from a possibly per-artist colour sequence."""
+    if value is None or isinstance(value, str) or _is_rgb(value):
+        return value
+    try:
+        items = list(np.asarray(value, dtype=object).ravel())
+    except (TypeError, ValueError):
+        return value
+    return items[0] if items else None
 
 
 def _bar_colors(color, n):

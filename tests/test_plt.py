@@ -1122,6 +1122,14 @@ def test_power_norm_and_light_source_shade(tmp_path):
     assert out.exists()
 
 
+def test_bar_accepts_a_per_bar_edge_colour_sequence(tmp_path):
+    fig, ax = plt.subplots()
+    ax.bar([0, 1, 2], [1.0, 2.0, 3.0], edgecolor=["green", "red", "blue"])
+    out = tmp_path / "bar-edgecolors.png"
+    fig.savefig(out)
+    assert out.exists()
+
+
 def test_histtype_barstacked_stacks_the_columns(tmp_path):
     fig, ax = plt.subplots()
     counts, edges, handles = ax.hist(np.random.randn(50, 3), 6, histtype="barstacked")
