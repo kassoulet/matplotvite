@@ -157,6 +157,12 @@ jobs:
     name: wheel test (py${{ matrix.python }}, ${{ matrix.os }})
     needs: wheels
     runs-on: ${{ matrix.os }}
+    # The wheel is stable-ABI, so the per-interpreter coverage comes from the
+    # Linux matrix. Hosted macOS runners are scarce: asking for one per Python
+    # version regularly left jobs queued until GitHub cancelled them ~15 minutes
+    # later, so macOS checks the newest interpreter only. No timeout setting
+    # covers that queue wait; reducing the number of macOS jobs is the fix.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -167,6 +173,12 @@ jobs:
           # macOS/Windows images; the stable-ABI wheel still supports them.
           - os: macos-latest
             python: "3.10"
+          - os: macos-latest
+            python: "3.11"
+          - os: macos-latest
+            python: "3.12"
+          - os: macos-latest
+            python: "3.13"
           - os: windows-latest
             python: "3.10"
         include:
