@@ -1392,6 +1392,33 @@ def test_axes_grid1_imagegrid_and_locatable_divider(tmp_path):
     fig.savefig(tmp_path / "locatable.png")
 
 
+def test_axes_grid1_size_divider_and_hbox_divider(tmp_path):
+    from matplotvite.mpl_toolkits.axes_grid1 import Divider, HBoxDivider, Size
+
+    fig = plt.figure((4, 4))
+    rect = (0.1, 0.1, 0.8, 0.8)
+    div = Divider(fig, rect, [Size.Fixed(1), Size.Fixed(0.5), Size.Fixed(1.5)],
+                  [Size.Fixed(1), Size.Fixed(0.5)], aspect=False)
+    left = fig.add_axes(rect, axes_locator=div.new_locator(nx=0, ny=0))
+    right = fig.add_axes(rect, axes_locator=div.new_locator(nx=2, ny=0))
+    assert left.get_position().x0 < right.get_position().x0
+    assert left.get_position().y0 == right.get_position().y0
+    fig.savefig(tmp_path / "divider.png")
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(4, 3))
+    ax1.imshow(np.arange(20).reshape(4, 5))
+    ax2.imshow(np.arange(20).reshape(5, 4))
+    hbox = HBoxDivider(fig, 111,
+                       horizontal=[Size.AxesX(ax1), Size.Fixed(0.5), Size.AxesX(ax2)],
+                       vertical=[Size.AxesY(ax1), Size.Scaled(1), Size.AxesY(ax2)])
+    ax1.set_axes_locator(hbox.new_locator(0))
+    ax2.set_axes_locator(hbox.new_locator(2))
+    first, second = ax1.get_position(), ax2.get_position()
+    assert abs(first.height - second.height) < 1e-6
+    assert first.width > second.width
+    fig.savefig(tmp_path / "hbox.png")
+
+
 def test_axes_grid1_anchored_artists_and_mark_inset(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.anchored_artists import (
         AnchoredSizeBar, AnchoredText)

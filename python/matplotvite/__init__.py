@@ -3405,7 +3405,11 @@ class Axes:
     def get_gridspec(self): return getattr(self._fig, "_gridspec", None)
     def set_box_aspect(self, aspect, **kwargs): self._box_aspect = aspect
     def get_box_aspect(self): return self._box_aspect
-    def set_axes_locator(self, locator): self._axes_locator = locator
+    def set_axes_locator(self, locator):
+        self._axes_locator = locator
+        if locator is not None and hasattr(locator, "apply"):
+            locator.apply(self)
+        return self
     def get_axes_locator(self): return self._axes_locator
     def set_autoscale_on(self, value): _ignored("Axes.set_autoscale_on")
     def set_autoscalex_on(self, value): _ignored("Axes.set_autoscalex_on")
@@ -6424,7 +6428,22 @@ class GridSpec:
         return (x0, y0, max(x1 - x0, 0.01), max(y1 - y0, 0.01))
 
 
+class _ColorbarAxis:
+    """Tick and label shim for the synthetic colorbar axes."""
+
+    def set_tick_params(self, *args, **kwargs): return None
+    def tick_right(self): return None
+    def tick_left(self): return None
+    def set_label_text(self, *args, **kwargs): return None
+    def set_label_position(self, position): return None
+    def set_ticks_position(self, position): return None
+    def get_major_locator(self): return _LocatorHandle()
+    def get_minor_locator(self): return _LocatorHandle()
+
+
 class _ColorbarAxes:
+    def __init__(self):
+        self.yaxis = self.xaxis = _ColorbarAxis()
     def get_position(self, original=False): return _Bbox(0.0, 0.0, 1.0, 1.0)
     def get_window_extent(self, renderer=None): return _Bbox(0.0, 0.0, 1.0, 1.0)
     def set_visible(self, value): return None
@@ -6621,12 +6640,17 @@ class Figure:
                 self.axes.append(ax)
             self._cur = ax
             return ax
+        locator = kwargs.pop("axes_locator", None)
         ax = Axes(len(self.axes) + 1000)
         ax._fig = self
         ax.set_position(rect if rect is not None else (0.0, 0.0, 1.0, 1.0))
         ax._bounds_are_axes = True
+        if "label" in kwargs:
+            ax.set_label(kwargs.pop("label"))
         self.axes.append(ax)
         self._cur = ax
+        if locator is not None:
+            ax.set_axes_locator(locator)
         return ax
 
     def add_artist(self, artist):
