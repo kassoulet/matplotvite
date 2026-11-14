@@ -1532,6 +1532,49 @@ def test_tri_axes_and_pyplot_helpers(tmp_path):
     plt.savefig(tmp_path / "tri-pyplot.png")
 
 
+def test_axisartist_axes_grid_and_floating_axes(tmp_path):
+    from matplotvite.mpl_toolkits import axisartist
+    from matplotvite.mpl_toolkits.axisartist import (
+        GridHelperCurveLinear, angle_helper, grid_finder)
+    from matplotvite.mpl_toolkits.axes_grid1 import host_subplot
+
+    fig = plt.figure((6, 4))
+    ax = fig.add_subplot(121, axes_class=axisartist.Axes,
+                         xlim=(-5, 12), ylim=(-5, 10), aspect=1)
+    assert ax.get_xlim() == (-5, 12)
+    assert ax.get_ylim() == (-5, 10)
+    ax.axis[:].set_visible(False)
+    ax.axis["x"] = ax.new_floating_axis(1, 0.5)
+    ax.axis["x"].set_axisline_style("->", size=1.5)
+    ax.axis["x"].label.set_text("Floating")
+    ax.axis[:].major_ticks.set_tick_out(True)
+    assert len(ax.axis.values()) >= 4
+
+    helper = GridHelperCurveLinear(
+        (lambda x, y: (x, y - x), lambda x, y: (x, y + x)),
+        extreme_finder=angle_helper.ExtremeFinderCycle(20, 20),
+        grid_locator1=angle_helper.LocatorDMS(6),
+        grid_locator2=grid_finder.MaxNLocator(5),
+        tick_formatter1=angle_helper.FormatterDMS())
+    curvy = fig.add_subplot(122, axes_class=axisartist.Axes,
+                            grid_helper=helper)
+    curvy.plot([0, 1, 2], [2, 1, 3])
+    curvy.axis["right"].get_helper().nth_coord_ticks = 0
+    assert curvy.grid_helper is helper
+
+    zero = fig.add_subplot(111, axes_class=axisartist.AxesZero)
+    zero.axis["xzero"].set_visible(True)
+    assert zero.axis["xzero"].get_visible()
+    fig.savefig(tmp_path / "axisartist.png")
+
+    fig = plt.figure()
+    host = host_subplot(111, axes_class=axisartist.Axes)
+    host.axis["right"].toggle(all=True)
+    host.plot([0, 1], [0, 2], label="Density")
+    host.legend()
+    fig.savefig(tmp_path / "axisartist_host.png")
+
+
 def test_axes_grid1_axesgrid_host_subplot_and_divider_position(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1 import (
         AxesGrid, Divider, Size, host_subplot)

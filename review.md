@@ -2,20 +2,18 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 402 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 403 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 368 | 5 | 127 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 261 | 1 | 136 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 278 | 1 | 119 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
 Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 
 ## High
 
-| # | Finding | Evidence / next check |
-|---|---------|-----------------------|
-| F2 | **`axisartist` remains unimplemented.** All 23 `axes_grid1` gallery cases now render, including host/parasite axes, `AxesGrid` edge colorbars and fixed-size dividers. | Treat `axisartist` as its own milestone; no `axes_grid1` shims remain. |
+No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gallery cases now render.
 
 ## Parity and visible styling
 
@@ -61,7 +59,6 @@ Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 
 ## Suggested order
 
-1. **F2**: tackle `axisartist`; the `axes_grid1` examples are complete.
-2. **G4 and G3**: triage the crash groups, then the remaining API gaps.
-3. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
-4. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
+1. **G4 and G3**: triage the crash groups, then the remaining API gaps.
+2. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
+3. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.

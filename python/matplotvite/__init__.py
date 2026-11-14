@@ -816,6 +816,11 @@ class _TextLabel:
     def set_va(self, value): _ignored("Text.set_va")
     set_verticalalignment = set_va
     def set_axis_direction(self, value): _ignored("Text.set_axis_direction")
+    def set_pad(self, value): self._pad = float(value)
+    def get_pad(self): return getattr(self, "_pad", 4.0)
+    def set_tick_out(self, value): self._tick_out = bool(value)
+    def set_tick_direction(self, value): self._tick_direction = str(value)
+    def set_axisline_style(self, value, **kwargs): self._line_style = value
     def set_fontweight(self, value): _ignored("Text.set_fontweight")
     def set_fontstyle(self, value): _ignored("Text.set_fontstyle")
     def set_fontfamily(self, value): _ignored("Text.set_fontfamily")
@@ -1148,6 +1153,27 @@ def _validate_grid_shape(nrows, ncols):
     if cells > _MAX_GRID_CELLS:
         raise ValueError(f"grid has too many cells ({cells} > {_MAX_GRID_CELLS})")
     return rows, cols
+
+
+def _apply_axes_options(ax, options, grid_helper=None):
+    """Apply `add_subplot`/`add_axes` options used by axisartist examples."""
+    if grid_helper is not None:
+        ax._grid_helper = grid_helper
+        if hasattr(grid_helper, "apply"):
+            grid_helper.apply(ax)
+    if "aspect" in options:
+        ax.set_aspect(options["aspect"])
+    for key in ("xlim", "ylim"):
+        if key not in options:
+            continue
+        value = options[key]
+        try:
+            getattr(ax, "set_" + key)(*value)
+        except TypeError:
+            getattr(ax, "set_" + key)(value)
+    if "label" in options:
+        ax.set_label(options["label"])
+    return ax
 
 
 def _validate_bins(bins, name="bins", max_cells=None):
@@ -1583,12 +1609,17 @@ _FONT_SIZE_NAMES = {
 def _font_size(value, default=10.0):
     """Resolve numeric and named font sizes accepted by matplotlib."""
     if value is None:
-        return float(default)
+        value = default
     if isinstance(value, str):
-        return _FONT_SIZE_NAMES.get(value.lower(), float(default))
+        resolved = _FONT_SIZE_NAMES.get(value.lower())
+        if resolved is not None:
+            return resolved
+        value = default
     try:
         return float(value)
     except (TypeError, ValueError):
+        if isinstance(default, str):
+            return _FONT_SIZE_NAMES.get(default.lower(), 10.0)
         return float(default)
 
 
@@ -2595,44 +2626,115 @@ class _Spines:
     def items(self): return ((name, getattr(self, name)) for name in self)
 
 
+class _AxisHelper:
+    """State holder returned by `axisartist` axis `get_helper()`."""
+
+    def __init__(self):
+        self.nth_coord_ticks = 0
+        self.nth_coord = 0
+
+
 class _AxisArtistProxy:
     """Small stand-in for the floating-axis artists used by axisartist."""
 
-    def __init__(self):
+    def __init__(self, axes=None, name=""):
+        self._axes = axes
+        self.name = name
         self.label = _TextLabel()
         self.major_ticklabels = _TextLabel()
         self.major_ticks = _TextLabel()
+        self.minor_ticklabels = _TextLabel()
+        self.minor_ticks = _TextLabel()
         self._visible = True
+        self._helper = _AxisHelper()
 
-    def set_visible(self, visible): self._visible = bool(visible)
-    def get_visible(self): return self._visible
-    def toggle(self, **kwargs):
-        for key, value in kwargs.items():
-            if key == "label": self.label.set_visible(value)
+    def set_visible(self, visible):
+        self._visible = bool(visible)
         return self
+
+    def get_visible(self): return self._visible
+
+    def toggle(self, all=None, ticks=None, ticklabels=None, label=None, **kwargs):
+        if all is not None:
+            ticks = ticklabels = label = all
+        if ticks is not None:
+            self.major_ticks.set_visible(ticks)
+            self.minor_ticks.set_visible(ticks)
+        if ticklabels is not None:
+            self.major_ticklabels.set_visible(ticklabels)
+            self.minor_ticklabels.set_visible(ticklabels)
+        if label is not None:
+            self.label.set_visible(label)
+        return self
+
+    def get_helper(self): return self._helper
     def set_axisline_style(self, *args, **kwargs): return self
     def set_axis_direction(self, *args, **kwargs): return self
     def set_axislabel_direction(self, *args, **kwargs): return self
     def set_ticklabel_direction(self, *args, **kwargs): return self
+
     def __getattr__(self, name):
         if name.startswith("__"):
             raise AttributeError(name)
         return lambda *args, **kwargs: self
 
 
+class _AxisSelection:
+    """Forward an axisartist operation to several axis proxies."""
+
+    def __init__(self, artists): self._artists = tuple(artists)
+
+    def __iter__(self): return iter(self._artists)
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        values = [getattr(artist, name, None) for artist in self._artists]
+        if values and all(value is not None and not callable(value) for value in values):
+            return _AxisSelection(values)
+
+        def apply(*args, **kwargs):
+            for artist in self._artists:
+                getattr(artist, name)(*args, **kwargs)
+            return self
+        return apply
+
+
 class _AxisAccessor:
     """`ax.axis` is both callable and subscriptable (axisartist)."""
+
+    _STANDARD = ("left", "right", "bottom", "top")
 
     def __init__(self, axes):
         self._axes = axes
         self._artists = {}
 
+    def _artist(self, key):
+        return self._artists.setdefault(str(key), _AxisArtistProxy(self._axes, str(key)))
+
+    def _standard(self):
+        return [self._artist(name) for name in self._STANDARD]
+
     def __call__(self, *args, **kwargs): return self._axes._axis(*args, **kwargs)
+
     def __getitem__(self, key):
-        if isinstance(key, (slice, list, tuple, np.ndarray)):
+        if isinstance(key, slice):
+            names = self._STANDARD[key]
+            return _AxisSelection(self._artist(name) for name in names)
+        if isinstance(key, (list, tuple, np.ndarray)) and all(
+                isinstance(item, str) for item in key):
+            return _AxisSelection(self._artist(item) for item in key)
+        if isinstance(key, (list, tuple, np.ndarray)):
             return self._axes.spines[key]
-        return self._artists.setdefault(str(key), _AxisArtistProxy())
+        return self._artist(key)
+
     def __setitem__(self, key, value): self._artists[str(key)] = value
+
+    def __iter__(self): return iter(self._standard())
+    def keys(self):
+        return tuple(dict.fromkeys((*self._STANDARD, *self._artists)))
+    def values(self): return tuple(self._artist(name) for name in self.keys())
+    def items(self): return tuple((name, self._artist(name)) for name in self.keys())
     def __getattr__(self, name): return getattr(self._axes, name)
 
 
@@ -3081,7 +3183,7 @@ class Axes:
         # The exact path draws `add_axes` titles manually inside its 25 px top
         # margin, so it must not reserve a caption band as well.
         if self.title and not exact:
-            title_size = float(self.title_size or rcParams.get("axes.titlesize", 12.0))
+            title_size = _font_size(self.title_size or rcParams.get("axes.titlesize", 12.0), 12.0)
             title_pad = title_size * dpi / 72.0 * 1.24 * 1.45 + 4.0
         top = (25.0 + title_pad) / height
         x, y, w, h = self._pos_override
@@ -3394,7 +3496,7 @@ class Axes:
         else:
             left_pad = 55.0 + (8.0 if self.ylabel else 0.0)
             bottom_pad = 40.0 + (8.0 if self.xlabel else 0.0)
-        size = self.title_size or float(rcParams.get("axes.titlesize", 12.0))
+        size = _font_size(self.title_size or rcParams.get("axes.titlesize", 12.0), 12.0)
         top_pad = 10.0 + (size * 1.6 if self.title else 0.0)
         return _Bbox(b.x0 * w * dpi - left_pad * scale,
                      b.y0 * h * dpi - bottom_pad * scale,
@@ -6675,8 +6777,12 @@ class Figure:
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
         """index is 1-based, row-major (matplotlib convention); a `SubplotSpec`
         may be passed instead to place the axes on an irregular grid."""
+        axes_class = kwargs.pop("axes_class", Axes)
+        grid_helper = kwargs.pop("grid_helper", None)
+        options = dict(kwargs)
         if isinstance(nrows, SubplotSpec):
-            return self._add_spec(nrows)
+            return self._add_spec(nrows, axes_class=axes_class,
+                                  grid_helper=grid_helper, **options)
         if isinstance(nrows, int) and 111 <= nrows <= 999 and ncols == 1 and index == 1:
             # `subplot(121)` is shorthand for `subplot(1, 2, 1)`.
             nrows, ncols, index = divmod(nrows, 100)[0], *divmod(nrows % 100, 10)
@@ -6693,7 +6799,10 @@ class Figure:
             self.grid = (nrows, ncols)
         mixed = bool(self.axes) and (
             changed or any(a._pos_override is not None for a in self.axes))
-        ax = next((a for a in self.axes if a.pos == index - 1), None) or Axes(index - 1)
+        ax = (next((a for a in self.axes if a.pos == index - 1), None)
+              if axes_class is Axes else None)
+        if ax is None:
+            ax = axes_class(index - 1)
         if ax not in self.axes:
             self.axes.append(ax)
         ax._fig = self
@@ -6702,16 +6811,18 @@ class Figure:
             ax._pos_override = GridSpec(
                 nrows, ncols, figure=self)._bounds((row, row), (col, col))
             ax._bounds_are_axes = False
+        _apply_axes_options(ax, options, grid_helper)
         self._cur = ax
         return ax
 
-    def _add_spec(self, spec):
-        ax = Axes(len(self.axes))
+    def _add_spec(self, spec, axes_class=Axes, grid_helper=None, **kwargs):
+        ax = axes_class(len(self.axes))
         ax._subplotspec = spec
         ax._fig = self
         ax._pos_override = spec.gridspec._bounds(spec.rows, spec.cols)
         ax._bounds_are_axes = False
         self.axes.append(ax)
+        _apply_axes_options(ax, kwargs, grid_helper)
         self._cur = ax
         return ax
 
@@ -6776,12 +6887,15 @@ class Figure:
             self._cur = ax
             return ax
         locator = kwargs.pop("axes_locator", None)
-        ax = Axes(len(self.axes) + 1000)
+        axes_class = kwargs.pop("axes_class", Axes)
+        grid_helper = kwargs.pop("grid_helper", None)
+        ax = axes_class(len(self.axes) + 1000)
         ax._fig = self
         ax.set_position(rect if rect is not None else (0.0, 0.0, 1.0, 1.0))
         ax._bounds_are_axes = True
         if "label" in kwargs:
             ax.set_label(kwargs.pop("label"))
+        _apply_axes_options(ax, kwargs, grid_helper)
         self.axes.append(ax)
         self._cur = ax
         if locator is not None:
@@ -7109,7 +7223,7 @@ def subplots(nrows=1, ncols=1, figsize=None, dpi=None, facecolor=None,
 
 def subplot(*args, **kwargs):
     """`subplot(nrows, ncols, index)` or `subplot(gs[row, col])`."""
-    return gcf().add_subplot(*args)
+    return gcf().add_subplot(*args, **kwargs)
 
 
 def subplot2grid(shape, loc, rowspan=1, colspan=1, fig=None, **kwargs):
