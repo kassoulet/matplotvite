@@ -4227,3 +4227,39 @@ def test_grouped_bar_returns_one_container_per_series():
     for container in result.bar_containers:
         ax.bar_label(container, padding=3)
     assert list(ax.get_xticks()) == pytest.approx([0.0, 1.2, 2.4])
+
+
+def test_textpath_is_a_renderable_path(tmp_path):
+    """TextPath behaves like a Path, including copy and deepcopy semantics."""
+    import copy
+    from matplotvite import PathPatch, TextPath
+
+    path = TextPath((0, 0), "!?", size=150)
+    assert path.get_extents().width > 0
+    assert copy.copy(path).vertices is path.vertices
+    assert copy.deepcopy(path).vertices is not path.vertices
+    assert (copy.deepcopy(path).vertices == path.vertices).all()
+
+    plt.figure()
+    plt.gca().add_patch(PathPatch(path, facecolor="C0"))
+    plt.savefig(tmp_path / "textpath.png")
+
+
+def test_sankey_diagram_labels_and_validation(tmp_path):
+    """Sankey exposes diagrams, flow labels and Matplotlib's argument errors."""
+    from matplotvite import Sankey
+
+    sankey = Sankey(flows=[0.25], labels=["First"], orientations=[-1])
+    assert sankey.diagrams[0].texts[0].get_text() == "First\n0.25"
+    with pytest.raises(ValueError, match="'gap' is negative"):
+        Sankey(gap=-1)
+    with pytest.raises(ValueError, match=r"The shapes of 'flows'"):
+        Sankey(flows=[1, -1], orientations=[-1, 0, 1])
+
+    plt.figure()
+    diagram = Sankey(flows=[0.5, -0.25, -0.25],
+                     labels=["in", "out", "out"],
+                     orientations=[1, -1, -1]).finish()[0]
+    diagram.texts[-1].set_color("r")
+    diagram.patch.set_hatch("/")
+    plt.savefig(tmp_path / "sankey.png")

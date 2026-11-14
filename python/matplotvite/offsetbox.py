@@ -189,5 +189,89 @@ class AnchoredSizeBar:
         return self
 
 
+class AuxTransformBox:
+    """Container for artists drawn in an auxiliary transform."""
+
+    def __init__(self, aux_transform=None, **kwargs):
+        self.aux_transform = aux_transform
+        self.artists = []
+
+    def add_artist(self, artist):
+        self.artists.append(artist)
+        return artist
+
+    def get_children(self): return list(self.artists)
+
+    def _add_to_axes(self, ax):
+        for artist in self.artists:
+            if hasattr(artist, "_add_to_axes"):
+                artist._add_to_axes(ax)
+            else:
+                ax.add_artist(artist)
+        return self
+
+
+class AnchoredOffsetbox:
+    """Offset box pinned to an axes corner."""
+
+    def __init__(self, loc, child=None, pad=0.4, borderpad=0.5, frameon=True,
+                 bbox_to_anchor=None, bbox_transform=None, **kwargs):
+        self.loc = loc
+        self.child = child
+        self.pad = pad
+        self.borderpad = borderpad
+        self.frameon = frameon
+        self.bbox_to_anchor = bbox_to_anchor
+        self.bbox_transform = bbox_transform
+        self.kwargs = kwargs
+
+    def _add_to_axes(self, ax):
+        if self.child is not None:
+            if hasattr(self.child, "_add_to_axes"):
+                self.child._add_to_axes(ax)
+            else:
+                ax.add_artist(self.child)
+        return self
+
+
+class AnnotationBbox:
+    """Place an offset box at a point on the axes."""
+
+    def __init__(self, offsetbox, xy, xybox=None, xycoords="data",
+                 boxcoords=None, frameon=True, box_alignment=(0.5, 0.5), **kwargs):
+        self.offsetbox = offsetbox
+        self.xy = xy
+        self.xybox = xybox
+        self.xycoords = xycoords
+        self.boxcoords = boxcoords
+        self.frameon = frameon
+        self.box_alignment = box_alignment
+        self.kwargs = kwargs
+
+    def _add_to_axes(self, ax):
+        if hasattr(self.offsetbox, "_add_to_axes"):
+            self.offsetbox._add_to_axes(ax)
+        return self
+
+
+class Shadow:
+    """Decorative shadow wrapper; the wrapped patch carries the drawing."""
+
+    def __init__(self, patch, ox, oy, **kwargs):
+        self.patch = patch
+        self.ox = float(ox)
+        self.oy = float(oy)
+        self.kwargs = kwargs
+
+    def draw(self, renderer=None): return None
+
+    def get_visible(self): return True
+
+    def _add_to_axes(self, ax):
+        # The underlying patch is already added by the offset box.
+        return self
+
+
 __all__ = ("AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
-           "AnchoredText")
+           "AnchoredText", "AnchoredOffsetbox", "AnnotationBbox",
+           "AuxTransformBox", "Shadow")

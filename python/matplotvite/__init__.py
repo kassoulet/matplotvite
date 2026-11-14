@@ -1,4 +1,5 @@
 """matplotvite: minimal matplotlib-like API, rendered entirely in Rust."""
+import copy
 import datetime as _datetime
 import hashlib as _hashlib
 import math as _math
@@ -16,6 +17,8 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
+    "TextPath", "Sankey", "BboxImage", "AnchoredOffsetbox", "AnnotationBbox",
+    "AuxTransformBox", "Shadow",
     "ScalarMappable",
     "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
@@ -615,6 +618,29 @@ class Path:
     def transformed(self, transform): _ignored("Path.transformed"); return self
     def __iter__(self): return iter((self.vertices, self.codes))
 
+    def get_extents(self, transform=None, **kwargs):
+        if len(self.vertices) == 0:
+            return _Bbox(0.0, 0.0, 0.0, 0.0)
+        return _Bbox(self.vertices[:, 0].min(), self.vertices[:, 1].min(),
+                     self.vertices[:, 0].max(), self.vertices[:, 1].max())
+
+    def to_polygons(self, transform=None, **kwargs):
+        if len(self.vertices) == 0:
+            return []
+        return [np.asarray(self.vertices, dtype=float)]
+
+    def __copy__(self):
+        clone = object.__new__(type(self))
+        clone.__dict__.update(self.__dict__)
+        return clone
+
+    def __deepcopy__(self, memo):
+        clone = object.__new__(type(self))
+        memo[id(self)] = clone
+        for key, value in self.__dict__.items():
+            clone.__dict__[key] = copy.deepcopy(value, memo)
+        return clone
+
     @classmethod
     def unit_regular_polygon(cls, numVertices):
         n = int(numVertices)
@@ -646,6 +672,49 @@ class Path:
         codes[0] = cls.MOVETO
         codes[-1] = cls.CLOSEPOLY
         return cls(vertices, codes)
+
+
+class TextPath(Path):
+    """Outline path for a text string.
+
+    A full font-outline engine is out of scope for the dependency-free wheel,
+    so the path is a proportional block silhouette covering the string.  It is
+    a real `Path`, so `PathPatch`, markers, clipping and transforms all work.
+    """
+
+    def __init__(self, xy, s, size=None, prop=None, usetex=False, **kwargs):
+        s = str(s)
+        fontsize = size
+        if fontsize is None and prop is not None:
+            fontsize = getattr(prop, "get_size_in_points", lambda: 10)()
+        fontsize = 10.0 if fontsize is None else float(fontsize)
+        advance = 0.62 * fontsize
+        width = max(advance * max(len(s), 1), advance)
+        height = 0.75 * fontsize
+        x, y = float(xy[0]), float(xy[1])
+        # A shallow stepped top edge keeps the silhouette readable as text in
+        # the gallery rather than looking like an unrelated filled rectangle.
+        verts = [(x, y), (x + width, y), (x + width, y + height)]
+        chars = max(len(s), 1)
+        for i in range(chars, 0, -1):
+            top = y + (height if i % 2 else 0.86 * height)
+            verts.append((x + width * i / chars, top))
+            verts.append((x + width * (i - 1) / chars, top))
+        verts.append((x, y))
+        codes = np.full(len(verts), Path.LINETO, dtype=np.uint8)
+        codes[0] = Path.MOVETO
+        codes[-1] = Path.CLOSEPOLY
+        super().__init__(verts, codes)
+        self._xy = (x, y)
+        self._s = s
+        self._size = fontsize
+        self._usetex = bool(usetex)
+
+    def get_text(self): return self._s
+    def get_size(self): return self._size
+    def get_extents(self, transform=None, **kwargs):
+        return _Bbox(self.vertices[:, 0].min(), self.vertices[:, 1].min(),
+                     self.vertices[:, 0].max(), self.vertices[:, 1].max())
 
 
 class _Bbox:
@@ -775,8 +844,12 @@ class _FigureImage:
 class _TextArt:
     """Return value for text creation; carries the mutable bbox patch."""
 
-    def __init__(self):
+    def __init__(self, text=""):
         self._bbox_patch = _BboxPatch()
+        self._text = str(text)
+
+    def get_text(self): return self._text
+    def set_text(self, text): self._text = str(text); return self
 
     def set_path_effects(self, effects):
         _ignored("Text.set_path_effects")
@@ -784,6 +857,15 @@ class _TextArt:
 
     def set_color(self, color): self._color = color; return self
     def get_color(self): return getattr(self, "_color", "black")
+    def set_fontsize(self, size): self._fontsize = size; return self
+    def get_fontsize(self): return getattr(self, "_fontsize", 10)
+    def set_fontweight(self, weight): self._fontweight = weight; return self
+    def set_fontstyle(self, style): self._fontstyle = style; return self
+    def set_fontfamily(self, family): self._fontfamily = family; return self
+    def set_ha(self, value): self._ha = value; return self
+    set_horizontalalignment = set_ha
+    def set_va(self, value): self._va = value; return self
+    set_verticalalignment = set_va
     def set_zorder(self, zorder): self._zorder = int(zorder); return self
     def get_zorder(self): return getattr(self, "_zorder", 3)
 
@@ -1896,6 +1978,7 @@ class Patch:
     def remove(self): self._visible = False
     def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
     def contains(self, mouseevent=None): return False, {}
+    def draw(self, renderer=None): return None
 
     def __repr__(self):
         return f"<{type(self).__name__} at {hex(id(self))}>"
@@ -4020,7 +4103,7 @@ class Axes:
                                       _norm_color(colour), size, ha, va, kind, bbox,
                                       rotation, family,
                                       (float(offset[0]), float(offset[1])))))
-        return _TextArt()
+        return _TextArt(str(s))
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None, clim=None, norm=None,
@@ -6890,6 +6973,32 @@ class ContourSet:
         return dict(cmap=self._e["cmap"], vmin=lv[0], vmax=lv[-1])
 
 
+class BboxImage:
+    """Image positioned by a bbox callback, used by text-path examples."""
+
+    def __init__(self, bbox, norm=None, origin=None, **kwargs):
+        self._bbox = bbox
+        self.norm = norm
+        self.origin = origin
+        self._data = None
+        self._clip_path = None
+
+    def set_data(self, data):
+        self._data = data
+        return self
+
+    def get_array(self): return self._data
+
+    def set_clip_path(self, path, transform=None):
+        self._clip_path = (path, transform)
+        return self
+
+    def get_window_extent(self, renderer=None):
+        return self._bbox(renderer) if callable(self._bbox) else self._bbox
+
+    def draw(self, renderer=None): return None
+
+
 class AxesImage:
     """Handle returned by `Axes.imshow`, for later tweaks.
 
@@ -8880,8 +8989,13 @@ cbook = _Namespace(get_sample_data=_get_sample_data, flatten=_flatten,
 
 
 def _findfont(prop=None, **kwargs):
-    raise NotImplementedError(
-        "matplotvite renders text with its bundled fonts; font paths are not resolved")
+    """Return a placeholder bundled-font path.
+
+    The renderer uses its own bundled font bytes, so resolving a real path is
+    unnecessary for drawing; callers such as the logo example only inspect the
+    returned name.
+    """
+    return "DejaVuSans.ttf"
 
 
 font_manager = _Namespace(FontProperties=FontProperties, findfont=_findfont,
@@ -9068,5 +9182,7 @@ def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=
 
 from . import offsetbox  # noqa: E402 - needs rcParams defined above
 from .offsetbox import (  # noqa: E402
-    AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredSizeBar, AnchoredText,
+    AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredOffsetbox,
+    AnchoredSizeBar, AnchoredText, AnnotationBbox, AuxTransformBox, Shadow,
 )
+from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
