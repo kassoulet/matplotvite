@@ -329,7 +329,7 @@ def test_failure_status_splits_gaps_from_missing_apis():
     assert failure_status(
         "NameError: name 'MaxNLocator' is not defined") == "harvester-gap"
     assert failure_status(
-        "NameError: name 'streamplot' is not defined") == "needs-api"
+        "NameError: name 'NonUniformImage' is not defined") == "needs-api"
     assert failure_status(
         "AttributeError: 'Axes' object has no attribute 'triplot'") == "needs-api"
     assert failure_status("NotImplementedError: 'symlog'") == "needs-api"

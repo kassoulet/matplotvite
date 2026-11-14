@@ -1575,6 +1575,29 @@ def test_axisartist_axes_grid_and_floating_axes(tmp_path):
     fig.savefig(tmp_path / "axisartist_host.png")
 
 
+def test_streamplot_colors_masks_arrows_and_colorbar(tmp_path):
+    w = 3
+    Y, X = np.mgrid[-w:w:20j, -w:w:20j]
+    U = -1 - X**2 + Y
+    V = 1 + X - Y**2
+    fig, ax = plt.subplots()
+    stream = ax.streamplot(X, Y, U, V, color=U, linewidth=2, cmap="autumn",
+                           density=0.7, num_arrows=3)
+    assert stream.lines.get_segments()
+    assert stream.lines.get_array() is not None
+    cbar = fig.colorbar(stream.lines)
+    assert cbar.ax is not None
+
+    masked = np.ma.array(U, mask=np.zeros(U.shape, dtype=bool))
+    masked.mask[5:10, 5:10] = True
+    ax.streamplot(X, Y, masked, V, color="r", start_points=[[-1, 0]],
+                  integration_direction="backward")
+    fig.savefig(tmp_path / "streamplot.png")
+
+    with np.testing.assert_raises_regex(ValueError, "equally spaced"):
+        ax.streamplot([0, 1, 3], [0, 1], np.ones((2, 3)), np.zeros((2, 3)))
+
+
 def test_axes_grid1_axesgrid_host_subplot_and_divider_position(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1 import (
         AxesGrid, Divider, Size, host_subplot)

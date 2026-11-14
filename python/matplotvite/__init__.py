@@ -37,7 +37,7 @@ __all__ = (
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
-    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "quiver", "rc", "rc_context", "rcdefaults",
+    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "set_cmap", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
@@ -1409,6 +1409,14 @@ class _BarContainer(list):
         return list(self)
 
 
+class _StreamplotSet:
+    """Lines and arrows returned by `Axes.streamplot`."""
+
+    def __init__(self, lines, arrows):
+        self.lines = lines
+        self.arrows = arrows
+
+
 class _QuiverHandle:
     """Handle for one `quiver` collection."""
 
@@ -2238,7 +2246,9 @@ class Collection:
         self._label = str(label)
         self._zorder = zorder
         self._visible = True
-        self._array = None
+        self._array = kwargs.get("array")
+        self._cmap = kwargs.get("cmap")
+        self._clim = None
 
     def get_facecolor(self): return self._facecolor
     def get_edgecolor(self): return self._edgecolor
@@ -2261,8 +2271,28 @@ class Collection:
     def set_label(self, label): self._label = str(label); return self
     def set_zorder(self, zorder): self._zorder = zorder; return self
     def set_visible(self, visible): self._visible = bool(visible); return self
+    def get_array(self): return self._array
     def set_array(self, values): self._array = values; return self
-    def set_clim(self, *args, **kwargs): return self
+    def set_clim(self, vmin=None, vmax=None):
+        if vmin is not None or vmax is not None:
+            self._clim = (vmin, vmax)
+        return self
+    def _colorbar_spec(self):
+        values = self._array
+        if values is None:
+            raise ValueError("collection needs an array for a colorbar")
+        vals = np.asarray(values, dtype=float).ravel()
+        vals = vals[np.isfinite(vals)]
+        if not vals.size:
+            raise ValueError("collection has no finite values for a colorbar")
+        lo, hi = getattr(self, "_clim", None) or (None, None)
+        lo = float(vals.min()) if lo is None else float(lo)
+        hi = float(vals.max()) if hi is None else float(hi)
+        if not hi > lo:
+            lo, hi = lo - 0.5, lo + 0.5
+        return dict(cmap=getattr(self, "_cmap", None)
+                    or rcParams.get("image.cmap", "viridis"),
+                    vmin=lo, vmax=hi)
     def set_norm(self, norm): return self
     def set_cmap(self, cmap): return self
     def set_sizes(self, sizes): return self
@@ -2277,6 +2307,15 @@ class Collection:
 
 class LineCollection(Collection):
     def __init__(self, segments, colors=None, linewidths=None, label="", **kwargs):
+        if colors is None and kwargs.get("array") is not None:
+            values = np.asarray(kwargs["array"], dtype=float).ravel()
+            finite = values[np.isfinite(values)]
+            lo = float(finite.min()) if finite.size else 0.0
+            hi = float(finite.max()) if finite.size else 1.0
+            if not hi > lo:
+                lo, hi = lo - 0.5, lo + 0.5
+            cmap = get_cmap(_cmap_name(kwargs.get("cmap")))
+            colors = [cmap((value - lo) / (hi - lo)) for value in values]
         super().__init__(colors=colors, linewidths=linewidths, label=label, **kwargs)
         self._segments = [np.asarray(seg, dtype=float).reshape(-1, 2) for seg in segments]
 
@@ -3214,6 +3253,9 @@ class Axes:
         self._fig.axes.append(child)
         self._fig._cur = child
         return child
+
+    def indicate_inset(self, *args, **kwargs): return None
+    def indicate_inset_zoom(self, *args, **kwargs): return None
 
     def twinx(self, **kwargs):
         """A second axes sharing the x axis, with its own y axis on the right."""
@@ -4822,6 +4864,176 @@ class Axes:
         self.scatter_pts.append(entry)
         return _ScatterHandle(entry, self)
 
+    def streamplot(self, x, y, u, v, density=1, linewidth=None, color=None,
+                   cmap=None, norm=None, arrowsize=1, arrowstyle="-|>",
+                   minlength=0.1, maxlength=4.0, integration_direction="both",
+                   broken_streamlines=True, start_points=None, num_arrows=1,
+                   integration_max_step_scale=1.0,
+                   integration_max_error_scale=1.0, **kwargs):
+        """Draw streamlines for a 2-D vector field.
+
+        This is a compact integrator: it seeds a regular grid (or the supplied
+        `start_points`), integrates the normalised field with a midpoint step,
+        and draws each streamline as a segment collection so colour can vary
+        along the path.
+        """
+        if integration_max_step_scale <= 0:
+            raise ValueError("The value of integration_max_step_scale must be > 0")
+        if integration_max_error_scale <= 0:
+            raise ValueError("The value of integration_max_error_scale must be > 0")
+        if integration_direction not in ("forward", "backward", "both"):
+            raise ValueError(f"unsupported integration_direction: {integration_direction!r}")
+        xs, ys, uu, vv, mask = _streamplot_field(x, y, u, v)
+        x0, x1, y0, y1 = xs[0], xs[-1], ys[0], ys[-1]
+        dx = abs(xs[1] - xs[0]) if xs.size > 1 else 1.0
+        dy = abs(ys[1] - ys[0]) if ys.size > 1 else 1.0
+        step = 0.5 * min(dx, dy)
+        max_distance = float(maxlength) * max(x1 - x0, y1 - y0, 1.0)
+        max_steps = min(600, max(10, int(np.ceil(max_distance / max(step, 1e-12)))))
+
+        if start_points is not None:
+            seeds = np.asarray(start_points, dtype=float)
+            if seeds.ndim == 1:
+                seeds = seeds.reshape(1, -1)
+            if seeds.shape[0] == 2 and seeds.shape[1] != 2:
+                seeds = seeds.T
+            seeds = seeds[:, :2]
+        else:
+            dens = np.asarray(density, dtype=float).ravel()
+            if dens.size == 1:
+                dens = np.repeat(dens, 2)
+            nx = max(2, int(round((xs.size - 1) / 10.0 * dens[0])))
+            ny = max(2, int(round((ys.size - 1) / 10.0 * dens[1])))
+            seeds = np.array([[sx, sy] for sy in np.linspace(y0, y1, ny)
+                              for sx in np.linspace(x0, x1, nx)])
+
+        sampler = _streamplot_sampler(xs, ys, uu, vv, mask)
+
+        def field(px, py):
+            ux, vy = sampler(px, py)
+            speed = _math.hypot(ux, vy)
+            if not np.isfinite(speed) or speed <= 1e-12:
+                return None
+            return ux / speed, vy / speed
+
+        def advance(px, py, sign):
+            first = field(px, py)
+            if first is None:
+                return None
+            mx = px + sign * step * 0.5 * first[0]
+            my = py + sign * step * 0.5 * first[1]
+            mid = field(mx, my)
+            if mid is None:
+                return None
+            return px + sign * step * mid[0], py + sign * step * mid[1]
+
+        def trace(sx, sy, sign):
+            points = [(float(sx), float(sy))]
+            px, py, travelled = float(sx), float(sy), 0.0
+            for _ in range(max_steps):
+                nxt = advance(px, py, sign)
+                if nxt is None:
+                    break
+                nxv, nyv = nxt
+                if not (x0 - step <= nxv <= x1 + step and y0 - step <= nyv <= y1 + step):
+                    break
+                travelled += _math.hypot(nxv - px, nyv - py)
+                if travelled > max_distance:
+                    break
+                points.append((nxv, nyv))
+                px, py = nxv, nyv
+            return points
+
+        trajectories = []
+        for sx, sy in seeds:
+            if not (x0 <= sx <= x1 and y0 <= sy <= y1):
+                continue
+            if integration_direction == "forward":
+                pts = trace(sx, sy, 1)
+            elif integration_direction == "backward":
+                pts = trace(sx, sy, -1)
+            else:
+                back = trace(sx, sy, -1)[1:]
+                pts = list(reversed(back)) + trace(sx, sy, 1)
+            if len(pts) >= 2:
+                trajectories.append(np.asarray(pts, dtype=float))
+
+        color_values = None
+        if color is not None and not isinstance(color, str):
+            candidate = np.asarray(color)
+            if candidate.shape == uu.shape and candidate.dtype.kind in "iuf":
+                color_values = np.asarray(candidate, dtype=float)
+        if color_values is not None:
+            vals = color_values[np.isfinite(color_values)]
+            lo = float(vals.min()) if vals.size else 0.0
+            hi = float(vals.max()) if vals.size else 1.0
+            if not hi > lo:
+                lo, hi = lo - 0.5, lo + 0.5
+            cmap_obj = get_cmap(cmap)
+            color_at = lambda px, py: cmap_obj((_streamplot_sample(color_values, xs, ys, px, py) - lo) / (hi - lo))  # noqa: E731
+        else:
+            uniform = _norm_color(color) if color is not None else self._next_color()
+            color_at = lambda px, py: uniform  # noqa: E731
+
+        linewidth_values = None
+        if linewidth is not None and not np.isscalar(linewidth):
+            candidate = np.asarray(linewidth, dtype=float)
+            if candidate.shape == uu.shape:
+                linewidth_values = candidate
+        if linewidth_values is not None:
+            widths = linewidth_values[np.isfinite(linewidth_values)]
+            line_width = float(widths.mean()) if widths.size else 2.0
+        else:
+            line_width = 2.0 if linewidth is None else float(linewidth)
+
+        segments, colors, shown_values = [], [], []
+        arrow_segments, arrow_colors = [], []
+        for pts in trajectories:
+            good = np.isfinite(pts).all(axis=1)
+            pts = pts[good]
+            if len(pts) < 2:
+                continue
+            for i in range(len(pts) - 1):
+                p0, p1 = pts[i], pts[i + 1]
+                if np.allclose(p0, p1):
+                    continue
+                segments.append(np.vstack([p0, p1]).ravel().tolist())
+                mid = (p0 + p1) * 0.5
+                colors.append(color_at(mid[0], mid[1]))
+                if color_values is not None:
+                    shown_values.append(_streamplot_sample(color_values, xs, ys, mid[0], mid[1]))
+            if num_arrows and arrowsize and arrowsize > 1e-3 and len(pts) > 2:
+                count = max(1, int(num_arrows))
+                for idx in np.linspace(1, len(pts) - 1, count, endpoint=False):
+                    i = int(np.clip(round(idx), 1, len(pts) - 1))
+                    tip = pts[i]
+                    direction = pts[i] - pts[i - 1]
+                    norm = _math.hypot(direction[0], direction[1])
+                    if not norm:
+                        continue
+                    direction = direction / norm
+                    normal = np.array([-direction[1], direction[0]])
+                    size = 0.45 * min(dx, dy)
+                    left = tip - direction * size + normal * size * 0.45
+                    right = tip - direction * size - normal * size * 0.45
+                    arrow_segments.append(np.vstack([left, tip, right]).ravel().tolist())
+                    arrow_colors.append(color_at(tip[0], tip[1]))
+
+        segments.extend(arrow_segments)
+        colors.extend(arrow_colors)
+        lines = LineCollection(segments, colors=colors, linewidths=line_width,
+                               label=kwargs.get("label", ""))
+        lines.axes = self
+        lines._array = np.asarray(shown_values) if shown_values else None
+        lines._cmap = _cmap_name(cmap) if color_values is not None else None
+        if color_values is not None:
+            vals = color_values[np.isfinite(color_values)]
+            lines._clim = ((float(vals.min()), float(vals.max()))
+                           if vals.size else None)
+        self.add_collection(lines)
+        arrows = Collection(colors=[])
+        return _StreamplotSet(lines, arrows)
+
     def quiver(self, *args, U=None, V=None, C=None, color=None, angles="xy",
                scale=None, scale_units=None, units="width", width=None,
                headwidth=3.0, headlength=5.0, headaxislength=4.5, pivot="tail",
@@ -5719,6 +5931,89 @@ def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markers
                 linewidth=float(linewidth), marker=str(marker), markersize=float(markersize),
                 mfc=_norm_color(mfc), mec=_norm_color(mec), mew=float(mew),
                 alpha=None if alpha is None else float(alpha), drawstyle=str(drawstyle))
+
+
+def _streamplot_field(x, y, u, v):
+    """Validate and unpack a streamplot's rectangular vector field."""
+    xa, ya = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    mask = np.ma.getmaskarray(u) if np.ma.isMaskedArray(u) else None
+    ua = np.asarray(np.ma.filled(u, np.nan), dtype=float)
+    va = np.asarray(np.ma.filled(v, np.nan), dtype=float)
+    if ua.ndim > 2 or va.ndim > 2:
+        raise ValueError("'u' and 'v' can have at maximum 2 dimensions")
+    if ua.shape != va.shape:
+        raise ValueError("U and V must have the same shape")
+    if xa.ndim > 2 or ya.ndim > 2:
+        raise ValueError("'x' and 'y' can have at maximum 2 dimensions")
+    if xa.ndim == 1 and ya.ndim == 1:
+        if xa.size == ua.shape[1] and ya.size == ua.shape[0]:
+            xa, ya = np.meshgrid(xa, ya)
+        elif xa.size == ua.size and ya.size == ua.size:
+            xa, ya = xa.reshape(ua.shape), ya.reshape(ua.shape)
+        else:
+            raise ValueError("X and Y must match U's shape or one axis each")
+    if xa.shape != ua.shape or ya.shape != ua.shape:
+        raise ValueError("X, Y, U and V must have the same shape")
+    if not np.allclose(xa, xa[0:1, :]):
+        raise ValueError("The rows of 'x' must be equal")
+    if not np.allclose(ya, ya[:, 0:1]):
+        raise ValueError("The columns of 'y' must be equal")
+    xs, ys = np.asarray(xa[0, :], dtype=float), np.asarray(ya[:, 0], dtype=float)
+    if xs.size < 2 or ys.size < 2:
+        raise ValueError("streamplot needs at least a 2x2 grid")
+    for values, name in ((xs, "x"), (ys, "y")):
+        spacing = np.diff(values)
+        if spacing.size > 1 and not np.allclose(spacing, spacing[0], rtol=1e-7, atol=1e-12):
+            raise ValueError(f"'{name}' values must be equally spaced")
+        if not np.all(spacing > 0):
+            raise ValueError(f"'{name}' values must be strictly increasing")
+    if mask is None:
+        mask = ~np.isfinite(ua)
+    else:
+        mask = np.asarray(mask, dtype=bool) | ~np.isfinite(ua)
+    ua = np.where(mask, np.nan, ua)
+    va = np.where(mask, np.nan, va)
+    return xs, ys, ua, va, mask
+
+
+def _streamplot_bracket(values, coordinate):
+    if coordinate < values[0] or coordinate > values[-1]:
+        return None, None
+    index = int(np.searchsorted(values, coordinate, side="right") - 1)
+    index = min(max(index, 0), len(values) - 2)
+    t = (coordinate - values[index]) / (values[index + 1] - values[index])
+    return index, float(t)
+
+
+def _streamplot_sample(values, xs, ys, px, py):
+    """Bilinear sample of a scalar field, returning NaN outside the grid."""
+    ix, tx = _streamplot_bracket(xs, px)
+    iy, ty = _streamplot_bracket(ys, py)
+    if ix is None or iy is None:
+        return float("nan")
+    v00, v01 = values[iy, ix], values[iy, ix + 1]
+    v10, v11 = values[iy + 1, ix], values[iy + 1, ix + 1]
+    return float((1 - tx) * (1 - ty) * v00 + tx * (1 - ty) * v01
+                 + (1 - tx) * ty * v10 + tx * ty * v11)
+
+
+def _streamplot_sampler(xs, ys, u, v, mask):
+    """Bilinear vector-field sampler that rejects samples touching a mask."""
+    def sample(px, py):
+        ix, tx = _streamplot_bracket(xs, px)
+        iy, ty = _streamplot_bracket(ys, py)
+        if ix is None or iy is None:
+            return float("nan"), float("nan")
+        if mask[iy:iy + 2, ix:ix + 2].any():
+            return float("nan"), float("nan")
+        weights = ((1 - tx) * (1 - ty), tx * (1 - ty),
+                   (1 - tx) * ty, tx * ty)
+        ux = (weights[0] * u[iy, ix] + weights[1] * u[iy, ix + 1]
+              + weights[2] * u[iy + 1, ix] + weights[3] * u[iy + 1, ix + 1])
+        vy = (weights[0] * v[iy, ix] + weights[1] * v[iy, ix + 1]
+              + weights[2] * v[iy + 1, ix] + weights[3] * v[iy + 1, ix + 1])
+        return float(ux), float(vy)
+    return sample
 
 
 def _hash_value(hasher, value):
@@ -7029,6 +7324,9 @@ class Figure:
         if ax is None:
             axes = self._cur or self.axes[0]
             if mappable is not None:
+                mappable_axes = getattr(mappable, "axes", None)
+                if isinstance(mappable_axes, Axes):
+                    axes = mappable_axes
                 entry = getattr(mappable, "_e", None)
                 owner = next((a for a in self.axes
                               if entry is not None
@@ -7045,7 +7343,13 @@ class Figure:
         elif axes.images:
             spec = AxesImage(axes.images[-1])._colorbar_spec()
         else:
-            raise ValueError("colorbar needs an image or contour to describe")
+            collection = next(
+                (artist for artist in reversed(axes.artists)
+                 if getattr(artist, "_array", None) is not None
+                 and hasattr(artist, "_colorbar_spec")), None)
+            if collection is None:
+                raise ValueError("colorbar needs an image or contour to describe")
+            spec = collection._colorbar_spec()
         entry = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
                      vmax=float(spec["vmax"]), label=str(label))
         axes._colorbar = entry
@@ -7339,6 +7643,7 @@ def figaspect(aspect):
     return (4.0 * aspect, 4.0)
 
 
+def streamplot(*args, **kwargs): return gca().streamplot(*args, **kwargs)
 def quiver(*args, **kwargs):
     return gca().quiver(*args, **kwargs)
 
