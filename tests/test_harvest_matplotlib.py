@@ -85,8 +85,9 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert case["comparison"] == {"style": "mpl20", "dpi": 40, "remove_text": True,
                                   "tight": True, "extensions": None, "tol": None}
     snippet = case["snippet"]
-    assert 'plt.rcParams["figure.figsize"] = (8, 6)' in snippet
     assert "plt.style.use('mpl20')" in snippet
+    # mpl20 baselines use the 6.4x4.8 rc default, not the classic 8x6 figure.
+    assert 'plt.rcParams["figure.figsize"]' not in snippet
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
 
 
@@ -452,6 +453,8 @@ def test_classic_test_style_maps_to_classic():
                                                "remove_text": False, "tight": False,
                                                "extensions": None, "tol": None})
     assert "plt.style.use('classic')" in body
+    # Classic is the style whose baselines are 8x6 at 100 dpi.
+    assert 'plt.rcParams["figure.figsize"] = (8, 6)' in body
 
 
 def test_unused_module_aliases_are_dropped():

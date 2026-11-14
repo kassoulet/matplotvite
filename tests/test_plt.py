@@ -2161,6 +2161,19 @@ def test_rc_shims():
     assert plt.rcParams["figure.dpi"] == 100.0
 
 
+def test_rc_figure_figsize_sets_new_figures():
+    plt.rcdefaults()
+    try:
+        plt.rcParams["figure.figsize"] = (8, 6)
+        assert plt.figure().get_size_inches() == pytest.approx((8.0, 6.0))
+        fig, _ = plt.subplots()
+        assert fig.get_size_inches() == pytest.approx((8.0, 6.0))
+        # An explicit figsize still wins over the rcParam, as in Matplotlib.
+        assert plt.figure(figsize=(3, 2)).get_size_inches() == pytest.approx((3.0, 2.0))
+    finally:
+        plt.rcdefaults()
+
+
 def test_stem_plot(tmp_path):
     plt.figure()
     ax = plt.gca()

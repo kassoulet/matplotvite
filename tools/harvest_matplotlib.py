@@ -161,17 +161,20 @@ def _comparison_prefix(options: dict[str, object] | None) -> str:
     """Match the test suite's figure size and style before running a body."""
     if options is None:
         return ""
-    lines = ['plt.rcdefaults()', 'plt.rcParams["figure.figsize"] = (8, 6)']
+    lines = ['plt.rcdefaults()']
     style = options.get("style")
     # Matplotlib's test suite uses `_classic_test`, which is the "classic" style
     # plus a hinting patch that only exists inside Matplotlib; render with the
-    # nearest style matplotvite ships.
+    # nearest style matplotvite ships. Only classic uses the 8x6 test figure:
+    # default and mpl20 baselines are the 6.4x4.8 rc default.
     if isinstance(style, str) and style == "_classic_test":
         style = "classic"
     elif isinstance(style, (list, tuple)) and "_classic_test" in style:
         style = "classic"
     if style:
         lines.append(f"plt.style.use({style!r})")
+    if style == "classic":
+        lines.append('plt.rcParams["figure.figsize"] = (8, 6)')
     return "\n".join(lines) + "\n"
 
 

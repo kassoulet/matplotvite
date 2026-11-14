@@ -6381,7 +6381,9 @@ class Colorbar:
 
 
 class Figure:
-    def __init__(self, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None):
+    def __init__(self, figsize=None, dpi=None, facecolor=None, edgecolor=None):
+        if figsize is None:
+            figsize = rcParams.get("figure.figsize", (6.4, 4.8))
         self.figsize = _validate_figsize(figsize)
         self.grid, self.axes, self._cur = (1, 1), [], None
         self._colorbar = None
@@ -6782,7 +6784,7 @@ class _SubFigure:
 _fig = None
 
 
-def figure(*args, figsize=(6.4, 4.8), dpi=None, facecolor=None, edgecolor=None, **kwargs):
+def figure(*args, figsize=None, dpi=None, facecolor=None, edgecolor=None, **kwargs):
     """Create a figure; a leading scalar or string is accepted as matplotlib's
     figure number and ignored, while a leading sequence sets `figsize`."""
     global _fig
@@ -6804,7 +6806,7 @@ def gca(): return gcf().gca()
 def close(*_): global _fig; _fig = None
 
 
-def subplots(nrows=1, ncols=1, figsize=(6.4, 4.8), dpi=None, facecolor=None,
+def subplots(nrows=1, ncols=1, figsize=None, dpi=None, facecolor=None,
              edgecolor=None, sharex=False, sharey=False, squeeze=True, **kwargs):
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey, squeeze=squeeze)
@@ -6820,7 +6822,7 @@ def subplot2grid(shape, loc, rowspan=1, colspan=1, fig=None, **kwargs):
                                       colspan=colspan, **kwargs)
 
 
-def subplot_mosaic(mosaic, empty_sentinel=".", figsize=(6.4, 4.8), dpi=None,
+def subplot_mosaic(mosaic, empty_sentinel=".", figsize=None, dpi=None,
                    facecolor=None, edgecolor=None, **kwargs):
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
