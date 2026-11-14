@@ -1318,6 +1318,29 @@ def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
             assert abs(actual - wanted) <= 2
 
 
+def test_figimage_places_rgb_pixels_at_figure_offsets():
+    fig = plt.figure((0.4, 0.3), dpi=100)
+    image = np.zeros((4, 5, 3))
+    image[:] = (1.0, 0.0, 0.0)
+    image[0] = (0.0, 1.0, 0.0)
+    artist = fig.figimage(image, xo=10, yo=6, origin="lower")
+    assert artist.get_array().shape == (4, 5, 3)
+
+    width, height, rows = decode_png_rgba(fig.savefig(format="png"))
+    assert (width, height) == (40, 30)
+
+    def pixel(x, y):
+        offset = x * 4
+        return tuple(rows[y][offset:offset + 3])
+
+    # Six pixels up from the bottom, the original first row is at the bottom
+    # of the placed image because origin="lower" flips it for SVG's top-left
+    # coordinate system.
+    assert pixel(12, height - 6 - 1) == (0, 255, 0)
+    assert pixel(12, height - 6 - 4) == (255, 0, 0)
+    assert pixel(5, 5) == (255, 255, 255)
+
+
 def test_large_tick_labels_reserve_axis_label_space(tmp_path):
     def plotting_rect(size, name):
         fig, ax = plt.subplots(figsize=(4, 3))

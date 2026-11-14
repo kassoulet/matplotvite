@@ -112,6 +112,9 @@ pub(crate) struct RenderOptions {
     /// Figure-fraction text, drawn after the panels so it is never clipped.
     #[pyo3(item)]
     pub(crate) figure_texts: Vec<TextItem>,
+    /// Images placed directly in figure pixel space, under every panel.
+    #[pyo3(item)]
+    pub(crate) figure_images: Vec<FigureImage>,
 }
 
 /// Figure-level title drawn above the panel grid.
@@ -222,6 +225,19 @@ pub(crate) type ImageItem = (
     bool,
     f64,
     String,
+);
+
+/// A `Figure.figimage`: its pixel array, colormap, opacity, origin and pixel
+/// offsets from the lower-left corner of the figure.
+pub(crate) type FigureImage = (
+    OwnedArrayD,
+    String,
+    Option<f64>,
+    Option<f64>,
+    f64,
+    bool,
+    i64,
+    i64,
 );
 
 /// (text, xy, xytext, color, font size, font family).

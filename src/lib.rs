@@ -50,6 +50,7 @@ fn render(
         suptitle_x,
         suptitle_y,
         figure_texts,
+        figure_images,
     } = options;
     register_plotters_fonts();
     let (w, h) = size;
@@ -118,7 +119,11 @@ fn render(
     // The direct bitmap path skips SVG generation and resvg. It currently
     // covers opaque PNGs without embedded images or figure decorations; the
     // vector path remains the fallback for everything else.
-    let direct = fmt == "png" && !transparent && decorations.is_empty() && direct_eligible(&panels);
+    let direct = fmt == "png"
+        && !transparent
+        && decorations.is_empty()
+        && figure_images.is_empty()
+        && direct_eligible(&panels);
     let direct_background =
         background_pixel(background).map(|pixel| [pixel[0], pixel[1], pixel[2]]);
 
@@ -146,7 +151,15 @@ fn render(
         // PDF receives an unbacked SVG so its single parse can measure the
         // drawn content; it paints the background onto the cropped page.
         let svg_background = if fmt == "pdf" { None } else { background };
-        let (svg, bounds) = render_svg(size, grid, &panels, svg_background, decorations, output)?;
+        let (svg, bounds) = render_svg(
+            size,
+            grid,
+            &panels,
+            &figure_images,
+            svg_background,
+            decorations,
+            output,
+        )?;
         if fmt == "pdf" {
             render_pdf(&svg, dpi, size, tight, background)
         } else if fmt == "svg" {

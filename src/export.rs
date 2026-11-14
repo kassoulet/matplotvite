@@ -10,7 +10,8 @@ use rayon::prelude::*;
 use crate::color::color;
 use crate::draw::{draw_label, draw_panel, text_px};
 use crate::fonts::{fontdb, pdf_options};
-use crate::model::{Panel, PngCompression, Suptitle, TextItem};
+use crate::image::{base64, image_png_parts};
+use crate::model::{FigureImage, Panel, PngCompression, Suptitle, TextItem};
 
 /// Figure-level marks (title, text and border) drawn after every panel.
 pub(crate) struct FigureDecorations<'a> {
@@ -421,6 +422,7 @@ pub(crate) fn render_svg(
     size: (u32, u32),
     grid: (usize, usize),
     panels: &[Panel],
+    figure_images: &[FigureImage],
     background: Option<RGBAColor>,
     decorations: FigureDecorations<'_>,
     output: RenderOutput,
@@ -442,6 +444,7 @@ pub(crate) fn render_svg(
     } else {
         Some(decoration_fragment(size, &decorations, dpi)?)
     };
+    let figure_images_svg = figure_images_fragment(size, figure_images)?;
 
     // Build the document in one pass. Inserting each fragment before
     // `</svg>` shifted the whole tail once per panel and overlay. The figure
@@ -461,6 +464,7 @@ pub(crate) fn render_svg(
     let overlay_count = fragments.iter().map(|f| f.1.len()).sum::<usize>();
     let extra = fragments.iter().map(|f| fragment_bytes(f)).sum::<usize>()
         + decoration_svg.as_ref().map_or(0, String::len)
+        + figure_images_svg.len()
         + fragments.len()
         + overlay_count
         + if decoration_svg.is_some() { 1 } else { 0 };
@@ -469,6 +473,7 @@ pub(crate) fn render_svg(
     if let Some(background_body) = &background_body {
         svg.push_str(svg_body(background_body));
     }
+    svg.push_str(&figure_images_svg);
     for fragment in &fragments {
         svg.push_str(&fragment.0);
         svg.push('\n');
@@ -498,8 +503,36 @@ pub(crate) fn render_svg(
     Ok((svg, bounds))
 }
 
-/// Geometric bounds of the drawn content, including strokes and text, in
-/// canvas pixels. The figure background is deliberately absent from `svg`.
+/// SVG for images placed directly on the figure canvas. These sit under every
+/// panel, in figure pixel coordinates with the origin at the lower-left.
+fn figure_images_fragment(size: (u32, u32), images: &[FigureImage]) -> Result<String, String> {
+    let mut out = String::new();
+    let canvas_h = size.1 as i64;
+    for (data, cmap, vmin, vmax, opacity, _origin_upper, xo, yo) in images {
+        let arr = data.as_array();
+        let shape = arr.shape();
+        let (ih, iw) = match shape {
+            [h, w] => (*h, *w),
+            [h, w, c] if *c == 3 || *c == 4 => (*h, *w),
+            _ => return Err("figimage expects a 2-D or (H, W, 3|4) array".into()),
+        };
+        if iw == 0 || ih == 0 {
+            continue;
+        }
+        let png = image_png_parts(arr, cmap, *vmin, *vmax, *opacity)?;
+        let x = *xo;
+        let y = canvas_h - *yo - ih as i64;
+        out.push_str(&format!(
+            "<image x=\"{x}\" y=\"{y}\" width=\"{iw}\" height=\"{ih}\" \
+             preserveAspectRatio=\"none\" style=\"image-rendering:pixelated\" \
+             href=\"data:image/png;base64,{}\"/>\n",
+            base64(&png)
+        ));
+    }
+    Ok(out)
+}
+
+/// Geometric bounds of the drawn content, including strokes and text, in\n/// canvas pixels. The figure background is deliberately absent from `svg`.
 fn svg_bounds(svg: &str, (w, h): (u32, u32)) -> Option<Bbox> {
     let opts = usvg::Options {
         fontdb: fontdb(),

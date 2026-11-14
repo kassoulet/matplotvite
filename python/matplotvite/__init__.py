@@ -723,6 +723,12 @@ class _Transform:
     def inverted(self): return self
 
 
+class _IdentityTransform(_Transform):
+    """Pixels from the figure's lower-left; used by `Figure.text`."""
+
+    kind = "identity"
+
+
 class _BboxPatch:
     """Stand-in for the optional patch behind a text annotation."""
 
@@ -742,6 +748,19 @@ class _TextEntry(tuple):
     def get_va(self): return self[6]
     def get_bbox(self): return self[8]
     def get_rotation(self): return self[9]
+
+
+class _FigureImage:
+    """Handle returned by `Figure.figimage`."""
+
+    def __init__(self, entry):
+        self._e = entry
+
+    def get_array(self): return self._e["data"]
+    def get_alpha(self): return self._e["alpha"]
+    def set_alpha(self, alpha):
+        self._e["alpha"] = float(np.clip(float(alpha), 0.0, 1.0))
+        return self
 
 
 class _TextArt:
@@ -6401,6 +6420,7 @@ class Figure:
         self.edgecolor = _norm_color(edgecolor)
         self._suptitle = None
         self._figure_texts = []
+        self._figure_images = []
         self.artists = []
         self.patches = []
         self._render_cache = None
@@ -6424,7 +6444,7 @@ class Figure:
 
     def text(self, x, y, s, fontdict=None, **kwargs):
         """Figure-fraction text, drawn above every panel so nothing clips it."""
-        _transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
+        transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
             fontdict, kwargs)
         if ha not in ("left", "center", "right"):
             raise ValueError(f"unsupported ha: {ha!r}")
@@ -6435,6 +6455,12 @@ class Figure:
         size = _font_size(fontsize, rcParams.get("font.size", 10.0))
         colour = colour if colour is not None else rcParams.get("text.color", "black")
         values = _as_f64((x, y))
+        if getattr(transform, "kind", None) == "identity":
+            # `IdentityTransform` addresses the figure in pixels from the
+            # lower-left; the renderer stores figure-fraction positions.
+            width = self.figsize[0] * self.get_dpi()
+            height = self.figsize[1] * self.get_dpi()
+            values = (values[0] / width, values[1] / height)
         self._figure_texts.append((float(values[0]), float(values[1]), _mathtext(s, family),
                                    _norm_color(colour), size, ha, va, bbox, rotation,
                                    family, (0.0, 0.0)))
@@ -6580,7 +6606,31 @@ class Figure:
         return self
 
     def legend(self, *args, **kwargs): return _LegendHandle()
-    def figimage(self, *args, **kwargs): return None
+    def figimage(self, X, xo=0, yo=0, alpha=None, norm=None, cmap=None,
+                 vmin=None, vmax=None, origin=None, resize=False, **kwargs):
+        """Place an image directly on the figure at pixel offsets from the
+        lower-left corner. `resize` and artist kwargs are accepted and ignored."""
+        raw = np.asarray(X)
+        a = _as_image(raw)
+        # Matplotlib also accepts 8-bit RGB(A) arrays, while the renderer's
+        # RGB path expects floats in 0-1.
+        if a.ndim == 3 and raw.dtype.kind in "ui":
+            a = a / 255.0
+        if norm is not None and a.ndim == 2:
+            a, vmin, vmax = _norm_values(norm, a)
+        origin = "upper" if origin is None else str(origin)
+        if origin == "lower":
+            a = a[::-1]
+        elif origin != "upper":
+            raise ValueError(f"unsupported origin: {origin!r}")
+        opacity = 1.0 if alpha is None else float(alpha)
+        if not np.isfinite(opacity):
+            raise ValueError("alpha must be finite")
+        entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
+                     alpha=float(np.clip(opacity, 0.0, 1.0)),
+                     xo=int(xo), yo=int(yo))
+        self._figure_images.append(entry)
+        return _FigureImage(entry)
     def add_subfigure(self, *args, **kwargs):
         return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
 
@@ -6715,6 +6765,9 @@ class Figure:
             "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
             "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
             "figure_texts": self._figure_texts,
+            "figure_images": [(e["data"], e["cmap"], e["vmin"], e["vmax"],
+                              e["alpha"], True, e["xo"], e["yo"])
+                             for e in self._figure_images],
         }
         # An unchanged figure reuses its last encoded bytes. The key covers both
         # the panel payload and every render option, so any edit invalidates it.
@@ -7816,7 +7869,7 @@ collections = mcollections
 markers = _Namespace(MarkerStyle=MarkerStyle)
 mmarkers = markers
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
-                         BboxTransformTo=_Transform, IdentityTransform=_Transform,
+                         BboxTransformTo=_Transform, IdentityTransform=_IdentityTransform,
                          ScaledTranslation=_Transform, TransformedBbox=_TransformedBbox,
                          blended_transform_factory=_blended_transform_factory,
                          offset_copy=_offset_copy)

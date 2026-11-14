@@ -1,3 +1,4 @@
+use numpy::ndarray::ArrayViewD;
 use rayon::prelude::*;
 
 use crate::color::colormap;
@@ -45,8 +46,18 @@ fn scaled_alpha(value: f64, opacity: f64) -> u8 {
 /// Convert an `imshow` array into premultiplied RGBA pixels.
 pub(crate) fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String> {
     let (arr, cmap, vmin, vmax, _, _, opacity, _interpolation) = item;
+    image_pixmap_parts(arr.as_array(), cmap, *vmin, *vmax, *opacity)
+}
+
+/// Shared implementation for axes images and `Figure.figimage`.
+pub(crate) fn image_pixmap_parts(
+    a: ArrayViewD<'_, f64>,
+    cmap: &str,
+    vmin: Option<f64>,
+    vmax: Option<f64>,
+    opacity: f64,
+) -> Result<tiny_skia::Pixmap, String> {
     let opacity = opacity.clamp(0.0, 1.0);
-    let a = arr.as_array();
     let shape = a.shape();
     let (h, w) = match shape {
         [h, w] => (*h, *w),
@@ -161,11 +172,21 @@ pub(crate) fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String
 
 /// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
 pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
-    let (arr, _, _, _, _, _, opacity, _) = item;
-    let array = arr.as_array();
+    let (arr, cmap, vmin, vmax, _, _, opacity, _) = item;
+    image_png_parts(arr.as_array(), cmap, *vmin, *vmax, *opacity)
+}
+
+/// Encode an image array for a `figimage` overlay.
+pub(crate) fn image_png_parts(
+    array: ArrayViewD<'_, f64>,
+    cmap: &str,
+    vmin: Option<f64>,
+    vmax: Option<f64>,
+    opacity: f64,
+) -> Result<Vec<u8>, String> {
     let shape = array.shape();
-    let opaque = *opacity >= 1.0 && (shape.len() != 3 || shape[2] == 3);
-    let pm = image_pixmap(item)?;
+    let opaque = opacity >= 1.0 && (shape.len() != 3 || shape[2] == 3);
+    let pm = image_pixmap_parts(array, cmap, vmin, vmax, opacity)?;
     // The default encoder level dominates save time for full-resolution
     // images; fast compression keeps the embedded PNG cheap to produce.
     crate::export::encode_png(&pm, PngCompression::Fast, opaque).map_err(|e| e.to_string())
