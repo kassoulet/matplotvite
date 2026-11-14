@@ -2,7 +2,7 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 409 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 410 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
@@ -42,9 +42,8 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 | # | Finding |
 |---|---------|
 | G5 | **Environment accounting:** 9 examples need `gi` and 7 need `wx`; `user_interfaces` (25), `widgets` (16) and `animation` (10) are interactive by nature and should be `unsupported` up front. Local runs should also state when `cairosvg`/`pypdfium2` are missing, because SVG/PDF baselines then get no metric. |
-| G6 / E4 | **Failure accounting still mixes causes.** Add a `reason` field (`out_of_scope`, `harvester`, `needs_api`, `bug`) to the `mpl-examples` manifest and print the four counts in `gallery_summary.py` instead of one "failed" number. |
 | F7 / N7 | **"Rendered" is not proof of correctness.** It still includes ignored calls (see the per-case `ignored` count). Treat rendered counts as an upper bound and check the remaining float-conversion and `_ListedColormap` cases did not merely move into `needs-api`. |
-| E6 | **Test gap:** no test checks that every `mpl-examples` failure carries a reason, or that a stripped `import matplotlib.dates as mdates` binds `mdates`. Add both to the gallery tests once E4 lands. |
+| E6 | **Test gap:** every `mpl-examples` failure now carries a `reason` and the gallery test checks it; still add a test that a stripped `import matplotlib.dates as mdates` binds `mdates`. |
 
 ## Watch items and residual risks
 
@@ -60,5 +59,5 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 ## Suggested order
 
 1. **G4 and G3**: triage the crash groups, then the remaining API gaps.
-2. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
+2. **G5/E6**: finish the environment accounting and the remaining harvester test.
 3. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.

@@ -37,6 +37,26 @@ def test_summary_counts_each_gallery_and_links_the_artifact(tmp_path, monkeypatc
     assert "9 cases across 3 galleries." in out
 
 
+def test_summary_prints_failure_reasons(tmp_path, monkeypatch, capsys):
+    cases = [
+        {"status": "unsupported", "reason": "out_of_scope"},
+        {"status": "harvester-gap", "reason": "harvester"},
+        {"status": "needs-api", "reason": "needs_api"},
+        {"status": "bug", "reason": "bug"},
+        {"status": "rendered"},
+    ]
+    for directory in ("mpl-corpus", "mpl-examples", "seaborn-gallery"):
+        gallery = tmp_path / directory
+        gallery.mkdir()
+        (gallery / "manifest.json").write_text(json.dumps(cases), encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["gallery_summary", "--out", str(tmp_path)])
+    assert gallery_summary() == 0
+    out = capsys.readouterr().out
+    assert "### Failure reasons" in out
+    assert "| Matplotlib gallery examples | 1 | 1 | 1 | 1 |" in out
+
+
 def test_summary_rejects_a_missing_gallery(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["gallery_summary", "--out", str(tmp_path)])
     with pytest.raises(FileNotFoundError):

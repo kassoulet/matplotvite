@@ -309,6 +309,9 @@ def test_examples_gallery_marks_out_of_scope_categories(tmp_path):
     for category in ("mplot3d", "widgets", "lines"):
         (root / category).mkdir(parents=True)
         (root / category / "demo.py").write_text(script, encoding="utf-8")
+    (root / "lines" / "broken.py").write_text(
+        "import matplotlib.pyplot as plt\nplt.no_such_method()\n",
+        encoding="utf-8")
     out = tmp_path / "gallery"
     assert harvest_examples_gallery(root, out, out / "manifest.json") == 0
     cases = {case["id"]: case for case in json.loads(
@@ -319,8 +322,15 @@ def test_examples_gallery_marks_out_of_scope_categories(tmp_path):
     assert cases["widgets/demo"]["status"] == "unsupported"
     assert cases["mplot3d/demo"]["error"] == "mplot3d is out of scope"
     assert cases["lines/demo"]["status"] == "rendered"
+    assert cases["lines/demo"]["reason"] is None
+    assert cases["mplot3d/demo"]["reason"] == "out_of_scope"
+    assert cases["lines/broken"]["status"] == "needs-api"
+    assert cases["lines/broken"]["reason"] == "needs_api"
+    assert all(case.get("reason") for case in cases.values()
+               if case["status"] != "rendered")
     index = (out / "index.html").read_text(encoding="utf-8")
-    assert "2 unsupported" in index
+    assert "2 out of scope" in index
+    assert "1 needs API" in index
 
 
 def test_failure_status_splits_gaps_from_missing_apis():

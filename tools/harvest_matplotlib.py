@@ -425,6 +425,14 @@ def _nonwhite_pixels(path: pathlib.Path) -> int | None:
     )
 
 
+FAILURE_REASONS = {
+    "needs-api": "needs_api",
+    "harvester-gap": "harvester",
+    "bug": "bug",
+    "unsupported": "out_of_scope",
+}
+
+
 def failure_status(error: str | None) -> str:
     """Bucket a failed render: harvester gap, missing API or bug.
 
@@ -1131,9 +1139,11 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         if case["snippet"] is None:
             entry["status"] = "unsupported"
             entry["error"] = "interactive or unparseable"
+            entry["reason"] = "out_of_scope"
         elif case["category"] in OUT_OF_SCOPE_CATEGORIES:
             entry["status"] = "unsupported"
             entry["error"] = f"{case['category']} is out of scope"
+            entry["reason"] = "out_of_scope"
         else:
             ours = out / f"{slug}.png"
             ignored: list[str] = []
@@ -1143,11 +1153,13 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
             entry["ignored"] = len(ignored)
             entry["status"] = ("rendered" if entry["error"] is None
                                else failure_status(str(entry["error"])))
+            entry["reason"] = FAILURE_REASONS.get(str(entry["status"]))
             if entry["error"] is None:
                 entry["ours"] = str(ours)
                 entry["nonwhite"] = _nonwhite_pixels(ours)
                 if entry["nonwhite"] is not None and entry["nonwhite"] < BLANK_THRESHOLD:
                     entry["status"] = "blank"
+                    entry["reason"] = "bug"
         if case["snippet"] is not None and case["category"] not in OUT_OF_SCOPE_CATEGORIES:
             reference = references.get(slug)
             if reference is None:
@@ -1189,10 +1201,14 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     unsupported = count("unsupported")
     needs_api, gaps, bugs = (count("needs-api"), count("harvester-gap"),
                              count("bug"))
+    reasons = {name: sum(case.get("reason") == name for case in cases)
+               for name in ("out_of_scope", "harvester", "needs_api", "bug")}
     (out / "index.html").write_text(
         f"<p>{rendered}/{len(cases)} examples rendered, {blank} blank, "
         f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
-        f"gaps, {bugs} bugs</p><ul>{summary}</ul>"
+        f"gaps, {bugs} bugs; reasons: {reasons['out_of_scope']} out of scope, "
+        f"{reasons['harvester']} harvester, {reasons['needs_api']} needs API, "
+        f"{reasons['bug']} bugs</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
         "<th>matplotlib</th><th>status</th></tr>" + "".join(rows)
         + "</table><style>img{max-width:420px}"
@@ -1203,7 +1219,9 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank, "
           f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
-          f"gaps, {bugs} bugs; gallery: {out / 'index.html'}")
+          f"gaps, {bugs} bugs; reasons: {reasons['out_of_scope']} out of scope, "
+          f"{reasons['harvester']} harvester, {reasons['needs_api']} needs API, "
+          f"{reasons['bug']} bugs; gallery: {out / 'index.html'}")
     return 0
 
 

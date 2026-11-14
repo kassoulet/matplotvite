@@ -20,13 +20,18 @@ GALLERIES = (
 )
 STATUS_ORDER = ("rendered", "blank", "pass", "no baseline", "needs-api",
                 "harvester-gap", "bug", "failed", "unsupported")
+REASONS = ("out_of_scope", "harvester", "needs_api", "bug")
 
 
-def load_counts(path: pathlib.Path) -> tuple[collections.Counter[str], int]:
+def load_counts(path: pathlib.Path) -> tuple[collections.Counter[str], int,
+                                             collections.Counter[str]]:
     cases = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(cases, list):
         raise ValueError(f"{path} does not contain a gallery manifest list")
-    return collections.Counter(str(case["status"]) for case in cases), len(cases)
+    statuses = collections.Counter(str(case["status"]) for case in cases)
+    reasons = collections.Counter(
+        str(case["reason"]) for case in cases if case.get("reason"))
+    return statuses, len(cases), reasons
 
 
 def main() -> int:
@@ -40,11 +45,14 @@ def main() -> int:
     rows = []
     seen: set[str] = set()
     total = 0
+    reason_rows = []
     for title, directory in GALLERIES:
-        counts, cases = load_counts(args.out / directory / "manifest.json")
+        counts, cases, reasons = load_counts(args.out / directory / "manifest.json")
         seen.update(counts)
         total += cases
         rows.append((title, directory, counts, cases))
+        if reasons:
+            reason_rows.append((title, reasons))
 
     columns = [status for status in STATUS_ORDER if status in seen]
     columns += sorted(seen.difference(STATUS_ORDER))
@@ -57,6 +65,16 @@ def main() -> int:
                  f"`{directory}/index.html`"]
         lines.append("| " + " | ".join(cells) + " |")
     lines.append("")
+
+    if reason_rows:
+        lines.append("### Failure reasons")
+        lines.append("")
+        lines.append("| Gallery | Out of scope | Harvester | Needs API | Bug |")
+        lines.append("| --- | ---: | ---: | ---: | ---: |")
+        for title, reasons in reason_rows:
+            lines.append("| " + " | ".join(
+                [title, *(str(reasons[name]) for name in REASONS)]) + " |")
+        lines.append("")
 
     if args.artifact_url:
         lines.append(f"[Download the galleries artifact]({args.artifact_url}) "
