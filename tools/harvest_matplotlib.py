@@ -55,11 +55,14 @@ NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
 
 # Matplotvite namespaces that hold names the top-level `__all__` does not.
 COMPAT_NAMESPACES = ("ticker", "cm", "colors", "patches", "path", "transforms",
-                     "collections", "lines", "gridspec", "patheffects")
+                     "collections", "lines", "gridspec", "patheffects",
+                     "offsetbox")
 
 
 def compat_name(name: str):
     """Resolve a name from a stripped `from matplotlib.x import y` line."""
+    if hasattr(matplotvite, name):
+        return getattr(matplotvite, name)
     for module_name in COMPAT_NAMESPACES:
         module = getattr(matplotvite, module_name, None)
         if module is not None and hasattr(module, name):

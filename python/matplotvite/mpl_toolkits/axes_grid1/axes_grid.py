@@ -88,7 +88,11 @@ class ImageGrid:
                 handle = _CbarHandle(fig, owner)
                 self.cbar_axes.append(handle)
                 if cbar_set_cax:
-                    owner.cax = handle
+                    if cbar_mode == "single":
+                        for ax in self._axes:
+                            ax.cax = handle
+                    else:
+                        owner.cax = handle
         if share_all:
             _share_axes(self._axes, (nrows, ncols), True, True)
 

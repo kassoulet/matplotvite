@@ -6,7 +6,7 @@ from .axes_divider import (
     make_axes_locatable,
 )
 from .axes_grid import ImageGrid
-from .inset_locator import inset_axes, zoomed_inset_axes
+from .inset_locator import inset_axes, mark_inset, zoomed_inset_axes
 
 __all__ = (
     "Divider",
@@ -14,5 +14,6 @@ __all__ = (
     "inset_axes",
     "make_axes_area_auto_adjustable",
     "make_axes_locatable",
+    "mark_inset",
     "zoomed_inset_axes",
 )

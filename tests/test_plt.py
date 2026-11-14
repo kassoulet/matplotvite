@@ -1392,6 +1392,25 @@ def test_axes_grid1_imagegrid_and_locatable_divider(tmp_path):
     fig.savefig(tmp_path / "locatable.png")
 
 
+def test_axes_grid1_anchored_artists_and_mark_inset(tmp_path):
+    from matplotvite.mpl_toolkits.axes_grid1.anchored_artists import (
+        AnchoredSizeBar, AnchoredText)
+    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import (
+        mark_inset, zoomed_inset_axes)
+
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    before = len(ax.texts)
+    text = AnchoredText("note", loc="lower left", frameon=False)
+    assert ax.add_artist(text) is text
+    assert len(ax.texts) == before + 1
+    bar = AnchoredSizeBar(ax.transData, 0.5, "0.5", loc="lower center")
+    ax.add_artist(bar)
+    inset = zoomed_inset_axes(ax, 2)
+    assert mark_inset(ax, inset) is None
+    fig.savefig(tmp_path / "anchored.png")
+
+
 def test_mpl_toolkits_inset_axes(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
 

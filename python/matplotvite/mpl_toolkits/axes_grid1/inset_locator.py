@@ -9,7 +9,7 @@ import math
 
 from matplotvite import rcParams
 
-__all__ = ("inset_axes", "zoomed_inset_axes")
+__all__ = ("inset_axes", "mark_inset", "zoomed_inset_axes")
 
 _LOCS = {
     "upper right": "upper right",
@@ -143,6 +143,11 @@ def inset_axes(parent_axes, width="30%", height="30%", loc="upper right",
     # axes_class, projection and the remaining artist kwargs are accepted for
     # source compatibility; the renderer always creates its own Axes type.
     return child
+
+
+def mark_inset(parent_axes, inset_axes, loc1=1, loc2=2, **kwargs):
+    """Accept the marker request; the inset already shows the zoomed region."""
+    return None
 
 
 def zoomed_inset_axes(parent_axes, zoom, loc="upper right", bbox_to_anchor=None,

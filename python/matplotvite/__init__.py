@@ -28,6 +28,7 @@ __all__ = (
     "MarkerStyle", "markers", "mmarkers",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
+    "AnchoredSizeBar", "AnchoredText", "offsetbox",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "matshow", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
@@ -2675,6 +2676,8 @@ class _Axis:
     def get_minorticklabels(self): return []
     def get_major_ticks(self): return []
     def get_minor_ticks(self): return []
+
+
     def set_ticklabels(self, labels, **kwargs):
         if self._axis == "x": self._parent.set_xticklabels(labels, **kwargs)
         else: self._parent.set_yticklabels(labels, **kwargs)
@@ -2709,7 +2712,7 @@ class _Axis:
     def set_minor_locator(self, locator): return None
     def set_major_formatter(self, formatter): self._formatter = formatter
     def set_minor_formatter(self, formatter): return None
-    def get_major_locator(self): return self._locator
+    def get_major_locator(self): return self._locator or _LocatorHandle()
     def get_major_formatter(self): return self._formatter
     def set_units(self, units): return None
     def get_units(self): return None
@@ -2726,6 +2729,14 @@ class _Axis:
         if self._axis == "x": self._parent.set_xscale(value, **kwargs)
         else: self._parent.set_yscale(value, **kwargs)
     def grid(self, visible=None, **kwargs): self._parent.grid(visible, axis=self._axis, **kwargs)
+
+
+class _LocatorHandle:
+    """Placeholder locator returned before an explicit locator is installed."""
+
+    def set_params(self, *args, **kwargs): return None
+    def set_nbins(self, *args, **kwargs): return None
+    def numticks(self, *args, **kwargs): return 8
 
 
 class _Callbacks:
@@ -3420,6 +3431,8 @@ class Axes:
             self.text(artist._x, artist._y, artist._text)
         elif isinstance(artist, Line2D):
             self.lines.append(artist._series)
+        elif hasattr(artist, "_add_to_axes"):
+            artist._add_to_axes(self)
         else:
             self.artists.append(artist)
         return artist
@@ -8132,3 +8145,7 @@ def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=
     return gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches,
                          transparent=transparent, facecolor=facecolor, edgecolor=edgecolor,
                          compression=compression, pad_inches=pad_inches)
+
+
+from . import offsetbox  # noqa: E402 - needs rcParams defined above
+from .offsetbox import AnchoredSizeBar, AnchoredText  # noqa: E402
