@@ -16,7 +16,7 @@ def _extension_path() -> Path:
 
 
 def test_package_exposes_its_version():
-    assert plt.__version__ == "0.6.1-alpha"
+    assert plt.__version__ == "0.6.1-dev"
 
 
 def test_compiled_extension_is_installed():

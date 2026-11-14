@@ -1607,7 +1607,7 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
       OS: {html.escape(str(sys_info.get("os", "Linux")))} ({html.escape(str(sys_info.get("arch", "x86_64")))})<br>
       Python: {html.escape(str(sys_info.get("python_version", "3.x")))};
       matplotlib: {html.escape(str(sys_info.get("matplotlib_version", "3.11.2")))};
-      Matplotvite: {html.escape(str(sys_info.get("matplotvite_version", "0.6.1-alpha")))}<br>
+      Matplotvite: {html.escape(str(sys_info.get("matplotvite_version", "0.6.1-dev")))}<br>
       Measured: {html.escape(str(sys_info.get("timestamp", "unknown")))}<br>
       Reproduce: <code>python tools/benchmark.py</code>
     </div>
