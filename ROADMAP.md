@@ -290,6 +290,14 @@
 
 ---
 
+## 🔮 Later — Rust-native matplotlib-compatible crate
+
+> Investigate exposing the renderer as a standalone Rust library, not only as a
+> Python extension.
+
+- [ ] Investigate a crate (for example `matplotvite`) that provides the same matplotlib-compatible `Figure`/`Axes` rendering API directly to Rust programs, reusing `model`, `layout`, `draw` and `export` without a Python interpreter.
+- [ ] Prototype the core surface (`figure`, `subplots`, `plot`, labels, legend, limits, `savefig`) and document how the Python facade and the Rust API share one drawing model.
+
 ## Out of scope (forever)
 
 Animation (`FuncAnimation`), widgets, `%matplotlib inline`, and non-GPUI GUI backends (TkAgg, Qt, etc.). Interactive windows are a future GPUI target, not part of the static library.
