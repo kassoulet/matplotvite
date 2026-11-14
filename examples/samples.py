@@ -666,7 +666,7 @@ plt.savefig("side_by_side.png")
         code="""import numpy as np
 import matplotvite as plt
 
-fig = plt.figure(figsize=(8.0, 5.0))
+fig = plt.figure(figsize=(9.0, 6.0))
 gs = fig.add_gridspec(2, 3)
 top = fig.add_subplot(gs[0, :])
 left = fig.add_subplot(gs[1, 0:2])
@@ -692,7 +692,7 @@ fig.savefig("gridspec_layout.png")
 import matplotvite as plt
 
 fig, axes = plt.subplot_mosaic(
-    [["left", "right"], ["left", "bottom"]], figsize=(7.5, 5.2)
+    [["left", "right"], ["left", "bottom"]], figsize=(8.5, 6.0)
 )
 x = np.linspace(0, 6, 150)
 axes["left"].plot(x, np.sin(x), color="#1f77b4")
