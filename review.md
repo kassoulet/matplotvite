@@ -2,22 +2,21 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 384 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, so failed and blank cases have a reference image.
+Results on this tree: Python suite 389 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 365 | 5 | 130 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 225 | 14 | 160 needs API | 0 harvester gaps, 2 bugs, 106 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 367 | 5 | 128 failed | 26 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 228 | 3 | 167 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
-Of the 365 rendered corpus cases, 334 have a pixel metric; **9 still differ in size from the baseline**. On the 334 comparable cases the median differing-pixel share is 13.3%; 33 are above 50%. Both gallery runs are current.
+Of the 367 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.3%; 33 are above 50%. Both gallery runs are current.
 
 ## High
 
 | # | Finding | Evidence / next check |
 |---|---------|-----------------------|
-| G1 | **Nine corpus cases still differ in size from their baselines.** The dominant cause was fixed: new figures now honour `figure.figsize`, and only classic-style test cases use the 8×6 harness size. What remains is one `_classic_test` case at the wrong dpi, one off-by-one marker path, and tight/constrained-layout bounding boxes. | Group the nine by cause, starting with `test_fancyarrow_dpi_cor_200dpi` (explicit dpi) and the `bbox_inches="tight"`/constrained-layout cases. Keep the gallery summary saying that "rendered" is not "matches". |
 | F2 | **`axes_grid1` / `axisartist` shims are missing.** Needed: `ImageGrid` (5 cases), `Divider` (3), `make_axes_locatable` (2), `host_subplot` (2), `AxesGrid`, `axes_divider`, `anchored_artists`, `axes_rgb`, `parasite_axes`, plus `axisartist` (17 cases). `make_axes_locatable` and `ImageGrid` are the most used in real code; `axisartist` is large enough to be its own milestone. | Implement the common shims first; scope `axisartist` explicitly out if it stays unsupported. |
-| F6 | **Blank renders remain.** Current run: 14 blank examples. `mandelbrot`, `hinton_demo`, `radar_chart`, `arrow_demo`, `font_table`, `figimage_demo`, `shading_example`, `style_sheets_reference` should draw; the other four are interactive and belong in `unsupported`. | Use the per-case `ignored` list to find the dropped call, open one task per blank case that should draw, and mark the interactive ones unsupported. |
+| F6 | **Three blank renders remain.** Two (`figimage_demo`, `mathtext_asarray`) are blank because `Figure.figimage` is still a no-op; `multiprocess_sgskip` is interactive and should be `unsupported`. | Implement figure-level images, or classify the two `figimage` cases as a documented API gap, and mark the interactive case unsupported. |
 
 ## Parity and visible styling
 
@@ -62,14 +61,12 @@ Of the 365 rendered corpus cases, 334 have a pixel metric; **9 still differ in s
 | N2 | Harvested snippets still run in-process with filesystem and network access. Keep the Matplotlib `3.11.2` and seaborn `v0.13.2` pins and never point `--examples` at an unpinned checkout. The new Matplotlib reference renders add one more child process but do not change this trust boundary. |
 | S5 | CI installs are constrained but not hash-pinned. `--require-hashes` is optional hardening. |
 | P8 | `export.rs:454` still shifts the SVG once per `insert_str`. Negligible without a profile. |
-| U2 | The legend frame radius is fixed at 6 px, so it does not scale with dpi or font size. Small cosmetic gap. |
 | U3 | Tick count is now 8; check a 3×3 subplot grid for crowding. |
 
 ## Suggested order
 
-1. **G1** first: resolve the last nine corpus size mismatches, then trust the pixel metrics.
-2. **M10 and M7**: label spacing and grid/spines move every figure closer to Matplotlib.
-3. **F6 then F2/F3**: fix the blank cases that should draw, then add the common `axes_grid1` shims and `tri`.
-4. **G4 and G3**: triage the crash groups, then the remaining API gaps.
-5. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
-6. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
+1. **M10 and M7**: label spacing and grid/spines move every figure closer to Matplotlib.
+2. **F6 then F2/F3**: finish the blank cases that should draw, then add the common `axes_grid1` shims and `tri`.
+3. **G4 and G3**: triage the crash groups, then the remaining API gaps.
+4. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
+5. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
