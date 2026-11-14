@@ -37,6 +37,8 @@ where
             v.max(f64::MIN_POSITIVE).log(log_base)
         } else if p.x_symlog {
             symlog(v, p.x_symlog_linthresh)
+        } else if p.x_logit {
+            logit(v)
         } else {
             v
         }
@@ -46,6 +48,8 @@ where
             v.max(f64::MIN_POSITIVE).log(log_base)
         } else if p.y_symlog {
             symlog(v, p.y_symlog_linthresh)
+        } else if p.y_logit {
+            logit(v)
         } else {
             v
         }

@@ -533,6 +533,11 @@ pub(crate) struct Panel {
     pub(crate) x_symlog: bool,
     #[pyo3(item)]
     pub(crate) y_symlog: bool,
+    /// Logit axes: probabilities mapped through log(p / (1 - p)).
+    #[pyo3(item)]
+    pub(crate) x_logit: bool,
+    #[pyo3(item)]
+    pub(crate) y_logit: bool,
     #[pyo3(item)]
     pub(crate) x_symlog_linthresh: f64,
     #[pyo3(item)]

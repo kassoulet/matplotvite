@@ -1097,6 +1097,30 @@ def _symlog_label(value):
     return f"{value:g}".replace("-", "\u2212")
 
 
+def _logit_ticks(lo, hi, one_half="1/2", use_overline=False):
+    """Ticks at powers of ten in odds, symmetric around probability 0.5."""
+    lo = max(float(lo), 1e-9)
+    hi = min(float(hi), 1.0 - 1e-9)
+    candidates = {0.5}
+    for k in range(1, 10):
+        candidates.add(10.0 ** -k)
+        candidates.add(1.0 - 10.0 ** -k)
+    ticks = sorted(v for v in candidates if lo <= v <= hi)
+    if not ticks:
+        ticks = sorted({lo, hi})
+    labels = []
+    for value in ticks:
+        if abs(value - 0.5) < 1e-12:
+            labels.append(str(one_half))
+        elif value < 0.5:
+            k = max(1, int(round(-_math.log10(value))))
+            labels.append("10\u207b" + str(k).translate(_SUPERSCRIPTS))
+        else:
+            k = max(1, int(round(-_math.log10(max(1.0 - value, 1e-12)))))
+            labels.append("1\u221210\u207b" + str(k).translate(_SUPERSCRIPTS))
+    return ticks, labels
+
+
 def _symlog_ticks(lo, hi, linthresh):
     """Decade ticks on both sides of `linthresh`, plus zero."""
     l = max(float(linthresh), 1e-300)
@@ -3185,6 +3209,8 @@ class Axes:
         self.xscale = self.yscale = "linear"
         self.log_base = 10.0
         self.symlog_linthresh_x = self.symlog_linthresh_y = 1.0
+        self.logit_one_half = "1/2"
+        self.logit_use_overline = False
         self.show_grid = False
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
         self.grid_minor_show = False
@@ -3958,11 +3984,17 @@ class Axes:
                 return [float(i) for i in range(len(self._categories))]
             if scale == "symlog":
                 return _symlog_ticks(lo, hi, self.symlog_linthresh_x)[0]
+            if scale == "logit":
+                return _logit_ticks(lo, hi, self.logit_one_half,
+                                    self.logit_use_overline)[0]
             return _auto_ticks(lo, hi, scale == "log", base)
         lo, hi = self.get_ylim()
         scale = self.yscale
         if scale == "symlog":
             return _symlog_ticks(lo, hi, self.symlog_linthresh_y)[0]
+        if scale == "logit":
+            return _logit_ticks(lo, hi, self.logit_one_half,
+                                self.logit_use_overline)[0]
         return _auto_ticks(lo, hi, scale == "log", base)
 
     def get_xticks(self, minor=False):
@@ -3989,12 +4021,18 @@ class Axes:
 
     def get_xticklabels(self, minor=False, which=None):
         labels = self._xticklabels
+        if labels is None and self.xscale == "logit":
+            labels = _logit_ticks(*self.get_xlim(), self.logit_one_half,
+                                  self.logit_use_overline)[1]
         if labels is None:
             labels = [f"{v:g}" for v in self.get_xticks()]
         return [_TextLabel(t) for t in labels]
 
     def get_yticklabels(self, minor=False, which=None):
         labels = self._yticklabels
+        if labels is None and self.yscale == "logit":
+            labels = _logit_ticks(*self.get_ylim(), self.logit_one_half,
+                                  self.logit_use_overline)[1]
         if labels is None:
             labels = [f"{v:g}" for v in self.get_yticks()]
         return [_TextLabel(t) for t in labels]
@@ -4008,6 +4046,10 @@ class Axes:
         elif name == "symlog":
             self.xscale = "symlog"
             self.symlog_linthresh_x = self._symlog_linthresh(kwargs)
+        elif name == "logit":
+            self.xscale = "logit"
+            self.logit_one_half = kwargs.get("one_half", self.logit_one_half)
+            self.logit_use_overline = bool(kwargs.get("use_overline", self.logit_use_overline))
         else:
             raise NotImplementedError(f"unsupported x scale: {value!r}")
 
@@ -4020,6 +4062,10 @@ class Axes:
         elif name == "symlog":
             self.yscale = "symlog"
             self.symlog_linthresh_y = self._symlog_linthresh(kwargs)
+        elif name == "logit":
+            self.yscale = "logit"
+            self.logit_one_half = kwargs.get("one_half", self.logit_one_half)
+            self.logit_use_overline = bool(kwargs.get("use_overline", self.logit_use_overline))
         else:
             raise NotImplementedError(f"unsupported y scale: {value!r}")
 
@@ -6004,6 +6050,20 @@ class Axes:
                 yticks, yticklabels = _symlog_ticks(y0, y1, self.symlog_linthresh_y)
             elif yticklabels is None:
                 yticklabels = [_symlog_label(v) for v in yticks]
+        if self.xscale == "logit":
+            if xticks is None:
+                xticks, xticklabels = _logit_ticks(
+                    x0, x1, self.logit_one_half, self.logit_use_overline)
+            elif xticklabels is None:
+                xticklabels = _logit_ticks(
+                    x0, x1, self.logit_one_half, self.logit_use_overline)[1]
+        if self.yscale == "logit":
+            if yticks is None:
+                yticks, yticklabels = _logit_ticks(
+                    y0, y1, self.logit_one_half, self.logit_use_overline)
+            elif yticklabels is None:
+                yticklabels = _logit_ticks(
+                    y0, y1, self.logit_one_half, self.logit_use_overline)[1]
         # plotters would pick its own mesh key points, which Python cannot see.
         # Choose the auto ticks here instead and pass them down, so the drawn
         # axis, its gridlines and get_xticks()/get_yticks() hold one list.
@@ -6036,6 +6096,7 @@ class Axes:
                     bands=bands,
                     x_log=self.xscale == "log", y_log=self.yscale == "log",
                     x_symlog=self.xscale == "symlog", y_symlog=self.yscale == "symlog",
+                    x_logit=self.xscale == "logit", y_logit=self.yscale == "logit",
                     x_symlog_linthresh=float(self.symlog_linthresh_x),
                     y_symlog_linthresh=float(self.symlog_linthresh_y),
                     log_base=float(getattr(self, "log_base", 10.0)),

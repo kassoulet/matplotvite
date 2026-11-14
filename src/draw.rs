@@ -245,6 +245,13 @@ fn symlog(value: f64, linthresh: f64) -> f64 {
     value.signum() * l * (1.0 + value.abs() / l).ln()
 }
 
+/// Logit transform for probability axes; values are clamped away from the
+/// singular endpoints so zero and one remain drawable.
+fn logit(value: f64) -> f64 {
+    let p = value.clamp(1e-10, 1.0 - 1e-10);
+    (p / (1.0 - p)).ln()
+}
+
 fn rotated_style<'a>(
     size: f64,
     col: RGBAColor,
@@ -1572,6 +1579,8 @@ where
             v.max(f64::MIN_POSITIVE).log(base)
         } else if p.x_symlog {
             symlog(v, p.x_symlog_linthresh)
+        } else if p.x_logit {
+            logit(v)
         } else {
             v
         }
@@ -1581,17 +1590,19 @@ where
             v.max(f64::MIN_POSITIVE).log(base)
         } else if p.y_symlog {
             symlog(v, p.y_symlog_linthresh)
+        } else if p.y_logit {
+            logit(v)
         } else {
             v
         }
     };
-    if p.x_log || p.x_symlog {
+    if p.x_log || p.x_symlog || p.x_logit {
         (x0, x1) = (tx(x0), tx(x1));
         if x1 <= x0 {
             x1 = x0 + 1.0;
         }
     }
-    if p.y_log || p.y_symlog {
+    if p.y_log || p.y_symlog || p.y_logit {
         (y0, y1) = (ty(y0), ty(y1));
         if y1 <= y0 {
             y1 = y0 + 1.0;
@@ -2515,7 +2526,15 @@ where
 
 #[cfg(test)]
 mod tick_tests {
-    use super::{tick_format, tick_label};
+    use super::{logit, tick_format, tick_label};
+
+    #[test]
+    fn logit_maps_probabilities_and_clamps_endpoints() {
+        assert!((logit(0.5) - 0.0).abs() < 1e-12);
+        assert!((logit(0.75) - 3.0_f64.ln()).abs() < 1e-12);
+        assert!(logit(0.0).is_finite());
+        assert!(logit(1.0).is_finite());
+    }
 
     #[test]
     fn whole_ticks_keep_the_precision_of_their_fractional_neighbours() {

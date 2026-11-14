@@ -4263,3 +4263,19 @@ def test_sankey_diagram_labels_and_validation(tmp_path):
     diagram.texts[-1].set_color("r")
     diagram.patch.set_hatch("/")
     plt.savefig(tmp_path / "sankey.png")
+
+
+def test_logit_scale_uses_probability_ticks(tmp_path):
+    """Logit axes expose odds-spaced probability ticks and render them."""
+    fig, ax = plt.subplots()
+    ax.plot([-4, 0, 4], [0.02, 0.5, 0.98])
+    ax.set_yscale("logit")
+    ax.set_ylim(1e-5, 1 - 1e-5)
+    ticks = ax.get_yticks()
+    assert ticks[0] == pytest.approx(1e-5)
+    assert 0.5 in ticks
+    labels = [t.get_text() for t in ax.get_yticklabels()]
+    assert "1/2" in labels
+    assert "10⁻⁵" in labels
+    assert "1−10⁻⁵" in labels
+    fig.savefig(tmp_path / "logit.png")
