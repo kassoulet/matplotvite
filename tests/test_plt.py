@@ -91,8 +91,9 @@ def test_direct_and_svg_png_paths_preserve_every_panel():
     # Compare pixels, not colour totals: moving a panel by a pixel keeps the
     # totals but shifts every line, which the mean difference catches. The SVG
     # path rasterises through resvg, so edges and text differ by anti-aliasing;
-    # this four-panel figure measures about 6.1 on a 0-255 scale.
-    assert _mean_abs_channel_diff(direct[2], svg[2]) <= 10.0
+    # this four-panel figure measures about 10.8 on a 0-255 scale now that every
+    # tick label carries the axis-wide decimals.
+    assert _mean_abs_channel_diff(direct[2], svg[2]) <= 12.0
 
 
 @pytest.mark.parametrize("compression", ["fast", "default", "best"])
@@ -752,8 +753,10 @@ def test_colorbar_from_explicit_mappable(tmp_path):
     fig.savefig(p)
     s = p.read_text(encoding="utf-8")
     assert "amp" in s
-    # min/mid/max tick labels come from the level range (plotters pads with newlines)
-    assert re.search(r">\s*0\s*</text>", s) and re.search(r">\s*1\s*</text>", s)
+    # min/mid/max tick labels come from the level range (plotters pads with
+    # newlines), and the whole axis keeps one decimal so 0 and 1 are not mixed
+    # with 0.2.
+    assert re.search(r">\s*0\.0\s*</text>", s) and re.search(r">\s*1\.0\s*</text>", s)
 
 
 def test_colorbar_from_scatter_and_scalar_mappable(tmp_path):

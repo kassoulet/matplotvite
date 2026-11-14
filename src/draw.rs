@@ -317,6 +317,8 @@ where
         Some(v) => v.iter().map(|&v| to_chart_y(v)).collect(),
         None => auto_ticks(y0, y1, p.y_log),
     };
+    let xformat = tick_format(&xs);
+    let yformat = tick_format(&ys);
     let xlabels: Vec<String> = match (&p.ticks.xticklabels, &p.ticks.xticks) {
         (Some(labels), Some(_)) => (0..xs.len())
             .map(|i| labels.get(i).cloned().unwrap_or_default())
@@ -327,7 +329,7 @@ where
                 if p.x_log {
                     log_label(*v, log_base)
                 } else {
-                    tick_label(*v)
+                    tick_label(*v, xformat)
                 }
             })
             .collect(),
@@ -342,7 +344,7 @@ where
                 if p.y_log {
                     log_label(*v, log_base)
                 } else {
-                    tick_label(*v)
+                    tick_label(*v, yformat)
                 }
             })
             .collect(),
@@ -1381,7 +1383,9 @@ where
     let frame = RGBColor(90, 90, 90);
     area.draw(&Rectangle::new([(x0, y0), (x1, y1)], frame.stroke_width(1)))?;
     if vmax > vmin {
-        for v in auto_ticks(vmin, vmax, false) {
+        let ticks = auto_ticks(vmin, vmax, false);
+        let format = tick_format(&ticks);
+        for v in ticks {
             let t = (v - vmin) / (vmax - vmin);
             let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
             area.draw(&PathElement::new(
@@ -1392,7 +1396,7 @@ where
                 area,
                 (0, 0),
                 (x1 + 6, y),
-                &tick_label(v),
+                &tick_label(v, format),
                 RGBAColor(0, 0, 0, 1.0),
                 13.0,
                 "left",
@@ -1725,19 +1729,54 @@ fn draw_marker_raster(
     }
 }
 
-/// Tick label for a linear axis: short, without float noise.
-fn tick_label(v: f64) -> String {
-    if v == 0.0 {
-        return "0".to_string();
+/// One label style for every tick on an axis. Using the widest precision in
+/// the tick set keeps whole numbers aligned with fractional neighbours
+/// (`0.5, 1.0, 1.5`) instead of mixing `0.5` with `1`.
+#[derive(Clone, Copy)]
+struct TickFormat {
+    decimals: usize,
+    scientific: bool,
+}
+
+/// Decimal places needed to write every value in `values` without float noise.
+fn tick_decimals(values: &[f64]) -> usize {
+    values
+        .iter()
+        .map(|&v| {
+            let mut a = v.abs();
+            if !a.is_finite() {
+                return 0;
+            }
+            let mut decimals = 0;
+            while decimals < 4 && (a - a.round()).abs() > 1e-9 {
+                a *= 10.0;
+                decimals += 1;
+            }
+            decimals
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+fn tick_format(values: &[f64]) -> TickFormat {
+    // A single out-of-range magnitude makes the whole axis scientific; mixing
+    // plain and scientific labels on one axis is the same inconsistency.
+    let scientific = values
+        .iter()
+        .any(|&v| v != 0.0 && !(1e-3..1e5).contains(&v.abs()));
+    TickFormat {
+        decimals: tick_decimals(values),
+        scientific,
     }
-    let a = v.abs();
-    let label = if !(1e-3..1e5).contains(&a) {
+}
+
+/// Tick label for a linear axis: short, without float noise.
+fn tick_label(v: f64, format: TickFormat) -> String {
+    let v = if v == 0.0 { 0.0 } else { v };
+    let label = if format.scientific {
         format!("{v:.2e}")
     } else {
-        format!("{v:.4}")
-            .trim_end_matches('0')
-            .trim_end_matches('.')
-            .to_string()
+        format!("{v:.prec$}", prec = format.decimals)
     };
     label
         .strip_prefix('-')
@@ -1946,13 +1985,17 @@ where
         chart.plotting_area().fill(&color(fc))?;
     }
     if !p.axis_off {
+        // Plotters asks the formatter for one value at a time, so fix the
+        // axis-wide precision up front from the ticks it will use.
+        let xformat = tick_format(&auto_ticks(x0, x1, p.x_log));
+        let yformat = tick_format(&auto_ticks(y0, y1, p.y_log));
         let x_fmt = move |v: &f64| {
             if manual || p.ticks.hide_xlabels {
                 String::new()
             } else if p.x_log {
                 log_label(*v, base)
             } else {
-                tick_label(*v)
+                tick_label(*v, xformat)
             }
         };
         let y_fmt = move |v: &f64| {
@@ -1961,7 +2004,7 @@ where
             } else if p.y_log {
                 log_label(*v, base)
             } else {
-                tick_label(*v)
+                tick_label(*v, yformat)
             }
         };
         let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), dpi).round() as u32;
@@ -3283,6 +3326,55 @@ where
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tick_tests {
+    use super::{tick_format, tick_label};
+
+    #[test]
+    fn whole_ticks_keep_the_precision_of_their_fractional_neighbours() {
+        let format = tick_format(&[0.5, 1.0, 1.5]);
+        assert_eq!(
+            [0.5, 1.0, 1.5].map(|v| tick_label(v, format)),
+            ["0.5", "1.0", "1.5"]
+        );
+    }
+
+    #[test]
+    fn quarter_ticks_pad_to_two_decimals() {
+        let format = tick_format(&[0.0, 0.25, 0.5, 0.75, 1.0]);
+        assert_eq!(
+            [0.0, 0.25, 0.5, 1.0].map(|v| tick_label(v, format)),
+            ["0.00", "0.25", "0.50", "1.00"]
+        );
+    }
+
+    #[test]
+    fn integer_axes_gain_no_decimal_point() {
+        let format = tick_format(&[0.0, 500.0, 1000.0, 3500.0]);
+        assert_eq!(tick_label(3500.0, format), "3500");
+    }
+
+    #[test]
+    fn float_noise_does_not_inflate_the_precision() {
+        let format = tick_format(&[0.0, 0.1, 0.2, 0.30000000000000004]);
+        assert_eq!(tick_label(0.30000000000000004, format), "0.3");
+    }
+
+    #[test]
+    fn an_axis_uses_scientific_notation_for_every_tick_or_none() {
+        let format = tick_format(&[0.0, 200000.0]);
+        assert!(format.scientific);
+        assert_eq!(tick_label(0.0, format), "0.00e0");
+        assert_eq!(tick_label(200000.0, format), "2.00e5");
+    }
+
+    #[test]
+    fn negative_labels_keep_the_unicode_minus() {
+        let format = tick_format(&[-1.0, -0.5, 0.0]);
+        assert_eq!(tick_label(-1.0, format), "−1.0");
+    }
 }
 
 #[cfg(test)]
