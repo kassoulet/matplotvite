@@ -2,12 +2,12 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 394 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 398 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 368 | 5 | 127 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 239 | 1 | 158 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 243 | 1 | 154 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
 Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 
@@ -15,7 +15,7 @@ Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 
 | # | Finding | Evidence / next check |
 |---|---------|-----------------------|
-| F2 | **Remaining `axes_grid1` / `axisartist` shims.** `ImageGrid`, `make_axes_locatable` and the anchored artists now cover 11 of 23 gallery cases. Still missing: `HBoxDivider`/`VBoxDivider` with `axes_size`, `axes_rgb`, `host_subplot`/`parasite_axes`, `demo_edge_colorbar`/`demo_fixed_size_axes`, and `axisartist`. | Add `HBoxDivider`/`VBoxDivider` next; they block `demo_axes_hbox_divider`, `simple_axes_divider1` and `simple_axes_divider3`. `axisartist` remains its own milestone. |
+| F2 | **Remaining `axes_grid1` / `axisartist` shims.** `ImageGrid`, `make_axes_locatable`, the anchored artists and the divider family now cover 15 of 23 gallery cases. Still missing: `AnchoredDirectionArrows`, `axes_rgb`, `host_subplot`/`parasite_axes`, `demo_edge_colorbar`/`demo_fixed_size_axes`, and `axisartist`. | Add `AnchoredDirectionArrows` and `axes_rgb` next; `axisartist` remains its own milestone. |
 
 ## Parity and visible styling
 
@@ -55,14 +55,14 @@ Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 |---|------|
 | S6 | `cargo audit` has no vulnerabilities but two "unmaintained" warnings (`rustybuzz` RUSTSEC-2026-0206, `ttf-parser` RUSTSEC-2026-0192). Re-run when replacements are published. |
 | X3 | PDF output is still assembled by hand from `svg2pdf::to_chunk` plus `pdf-writer`, with a usvg bounds workaround. Keep the tight-PDF tests as the upgrade gate; Dependabot only moves `pdf-writer` with `svg2pdf`. |
-| N2 | Harvested snippets still run in-process with filesystem and network access. Keep the Matplotlib `3.11.2` and seaborn `v0.13.2` pins and never point `--examples` at an unpinned checkout. The new Matplotlib reference renders add one more child process but do not change this trust boundary. |
+| N2 | Harvested snippets now run in a timeout-bound child interpreter with a scratch cwd, but still have filesystem and network access. Keep the Matplotlib `3.11.2` and seaborn `v0.13.2` pins and never point `--examples` at an unpinned checkout; a stronger sandbox remains optional hardening. |
 | S5 | CI installs are constrained but not hash-pinned. `--require-hashes` is optional hardening. |
-| P8 | `export.rs:454` still shifts the SVG once per `insert_str`. Negligible without a profile. |
+| P8 | SVG assembly builds the document once; the only `insert_str` is the optional root background. Keep the tight-bounds test as the gate when changing this path. |
 | U3 | Tick count is now 8; check a 3×3 subplot grid for crowding. |
 
 ## Suggested order
 
-1. **F2/F3**: add `HBoxDivider`/`VBoxDivider`, then `tri`.
+1. **F2/F3**: add `tri`, then the remaining `axes_grid1` shims.
 2. **G4 and G3**: triage the crash groups, then the remaining API gaps.
 3. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
 4. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
