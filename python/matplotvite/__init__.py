@@ -6994,8 +6994,18 @@ def minorticks_on(): return gca().minorticks_on()
 def minorticks_off(): return gca().minorticks_off()
 
 
+def _is_artist_sequence(obj):
+    """True for a list of artists such as a `BarContainer`, not a string."""
+    return isinstance(obj, (list, tuple)) and not isinstance(obj, (str, bytes))
+
+
 def getp(obj, *args):
-    """Generic getter: `getp(artist, "color")` calls `artist.get_color()`."""
+    """Generic getter: `getp(artist, "color")` calls `artist.get_color()`.
+
+    A sequence of artists is read element by element, as in Matplotlib.
+    """
+    if _is_artist_sequence(obj):
+        return [getp(item, *args) for item in obj]
     out = []
     for name in args:
         getter = getattr(obj, f"get_{name}", None)
@@ -7008,7 +7018,14 @@ def getp(obj, *args):
 
 
 def setp(obj, *args, **kwargs):
-    """Generic setter: `setp(artist, color="red")` calls `artist.set_color()`."""
+    """Generic setter: `setp(artist, color="red")` calls `artist.set_color()`.
+
+    A sequence of artists is updated element by element, as in Matplotlib.
+    """
+    if _is_artist_sequence(obj):
+        for item in obj:
+            setp(item, *args, **kwargs)
+        return getp(obj, *args) if args else None
     for name, value in kwargs.items():
         setter = getattr(obj, f"set_{name}", None)
         if setter is None:

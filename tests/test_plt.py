@@ -2292,6 +2292,9 @@ def test_minorticks_setp_getp():
     plt.setp(bars[0], facecolor="red")
     assert plt.getp(bars[0], "facecolor") == ["red"]
     assert plt.getp(bars[0], "height", "width") == [3.0, 0.8]
+    # Matplotlib applies `setp` to each artist when given a container.
+    plt.setp(bars, height=4.0)
+    assert plt.getp(bars, "height") == [4.0]
     with pytest.raises(AttributeError):
         plt.getp(bars[0], "nonsense")
     with pytest.raises(AttributeError):
