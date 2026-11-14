@@ -1,6 +1,6 @@
 """Anchored artist shims used by the `axes_grid1` gallery."""
 
-from matplotvite import rcParams
+from matplotvite import _mathtext, rcParams
 
 _LOCS = {
     "upper left": (0.0, 1.0, "left", "top"),
@@ -24,18 +24,29 @@ def _anchor(loc, pad):
     return x, y, ha, va
 
 
+class _Box:
+    """Minimal text-frame handle; styling is accepted and ignored."""
+
+    def set_boxstyle(self, *args, **kwargs):
+        return self
+
+
 class AnchoredText:
     """Text pinned to one corner of an axes."""
 
     def __init__(self, s, loc, *, pad=0.0, borderpad=0.5, prop=None,
-                 frameon=True, **kwargs):
+                 frameon=True, bbox_to_anchor=None, bbox_transform=None,
+                 **kwargs):
         self.text = str(s)
         self.loc = loc
         self.pad = pad
         self.borderpad = borderpad
         self.prop = dict(prop or {})
         self.frameon = frameon
+        self.bbox_to_anchor = bbox_to_anchor
+        self.bbox_transform = bbox_transform
         self.kwargs = kwargs
+        self.patch = _Box()
 
     def _add_to_axes(self, ax):
         size = self.prop.pop("size", self.kwargs.pop("fontsize", None))
@@ -43,7 +54,13 @@ class AnchoredText:
             size = rcParams.get("font.size", 10.0)
         self.prop.pop("path_effects", None)
         x, y, ha, va = _anchor(self.loc, self.pad)
-        return ax.text(x, y, self.text, transform=ax.transAxes, ha=ha, va=va,
+        if self.bbox_to_anchor is not None:
+            anchor = self.bbox_to_anchor
+            if hasattr(anchor, "bounds"):
+                anchor = anchor.bounds
+            x, y = float(anchor[0]), float(anchor[1])
+        return ax.text(x, y, _mathtext(self.text, self.prop.get("family")),
+                       transform=ax.transAxes, ha=ha, va=va,
                        fontsize=size, **self.kwargs)
 
     def get_text(self):
@@ -51,6 +68,85 @@ class AnchoredText:
 
     def set_text(self, s):
         self.text = str(s)
+        return self
+
+
+class AnchoredDrawingArea:
+    """Fixed-size drawing area anchored to an axes corner."""
+
+    def __init__(self, width, height, xdescent, ydescent, *, loc="upper left",
+                 pad=0.0, borderpad=0.5, frameon=True, **kwargs):
+        self.width = float(width)
+        self.height = float(height)
+        self.xdescent = float(xdescent)
+        self.ydescent = float(ydescent)
+        self.loc = loc
+        self.pad = pad
+        self.borderpad = borderpad
+        self.frameon = frameon
+        self.kwargs = kwargs
+        self.da = _DrawingArea()
+
+    def _add_to_axes(self, ax):
+        x, y, ha, va = _anchor(self.loc, self.pad)
+        # A compact marker is enough to show the anchored drawing area; the
+        # stored child artists do not have a renderer-level pixel canvas.
+        color = self.kwargs.get("color", "black")
+        self._text = ax.text(x, y, "○", transform=ax.transAxes, ha=ha, va=va,
+                             color=color, fontsize=max(self.width, self.height) * 0.7)
+        return self
+
+
+class _DrawingArea:
+    def __init__(self):
+        self.artists = []
+
+    def add_artist(self, artist):
+        self.artists.append(artist)
+        return artist
+
+
+class AnchoredDirectionArrows:
+    """Two perpendicular direction arrows pinned to an axes corner."""
+
+    def __init__(self, transform, main_direction, cross_direction,
+                 loc="upper left", *, pad=0.0, borderpad=0.0, sep_x=0.06,
+                 sep_y=0.05, arrow_props=None, text_props=None, angle=0.0,
+                 aspect_ratio=1.0, length=0.15, color="k",
+                 fontproperties=None, **kwargs):
+        self.transform = transform
+        self.main_direction = str(main_direction)
+        self.cross_direction = str(cross_direction)
+        self.loc = loc
+        self.pad = pad
+        self.sep_x = float(sep_x)
+        self.sep_y = float(sep_y)
+        self.angle = float(angle)
+        self.aspect_ratio = float(aspect_ratio)
+        self.length = float(length)
+        self.color = color
+        self.fontproperties = fontproperties
+        self.arrow_props = dict(arrow_props or {})
+        self.text_props = dict(text_props or {})
+        self.kwargs = kwargs
+
+    def _add_to_axes(self, ax):
+        x, y, ha, va = _anchor(self.loc, self.pad)
+        size = None if self.fontproperties is None else self.fontproperties.get_size()
+        family = None if self.fontproperties is None else self.fontproperties.get_family()
+        style = dict(transform=ax.transAxes, color=self.color, ha=ha, va=va,
+                     rotation=self.angle, fontsize=size or rcParams.get("font.size", 10.0))
+        if family:
+            style["fontfamily"] = family
+        # Arrow glyphs keep the anchored-direction cue visible without a new
+        # renderer artist type; the labels carry the caller's text.
+        self._main_arrow = ax.text(x, y, "→", **style)
+        self._cross_arrow = ax.text(x, y - self.sep_y, "↑", **style)
+        self._main_label = ax.text(x + self.sep_x, y, _mathtext(self.main_direction),
+                                   **{**style, "rotation": 0})
+        self._cross_label = ax.text(x + self.sep_x, y - self.sep_y,
+                                    _mathtext(self.cross_direction),
+                                    **{**style, "rotation": 0})
         return self
 
 
@@ -87,10 +183,11 @@ class AnchoredSizeBar:
         half = self.size / 2.0
         ax.plot([xc - half, xc + half], [y, y], color=self.color,
                 linewidth=3, solid_capstyle="butt")
-        ax.text(xc, y + (y1 - y0) * 0.02, self.label, ha="center",
+        ax.text(xc, y + (y1 - y0) * 0.02, _mathtext(self.label), ha="center",
                 va="bottom", fontsize=self.kwargs.get("fontsize",
                                                       rcParams.get("font.size", 10.0)))
         return self
 
 
-__all__ = ("AnchoredSizeBar", "AnchoredText")
+__all__ = ("AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
+           "AnchoredText")

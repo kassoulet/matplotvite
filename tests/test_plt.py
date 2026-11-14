@@ -1440,7 +1440,7 @@ def test_axes_grid1_size_divider_and_hbox_divider(tmp_path):
 
 def test_axes_grid1_anchored_artists_and_mark_inset(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.anchored_artists import (
-        AnchoredSizeBar, AnchoredText)
+        AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredSizeBar, AnchoredText)
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import (
         mark_inset, zoomed_inset_axes)
 
@@ -1452,9 +1452,31 @@ def test_axes_grid1_anchored_artists_and_mark_inset(tmp_path):
     assert len(ax.texts) == before + 1
     bar = AnchoredSizeBar(ax.transData, 0.5, "0.5", loc="lower center")
     ax.add_artist(bar)
+    before = len(ax.texts)
+    arrows = AnchoredDirectionArrows(ax.transAxes, "X", "Y", loc="upper left")
+    ax.add_artist(arrows)
+    assert len(ax.texts) == before + 4
+    area = AnchoredDrawingArea(20, 20, 0, 0, loc="upper right")
+    ax.add_artist(area)
     inset = zoomed_inset_axes(ax, 2)
     assert mark_inset(ax, inset) is None
     fig.savefig(tmp_path / "anchored.png")
+
+
+def test_axes_grid1_rgb_axes(tmp_path):
+    from matplotvite.mpl_toolkits.axes_grid1.axes_rgb import RGBAxes, make_rgb_axes
+
+    fig = plt.figure((4, 3))
+    rgb = RGBAxes(fig, [0.05, 0.05, 0.9, 0.9], pad=0.02)
+    red = np.linspace(0, 1, 16).reshape(4, 4)
+    images = rgb.imshow_rgb(red, red[::-1], red.T)
+    assert len(images) == 4 and len(fig.axes) == 4
+
+    fig, ax = plt.subplots(figsize=(4, 3))
+    channels = make_rgb_axes(ax, pad=0.02)
+    assert len(channels) == 3
+    assert ax.get_position().width < 0.8
+    fig.savefig(tmp_path / "rgb_axes.png")
 
 
 def test_mpl_toolkits_inset_axes(tmp_path):

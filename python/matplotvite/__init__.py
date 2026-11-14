@@ -28,7 +28,8 @@ __all__ = (
     "MarkerStyle", "markers", "mmarkers",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
-    "AnchoredSizeBar", "AnchoredText", "offsetbox",
+    "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
+    "AnchoredText", "offsetbox",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "matshow", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
@@ -8204,4 +8205,6 @@ def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=
 
 
 from . import offsetbox  # noqa: E402 - needs rcParams defined above
-from .offsetbox import AnchoredSizeBar, AnchoredText  # noqa: E402
+from .offsetbox import (  # noqa: E402
+    AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredSizeBar, AnchoredText,
+)
