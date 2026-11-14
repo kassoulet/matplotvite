@@ -242,6 +242,26 @@ def test_prepare_example_prunes_empty_blocks():
     assert "plt.plot([0, 1])" in snippet
 
 
+def test_prepare_example_keeps_main_guard_plotting():
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "def draw():\n"
+        "    plt.plot([0, 1], [1, 0])\n"
+        "if __name__ == '__main__':\n"
+        "    draw()\n"
+        "    plt.show()\n")
+    assert "draw()" in snippet and "show" not in snippet
+
+
+def test_prepare_example_drops_blocking_main_guard():
+    snippet = prepare_example(
+        "import matplotlib.pyplot as plt\n"
+        "import multiprocessing as mp\n"
+        "if __name__ == '__main__':\n"
+        "    mp.Process(target=print).start()\n")
+    assert "mp.Process" not in snippet
+
+
 def test_prepare_example_strips_imports_and_interactive_tail():
     snippet = prepare_example(
         '"""Demo gallery example."""\n'
@@ -335,6 +355,8 @@ def test_render_returns_the_failure_reason(tmp_path):
     out = tmp_path / "out.png"
     assert render("raise ValueError('boom')\n", out) == "ValueError: boom"
     assert render("plt.plot([0, 1])\n", out) == "no figure saved"
+    # An example that exits the interpreter must fail one case, not the run.
+    assert render("raise SystemExit(2)\n", out) == "SystemExit: 2"
 
 
 def test_render_matplotlib_saves_the_script_figure(tmp_path):

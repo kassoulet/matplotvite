@@ -288,6 +288,27 @@ class _ExampleStripper(ast.NodeTransformer):
         return node
 
 
+# Gallery scripts often put all plotting under `if __name__ == "__main__"`.
+# Keep that body when it is safe to execute once; drop it when it would block
+# the harvester on a GUI loop, a timer or a child process.
+_BLOCKING_MAIN = re.compile(
+    r"\b(?:multiprocessing|subprocess|socket|threading|mp|input|time\.sleep|"
+    r"FuncAnimation|Timer)\b"
+)
+
+
+class _UnwrapMain(ast.NodeTransformer):
+    """Inline a `__main__` guard so gallery scripts keep their plotting code."""
+
+    def visit_If(self, node: ast.If):
+        node = self.generic_visit(node)
+        if "__main__" in ast.unparse(node.test):
+            if _BLOCKING_MAIN.search(ast.unparse(node)):
+                return None
+            return node.body
+        return node
+
+
 class _PruneEmpty(ast.NodeTransformer):
     """Remove compound statements whose bodies were stripped away."""
 
@@ -319,6 +340,7 @@ def prepare_example(text: str) -> str | None:
         tree = ast.parse(text)
     except SyntaxError:
         return None
+    tree = _UnwrapMain().visit(tree)
     tree = _ExampleStripper().visit(tree)
     tree = _PruneEmpty().visit(tree)
     code = ast.unparse(ast.fix_missing_locations(tree)).strip("\n")
@@ -707,6 +729,10 @@ def render(snippet: str, out_path: pathlib.Path,
             if not out_path.exists():
                 return "no figure saved"
             return None
+        except SystemExit as exc:
+            # Some examples (argparse helpers, for instance) exit the process;
+            # that must fail one case, not abort the whole gallery run.
+            return f"SystemExit: {exc.code}"
         except Exception as exc:  # noqa: BLE001 - the gallery records every failure
             return f"{type(exc).__name__}: {exc}"
         finally:
