@@ -13,6 +13,12 @@ def _size_in_fraction(value, base, figure_size):
     return inches / figure_size
 
 
+def _pad_in_fraction(value, base, figure_size):
+    if isinstance(value, str) and value.strip().endswith("%"):
+        return float(value.strip()[:-1]) / 100.0 * base
+    return float(value) / figure_size
+
+
 class Divider:
     """Place axes beside or above one existing axes."""
 
@@ -26,18 +32,17 @@ class Divider:
             raise RuntimeError("append_axes needs an axes attached to a figure")
         x, y, width, height = self._ax.get_position().bounds
         fig_w, fig_h = self._fig.get_size_inches()
-        pad = float(pad)
         position = str(position).lower()
         if position in ("right", "left"):
             span = _size_in_fraction(size, width, fig_w)
-            gap = pad / fig_w
+            gap = _pad_in_fraction(pad, width, fig_w)
             if position == "right":
                 rect = (x + width + gap, y, span, height)
             else:
                 rect = (x - gap - span, y, span, height)
         elif position in ("top", "bottom"):
             span = _size_in_fraction(size, height, fig_h)
-            gap = pad / fig_h
+            gap = _pad_in_fraction(pad, height, fig_h)
             if position == "top":
                 rect = (x, y + height + gap, width, span)
             else:
