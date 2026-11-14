@@ -3010,7 +3010,7 @@ class Axes:
         """True when the renderer can preserve a plain `add_axes` rectangle."""
         return (self._pos_override is not None
                 and getattr(self, "_bounds_are_axes", False)
-                and not self.title and self._colorbar is None
+                and self._colorbar is None
                 and not self._twin and self.aspect is None)
 
     def _render_bounds(self, dpi=None):
@@ -3036,7 +3036,9 @@ class Axes:
         right = 25.0 / width
         bottom = (30.0 if exact else 60.0) / height
         title_pad = 0.0
-        if self.title:
+        # The exact path draws `add_axes` titles manually inside its 25 px top
+        # margin, so it must not reserve a caption band as well.
+        if self.title and not exact:
             title_size = float(self.title_size or rcParams.get("axes.titlesize", 12.0))
             title_pad = title_size * dpi / 72.0 * 1.24 * 1.45 + 4.0
         top = (25.0 + title_pad) / height

@@ -541,11 +541,10 @@ where
                 p.xlabel_family.as_deref().unwrap_or(&p.font_family),
             )
             .pos(Pos::new(HPos::Center, VPos::Center));
-            area.draw(&Text::new(
-                p.xlabel.clone(),
-                ((left + right) / 2, bottom + 34),
-                style,
-            ))?;
+            // Clear the tick labels, whose height grows with `labelsize`.
+            let tick_height = text_px(xstyle.labelsize.max(6.0), dpi) * 1.2;
+            let y = bottom + (tick_height + 10.0 + size * dpi / 72.0 * 0.5).round() as i32;
+            area.draw(&Text::new(p.xlabel.clone(), ((left + right) / 2, y), style))?;
         }
     }
     Ok(())
@@ -1890,7 +1889,77 @@ where
     // the data (Matplotlib budgets these margins as a fraction of the axes).
     let panel_h = area.dim_in_pixel().1 as f64;
     let margin = (panel_h / 10.0).clamp(4.0, 25.0).round() as u32;
-    let label_area = (panel_h / 5.0).clamp(8.0, 45.0).round() as u32;
+    let ys_for_labels: Vec<f64> = match &p.ticks.yticks {
+        Some(values) => values.iter().map(|&v| ty(v)).collect(),
+        None => auto_ticks(y0, y1, p.y_log),
+    };
+    let ylabels: Vec<String> = match (&p.ticks.yticklabels, &p.ticks.yticks) {
+        (Some(labels), Some(_)) => (0..ys_for_labels.len())
+            .map(|i| labels.get(i).cloned().unwrap_or_default())
+            .collect(),
+        _ => {
+            let format = tick_format(&ys_for_labels);
+            ys_for_labels
+                .iter()
+                .map(|v| {
+                    if p.y_log {
+                        log_label(*v, base)
+                    } else {
+                        tick_label(*v, format)
+                    }
+                })
+                .collect()
+        }
+    };
+    let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), dpi).round() as u32;
+    let desc_size = text_px(
+        p.xlabel_size
+            .unwrap_or(10.0)
+            .max(p.ylabel_size.unwrap_or(10.0))
+            .max(6.0),
+        dpi,
+    )
+    .round() as u32;
+    // The tick-label band and the axis description share `label_area`. Measure
+    // the actual tick strings so a large `labelsize` reserves room for both
+    // instead of drawing the axis label on top of the tick labels.
+    let tick_px = text_px(
+        p.ticks
+            .xstyle
+            .labelsize
+            .max(p.ticks.ystyle.labelsize)
+            .max(6.0),
+        dpi,
+    );
+    let y_tick_width = ylabels
+        .iter()
+        .map(|label| crate::fonts::text_width(label, tick_px))
+        .fold(0.0, f64::max);
+    let x_desc_pad = if p.xlabel.is_empty() {
+        0.0
+    } else {
+        desc_size as f64 + 6.0
+    };
+    let y_desc_pad = if p.ylabel.is_empty() {
+        0.0
+    } else {
+        desc_size as f64 + 6.0
+    };
+    let max_label_w = (area.dim_in_pixel().0 as f64 * 0.45).max(40.0);
+    let max_label_h = (panel_h * 0.45).max(30.0);
+    let y_label_area = (y_tick_width + y_desc_pad + 6.0)
+        .max(40.0)
+        .min(max_label_w)
+        .round() as u32;
+    let x_label_area = if exact_axes {
+        30
+    } else {
+        (tick_px * 1.15 + x_desc_pad + 6.0)
+            .max(30.0)
+            .min(max_label_h)
+            .round() as u32
+    };
+    let y_label_area = if exact_axes { 40 } else { y_label_area };
     let shrunk_area;
     let mut builder = ChartBuilder::on(area);
     if exact_axes {
@@ -1914,7 +1983,7 @@ where
     // area. Leave the caption empty for that probe so it cannot be drawn twice.
     // An empty caption still reserves a title band in plotters, which shifts
     // untitled panels down and breaks axes-rectangle placement.
-    if p.aspect.is_none() && !p.title.is_empty() {
+    if p.aspect.is_none() && !p.title.is_empty() && !exact_axes {
         builder.caption(
             &p.title,
             (
@@ -1926,8 +1995,8 @@ where
         );
     }
     let mut chart = builder
-        .x_label_area_size(if exact_axes { 30 } else { label_area })
-        .y_label_area_size(if exact_axes { 40 } else { label_area })
+        .x_label_area_size(x_label_area)
+        .y_label_area_size(y_label_area)
         .build_cartesian_2d(x0..x1, y0..y1)?;
     if let Some(scale) = p.aspect {
         let (pw, ph) = chart.plotting_area().dim_in_pixel();
@@ -1977,8 +2046,8 @@ where
             );
         }
         chart = rb
-            .x_label_area_size(label_area)
-            .y_label_area_size(label_area)
+            .x_label_area_size(x_label_area)
+            .y_label_area_size(y_label_area)
             .build_cartesian_2d(x0..x1, y0..y1)?;
     }
     if let Some(fc) = &p.facecolor {
@@ -2007,15 +2076,6 @@ where
                 tick_label(*v, yformat)
             }
         };
-        let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), dpi).round() as u32;
-        let desc_size = text_px(
-            p.xlabel_size
-                .unwrap_or(10.0)
-                .max(p.ylabel_size.unwrap_or(10.0))
-                .max(6.0),
-            dpi,
-        )
-        .round() as u32;
         let mut mesh = chart.configure_mesh();
         if !p.grid.show {
             mesh.disable_mesh();
@@ -2099,6 +2159,28 @@ where
                 dpi,
             )?;
         }
+    }
+    if exact_axes && !p.title.is_empty() {
+        // `add_axes` titles sit above the requested axes box rather than
+        // taking a caption band out of it.
+        let base = area.get_base_pixel();
+        let pa = chart.plotting_area();
+        let tl = pa.map_coordinate(&(x0, y1));
+        let br = pa.map_coordinate(&(x1, y0));
+        draw_label(
+            area,
+            base,
+            ((tl.0 + br.0) / 2 - base.0, tl.1 - base.1 - 6),
+            &p.title,
+            fg,
+            title_size as f64,
+            "center",
+            "bottom",
+            None,
+            0.0,
+            line_scale,
+            p.title_family.as_deref().unwrap_or(&p.font_family),
+        )?;
     }
     // Filled contours sit on the image layer, under the line series.
     {

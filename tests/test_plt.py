@@ -1293,13 +1293,18 @@ def test_figure_introspection_and_add_axes(tmp_path):
 
 
 def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
-    cases = [([0.1, 0.1, 0.8, 0.8], (40, 30, 320, 240)),
-             ([0.2, 0.2, 0.6, 0.6], (80, 60, 240, 180))]
-    for index, (rect, expected) in enumerate(cases):
+    cases = [([0.1, 0.1, 0.8, 0.8], (40, 30, 320, 240), False),
+             ([0.2, 0.2, 0.6, 0.6], (80, 60, 240, 180), False),
+             # A title sits above the axes box, like matplotlib, rather than
+             # taking a caption band out of it.
+             ([0.1, 0.1, 0.8, 0.8], (40, 30, 320, 240), True)]
+    for index, (rect, expected, titled) in enumerate(cases):
         fig = plt.figure((4, 3))
         ax = fig.add_axes(rect)
         ax.set_facecolor("red")
         ax.plot([0, 1], [0, 1])
+        if titled:
+            ax.set_title("Title")
         p = tmp_path / f"plot_area_{index}.svg"
         fig.savefig(p)
         match = re.search(
@@ -1311,6 +1316,33 @@ def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
         x, y, w, h = (int(v) for v in match.groups())
         for actual, wanted in zip((x, y, w, h), expected):
             assert abs(actual - wanted) <= 2
+
+
+def test_large_tick_labels_reserve_axis_label_space(tmp_path):
+    def plotting_rect(size, name):
+        fig, ax = plt.subplots(figsize=(4, 3))
+        ax.set_facecolor("red")
+        ax.plot([0, 1], [0, 1])
+        ax.tick_params(labelsize=size)
+        ax.set_xlabel("X label")
+        ax.set_ylabel("Y label")
+        path = tmp_path / f"labels_{name}.svg"
+        fig.savefig(path)
+        match = re.search(
+            r'<rect x="(\d+)" y="(\d+)" width="(\d+)" height="(\d+)" '
+            r'opacity="1" fill="#FF0000"',
+            path.read_text(encoding="utf-8"),
+        )
+        assert match is not None
+        return tuple(int(value) for value in match.groups())
+
+    x, y, w, h = plotting_rect(10, "small")
+    big_x, big_y, big_w, big_h = plotting_rect(18, "big")
+    # Bigger ticks push the plot right and up; the labels no longer overlap.
+    assert big_x > x
+    assert big_y + big_h < y + h
+    assert big_w < w
+    assert big_h < h
 
 
 def test_mpl_toolkits_inset_axes(tmp_path):
