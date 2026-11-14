@@ -188,7 +188,7 @@ where
                 "x" => "top",
                 _ => "",
             };
-            draw_manual_ticks(
+            super::ticks::draw_manual_ticks(
                 area,
                 chart,
                 p,
