@@ -2,12 +2,12 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 398 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 401 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 368 | 5 | 127 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 243 | 1 | 154 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 256 | 1 | 141 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
 Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 
@@ -15,7 +15,7 @@ Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 
 | # | Finding | Evidence / next check |
 |---|---------|-----------------------|
-| F2 | **Remaining `axes_grid1` / `axisartist` shims.** `ImageGrid`, `make_axes_locatable`, the anchored artists and the divider family now cover 15 of 23 gallery cases. Still missing: `AnchoredDirectionArrows`, `axes_rgb`, `host_subplot`/`parasite_axes`, `demo_edge_colorbar`/`demo_fixed_size_axes`, and `axisartist`. | Add `AnchoredDirectionArrows` and `axes_rgb` next; `axisartist` remains its own milestone. |
+| F2 | **Remaining `axes_grid1` / `axisartist` shims.** `ImageGrid`, `make_axes_locatable`, the anchored artists, `axes_rgb` and the divider family now cover 17 of 23 gallery cases. Still missing: `host_subplot`/`parasite_axes`, `demo_edge_colorbar`/`demo_fixed_size_axes`, and `axisartist`. | Add `host_subplot`/`parasite_axes` and the remaining grid shims next; `axisartist` remains its own milestone. |
 
 ## Parity and visible styling
 
@@ -33,9 +33,8 @@ Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 
 | # | Finding |
 |---|---------|
-| G3 | **API gaps, most frequent first:** `streamplot` (broadest gap), `triplot`/`tricontour`/`tricontourf`, `NonUniformImage`, `BboxImage`, `Sankey`, `Table`/`Axes.table`, `ContourSet.legend_elements`, `Axes.set_thetagrids`/`set_rlabel_position` and the polar-axis setters, `matplotlib.image`/`matplotlib.scale` when used. 3-D remains out of scope. |
+| G3 | **API gaps, most frequent first:** `streamplot` (broadest gap), `NonUniformImage`, `BboxImage`, `Sankey`, `Table`/`Axes.table`, `Axes.set_thetagrids`/`set_rlabel_position` and the polar-axis setters, `matplotlib.image`/`matplotlib.scale` when used. 3-D remains out of scope. |
 | G4 | **Failures where the feature exists but crashes.** Remaining groups: `NoneType - NoneType` (7), `third arg must be a format string` (4), `AffineND has no len()` (4), real-Matplotlib transforms mixed with matplotvite transforms (4 examples, 2 corpus), `float() ... not 'ContourSet'` (2), `float() ... not 'dict_keys'` (2), string-to-float failures for `'x'`/`'green'` (4), `linewidths must ... match the number of levels` (1), `unsupported interpolation: 'bessel'` (1), `fill` argument forms (2 corpus), blit animation return type (3). |
-| F3 | **`matplotlib.tri` is missing:** `tri`, `Triangulation`, `triplot`, `tricontour(f)`, `TriAnalyzer` (9+ cases). |
 | F4 | **Smaller gaps, 2–3 cases each:** `Figure.dpi_scale_trans`, `withTickedStroke`, `Sankey`, `LightSource`, `TextPath`, `logit` scale, `GridSpec.subplots`, `matplotvite.spines`, `matplotvite.units`, `ConciseDateFormatter`, `LineCollection._colorbar_spec`, `AsinhNorm`, `colors.rgb_to_hsv`, `AnchoredText`, `MouseEvent`, `_ColorbarAxes.yaxis`, `PathPatch.axes`, `_LegendHandle.get_lines`, `Text.set_picker`, `Manager.key_press_handler_id`. |
 | F5 | **Environment cases:** install Pillow in the gallery job (`image_demo`, `image_clip_path`, `demo_annotation_box`, `demo_text_path`, `demo_ribbon_box`, `mathtext_asarray`); mark `units/*` out of scope because it needs `matplotlib.testing.jpl_units`. |
 | E5 | **One-line API gaps:** `Axes.set()` rejects unknown keywords, `Axes.twin()` takes no argument, and `matplotvite.polar`, `matshow`, `xkcd`, `get_data_path` and `LogLocator` are missing at module level. |
@@ -62,7 +61,7 @@ Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 
 ## Suggested order
 
-1. **F2/F3**: add `tri`, then the remaining `axes_grid1` shims.
+1. **F2**: add the remaining `axes_grid1` shims, then tackle `axisartist`.
 2. **G4 and G3**: triage the crash groups, then the remaining API gaps.
 3. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
 4. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.

@@ -1479,6 +1479,59 @@ def test_axes_grid1_rgb_axes(tmp_path):
     fig.savefig(tmp_path / "rgb_axes.png")
 
 
+def test_triangulation_and_interpolation():
+    from matplotvite import tri
+
+    x = np.array([0.0, 1.0, 0.0, 0.0, 0.5])
+    y = np.array([0.0, 0.0, 1.0, 0.5, 0.25])
+    triangulation = tri.Triangulation(x, y)
+    assert len(triangulation.triangles) >= 4
+    assert triangulation.get_trifinder()(0.2, 0.2) >= 0
+    assert triangulation.get_trifinder()(2.0, 2.0) == -1
+
+    triangulation.set_mask(np.zeros(len(triangulation.triangles), dtype=bool))
+    z = 2.0 * x + 3.0 * y + 1.0
+    interp = tri.LinearTriInterpolator(triangulation, z)
+    assert interp(0.2, 0.2) == pytest.approx(2.0 * 0.2 + 3.0 * 0.2 + 1.0)
+    assert np.isnan(interp(2.0, 2.0))
+
+    refined, z_refined = tri.UniformTriRefiner(triangulation).refine_field(z, subdiv=1)
+    assert len(refined.triangles) == 4 * len(triangulation.triangles)
+    assert np.allclose(2.0 * refined.x + 3.0 * refined.y + 1.0, z_refined)
+    assert not tri.TriAnalyzer(triangulation).get_flat_tri_mask().any()
+
+
+def test_tri_axes_and_pyplot_helpers(tmp_path):
+    from matplotvite import tri
+
+    x = np.array([0.0, 1.0, 0.0, 1.0])
+    y = np.array([0.0, 0.0, 1.0, 1.0])
+    z = np.array([0.0, 1.0, 1.0, 2.0])
+    triangles = np.array([[0, 1, 2], [1, 3, 2]])
+    triangulation = tri.Triangulation(x, y, triangles)
+
+    fig, ax = plt.subplots()
+    lines = ax.triplot(triangulation, "bo-")
+    assert len(lines) == 1
+    contour = ax.tricontour(triangulation, z, levels=3)
+    assert len(contour.levels) == 3
+    filled = ax.tricontourf(triangulation, z, levels=3)
+    artists, labels = filled.legend_elements(str_format="{:2.1f}".format)
+    assert len(artists) == len(labels) == 3
+    image = ax.tripcolor(triangulation, z, shading="gouraud")
+    assert image is not None
+    ax.tricontour(x, y, triangles, z)
+    ax.tripcolor(x, y, triangles, z)
+    fig.savefig(tmp_path / "tri.png")
+
+    plt.figure((4, 3))
+    plt.triplot(triangulation)
+    plt.tricontour(triangulation, z)
+    plt.tricontourf(triangulation, z)
+    plt.tripcolor(triangulation, z)
+    plt.savefig(tmp_path / "tri-pyplot.png")
+
+
 def test_mpl_toolkits_inset_axes(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
 

@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 import numpy as np
 
+from . import tri
 from ._cmaps import COLORMAPS as _CMAP_DATA
 from ._colors import CSS_COLORS as _CSS_COLORS
 from ._core import __version__, render as _render
@@ -27,7 +28,7 @@ __all__ = (
     "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
     "MarkerStyle", "markers", "mmarkers",
     "mcollections", "collections", "ConnectionPatch",
-    "patheffects", "path_effects", "color_sequences", "cm", "colormaps",
+    "patheffects", "path_effects", "color_sequences", "cm", "colormaps", "tri",
     "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
     "AnchoredText", "offsetbox",
     "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
@@ -4851,6 +4852,68 @@ class Axes:
         """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
         return self._add_contour(args, levels, colors, cmap, True, linewidths, alpha)
 
+    def triplot(self, *args, **kwargs):
+        """Draw the edges of an unstructured triangular grid.
+
+        Accepts `triplot(triangulation, fmt, ...)` or `triplot(x, y, triangles,
+        fmt, ...)`; a missing triangle array asks for a Delaunay triangulation.
+        """
+        triangulation, _, rest = _tri_args(args)
+        fmt = rest[0] if rest and isinstance(rest[0], str) else None
+        edges = triangulation.get_masked_triangles()
+        if len(edges) == 0:
+            return []
+        ex, ey = [], []
+        for a, b, c in edges:
+            for i, j in ((a, b), (b, c), (c, a)):
+                ex.extend((triangulation.x[i], triangulation.x[j], np.nan))
+                ey.extend((triangulation.y[i], triangulation.y[j], np.nan))
+        color = kwargs.pop("color", kwargs.pop("c", None))
+        return self.plot(np.asarray(ex), np.asarray(ey), fmt or "-",
+                         color=color, **kwargs)
+
+    def tricontour(self, *args, levels=None, colors=None, cmap=None,
+                   linewidths=None, alpha=None, **kwargs):
+        """Iso-lines of data on an unstructured triangular grid."""
+        triangulation, z, rest = _tri_args(args)
+        if levels is None and rest:
+            levels = rest[0]
+        xi, yi, zi = _tri_field(triangulation, z)
+        return self.contour(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
+                            linewidths=linewidths, alpha=alpha, **kwargs)
+
+    def tricontourf(self, *args, levels=None, colors=None, cmap=None,
+                    linewidths=None, alpha=None, **kwargs):
+        """Filled iso-bands of data on an unstructured triangular grid."""
+        triangulation, z, rest = _tri_args(args)
+        if levels is None and rest:
+            levels = rest[0]
+        xi, yi, zi = _tri_field(triangulation, z)
+        return self.contourf(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
+                             linewidths=linewidths, alpha=alpha, **kwargs)
+
+    def tripcolor(self, *args, shading="flat", facecolors=None, edgecolors=None,
+                  cmap=None, vmin=None, vmax=None, alpha=None, **kwargs):
+        """Pseudocolour of an unstructured triangular grid."""
+        triangulation, z, _ = _tri_args(args)
+        if z is None and facecolors is not None:
+            values = np.asarray(facecolors, dtype=float).ravel()
+            totals = np.zeros(len(triangulation.x))
+            counts = np.zeros(len(triangulation.x))
+            for tri, value in zip(triangulation.get_masked_triangles(), values):
+                totals[tri] += value
+                counts[tri] += 1
+            z = np.divide(totals, counts, out=np.full_like(totals, np.nan),
+                          where=counts > 0)
+        if z is None:
+            raise TypeError("tripcolor expects z or facecolors")
+        xi, yi, zi = _tri_field(triangulation, z, resolution=140)
+        image = self.pcolormesh(xi, yi, zi, cmap=cmap, vmin=vmin, vmax=vmax,
+                                shading=shading, alpha=alpha, **kwargs)
+        if edgecolors is not None:
+            self.triplot(triangulation, color=edgecolors)
+        return image
+
     def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None, alpha=None):
         x, y, z, levels = _contour_args(args, levels)
         levels = _levels(z, levels, allow_single=not filled)
@@ -6070,6 +6133,45 @@ def _colors(colors):
     return [_norm_color(c) for c in colors]
 
 
+def _is_triangulation(value):
+    return all(hasattr(value, name) for name in ("x", "y", "triangles", "mask"))
+
+
+def _tri_args(args):
+    """Resolve (triangulation, z, remaining) from tripcolor-style arguments."""
+    if not args:
+        raise TypeError("expected a triangulation or x, y arrays")
+    if _is_triangulation(args[0]):
+        triangulation = args[0]
+        rest = list(args[1:])
+    elif len(args) >= 3 and np.asarray(args[2]).ndim == 2:
+        x, y, triangles = args[:3]
+        triangulation = tri.Triangulation(x, y, triangles)
+        rest = list(args[3:])
+    else:
+        if len(args) < 2:
+            raise TypeError("expected x and y coordinates")
+        x, y = args[:2]
+        triangulation = tri.Triangulation(x, y)
+        rest = list(args[2:])
+    z = rest.pop(0) if rest else None
+    return triangulation, z, rest
+
+
+def _tri_field(triangulation, z, resolution=100):
+    """Sample a triangular field on a rectilinear grid for the contour path."""
+    values = np.asarray(z, dtype=float).ravel()
+    if values.size != len(triangulation.x):
+        raise ValueError("z must have one value per triangulation point")
+    xi = np.linspace(float(np.min(triangulation.x)),
+                     float(np.max(triangulation.x)), resolution)
+    yi = np.linspace(float(np.min(triangulation.y)),
+                     float(np.max(triangulation.y)), resolution)
+    gx, gy = np.meshgrid(xi, yi)
+    zi = tri.LinearTriInterpolator(triangulation, values)(gx, gy)
+    return xi, yi, zi
+
+
 def _contour_args(args, levels):
     if args and isinstance(args[0], ContourSet):
         # `contour(cs, ...)` re-contours an existing set at new levels.
@@ -6181,6 +6283,24 @@ class ContourSet:
 
     @property
     def levels(self): return list(self._e["levels"])
+
+    def legend_elements(self, variable_name="x", str_format=None, **kwargs):
+        """Handles and labels for one entry per contour level."""
+        levels = list(self._e["levels"])
+        artists, labels = [], []
+        for index, level in enumerate(levels):
+            color = _contour_label_colour(self._e, index, level)
+            style = ({"facecolor": color} if self._e.get("filled")
+                     else {"edgecolor": color, "facecolor": "none"})
+            artists.append(Patch(**style))
+            if str_format is None:
+                labels.append(_contour_label_text(level, None))
+            elif callable(str_format):
+                labels.append(str(str_format(level)))
+            else:
+                labels.append(str_format.format(level))
+        return artists, labels
+
     @property
     def cmap(self): return get_cmap(self._e["cmap"])
     @property
@@ -7129,6 +7249,26 @@ def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=N
 def contourf(*args, levels=None, colors=None, cmap=None, alpha=None, **kwargs):
     return gca().contourf(*args, levels=levels, colors=colors, cmap=cmap,
                           alpha=alpha, **kwargs)
+
+
+def triplot(*args, **kwargs):
+    return gca().triplot(*args, **kwargs)
+
+
+def tricontour(*args, levels=None, colors=None, cmap=None, linewidths=None,
+               alpha=None, **kwargs):
+    return gca().tricontour(*args, levels=levels, colors=colors, cmap=cmap,
+                            linewidths=linewidths, alpha=alpha, **kwargs)
+
+
+def tricontourf(*args, levels=None, colors=None, cmap=None, linewidths=None,
+                alpha=None, **kwargs):
+    return gca().tricontourf(*args, levels=levels, colors=colors, cmap=cmap,
+                             linewidths=linewidths, alpha=alpha, **kwargs)
+
+
+def tripcolor(*args, **kwargs):
+    return gca().tripcolor(*args, **kwargs)
 
 
 def set_cmap(cmap):

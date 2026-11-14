@@ -56,7 +56,7 @@ NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
 # Matplotvite namespaces that hold names the top-level `__all__` does not.
 COMPAT_NAMESPACES = ("ticker", "cm", "colors", "patches", "path", "transforms",
                      "collections", "lines", "gridspec", "patheffects",
-                     "offsetbox")
+                     "offsetbox", "tri")
 
 
 def compat_name(name: str):
@@ -655,10 +655,6 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     except Exception:  # noqa: BLE001
         mpl_animation = None
     try:
-        from matplotlib import tri as mpl_tri
-    except Exception:  # noqa: BLE001
-        mpl_tri = None
-    try:
         from matplotlib.testing import jpl_units as mpl_units
     except Exception:  # noqa: BLE001
         mpl_units = None
@@ -668,9 +664,8 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
         mpl_polar_axes = None
 
     mpl_helpers = {name: value for name, value in (
-        ("animation", mpl_animation), ("tri", mpl_tri), ("mtri", mpl_tri),
-        ("units", mpl_units), ("PolarAxes", mpl_polar_axes),
-        ("Triangulation", getattr(mpl_tri, "Triangulation", None)),
+        ("animation", mpl_animation), ("units", mpl_units),
+        ("PolarAxes", mpl_polar_axes),
     ) if value is not None}
 
     class _MplProxy:
