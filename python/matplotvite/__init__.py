@@ -815,6 +815,7 @@ class _TextLabel:
     set_horizontalalignment = set_ha
     def set_va(self, value): _ignored("Text.set_va")
     set_verticalalignment = set_va
+    def set_axis_direction(self, value): _ignored("Text.set_axis_direction")
     def set_fontweight(self, value): _ignored("Text.set_fontweight")
     def set_fontstyle(self, value): _ignored("Text.set_fontstyle")
     def set_fontfamily(self, value): _ignored("Text.set_fontfamily")
@@ -2599,6 +2600,8 @@ class _AxisArtistProxy:
 
     def __init__(self):
         self.label = _TextLabel()
+        self.major_ticklabels = _TextLabel()
+        self.major_ticks = _TextLabel()
         self._visible = True
 
     def set_visible(self, visible): self._visible = bool(visible)
@@ -3119,8 +3122,8 @@ class Axes:
         return self._make_twin("x")
 
     def twin(self, *args, **kwargs):
-        """Alias used by some axes-grid examples; extra arguments are ignored."""
-        return self.twinx()
+        """Overlay axes sharing y, with top/right axes (axes_grid1's `twin`)."""
+        return self.twiny()
 
     def colorbar(self, mappable=None, **kwargs):
         """Draw a colorbar for `mappable` in this axes' right margin."""

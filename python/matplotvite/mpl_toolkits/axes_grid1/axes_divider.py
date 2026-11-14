@@ -163,6 +163,9 @@ class Divider:
     def get_aspect(self):
         return self._aspect
 
+    def get_position(self):
+        return self._rect
+
     def _resolve(self, sizes, available):
         if not sizes:
             return [available]

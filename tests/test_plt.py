@@ -1532,6 +1532,37 @@ def test_tri_axes_and_pyplot_helpers(tmp_path):
     plt.savefig(tmp_path / "tri-pyplot.png")
 
 
+def test_axes_grid1_axesgrid_host_subplot_and_divider_position(tmp_path):
+    from matplotvite.mpl_toolkits.axes_grid1 import (
+        AxesGrid, Divider, Size, host_subplot)
+
+    fig = plt.figure((6, 4))
+    grid = AxesGrid(fig, 121, nrows_ncols=(2, 2), cbar_mode="edge",
+                    direction="column", cbar_location="bottom")
+    assert len(grid.cbar_axes) == 2
+    assert [cax.orientation for cax in grid.cbar_axes] == ["bottom", "bottom"]
+    image = grid[0].imshow([[0, 1], [2, 3]])
+    assert grid.cbar_axes[0].colorbar(image) is not None
+    grid.cbar_axes[0].axis["bottom"].set_label("Bar")
+    assert grid[2].get_xlabel() == "Bar"
+
+    divider = Divider(fig, (0, 0, 1, 1), [Size.Fixed(1.0)],
+                      [Size.Fixed(1.0)], aspect=False)
+    assert divider.get_position() == (0.0, 0.0, 1.0, 1.0)
+    locator = divider.new_locator(nx=0, ny=0)
+    assert fig.add_axes(divider.get_position(), axes_locator=locator) is not None
+    fig.savefig(tmp_path / "axesgrid.png")
+
+    fig = plt.figure()
+    host = host_subplot(111)
+    host.plot([0, 1], [0, 1], label="Density")
+    twin = host.twin()
+    assert twin is not host
+    assert twin.get_ylim() == host.get_ylim()
+    host.legend(labelcolor="linecolor")
+    fig.savefig(tmp_path / "host_subplot.png")
+
+
 def test_mpl_toolkits_inset_axes(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
 

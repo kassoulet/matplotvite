@@ -9,17 +9,20 @@ from .axes_divider import (
     make_axes_area_auto_adjustable,
     make_axes_locatable,
 )
-from .axes_grid import ImageGrid
+from .axes_grid import AxesGrid, ImageGrid
 from .axes_rgb import RGBAxes, make_rgb_axes
 from .inset_locator import inset_axes, mark_inset, zoomed_inset_axes
+from .parasite_axes import host_subplot
 
 __all__ = (
+    "AxesGrid",
     "Divider",
     "HBoxDivider",
     "ImageGrid",
     "Size",
     "SubplotDivider",
     "VBoxDivider",
+    "host_subplot",
     "inset_axes",
     "make_axes_area_auto_adjustable",
     "make_axes_locatable",

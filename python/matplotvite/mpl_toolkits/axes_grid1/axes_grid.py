@@ -21,6 +21,27 @@ def _subplot_bounds(fig, rect):
     return gs._bounds((row, row), (col, col))
 
 
+class _CbarAxis:
+    """Axis-like label proxy used by `cax.axis[cax.orientation]`."""
+
+    def __init__(self, owner, orientation):
+        self._owner = owner
+        self._orientation = orientation
+
+    def __getitem__(self, key):
+        return self
+
+    def set_label(self, label, **kwargs):
+        if self._orientation in ("bottom", "top"):
+            self._owner.set_xlabel(label)
+        else:
+            self._owner.set_ylabel(label)
+        return self
+
+    def set_visible(self, visible):
+        return self
+
+
 class _CbarHandle:
     """Colorbar request attached to an ImageGrid cell.
 
@@ -28,9 +49,11 @@ class _CbarHandle:
     separate narrow axes is needed.
     """
 
-    def __init__(self, fig, owner):
+    def __init__(self, fig, owner, orientation="right"):
         self._fig = fig
         self._owner = owner
+        self.orientation = orientation
+        self.axis = _CbarAxis(owner, orientation)
 
     def colorbar(self, mappable=None, **kwargs):
         return self._fig.colorbar(mappable, ax=self._owner, **kwargs)
@@ -81,18 +104,25 @@ class ImageGrid:
         ]
         self.axes_llc = self._axes[(nrows - 1) * ncols]
         self.cbar_axes = []
-        if cbar_mode in ("single", "each"):
-            count = 1 if cbar_mode == "single" else len(self._axes)
-            for i in range(count):
-                owner = self._axes[min(i, len(self._axes) - 1)]
-                handle = _CbarHandle(fig, owner)
+        if cbar_mode == "single":
+            handle = _CbarHandle(fig, self._axes[0], cbar_location)
+            self.cbar_axes.append(handle)
+            if cbar_set_cax:
+                for ax in self._axes:
+                    ax.cax = handle
+        elif cbar_mode == "each":
+            for owner in self._axes:
+                handle = _CbarHandle(fig, owner, cbar_location)
                 self.cbar_axes.append(handle)
                 if cbar_set_cax:
-                    if cbar_mode == "single":
-                        for ax in self._axes:
-                            ax.cax = handle
-                    else:
-                        owner.cax = handle
+                    owner.cax = handle
+        elif cbar_mode == "edge":
+            if direction == "column":
+                owners = [column[-1] for column in self.axes_column]
+            else:
+                owners = [row[-1] for row in self.axes_row]
+            for owner in owners:
+                self.cbar_axes.append(_CbarHandle(fig, owner, cbar_location))
         if share_all:
             _share_axes(self._axes, (nrows, ncols), True, True)
 
@@ -107,3 +137,9 @@ class ImageGrid:
             row, col = index
             return self.axes_row[row][col]
         return self._axes[index]
+
+
+class AxesGrid(ImageGrid):
+    """ImageGrid with per-row/column colorbar axes."""
+
+    pass
