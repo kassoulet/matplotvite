@@ -121,6 +121,32 @@ def _literal(node: ast.AST, default=None):
         return default
 
 
+_UNSET = object()
+
+
+def _literal_dict(node: ast.AST) -> dict[str, object] | None:
+    """Evaluate a literal dict, including the `dict(dpi=200)` spelling."""
+    if isinstance(node, ast.Dict):
+        out: dict[str, object] = {}
+        for key, value in zip(node.keys, node.values):
+            name = _literal(key, _UNSET)
+            item = _literal(value, _UNSET)
+            if not isinstance(name, str) or item is _UNSET:
+                return None
+            out[name] = item
+        return out
+    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == "dict" and not node.args):
+        out = {}
+        for keyword in node.keywords:
+            item = _literal(keyword.value, _UNSET)
+            if keyword.arg is None or item is _UNSET:
+                return None
+            out[keyword.arg] = item
+        return out
+    return None
+
+
 def image_comparison_options(func: ast.FunctionDef) -> dict[str, object]:
     """Style, dpi and layout settings from an `@image_comparison` decorator.
 
@@ -150,10 +176,12 @@ def image_comparison_options(func: ast.FunctionDef) -> dict[str, object]:
                 options["extensions"] = value
             elif keyword.arg == "tol":
                 options["tol"] = value
-            elif keyword.arg == "savefig_kwarg" and isinstance(value, dict):
-                if value.get("dpi") is not None:
-                    options["dpi"] = value["dpi"]
-                options["tight"] = value.get("bbox_inches") == "tight"
+            elif keyword.arg == "savefig_kwarg":
+                savefig = _literal_dict(keyword.value)
+                if savefig is not None:
+                    if savefig.get("dpi") is not None:
+                        options["dpi"] = savefig["dpi"]
+                    options["tight"] = savefig.get("bbox_inches") == "tight"
     return options
 
 

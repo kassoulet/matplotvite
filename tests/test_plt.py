@@ -2174,6 +2174,14 @@ def test_rc_figure_figsize_sets_new_figures():
         plt.rcdefaults()
 
 
+def test_fractional_dpi_truncates_figure_pixels():
+    plt.figure(figsize=(6.4, 4.8))
+    png = plt.savefig(format="png", dpi=72)
+    assert int.from_bytes(png[16:20], "big") == 460
+    assert int.from_bytes(png[20:24], "big") == 345
+    plt.close("all")
+
+
 def test_stem_plot(tmp_path):
     plt.figure()
     ax = plt.gca()

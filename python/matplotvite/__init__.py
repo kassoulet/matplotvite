@@ -6669,7 +6669,10 @@ class Figure:
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
         fmt = _output_format(filepath, format)
-        rw, rh = (round(v * dpi) for v in self.figsize)
+        # Matplotlib truncates fractional pixels here (`int(width * dpi)`),
+        # matching its canvas; rounding made 6.4x4.8 in at 72 dpi 461x346
+        # instead of 460x345.
+        rw, rh = (int(v * dpi) for v in self.figsize)
         if rw < 1 or rh < 1:
             raise ValueError(f"figure dimensions ({rw}x{rh}) must be at least 1x1 pixels")
         if rw > _MAX_CANVAS_DIM or rh > _MAX_CANVAS_DIM:

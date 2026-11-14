@@ -91,6 +91,19 @@ def test_harvest_reads_comparison_style_dpi_and_tight(tmp_path):
     assert snippet.endswith('plt.savefig(OUT, dpi=40, bbox_inches="tight")\n')
 
 
+def test_harvest_reads_dict_call_savefig_kwarg(tmp_path):
+    root = tmp_path / "tests"
+    (root / "baseline_images" / "test_demo").mkdir(parents=True)
+    (root / "test_demo.py").write_text(
+        "@image_comparison(['dpi.png'], savefig_kwarg=dict(dpi=200),\n"
+        "                   style='_classic_test')\n"
+        "def test_dpi():\n"
+        "    plt.plot([0, 1])\n", encoding="utf-8")
+    case = harvest(root)[0]
+    assert case["comparison"]["dpi"] == 200
+    assert case["snippet"].endswith('plt.savefig(OUT, dpi=200)\n')
+
+
 def test_prepare_example_resolves_module_alias_imports():
     snippet = prepare_example(
         "import matplotlib.pyplot as plt\n"
