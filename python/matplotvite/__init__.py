@@ -21,6 +21,7 @@ __all__ = (
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
     "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
     "same_color", "FixedFormatter", "LogLocator",
     "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
@@ -543,6 +544,7 @@ class _CycleList(list):
         super().__init__({"color": c} for c in colors)
 
     def by_key(self): return {"color": [entry["color"] for entry in self]}
+    def __call__(self): return iter(self)
 
 
 def _cycle_colors(value):
@@ -775,6 +777,11 @@ class _TextArt:
     def set_path_effects(self, effects):
         _ignored("Text.set_path_effects")
         return self
+
+    def set_color(self, color): self._color = color; return self
+    def get_color(self): return getattr(self, "_color", "black")
+    def set_zorder(self, zorder): self._zorder = int(zorder); return self
+    def get_zorder(self): return getattr(self, "_zorder", 3)
 
     def get_bbox_patch(self): return self._bbox_patch
 
@@ -1274,6 +1281,12 @@ class _Wedge:
     def get_label(self): return ""
     def get_zorder(self): return self._zorder
     def set_zorder(self, zorder): self._zorder = zorder
+    def set_agg_filter(self, value): return self
+    def set_rasterized(self, value): return self
+    def set(self, **kwargs):
+        if "ec" in kwargs or "edgecolor" in kwargs:
+            self.set_edgecolor(kwargs.get("ec", kwargs.get("edgecolor")))
+        return self
 
 
 class _PieResult:
@@ -1326,6 +1339,11 @@ class _BarHandle:
 
     def get_color(self):
         return self.get_facecolor()[0]
+
+    def get_zorder(self): return 1
+    def set_zorder(self, zorder): return self
+    def set_agg_filter(self, value): return self
+    def set_rasterized(self, value): return self
 
     def set_x(self, x):
         self._axes.bars[self._group]["left"][self._index] = float(x)
@@ -1847,6 +1865,7 @@ class Patch:
     def set_joinstyle(self, value): return None
     def set_capstyle(self, value): return None
     def set_rasterized(self, value): return None
+    def set_agg_filter(self, value): return None
     def set_url(self, value): return None
     def set_gid(self, value): return None
     def set_sketch_params(self, *args, **kwargs): return None
@@ -2570,6 +2589,12 @@ class Line2D:
                 setter(value)
         return self
 
+    def get_transform(self): return getattr(self, "_transform", _Transform())
+    def set_transform(self, transform): self._transform = transform; return self
+    def set_agg_filter(self, value): return self
+    def set_rasterized(self, value): return self
+    def set_clip_on(self, value): return self
+
     def get_xdata(self): return self._series["x"]
     def get_ydata(self): return self._series["y"]
     def set_xdata(self, x): self._series["x"] = _as_f64(x)
@@ -2601,6 +2626,27 @@ class Line2D:
     def set_zorder(self, zorder): self._series["zorder"] = int(zorder)
     def get_zorder(self): return self._series.get("zorder", 2)
     def set_visible(self, visible): _ignored("Line2D.set_visible")
+
+
+class Artist:
+    """Minimal artist base class used by custom gallery artists."""
+
+    def __init__(self, *args, **kwargs):
+        self._zorder = kwargs.get("zorder", 0)
+        self._visible = kwargs.get("visible", True)
+        self._agg_filter = None
+        self._rasterized = False
+
+    def set_zorder(self, zorder): self._zorder = int(zorder); return self
+    def get_zorder(self): return self._zorder
+    def set_visible(self, visible): self._visible = bool(visible); return self
+    def get_visible(self): return self._visible
+    def set_agg_filter(self, value): self._agg_filter = value; return self
+    def set_rasterized(self, value): self._rasterized = bool(value); return self
+    def set_in_layout(self, value): return self
+    def set_clip_on(self, value): return self
+    def set_clip_path(self, *args, **kwargs): return self
+    def draw(self, renderer=None): return None
 
 
 class _Spine:
@@ -3578,7 +3624,10 @@ class Axes:
     def set_rmax(self, value): return None
     def set_rmin(self, value): return None
     def set_rlim(self, *args, **kwargs): return None
-    def clabel(self, *args, **kwargs): return []
+    def clabel(self, *args, **kwargs):
+        if args and hasattr(args[0], "clabel"):
+            return args[0].clabel(*args[1:], **kwargs)
+        return []
     def secondary_xaxis(self, *args, **kwargs): _ignored("Axes.secondary_xaxis"); return self
     def secondary_yaxis(self, *args, **kwargs): _ignored("Axes.secondary_yaxis"); return self
     def get_aux_axes(self, *args, **kwargs): return self
@@ -6819,6 +6868,11 @@ class AxesImage:
     def get_alpha(self): return self._e["alpha"]
     def set_rasterized(self, value): _ignored("AxesImage.set_rasterized")
     def set_agg_filter(self, value): _ignored("AxesImage.set_agg_filter")
+    def remove(self):
+        if self.axes is not None:
+            self.axes.images[:] = [image for image in self.axes.images
+                                   if image is not self._e]
+        return None
     def set_path_effects(self, value): _ignored("AxesImage.set_path_effects")
     def set_url(self, value): _ignored("AxesImage.set_url")
     def set_gid(self, value): _ignored("AxesImage.set_gid")
@@ -7727,7 +7781,7 @@ def minorticks_off(): return gca().minorticks_off()
 
 def _is_artist_sequence(obj):
     """True for a list of artists such as a `BarContainer`, not a string."""
-    return isinstance(obj, (list, tuple)) and not isinstance(obj, (str, bytes))
+    return isinstance(obj, (list, tuple, np.flatiter)) and not isinstance(obj, (str, bytes))
 
 
 def getp(obj, *args):
@@ -7789,6 +7843,7 @@ rcParams = {
     "ytick.color": "#000000",
     "text.color": "#000000",
     "text.parse_math": True,
+    "text.usetex": False,
     "grid.color": "#b0b0b0",
     "font.family": ["sans-serif"],
     "font.sans-serif": ["DejaVu Sans", "Bitstream Vera Sans", "Arial"],
@@ -8050,6 +8105,143 @@ class _MColors:
         return value if keep_alpha or value in (None, "none") else value[:7]
 
 
+def rgb_to_hsv(rgb):
+    """Convert an RGB(A) array in 0..1 to HSV on the trailing axis."""
+    rgb = np.asarray(rgb, dtype=float)
+    r, g, b = np.moveaxis(rgb[..., :3], -1, 0)
+    maxc = np.maximum(np.maximum(r, g), b)
+    minc = np.minimum(np.minimum(r, g), b)
+    delta = maxc - minc
+    hue = np.zeros_like(maxc)
+    safe = delta > 1e-300
+    rmax = safe & (maxc == r)
+    gmax = safe & (maxc == g) & ~rmax
+    bmax = safe & ~rmax & ~gmax
+    hue[rmax] = ((g[rmax] - b[rmax]) / delta[rmax]) % 6.0
+    hue[gmax] = (b[gmax] - r[gmax]) / delta[gmax] + 2.0
+    hue[bmax] = (r[bmax] - g[bmax]) / delta[bmax] + 4.0
+    hue /= 6.0
+    sat = np.divide(delta, maxc, out=np.zeros_like(delta), where=maxc > 1e-300)
+    return np.stack([hue, sat, maxc], axis=-1)
+
+
+def hsv_to_rgb(hsv):
+    """Convert an HSV array in 0..1 to RGB on the trailing axis."""
+    hsv = np.asarray(hsv, dtype=float)
+    h, s, v = np.moveaxis(hsv[..., :3], -1, 0)
+    i = np.floor(h * 6.0)
+    f = h * 6.0 - i
+    p = v * (1.0 - s)
+    q = v * (1.0 - f * s)
+    t = v * (1.0 - (1.0 - f) * s)
+    i = i.astype(int) % 6
+    r = np.choose(i, [v, q, p, p, t, v])
+    g = np.choose(i, [t, v, v, q, p, p])
+    b = np.choose(i, [p, p, t, v, v, q])
+    return np.stack([r, g, b], axis=-1)
+
+
+class LightSource:
+    """Light source for hillshading, matching Matplotlib's blend modes."""
+
+    def __init__(self, azdeg=315, altdeg=45, hsv_min_val=0, hsv_max_val=1,
+                 hsv_min_sat=1, hsv_max_sat=0):
+        self.azdeg = float(azdeg)
+        self.altdeg = float(altdeg)
+        self.hsv_min_val = hsv_min_val
+        self.hsv_max_val = hsv_max_val
+        self.hsv_min_sat = hsv_min_sat
+        self.hsv_max_sat = hsv_max_sat
+
+    @property
+    def direction(self):
+        az = np.radians(90 - self.azdeg)
+        alt = np.radians(self.altdeg)
+        return np.array([np.cos(az) * np.cos(alt),
+                         np.sin(az) * np.cos(alt),
+                         np.sin(alt)])
+
+    def hillshade(self, elevation, vert_exag=1, dx=1, dy=1, fraction=1.0):
+        dy = -float(dy)
+        elevation = np.asarray(elevation, dtype=float)
+        e_dy, e_dx = np.gradient(float(vert_exag) * elevation, dy, dx)
+        normal = np.empty(elevation.shape + (3,), dtype=float)
+        normal[..., 0], normal[..., 1], normal[..., 2] = -e_dx, -e_dy, 1.0
+        normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
+        return self.shade_normals(normal, fraction=fraction)
+
+    def shade_normals(self, normals, fraction=1.0):
+        intensity = np.asarray(normals, dtype=float).dot(self.direction)
+        imin, imax = float(np.nanmin(intensity)), float(np.nanmax(intensity))
+        intensity = intensity * float(fraction)
+        if imax - imin > 1e-6:
+            intensity = (intensity - imin) / (imax - imin)
+        return np.clip(intensity, 0.0, 1.0)
+
+    def shade(self, data, cmap, norm=None, blend_mode="overlay", vmin=None,
+              vmax=None, vert_exag=1, dx=1, dy=1, fraction=1, **kwargs):
+        data = np.asarray(data, dtype=float)
+        if norm is None:
+            lo = np.nanmin(data) if vmin is None else float(vmin)
+            hi = np.nanmax(data) if vmax is None else float(vmax)
+            normed = np.clip((data - lo) / (hi - lo if hi > lo else 1.0), 0.0, 1.0)
+        elif getattr(norm, "vmin", None) is not None and getattr(norm, "vmax", None) is not None:
+            lo, hi = float(norm.vmin), float(norm.vmax)
+            normed = np.clip((data - lo) / (hi - lo if hi > lo else 1.0), 0.0, 1.0)
+        else:
+            normed = np.asarray(norm(data), dtype=float)
+        rgb0 = get_cmap(_cmap_name(cmap))(normed)
+        rgb1 = self.shade_rgb(rgb0[..., :3], data, blend_mode=blend_mode,
+                              vert_exag=vert_exag, dx=dx, dy=dy,
+                              fraction=fraction, **kwargs)
+        rgb0 = np.array(rgb0, copy=True)
+        rgb0[..., :3] = rgb1
+        return rgb0
+
+    def shade_rgb(self, rgb, elevation, fraction=1.0, blend_mode="hsv",
+                  vert_exag=1, dx=1, dy=1, **kwargs):
+        rgb = np.asarray(rgb, dtype=float)
+        intensity = self.hillshade(elevation, vert_exag=vert_exag, dx=dx, dy=dy,
+                                   fraction=fraction)[..., np.newaxis]
+        lookup = {"hsv": self.blend_hsv, "soft": self.blend_soft_light,
+                  "overlay": self.blend_overlay}
+        if blend_mode in lookup:
+            return lookup[blend_mode](rgb, intensity, **kwargs)
+        if callable(blend_mode):
+            return blend_mode(rgb, intensity, **kwargs)
+        raise ValueError(f'"blend_mode" must be callable or one of {tuple(lookup)}')
+
+    def blend_hsv(self, rgb, intensity, hsv_max_sat=None, hsv_max_val=None,
+                  hsv_min_val=None, hsv_min_sat=None):
+        hsv_max_sat = self.hsv_max_sat if hsv_max_sat is None else hsv_max_sat
+        hsv_max_val = self.hsv_max_val if hsv_max_val is None else hsv_max_val
+        hsv_min_sat = self.hsv_min_sat if hsv_min_sat is None else hsv_min_sat
+        hsv_min_val = self.hsv_min_val if hsv_min_val is None else hsv_min_val
+        intensity = np.asarray(intensity, dtype=float)[..., 0] * 2.0 - 1.0
+        hsv = rgb_to_hsv(np.asarray(rgb, dtype=float)[..., :3])
+        hue, sat, val = np.moveaxis(hsv, -1, 0)
+        positive = (np.abs(sat) > 1e-10) & (intensity > 0)
+        negative = (np.abs(sat) > 1e-10) & (intensity < 0)
+        sat[positive] = (1 - intensity[positive]) * sat[positive] + intensity[positive] * hsv_max_sat
+        sat[negative] = (1 + intensity[negative]) * sat[negative] - intensity[negative] * hsv_min_sat
+        val[intensity > 0] = ((1 - intensity[intensity > 0]) * val[intensity > 0]
+                              + intensity[intensity > 0] * hsv_max_val)
+        val[intensity < 0] = ((1 + intensity[intensity < 0]) * val[intensity < 0]
+                              - intensity[intensity < 0] * hsv_min_val)
+        hsv[..., 1:] = np.clip(hsv[..., 1:], 0.0, 1.0)
+        return hsv_to_rgb(hsv)
+
+    def blend_soft_light(self, rgb, intensity):
+        rgb = np.asarray(rgb, dtype=float)
+        return 2 * intensity * rgb + (1 - 2 * intensity) * rgb**2
+
+    def blend_overlay(self, rgb, intensity):
+        rgb = np.asarray(rgb, dtype=float)
+        low = 2 * intensity * rgb
+        high = 1 - 2 * (1 - intensity) * (1 - rgb)
+        return np.where(rgb <= 0.5, low, high)
+
+
 class ScalarMappable:
     """Minimal `matplotlib.cm.ScalarMappable` for standalone colorbars."""
 
@@ -8256,6 +8448,7 @@ class _NoopFormatter:
     def __call__(self, value, pos=None): return str(value)
     def set_axis(self, axis): return None
     def set_locs(self, locs): return None
+    def create_dummy_axis(self, **kwargs): return None
 
 
 class _PathEffects:
@@ -8526,6 +8719,10 @@ def _blended_transform_factory(x_transform, y_transform):
 
 mcolors = _MColors()
 mcolors.ScalarMappable = ScalarMappable
+mcolors.LightSource = LightSource
+mcolors.rgb_to_hsv = rgb_to_hsv
+mcolors.hsv_to_rgb = hsv_to_rgb
+mcolors.Normalize = _Normalize
 mcolors.from_levels_and_colors = from_levels_and_colors
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
@@ -8552,7 +8749,8 @@ mticker = _Namespace(
     NullLocator=_NoopLocator, AutoMinorLocator=_NoopLocator, Formatter=_NoopFormatter,
     FuncFormatter=_NoopFormatter, FormatStrFormatter=_NoopFormatter,
     StrMethodFormatter=_NoopFormatter, ScalarFormatter=_NoopFormatter,
-    LogFormatter=_NoopFormatter, NullFormatter=_NoopFormatter,
+    LogFormatter=_NoopFormatter, LogFormatterMathtext=_NoopFormatter,
+    NullFormatter=_NoopFormatter,
     FixedFormatter=_FixedFormatter, IndexLocator=_IndexLocator,
     AutoLocator=_MaxNLocator,
 )

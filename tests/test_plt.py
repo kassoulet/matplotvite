@@ -1598,6 +1598,28 @@ def test_streamplot_colors_masks_arrows_and_colorbar(tmp_path):
         ax.streamplot([0, 1, 3], [0, 1], np.ones((2, 3)), np.zeros((2, 3)))
 
 
+def test_lightsource_hillshade_blends_and_rgb_hsv():
+    from matplotvite import LightSource
+
+    y, x = np.mgrid[-2:2:40j, -2:2:50j]
+    z = np.sin(x) * np.cos(y)
+    ls = LightSource(azdeg=315, altdeg=45)
+    shade = ls.hillshade(z, vert_exag=2, dx=0.1, dy=0.1)
+    assert shade.shape == z.shape
+    assert 0.0 <= shade.min() <= shade.max() <= 1.0
+    assert np.allclose(np.linalg.norm(ls.direction), 1.0)
+
+    shaded = ls.shade(z, plt.colormaps["copper"], vmin=-1, vmax=1)
+    assert shaded.shape == z.shape + (4,)
+    for mode in ("hsv", "overlay", "soft"):
+        blended = ls.shade_rgb(np.ones(z.shape + (3,)), z, blend_mode=mode)
+        assert blended.shape == z.shape + (3,)
+
+    rgb = np.stack([x, y, np.full_like(x, 0.5)], axis=-1)
+    hsv = plt.rgb_to_hsv(rgb)
+    assert np.allclose(plt.hsv_to_rgb(hsv), rgb, atol=1e-12)
+
+
 def test_axes_grid1_axesgrid_host_subplot_and_divider_position(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1 import (
         AxesGrid, Divider, Size, host_subplot)

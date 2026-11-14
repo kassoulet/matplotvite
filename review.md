@@ -2,12 +2,12 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 404 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 405 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 380 | 5 | 115 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 284 | 1 | 113 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 292 | 1 | 105 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
 Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 
@@ -33,7 +33,7 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 |---|---------|
 | G3 | **API gaps, most frequent first:** `NonUniformImage`, `BboxImage`, `Sankey`, `Table`/`Axes.table`, `Axes.set_thetagrids`/`set_rlabel_position` and the polar-axis setters, `matplotlib.image`/`matplotlib.scale` when used. 3-D remains out of scope. |
 | G4 | **Failures where the feature exists but crashes.** Remaining groups: `NoneType - NoneType` (7), `third arg must be a format string` (4), `AffineND has no len()` (4), real-Matplotlib transforms mixed with matplotvite transforms (4 examples, 2 corpus), `float() ... not 'ContourSet'` (2), `float() ... not 'dict_keys'` (2), string-to-float failures for `'x'`/`'green'` (4), `linewidths must ... match the number of levels` (1), `unsupported interpolation: 'bessel'` (1), `fill` argument forms (2 corpus), blit animation return type (3). |
-| F4 | **Smaller gaps, 2–3 cases each:** `Figure.dpi_scale_trans`, `withTickedStroke`, `Sankey`, `LightSource`, `TextPath`, `logit` scale, `GridSpec.subplots`, `matplotvite.spines`, `matplotvite.units`, `ConciseDateFormatter`, `AsinhNorm`, `colors.rgb_to_hsv`, `AnchoredText`, `MouseEvent`, `_ColorbarAxes.yaxis`, `PathPatch.axes`, `_LegendHandle.get_lines`, `Text.set_picker`, `Manager.key_press_handler_id`. |
+| F4 | **Smaller gaps, 2–3 cases each:** `Figure.dpi_scale_trans`, `withTickedStroke`, `Sankey`, `TextPath`, `logit` scale, `GridSpec.subplots`, `matplotvite.spines`, `matplotvite.units`, `ConciseDateFormatter`, `AsinhNorm`, `AnchoredText`, `MouseEvent`, `_ColorbarAxes.yaxis`, `PathPatch.axes`, `_LegendHandle.get_lines`, `Text.set_picker`, `Manager.key_press_handler_id`. |
 | F5 | **Environment cases:** install Pillow in the gallery job (`image_demo`, `image_clip_path`, `demo_annotation_box`, `demo_text_path`, `demo_ribbon_box`, `mathtext_asarray`); mark `units/*` out of scope because it needs `matplotlib.testing.jpl_units`. |
 | E5 | **One-line API gaps:** `Axes.set()` rejects unknown keywords, `Axes.twin()` takes no argument, and `matplotvite.polar`, `matshow`, `xkcd`, `get_data_path` and `LogLocator` are missing at module level. |
 
