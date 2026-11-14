@@ -3102,6 +3102,12 @@ class Axes:
         """Alias used by some axes-grid examples; extra arguments are ignored."""
         return self.twinx()
 
+    def colorbar(self, mappable=None, **kwargs):
+        """Draw a colorbar for `mappable` in this axes' right margin."""
+        if self._fig is None:
+            raise RuntimeError("colorbar needs an axes attached to a figure")
+        return self._fig.colorbar(mappable, cax=self, **kwargs)
+
     def _make_twin(self, axis):
         if self._fig is None:
             raise RuntimeError("twinx/twiny needs an axes attached to a figure")
@@ -6565,7 +6571,8 @@ class Figure:
         if isinstance(rect, Axes):
             ax = rect
             ax._fig = self
-            self.axes.append(ax)
+            if ax not in self.axes:
+                self.axes.append(ax)
             self._cur = ax
             return ax
         ax = Axes(len(self.axes) + 1000)

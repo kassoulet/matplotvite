@@ -1368,6 +1368,30 @@ def test_large_tick_labels_reserve_axis_label_space(tmp_path):
     assert big_h < h
 
 
+def test_axes_grid1_imagegrid_and_locatable_divider(tmp_path):
+    from matplotvite.mpl_toolkits.axes_grid1 import ImageGrid, make_axes_locatable
+
+    image = np.arange(100).reshape(10, 10)
+    fig = plt.figure((4, 4))
+    grid = ImageGrid(fig, 111, nrows_ncols=(2, 2), axes_pad=0.1)
+    assert len(grid) == 4 and grid.axes_llc is grid[2]
+    boxes = [ax.get_position().bounds for ax in grid]
+    assert boxes[0][2] > 0.3 and boxes[1][0] > boxes[0][0]
+    for ax in grid:
+        ax.imshow(image)
+    fig.savefig(tmp_path / "imagegrid.png")
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+    divider = make_axes_locatable(ax)
+    top = divider.append_axes("top", 1.0, pad=0.1, sharex=ax)
+    right = divider.append_axes("right", 1.0, pad=0.1, sharey=ax)
+    assert top.get_position().y0 > ax.get_position().y1
+    assert right.get_position().x0 > ax.get_position().x1
+    top.hist(np.linspace(0, 1, 20), bins=5)
+    right.hist(np.linspace(0, 1, 20), bins=5, orientation="horizontal")
+    fig.savefig(tmp_path / "locatable.png")
+
+
 def test_mpl_toolkits_inset_axes(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
 
