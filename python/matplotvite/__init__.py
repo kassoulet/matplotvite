@@ -2853,6 +2853,8 @@ class Axes:
         self.symlog_linthresh_x = self.symlog_linthresh_y = 1.0
         self.show_grid = False
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
+        self.grid_minor_show = False
+        self.grid_minor_color = self.grid_minor_linewidth = self.grid_minor_alpha = None
         self.grid_axis = "both"
         self.minor_ticks = False
         self.tick_params_box = {}
@@ -3486,6 +3488,8 @@ class Axes:
         self.xaxis._locator = self.yaxis._locator = None
         self._xticklabels = self._yticklabels = None
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
+        self.grid_minor_show = False
+        self.grid_minor_color = self.grid_minor_linewidth = self.grid_minor_alpha = None
         self.grid_axis = "both"
         self.tick_params_x.clear()
         self.tick_params_y.clear()
@@ -5019,24 +5023,37 @@ class Axes:
         `linestyle`, `axis`). `visible=None` flips the current state."""
         if axis not in ("both", "x", "y"):
             raise ValueError(f"unsupported grid axis: {axis!r}")
-        self.show_grid = (not self.show_grid) if visible is None else bool(visible)
+        if which not in ("major", "minor", "both"):
+            raise ValueError(f"unsupported grid which: {which!r}")
+        targets = ("major", "minor") if which == "both" else (which,)
         self.grid_axis = axis
-        if "color" in kwargs or "c" in kwargs:
-            self.grid_color = _norm_color(kwargs.get("color", kwargs.get("c")))
-        if "linewidth" in kwargs or "lw" in kwargs:
-            self.grid_linewidth = float(kwargs.get("linewidth", kwargs.get("lw")))
-        if "linestyle" in kwargs or "ls" in kwargs:
-            self.grid_linestyle = str(kwargs.get("linestyle", kwargs.get("ls")))
-        if "alpha" in kwargs:
-            self.grid_alpha = float(kwargs["alpha"])
-        if self.show_grid:
-            # Matplotlib's default major grid is light grey and thin.
-            if self.grid_color is None:
-                self.grid_color = "#b0b0b0"
-            if self.grid_linewidth is None:
-                self.grid_linewidth = 0.8
-            if self.grid_alpha is None:
-                self.grid_alpha = 1.0
+        for target in targets:
+            if target == "major":
+                self.show_grid = (not self.show_grid) if visible is None else bool(visible)
+                prefix, active = "grid_", self.show_grid
+            else:
+                self.grid_minor_show = ((not self.grid_minor_show)
+                                        if visible is None else bool(visible))
+                prefix, active = "grid_minor_", self.grid_minor_show
+            if "color" in kwargs or "c" in kwargs:
+                setattr(self, f"{prefix}color",
+                        _norm_color(kwargs.get("color", kwargs.get("c"))))
+            if "linewidth" in kwargs or "lw" in kwargs:
+                setattr(self, f"{prefix}linewidth",
+                        float(kwargs.get("linewidth", kwargs.get("lw"))))
+            if "linestyle" in kwargs or "ls" in kwargs:
+                setattr(self, f"{prefix}linestyle",
+                        str(kwargs.get("linestyle", kwargs.get("ls"))))
+            if "alpha" in kwargs:
+                setattr(self, f"{prefix}alpha", float(kwargs["alpha"]))
+            if active:
+                # Matplotlib's default grid is light grey and thin.
+                if getattr(self, f"{prefix}color") is None:
+                    setattr(self, f"{prefix}color", "#b0b0b0")
+                if getattr(self, f"{prefix}linewidth") is None:
+                    setattr(self, f"{prefix}linewidth", 0.8)
+                if getattr(self, f"{prefix}alpha") is None:
+                    setattr(self, f"{prefix}alpha", 1.0)
         return None
 
     def tick_params(self, axis="both", **kwargs):
@@ -5421,7 +5438,11 @@ class Axes:
                     log_base=float(getattr(self, "log_base", 10.0)),
                     grid=dict(show=self.show_grid, color=self.grid_color,
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,
-                              linestyle=self.grid_linestyle, axis=self.grid_axis),
+                              linestyle=self.grid_linestyle, axis=self.grid_axis,
+                              minor_show=bool(self.grid_minor_show and self.minor_ticks),
+                              minor_color=self.grid_minor_color,
+                              minor_linewidth=self.grid_minor_linewidth,
+                              minor_alpha=self.grid_minor_alpha),
                     ticks=dict(xticks=xticks, xticklabels=xticklabels,
                                yticks=yticks, yticklabels=yticklabels,
                                xstyle=self._tick_style_dict("x"),

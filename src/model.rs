@@ -442,6 +442,14 @@ pub(crate) struct Grid {
     pub(crate) linestyle: Option<String>,
     #[pyo3(item)]
     pub(crate) axis: String,
+    #[pyo3(item)]
+    pub(crate) minor_show: bool,
+    #[pyo3(item)]
+    pub(crate) minor_color: Option<String>,
+    #[pyo3(item)]
+    pub(crate) minor_linewidth: Option<f64>,
+    #[pyo3(item)]
+    pub(crate) minor_alpha: Option<f64>,
 }
 
 #[derive(FromPyObject)]

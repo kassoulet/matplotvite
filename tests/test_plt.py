@@ -2200,6 +2200,19 @@ def test_grid_draws_and_toggles(tmp_path):
     plt.grid(True)
     assert plt.gca().show_grid is True
 
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    ax.grid(True)
+    major = tmp_path / "grid-major.svg"
+    fig.savefig(major)
+    ax.minorticks_on()
+    ax.grid(True, which="both")
+    both = tmp_path / "grid-both.svg"
+    fig.savefig(both)
+    assert ax._panel()["grid"]["minor_show"] is True
+    assert (both.read_text(encoding="utf-8").upper().count("#B0B0B0")
+            > major.read_text(encoding="utf-8").upper().count("#B0B0B0"))
+
 
 def test_tick_params_and_axline(tmp_path):
     plt.figure()
