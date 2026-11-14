@@ -332,6 +332,16 @@ class _PruneEmpty(ast.NodeTransformer):
     visit_ClassDef = _visit_block
 
 
+def source_details(source: object) -> str:
+    """Collapsible original script for a comparison-gallery row."""
+    if not source:
+        return ""
+    return (
+        "<details><summary>Source</summary><pre class=\"source\">"
+        f"{html.escape(str(source))}</pre></details>"
+    )
+
+
 def prepare_example(text: str) -> str | None:
     """Rewrite a gallery script into a snippet that draws once and saves."""
     if "input(" in text:
@@ -365,6 +375,7 @@ def harvest_examples(examples_root: pathlib.Path) -> list[dict[str, object]]:
             "category": relative.parts[0] if len(relative.parts) > 1 else "examples",
             "path": str(script),
             "description": summary,
+            "source": text,
             "snippet": prepare_example(text),
         })
     return cases
@@ -933,7 +944,8 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
         score = entry.get("rms")
         rows.append(
             f"<tr><td><b>{html.escape(case_id)}</b><br>"
-            f"{entry['status']}<br>rms: {'n/a' if score is None else f'{score:.3f}'}</td>"
+            f"{entry['status']}<br>rms: {'n/a' if score is None else f'{score:.3f}'}"
+            f"{source_details(case.get('source'))}</td>"
             f"<td>{baseline_cell}</td><td>{ours_cell}</td></tr>")
         case["status"] = entry["status"]
         case["error"] = entry["error"]
@@ -949,7 +961,10 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
     (out / "index.html").write_text(
         "<table border=1 cellpadding=6><tr><th>case</th><th>matplotlib baseline</th>"
         "<th>matplotvite</th></tr>" + "".join(rows)
-        + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
+        + "</table><style>img{max-width:420px}"
+        "details.source pre,.source{max-height:24rem;overflow:auto;"
+        "background:#f6f8fa;padding:.5rem;font-size:.8rem}</style>",
+        encoding="utf-8")
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     statuses = [str(case["status"]) for case in cases]
@@ -1075,8 +1090,10 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         rows.append(
             f"<tr><td>{html.escape(str(case['category']))}<br>"
             f"<b>{html.escape(str(case['id']))}</b><br>"
-            f"{html.escape(str(case['description']))}</td>"
+            f"{html.escape(str(case['description']))}"
+            f"{source_details(case.get('source'))}</td>"
             f"<td>{view}</td><td>{mpl_view}</td><td>{entry['status']}</td></tr>")
+        entry.pop("source", None)
         case.clear()
         case.update(entry)
         print(f"{case['id']:60} {entry['status']:9} {entry['error'] or ''}".rstrip())
@@ -1097,7 +1114,10 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         f"gaps, {bugs} bugs</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
         "<th>matplotlib</th><th>status</th></tr>" + "".join(rows)
-        + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
+        + "</table><style>img{max-width:420px}"
+        "details.source pre,.source{max-height:24rem;overflow:auto;"
+        "background:#f6f8fa;padding:.5rem;font-size:.8rem}</style>",
+        encoding="utf-8")
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank, "

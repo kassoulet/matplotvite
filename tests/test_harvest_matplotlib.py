@@ -13,7 +13,7 @@ from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
                                       harvest_examples, harvest_examples_gallery,
                                       harvest_gallery, prepare_body,
                                       prepare_example, render,
-                                      render_matplotlib)
+                                      render_matplotlib, source_details)
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
@@ -102,6 +102,13 @@ def test_harvest_reads_dict_call_savefig_kwarg(tmp_path):
     case = harvest(root)[0]
     assert case["comparison"]["dpi"] == 200
     assert case["snippet"].endswith('plt.savefig(OUT, dpi=200)\n')
+
+
+def test_source_details_embeds_an_escaped_collapsible_script():
+    markup = source_details("x = 1 < 2\nplt.plot([0, 1])")
+    assert markup.startswith("<details><summary>Source</summary>")
+    assert "x = 1 &lt; 2" in markup
+    assert "plt.plot" in markup
 
 
 def test_prepare_example_resolves_module_alias_imports():
