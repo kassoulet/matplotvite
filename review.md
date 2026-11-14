@@ -2,20 +2,20 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 393 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 394 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 367 | 5 | 128 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 237 | 1 | 160 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 368 | 5 | 127 failed | 26 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 239 | 1 | 158 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
-Of the 367 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
+Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 
 ## High
 
 | # | Finding | Evidence / next check |
 |---|---------|-----------------------|
-| F2 | **Remaining `axes_grid1` / `axisartist` shims.** `ImageGrid` and `make_axes_locatable` now cover the common cases. Still missing: `AnchoredText`/`AnchoredSizeBar` (`anchored_artists`), `HBoxDivider`/`VBoxDivider` with `axes_size`, `axes_rgb`, `host_subplot`/`parasite_axes`, and `axisartist` (17 cases). | Add `anchored_artists` next; it blocks two ImageGrid examples. `axisartist` remains its own milestone. |
+| F2 | **Remaining `axes_grid1` / `axisartist` shims.** `ImageGrid`, `make_axes_locatable` and the anchored artists now cover 11 of 23 gallery cases. Still missing: `HBoxDivider`/`VBoxDivider` with `axes_size`, `axes_rgb`, `host_subplot`/`parasite_axes`, `demo_edge_colorbar`/`demo_fixed_size_axes`, and `axisartist`. | Add `HBoxDivider`/`VBoxDivider` next; they block `demo_axes_hbox_divider`, `simple_axes_divider1` and `simple_axes_divider3`. `axisartist` remains its own milestone. |
 
 ## Parity and visible styling
 
@@ -25,7 +25,6 @@ Of the 367 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 | M3 | **Colorbar text and layout remain partly checked.** Ticks use round locator values. | Verify label side (right of the bar), `ScalarFormatter` text (`8000`, not `8e+03`) and the Unicode minus in a render. |
 | M4 | **Shared axes may still show redundant labels.** `sharex`/`sharey` are supposed to hide inner tick labels; the probe passes, but the old renders showed labels overlapping neighbours in `02_dx` and `04_ce`. | Re-render both figures and confirm inner labels are hidden. |
 | M5 | **Twin-axis sides remain partly checked.** `fill_between(color=...)` no longer advances the colour cycle. | Verify the `twinx` left/right axis sides in `02_dx`. |
-| M7 | **Grid and spine styling needs a render check.** Major-grid defaults are fixed; minor lines and the 0.8 pt spine width still need confirmation. | Compare all four KARIOS figures after regeneration. |
 | M11 | **Multiline text needs a spacing/indent check.** Leading whitespace and 1.2 line spacing were addressed, but the old `04_ce` block ran into the plot below. | Re-render `04_ce` and `02_dx`, check indentation, spacing and the `bbox` frame. |
 | M12 | **Default font sizes need a render check.** DejaVu Sans is bundled and default; confirm title 12 pt, suptitle 16 pt and ticks 10 pt against Matplotlib. | Compare all four figures; a bold `Reference`/`Monitored` heading may still be a title-weight bug. |
 | M17 | **`imshow` interpolation.** The default stays `nearest` deliberately; Matplotlib's `antialiased` resamples images shrunk by more than 3×. | Offer `interpolation="antialiased"` and an rc switch for byte-for-byte parity if needed. |
@@ -63,8 +62,7 @@ Of the 367 rendered corpus cases, 338 have a pixel metric and all 338 match the 
 
 ## Suggested order
 
-1. **M7**: grid and spine styling is the remaining visible-layout check.
-2. **F2/F3**: add `anchored_artists` and the remaining dividers, then `tri`.
-3. **G4 and G3**: triage the crash groups, then the remaining API gaps.
-4. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
-5. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
+1. **F2/F3**: add `HBoxDivider`/`VBoxDivider`, then `tri`.
+2. **G4 and G3**: triage the crash groups, then the remaining API gaps.
+3. **G5/G6/E4/E6**: make the gallery numbers explain themselves and keep them honest.
+4. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
