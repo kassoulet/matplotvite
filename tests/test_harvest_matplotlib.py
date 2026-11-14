@@ -7,6 +7,8 @@ from pathlib import Path
 import matplotvite
 import pytest
 
+import tools.harvest_matplotlib as harvester
+
 from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
                                       failure_status, find_examples_root,
                                       find_sample_data, find_tests_root, harvest,
@@ -364,6 +366,20 @@ def test_render_returns_the_failure_reason(tmp_path):
     assert render("plt.plot([0, 1])\n", out) == "no figure saved"
     # An example that exits the interpreter must fail one case, not the run.
     assert render("raise SystemExit(2)\n", out) == "SystemExit: 2"
+
+
+def test_render_times_out_in_a_child_process(tmp_path, monkeypatch):
+    monkeypatch.setattr(harvester, "SNIPPET_TIMEOUT", 0.5)
+    out = tmp_path / "out.png"
+    error = render("import time\ntime.sleep(5)\n", out)
+    assert error == "TimeoutError: render did not finish in 0.5s"
+    assert not out.exists()
+
+
+def test_render_survives_a_hard_child_exit(tmp_path):
+    out = tmp_path / "out.png"
+    error = render("import os\nos._exit(3)\n", out)
+    assert error is not None and "status 3" in error
 
 
 def test_render_matplotlib_saves_the_script_figure(tmp_path):

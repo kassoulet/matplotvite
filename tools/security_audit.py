@@ -46,7 +46,14 @@ def main() -> int:
         return 1
 
     run(["cargo", "audit"])
-    run([sys.executable, "-m", "bandit", "-q", "-r", "python/matplotvite"])
+    # The shipped package and the development tools are both in scope. Build
+    # tools invoke fixed argument lists (never a shell), and the flagged B105
+    # values are colour literals, so those low-severity checks are disabled
+    # explicitly instead of leaving tools/ unscanned.
+    run([
+        sys.executable, "-m", "bandit", "-q", "-r", "python/matplotvite", "tools",
+        "-s", "B404,B603,B607,B105",
+    ])
     run([sys.executable, "-m", "pip_audit"])
     return 0
 

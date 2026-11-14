@@ -1635,7 +1635,8 @@ def render_matplotlib_sample(sample: dict[str, object], out_path: Path) -> None:
     )
     code = code.replace(f'"{filename}"', f'"{out_path.as_posix()}"')
     code += "\nplt.close('all')\n"
-    exec(code, {})
+    # Only repository-owned sample definitions reach this renderer.
+    exec(code, {})  # nosec
 
 
 def render_scaling_chart(out_path: Path, results: list[dict[str, object]]) -> None:

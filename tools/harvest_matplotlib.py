@@ -91,7 +91,8 @@ def _baseline_list(node: ast.AST) -> list[str] | None:
         value = ast.literal_eval(node)
     except ValueError:
         try:
-            value = eval(compile(ast.Expression(node), "<baseline>", "eval"),  # noqa: S307
+            value = eval(  # noqa: S307  # nosec
+                         compile(ast.Expression(node), "<baseline>", "eval"),
                          {"__builtins__": {}}, {"range": range})
         except Exception:  # noqa: BLE001 - unparseable baselines are simply skipped
             return None
@@ -630,7 +631,7 @@ def find_sample_data(source: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
-def render(snippet: str, out_path: pathlib.Path,
+def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
            ignored: list[str] | None = None,
            sample_data: pathlib.Path | None = None) -> str | None:
@@ -739,7 +740,9 @@ def render(snippet: str, out_path: pathlib.Path,
             np.random.seed(0)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
-                exec(snippet, namespace)  # noqa: S102 - source is Matplotlib's own test suite
+                # The child process is timeout-bound and isolated from the harvest;
+                # snippets are pinned Matplotlib source, never downloaded input.
+                exec(snippet, namespace)  # noqa: S102  # nosec
             if not out_path.exists():
                 return "no figure saved"
             return None
@@ -755,6 +758,86 @@ def render(snippet: str, out_path: pathlib.Path,
             if added_path is not None:
                 sys.path.remove(added_path)
             os.chdir(previous)
+
+
+# Gallery snippets run in a child interpreter, matching the reference renderer:
+# a hung or crashing test cannot take down the harvest, and its rcParams, cwd,
+# sys.path and imported modules are discarded with the process.
+SNIPPET_TIMEOUT = 90
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+
+_CHILD_DRIVER = r'''
+import json
+import pathlib
+import sys
+
+from tools.harvest_matplotlib import _render_snippet_in_process
+
+snippet_path, out_path, extra, sample_data, result_path = sys.argv[1:6]
+ignored = []
+error = _render_snippet_in_process(
+    pathlib.Path(snippet_path).read_text(encoding="utf-8"),
+    pathlib.Path(out_path),
+    pathlib.Path(extra) if extra else None,
+    ignored,
+    pathlib.Path(sample_data) if sample_data else None,
+)
+pathlib.Path(result_path).write_text(
+    json.dumps({"error": error, "ignored": ignored}), encoding="utf-8"
+)
+'''
+
+
+def render(snippet: str, out_path: pathlib.Path,
+           extra_path: pathlib.Path | None = None,
+           ignored: list[str] | None = None,
+           sample_data: pathlib.Path | None = None) -> str | None:
+    """Render a snippet in an isolated interpreter; return an error or None."""
+    out_path = out_path.resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix="matplotvite-snippet-") as scratch:
+        scratch = pathlib.Path(scratch)
+        snippet_path = scratch / "snippet.py"
+        result_path = scratch / "result.json"
+        snippet_path.write_text(snippet, encoding="utf-8")
+        command = [
+            sys.executable, "-c", _CHILD_DRIVER,
+            str(snippet_path), str(out_path),
+            str(extra_path.resolve()) if extra_path is not None else "",
+            str(sample_data.resolve()) if sample_data is not None else "",
+            str(result_path),
+        ]
+        env = dict(os.environ, MPLBACKEND="Agg")
+        env["PYTHONPATH"] = os.pathsep.join(
+            part for part in (str(ROOT), env.get("PYTHONPATH", "")) if part)
+        try:
+            result = subprocess.run(
+                command,
+                cwd=scratch,
+                env=env,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=SNIPPET_TIMEOUT,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            out_path.unlink(missing_ok=True)
+            return f"TimeoutError: render did not finish in {SNIPPET_TIMEOUT}s"
+        if result.returncode != 0 or not result_path.exists():
+            out_path.unlink(missing_ok=True)
+            stderr = result.stderr.strip().splitlines()
+            return (stderr[-1] if stderr
+                    else f"render exited with status {result.returncode}")
+        try:
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            out_path.unlink(missing_ok=True)
+            return f"invalid render result: {exc}"
+        if ignored is not None:
+            ignored.extend(payload.get("ignored") or ())
+        return payload.get("error")
 
 
 # Run each example in its own interpreter: gallery scripts set rcParams,

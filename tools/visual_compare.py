@@ -152,7 +152,8 @@ def run(name: str, code: str, lib, tag: str, out: pathlib.Path, fmt: str = "png"
         lib.close("all")
         # Keep random gallery cases comparable between the two libraries.
         np.random.seed(0)
-        exec(code, {"plt": lib, "np": np, "x": x, "OUT": str(path)})
+        # Only repository-owned comparison snippets reach this renderer.
+        exec(code, {"plt": lib, "np": np, "x": x, "OUT": str(path)})  # nosec
         return path, None
     except Exception as exc:  # noqa: BLE001 - the gallery records every failure
         return None, f"{type(exc).__name__}: {exc}"
