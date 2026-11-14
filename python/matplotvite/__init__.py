@@ -455,6 +455,10 @@ class _CmapNamespace:
     def __getattr__(self, name):
         if name.startswith("__"):
             raise AttributeError(name)
+        if name == "colors":
+            # `matplotlib.cm` re-exports the colors module; `cm.colors.Normalize`
+            # is a common way to build a norm.
+            return mcolors
         try:
             return get_cmap(name)
         except ValueError:

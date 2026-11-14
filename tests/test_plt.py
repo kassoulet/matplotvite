@@ -2452,6 +2452,9 @@ def test_colormap_registry_and_get_cmap():
     assert np.allclose(plt.get_cmap("viridis_r")(0.0), cmap(1.0))
     assert plt.cm.viridis(0.25) == cmap(0.25)
     assert plt.cm.get_cmap("Blues").name == "Blues"
+    # matplotlib.cm re-exports the colors module.
+    assert plt.cm.colors is plt.colors
+    assert plt.cm.colors.Normalize(vmin=0, vmax=2).vmax == 2
     assert plt.get_cmap("viridis", 8).N == 8
     assert np.allclose(plt.get_cmap("viridis", 8)(1.0), cmap(1.0), atol=0.01)
     with pytest.raises(ValueError):
