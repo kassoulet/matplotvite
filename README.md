@@ -1,7 +1,7 @@
 # Matplotvite
 
 [![CI](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml/badge.svg)](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.6.1--alpha-blue)](ROADMAP.md)
+[![Version](https://img.shields.io/pypi/v/matplotvite?label=version)](https://pypi.org/project/matplotvite/)
 
 > **Experimental.** Matplotvite is under active development. Its API may change
 > between releases, and it does not cover the full matplotlib surface. Validate
