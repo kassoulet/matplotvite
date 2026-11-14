@@ -4279,3 +4279,21 @@ def test_logit_scale_uses_probability_ticks(tmp_path):
     assert "10⁻⁵" in labels
     assert "1−10⁻⁵" in labels
     fig.savefig(tmp_path / "logit.png")
+
+
+def test_offsetbox_containers_accept_artists(tmp_path):
+    """Anchored offset boxes can hold text, drawing areas and image boxes."""
+    from matplotvite import (AnchoredOffsetbox, AnnotationBbox, Circle,
+                             DrawingArea, OffsetImage, TextArea, VPacker)
+
+    fig, ax = plt.subplots()
+    area = DrawingArea(40, 20)
+    area.add_artist(Circle((10, 10), 5, facecolor="C0"))
+    box = AnchoredOffsetbox(child=VPacker(children=[TextArea("label"), area]),
+                            loc="upper left")
+    box.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+    ax.add_artist(box)
+    image = OffsetImage(np.zeros((2, 2)), zoom=2)
+    image.image.axes = ax
+    ax.add_artist(AnnotationBbox(image, xy=(0.5, 0.5), xybox=(10, 10)))
+    fig.savefig(tmp_path / "offsetbox.png")

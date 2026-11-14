@@ -690,6 +690,8 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
         mpl_helpers["cbook"] = sample_cbook
     mpl_namespace = (_MplProxy() if (mpl_cbook is not None or sample_cbook is not None)
                      else matplotvite)
+    if sample_data is not None and mpl_namespace is not matplotvite:
+        mpl_namespace.get_data_path = lambda: str(sample_data.parent)
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
     namespace.update(mpl_helpers)
@@ -721,6 +723,10 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     if cbook_namespace is not None:
         namespace["cbook"] = cbook_namespace
         namespace["get_sample_data"] = cbook_namespace.get_sample_data
+    if sample_data is not None:
+        # `get_data_path()` is often used as `Path(get_data_path(),
+        # "sample_data", ...)`; point it at the checkout's mpl-data directory.
+        namespace["get_data_path"] = lambda: str(sample_data.parent)
     if mpl_font_text is not None:
         namespace["_gen_multi_font_text"] = mpl_font_text
     ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)

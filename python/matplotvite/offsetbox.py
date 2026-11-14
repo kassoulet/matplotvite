@@ -189,6 +189,99 @@ class AnchoredSizeBar:
         return self
 
 
+class TextArea:
+    """Plain text box used by offset-box layouts."""
+
+    def __init__(self, s, textprops=None, multilinebaseline=False):
+        self._text = str(s)
+        self.textprops = dict(textprops or {})
+        self.multilinebaseline = multilinebaseline
+
+    def get_text(self): return self._text
+    def set_text(self, s): self._text = str(s); return self
+
+    def _add_to_axes(self, ax):
+        props = dict(self.textprops)
+        props.setdefault("transform", ax.transAxes)
+        props.setdefault("ha", "left")
+        props.setdefault("va", "top")
+        ax.text(0.02, 0.98, self._text, **props)
+        return self
+
+
+class DrawingArea:
+    """A fixed-size box of arbitrary artists."""
+
+    def __init__(self, width, height, xdescent=0, ydescent=0, clip=False):
+        self.width = float(width)
+        self.height = float(height)
+        self.xdescent = float(xdescent)
+        self.ydescent = float(ydescent)
+        self.clip = bool(clip)
+        self.artists = []
+
+    def add_artist(self, artist):
+        self.artists.append(artist)
+        return artist
+
+    def get_children(self): return list(self.artists)
+
+    def _add_to_axes(self, ax):
+        for artist in self.artists:
+            if hasattr(artist, "_add_to_axes"):
+                artist._add_to_axes(ax)
+            else:
+                ax.add_artist(artist)
+        return self
+
+
+class VPacker:
+    """Vertical packer; children are added in order by the axes adapter."""
+
+    def __init__(self, children=(), align="left", pad=0, sep=0,
+                 mode="fixed", **kwargs):
+        self.children = list(children)
+        self.align = align
+        self.pad = pad
+        self.sep = sep
+        self.mode = mode
+        self.kwargs = kwargs
+
+    def _add_to_axes(self, ax):
+        for child in self.children:
+            if hasattr(child, "_add_to_axes"):
+                child._add_to_axes(ax)
+            else:
+                ax.add_artist(child)
+        return self
+
+
+class HPacker(VPacker):
+    pass
+
+
+class OffsetImage:
+    """Image container for annotations; the array is retained for callers."""
+
+    def __init__(self, arr, zoom=1, cmap=None, norm=None, interpolation=None,
+                 origin=None, filternorm=True, filterrad=4.0, resample=False,
+                 dpi_cor=True, **kwargs):
+        self._arr = arr
+        self.zoom = float(zoom)
+        self.cmap = cmap
+        self.image = _NamespaceLike(arr=arr, axes=None)
+
+    def get_data(self): return self._arr
+
+    def _add_to_axes(self, ax):
+        self.image.axes = ax
+        return self
+
+
+class _NamespaceLike:
+    def __init__(self, **kwargs): self.__dict__.update(kwargs)
+
+
 class AuxTransformBox:
     """Container for artists drawn in an auxiliary transform."""
 
@@ -224,6 +317,7 @@ class AnchoredOffsetbox:
         self.bbox_to_anchor = bbox_to_anchor
         self.bbox_transform = bbox_transform
         self.kwargs = kwargs
+        self.patch = _Box()
 
     def _add_to_axes(self, ax):
         if self.child is not None:
@@ -274,4 +368,5 @@ class Shadow:
 
 __all__ = ("AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
            "AnchoredText", "AnchoredOffsetbox", "AnnotationBbox",
-           "AuxTransformBox", "Shadow")
+           "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
+           "TextArea", "VPacker")

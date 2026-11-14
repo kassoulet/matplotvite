@@ -18,7 +18,8 @@ from ._core import __version__, render as _render
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
     "TextPath", "Sankey", "BboxImage", "AnchoredOffsetbox", "AnnotationBbox",
-    "AuxTransformBox", "Shadow",
+    "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
+    "TextArea", "VPacker",
     "ScalarMappable",
     "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
@@ -9244,6 +9245,7 @@ def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=
 from . import offsetbox  # noqa: E402 - needs rcParams defined above
 from .offsetbox import (  # noqa: E402
     AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredOffsetbox,
-    AnchoredSizeBar, AnchoredText, AnnotationBbox, AuxTransformBox, Shadow,
+    AnchoredSizeBar, AnchoredText, AnnotationBbox, AuxTransformBox, DrawingArea,
+    HPacker, OffsetImage, Shadow, TextArea, VPacker,
 )
 from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
