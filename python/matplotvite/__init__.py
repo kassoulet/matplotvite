@@ -651,7 +651,11 @@ class Path:
 class _Bbox:
     """Minimal Bbox with the attribute names matplotlib tests reach for."""
 
-    def __init__(self, x0, y0, x1, y1):
+    def __init__(self, x0=0.0, y0=0.0, x1=None, y1=None):
+        if x1 is None and y1 is None and not np.isscalar(x0):
+            points = np.asarray(x0, dtype=float).reshape(-1, 2)
+            x0, y0 = points[:, 0].min(), points[:, 1].min()
+            x1, y1 = points[:, 0].max(), points[:, 1].max()
         self.x0, self.y0, self.x1, self.y1 = float(x0), float(y0), float(x1), float(y1)
 
     @classmethod
@@ -828,6 +832,7 @@ class _TextLabel:
     def set_tick_out(self, value): self._tick_out = bool(value)
     def set_tick_direction(self, value): self._tick_direction = str(value)
     def set_axisline_style(self, value, **kwargs): self._line_style = value
+    def set_picker(self, value): self._picker = value; return self
     def set_fontweight(self, value): _ignored("Text.set_fontweight")
     def set_fontstyle(self, value): _ignored("Text.set_fontstyle")
     def set_fontfamily(self, value): _ignored("Text.set_fontfamily")
@@ -1309,6 +1314,8 @@ class _LegendHandle:
     def set_zorder(self, zorder): self._zorder = int(zorder)
     def get_frame(self): return self.legendPatch
     def get_title(self): return _TextLabel()
+    def get_lines(self): return []
+    def set_draggable(self, value=True, **kwargs): return self
 
 
 class _BarHandle:
@@ -1773,6 +1780,18 @@ class Patch:
     def get_fill(self): return self._fill
     def get_hatch(self): return self._hatch
     def get_transform(self): return self._transform or _Transform()
+    def get_path(self):
+        if hasattr(self, "_path"):
+            return self._path
+        if hasattr(self, "_xy"):
+            return Path(self._xy)
+        if hasattr(self, "_x"):
+            x, y = self._x, self._y
+            w, h = self._width, self._height
+            return Path([(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)])
+        return Path(np.empty((0, 2)))
+    def add_callback(self, func, *args, **kwargs): return 1
+    def remove_callback(self, func): return None
     def get_patch_transform(self): return self.get_transform()
 
     def set_facecolor(self, color):
@@ -1860,6 +1879,9 @@ class Patch:
     def set_clip_path(self, path, transform=None): _ignored("Patch.set_clip_path")
     def set_clip_box(self, box): _ignored("Patch.set_clip_box")
     def set_path_effects(self, effects): _ignored("Patch.set_path_effects")
+    def set_animated(self, value): self._animated = bool(value); return self
+    def get_animated(self): return getattr(self, "_animated", False)
+    def set_picker(self, value): self._picker = value; return self
     def set_antialiased(self, value): return None
     def set_antialiaseds(self, value): return None
     def set_joinstyle(self, value): return None
@@ -1958,6 +1980,12 @@ class Polygon(Patch):
     def get_closed(self): return self._closed
     def set_xy(self, xy): self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
     def set_closed(self, closed): self._closed = bool(closed)
+
+    @property
+    def xy(self): return self._xy
+
+    @xy.setter
+    def xy(self, value): self.set_xy(value)
 
 
 class Arc(Patch):
@@ -2106,6 +2134,10 @@ class FancyBboxPatch(Patch):
     def set_bounds(self, x, y, width, height):
         self._x, self._y = float(x), float(y)
         self._width, self._height = float(width), float(height)
+
+    def set_boxstyle(self, boxstyle=None, **kwargs):
+        self.boxstyle = boxstyle or self.boxstyle
+        return self
 
 
 class PathPatch(Patch):
@@ -2595,6 +2627,14 @@ class Line2D:
     def set_rasterized(self, value): return self
     def set_clip_on(self, value): return self
 
+    def set_dashes(self, dashes):
+        self._series["linestyle"] = "--" if dashes else "-"
+        self._dashes = list(dashes)
+        return self
+
+    def set_dash_capstyle(self, style): return self
+    def set_solid_capstyle(self, style): return self
+
     def get_xdata(self): return self._series["x"]
     def get_ydata(self): return self._series["y"]
     def set_xdata(self, x): self._series["x"] = _as_f64(x)
@@ -2646,6 +2686,9 @@ class Artist:
     def set_in_layout(self, value): return self
     def set_clip_on(self, value): return self
     def set_clip_path(self, *args, **kwargs): return self
+    def set_animated(self, value): self._animated = bool(value); return self
+    def get_animated(self): return getattr(self, "_animated", False)
+    def set_picker(self, value): self._picker = value; return self
     def draw(self, renderer=None): return None
 
 
@@ -3311,6 +3354,26 @@ class Axes:
         """A second axes sharing the y axis, with its own x axis on top."""
         return self._make_twin("x")
 
+    def sharex(self, other):
+        group = other._share_x or _Share()
+        if other._share_x is None:
+            group.axes.append(other)
+            other._share_x = group
+        self._share_x = group
+        group.axes.append(self)
+        self.hide_xticklabels = True
+        return self
+
+    def sharey(self, other):
+        group = other._share_y or _Share()
+        if other._share_y is None:
+            group.axes.append(other)
+            other._share_y = group
+        self._share_y = group
+        group.axes.append(self)
+        self.hide_yticklabels = True
+        return self
+
     def twin(self, *args, **kwargs):
         """Overlay axes sharing y, with top/right axes (axes_grid1's `twin`)."""
         return self.twiny()
@@ -3651,6 +3714,11 @@ class Axes:
         kwargs.setdefault("aspect", "equal")
         return self.imshow(Z, **kwargs)
     def add_patch(self, patch):
+        try:
+            patch.axes = self
+            patch.figure = self._fig
+        except AttributeError:
+            pass
         self.artists.append(patch)
         self.patches.append(patch)
         return patch
@@ -6992,6 +7060,17 @@ class GridSpec:
 
     def tight_layout(self, *args, **kwargs): return None
 
+    def subplots(self, sharex=False, sharey=False, squeeze=True, subplot_kw=None):
+        if self.figure is None:
+            raise RuntimeError("GridSpec.subplots needs a figure")
+        options = dict(subplot_kw or {})
+        axs = [self.figure.add_subplot(spec, **options) for spec in self]
+        _share_axes(axs, (self.nrows, self.ncols), sharex, sharey)
+        if len(axs) == 1 and squeeze:
+            return axs[0]
+        out = np.array(axs, dtype=object).reshape(self.nrows, self.ncols)
+        return out.squeeze() if squeeze else out
+
     def _bounds(self, rows, cols):
         r0, r1 = rows
         c0, c1 = cols
@@ -7268,6 +7347,9 @@ class Figure:
     def get_layout_engine(self): return getattr(self, "layout_engine", None)
     def get_axes(self): return list(self.axes)
     def get_dpi(self): return self.dpi or DPI
+
+    @property
+    def dpi_scale_trans(self): return _Transform()
     def get_facecolor(self): return self.facecolor or "white"
     def get_edgecolor(self): return self.edgecolor
     def get_size_inches(self): return self.figsize
@@ -7954,6 +8036,22 @@ class _SymLogNorm(_Normalize):
         return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
 
 
+class _AsinhNorm(_Normalize):
+    def __init__(self, linear_width=1.0, vmin=None, vmax=None, clip=False):
+        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
+        self.linear_width = float(linear_width)
+
+    def __call__(self, value, clip=None):
+        arr = np.asarray(value, dtype=float)
+        lo = float(self.vmin) if self.vmin is not None else float(np.nanmin(arr))
+        hi = float(self.vmax) if self.vmax is not None else float(np.nanmax(arr))
+        width = self.linear_width if self.linear_width > 0 else 1.0
+        transformed = np.arcsinh(arr / width)
+        low, high = np.arcsinh(lo / width), np.arcsinh(hi / width)
+        out = (transformed - low) / (high - low if high > low else 1.0)
+        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
+
+
 class _BoundaryNorm(_Normalize):
     def __init__(self, boundaries, ncolors, clip=False, **kwargs):
         super().__init__(clip=clip)
@@ -8075,6 +8173,7 @@ class _MColors:
     NoNorm = _Normalize
     TwoSlopeNorm = _TwoSlopeNorm
     BoundaryNorm = _BoundaryNorm
+    AsinhNorm = _AsinhNorm
     Colormap = Colormap
     ListedColormap = _ListedColormap
     LinearSegmentedColormap = _LinearSegmentedColormap
@@ -8465,6 +8564,9 @@ class _PathEffects:
 
     @staticmethod
     def withStroke(*args, **kwargs): return _PathEffects.Stroke()
+
+    @staticmethod
+    def withTickedStroke(*args, **kwargs): return _PathEffects.Stroke()
 
     @staticmethod
     def withSimplePatchShadow(*args, **kwargs): return _PathEffects.SimplePatchShadow()

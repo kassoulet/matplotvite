@@ -1598,6 +1598,33 @@ def test_streamplot_colors_masks_arrows_and_colorbar(tmp_path):
         ax.streamplot([0, 1, 3], [0, 1], np.ones((2, 3)), np.zeros((2, 3)))
 
 
+def test_small_api_gaps_for_grids_effects_and_artists(tmp_path):
+    from matplotlib.colors import AsinhNorm
+    from matplotlib.patheffects import withTickedStroke
+
+    fig = plt.figure()
+    gs = fig.add_gridspec(2, 2)
+    axs = gs.subplots(sharex=True, sharey=True)
+    assert axs.shape == (2, 2)
+    assert axs[0, 0]._share_x is not None
+    assert fig.dpi_scale_trans is not None
+
+    line, = axs[0, 0].plot([0, 1], [0, 1], path_effects=[withTickedStroke()])
+    line.set_dashes([2, 2, 10, 2])
+    line.set_dash_capstyle("round")
+    patch = plt.Rectangle((0, 0), 1, 1)
+    axs[0, 0].add_patch(patch)
+    assert patch.axes is axs[0, 0]
+    assert patch.figure is fig
+    assert patch.get_path().vertices.shape[0] >= 4
+    axs[0, 0].get_xticklabels()[0].set_picker(True)
+    assert axs[0, 0].legend().get_lines() == []
+
+    norm = AsinhNorm(linear_width=0.5, vmin=-2, vmax=2)
+    assert float(norm(0.0)) == 0.5
+    fig.savefig(tmp_path / "small_gaps.png")
+
+
 def test_lightsource_hillshade_blends_and_rgb_hsv():
     from matplotvite import LightSource
 
