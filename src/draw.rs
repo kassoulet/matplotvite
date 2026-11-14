@@ -12,6 +12,11 @@ use crate::model::{
     Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
 };
 
+mod axes;
+mod image;
+mod legend;
+mod series;
+
 /// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
 /// points at `dpi`. Convert once so both land on the same pixel size.
 pub(crate) fn text_px(size: f64, dpi: f64) -> f64 {
@@ -1845,7 +1850,6 @@ where
 {
     let colorbar = p.colorbar.as_ref();
     let fg = color(p.foreground.as_deref().unwrap_or("#000000"));
-    let twin_side = p.twin.as_str();
     let twin_reserve = p.twin_reserve.as_str();
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
     // Log axes are laid out in log10 space: the ranges and every mapped point are
@@ -1894,18 +1898,6 @@ where
         .round() as u32;
     let custom_legend = p.legend.show && p.legend.is_custom();
     let mut entries: Vec<LegendEntry> = Vec::new();
-    let manual = p.ticks.xticks.is_some()
-        || p.ticks.yticks.is_some()
-        || p.ticks.xstyle.is_custom()
-        || p.ticks.ystyle.is_custom()
-        || !twin_side.is_empty()
-        || p.xlabel_color.is_some()
-        || p.ylabel_color.is_some()
-        || (p.grid.show
-            && (p.grid.color.is_some()
-                || p.grid.linewidth.is_some()
-                || p.grid.alpha.is_some()
-                || p.grid.linestyle.is_some()));
     let exact_axes = p.axes_bounds;
     // Fixed margins at 25 px + 45 px label bands only fit tall panels. On a
     // short subplot row they consume the whole cell, leaving a few pixels for
@@ -2081,171 +2073,20 @@ where
     if let Some(fc) = &p.facecolor {
         chart.plotting_area().fill(&color(fc))?;
     }
-    if !p.axis_off {
-        // Plotters asks the formatter for one value at a time, so fix the
-        // axis-wide precision up front from the ticks it will use.
-        let xformat = tick_format(&auto_ticks(x0, x1, p.x_log));
-        let yformat = tick_format(&auto_ticks(y0, y1, p.y_log));
-        let x_fmt = move |v: &f64| {
-            if manual || p.ticks.hide_xlabels {
-                String::new()
-            } else if p.x_log {
-                log_label(*v, base)
-            } else {
-                tick_label(*v, xformat)
-            }
-        };
-        let y_fmt = move |v: &f64| {
-            if manual || p.ticks.hide_ylabels {
-                String::new()
-            } else if p.y_log {
-                log_label(*v, base)
-            } else {
-                tick_label(*v, yformat)
-            }
-        };
-        let mut mesh = chart.configure_mesh();
-        if !p.grid.show {
-            mesh.disable_mesh();
-        } else if p.grid.color.is_some() || p.grid.linewidth.is_some() || p.grid.alpha.is_some() {
-            let gc = color(p.grid.color.as_deref().unwrap_or("#b0b0b0"));
-            let alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
-            // `grid.linewidth` is in points; a 0.8 pt default is 1 px at
-            // 100 dpi and 2 px at 200 dpi.
-            let width = (p.grid.linewidth.unwrap_or(0.8) * dpi / 72.0)
-                .round()
-                .max(1.0) as u32;
-            let style = gc.mix(alpha).stroke_width(width);
-            mesh.light_line_style(style).bold_line_style(style);
-        }
-        if p.grid.show {
-            match p.grid.axis.as_str() {
-                "x" => {
-                    mesh.disable_y_mesh();
-                }
-                "y" => {
-                    mesh.disable_x_mesh();
-                }
-                _ => {}
-            }
-        }
-        if manual {
-            // Manual ticks own the tick marks and gridlines; the mesh only
-            // contributes the axis spines and descriptions.
-            mesh.disable_mesh().set_all_tick_mark_size(0);
-        }
-        let x_desc =
-            if twin_side.is_empty() && p.xlabel_color.is_none() && p.xlabel_family.is_none() {
-                p.xlabel.as_str()
-            } else {
-                ""
-            };
-        let y_desc =
-            if twin_side.is_empty() && p.ylabel_color.is_none() && p.ylabel_family.is_none() {
-                p.ylabel.as_str()
-            } else {
-                ""
-            };
-        let spine_width = (0.8 * dpi / 72.0).round().max(1.0) as u32;
-        mesh.label_style((p.font_family.as_str(), label_size).into_font().color(&fg))
-            .axis_desc_style((p.font_family.as_str(), desc_size).into_font().color(&fg))
-            .axis_style(fg.stroke_width(spine_width))
-            .x_labels(8)
-            .y_labels(8)
-            .x_desc(x_desc)
-            .y_desc(y_desc)
-            .x_label_formatter(&x_fmt)
-            .y_label_formatter(&y_fmt)
-            .draw()?;
-        if p.grid.minor_show && !p.x_log && !p.y_log {
-            // Plotters only draws major gridlines, so add the minor ones in
-            // the same style. They sit under the series, like the mesh.
-            let base = area.get_base_pixel();
-            let pa = chart.plotting_area();
-            let tl = pa.map_coordinate(&(x0, y1));
-            let br = pa.map_coordinate(&(x1, y0));
-            let (left, top) = (tl.0 - base.0, tl.1 - base.1);
-            let (right, bottom) = (br.0 - base.0, br.1 - base.1);
-            let gc = color(p.grid.minor_color.as_deref().unwrap_or("#b0b0b0"));
-            let alpha = p.grid.minor_alpha.unwrap_or(1.0).clamp(0.0, 1.0);
-            let width = (p.grid.minor_linewidth.unwrap_or(0.8) * dpi / 72.0)
-                .round()
-                .max(1.0) as u32;
-            let style = gc.mix(alpha).stroke_width(width);
-            if p.grid.axis != "y" {
-                for value in minor_grid_values(&xs_for_grid, x0, x1) {
-                    let (px, _) = pa.map_coordinate(&(value, y0));
-                    area.draw(&PathElement::new(
-                        vec![(px - base.0, top), (px - base.0, bottom)],
-                        style,
-                    ))?;
-                }
-            }
-            if p.grid.axis != "x" {
-                for value in minor_grid_values(&ys_for_grid, y0, y1) {
-                    let (_, py) = pa.map_coordinate(&(x0, value));
-                    area.draw(&PathElement::new(
-                        vec![(left, py - base.1), (right, py - base.1)],
-                        style,
-                    ))?;
-                }
-            }
-            // Minor tick marks outside the axes, matching the grid spacing.
-            let tick = fg.stroke_width(width);
-            if p.grid.axis != "y" {
-                for value in minor_grid_values(&xs_for_grid, x0, x1) {
-                    let (px, _) = pa.map_coordinate(&(value, y0));
-                    let px = px - base.0;
-                    area.draw(&PathElement::new(
-                        vec![(px, bottom), (px, bottom + 3)],
-                        tick,
-                    ))?;
-                }
-            }
-            if p.grid.axis != "x" {
-                for value in minor_grid_values(&ys_for_grid, y0, y1) {
-                    let (_, py) = pa.map_coordinate(&(x0, value));
-                    let py = py - base.1;
-                    area.draw(&PathElement::new(vec![(left - 3, py), (left, py)], tick))?;
-                }
-            }
-        }
-        // Plotters strokes the left/bottom axes; add only the missing top and
-        // right spines so no edge is painted twice and looks thicker.
-        {
-            let base = area.get_base_pixel();
-            let pa = chart.plotting_area();
-            let tl = pa.map_coordinate(&(x0, y1));
-            let br = pa.map_coordinate(&(x1, y0));
-            let (left, top) = (tl.0 - base.0, tl.1 - base.1);
-            let (right, bottom) = (br.0 - base.0, br.1 - base.1);
-            area.draw(&PathElement::new(
-                vec![(left, top), (right, top)],
-                fg.stroke_width(spine_width),
-            ))?;
-            area.draw(&PathElement::new(
-                vec![(right, top), (right, bottom)],
-                fg.stroke_width(spine_width),
-            ))?;
-        }
-        if manual {
-            let axis_side = match twin_side {
-                "y" => "right",
-                "x" => "top",
-                _ => "",
-            };
-            draw_manual_ticks(
-                area,
-                &chart,
-                p,
-                (x0, x1, y0, y1),
-                base,
-                axis_side,
-                twin_gap_px,
-                dpi,
-            )?;
-        }
-    }
+    axes::draw_axes(
+        area,
+        &mut chart,
+        p,
+        (x0, x1, y0, y1),
+        label_size,
+        desc_size,
+        &xs_for_grid,
+        &ys_for_grid,
+        base,
+        twin_gap_px,
+        dpi,
+        fg,
+    )?;
     if exact_axes && !p.title.is_empty() {
         // `add_axes` titles sit above the requested axes box rather than
         // taking a caption band out of it.
@@ -2720,363 +2561,17 @@ where
             ));
         }
     }
-    let marker_total = p
-        .series
-        .iter()
-        .filter(|s| !s.marker.is_empty() && s.markersize > 0.0)
-        .map(|s| s.x.as_array().len().min(s.y.as_array().len()))
-        .sum::<usize>();
-    let series_base = area.get_base_pixel();
-    let mut series_marker_layer = if raster_scatter && marker_total >= 4096 {
-        let (w, h) = area.dim_in_pixel();
-        tiny_skia::Pixmap::new(w.max(1), h.max(1))
-    } else {
-        None
-    };
-    for s in &p.series {
-        let base = area.get_base_pixel();
-        let xs = s.x.as_array();
-        let ys = s.y.as_array();
-        let n = xs.len().min(ys.len());
-        // Step drawstyles insert the corner points instead of a diagonal.
-        let mut pts: Vec<(f64, f64)> = Vec::with_capacity(n * 2);
-        for i in 0..n {
-            pts.push((tx(xs[i]), ty(ys[i])));
-            if i + 1 < n {
-                match s.drawstyle.as_str() {
-                    "steps-post" => pts.push((tx(xs[i + 1]), ty(ys[i]))),
-                    "steps-pre" => pts.push((tx(xs[i]), ty(ys[i + 1]))),
-                    _ => {}
-                }
-            }
-        }
-        if n > 2000 && s.drawstyle != "steps-pre" && s.drawstyle != "steps-post" {
-            // Pixel-space simplification leaves the drawn path visually
-            // unchanged while cutting the SVG path (and rasteriser work) by
-            // orders of magnitude for dense series.
-            let kept = {
-                let chart_area = chart.plotting_area();
-                simplify_polyline(&pts, 0.5, |p| {
-                    let (x, y) = chart_area.map_coordinate(p);
-                    (x as f64, y as f64)
-                })
-            };
-            if kept.len() < pts.len() {
-                pts = kept;
-            }
-        }
-        let width = s.linewidth.max(1.0).round() as u32;
-        let col = match s.alpha {
-            Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),
-            None => color(&s.color).mix(1.0),
-        };
-        if s.linestyle == "None" {
-            if !s.label.is_empty() && !s.marker.is_empty() {
-                entries.push(LegendEntry {
-                    label: s.label.clone(),
-                    swatch: LegendSwatch::Marker(col, s.marker.clone()),
-                });
-            }
-        } else if matches!(s.linestyle.as_str(), ":" | "--" | "-.") {
-            let lw = s.linewidth.max(1.0);
-            // Matplotlib scales its dash sequences by line width.
-            let (dash, gap) = match s.linestyle.as_str() {
-                ":" => (lw, lw * 1.65),
-                "--" => (lw * 3.7, lw * 1.6),
-                _ => (lw * 6.4, lw * 1.6),
-            };
-            let (px, clip) = {
-                let chart_area = chart.plotting_area();
-                let (xr, yr) = chart_area.get_pixel_range();
-                let px: Vec<(i32, i32)> = pts
-                    .iter()
-                    .map(|p| {
-                        let (x, y) = chart_area.map_coordinate(p);
-                        (x - base.0, y - base.1)
-                    })
-                    .collect();
-                (
-                    px,
-                    (
-                        (xr.start - base.0) as f64,
-                        (xr.end - base.0) as f64,
-                        (yr.start - base.1) as f64,
-                        (yr.end - base.1) as f64,
-                    ),
-                )
-            };
-            for run in clip_polyline(&px, clip) {
-                draw_dashed(area, &run, col, width, dash, gap)?;
-            }
-            if !s.label.is_empty() {
-                entries.push(LegendEntry {
-                    label: s.label.clone(),
-                    swatch: if s.marker.is_empty() {
-                        LegendSwatch::Line(col, width)
-                    } else {
-                        LegendSwatch::LineMarker(col, width, s.marker.clone())
-                    },
-                });
-                if !custom_legend {
-                    chart
-                        .draw_series(LineSeries::new(
-                            Vec::<(f64, f64)>::new(),
-                            col.stroke_width(width),
-                        ))?
-                        .label(s.label.as_str())
-                        .legend(move |(x, y)| {
-                            PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
-                        });
-                }
-            }
-        } else {
-            let (px, clip) = {
-                let chart_area = chart.plotting_area();
-                let (xr, yr) = chart_area.get_pixel_range();
-                let px: Vec<(i32, i32)> = pts
-                    .iter()
-                    .map(|p| {
-                        let (x, y) = chart_area.map_coordinate(p);
-                        (x - base.0, y - base.1)
-                    })
-                    .collect();
-                (
-                    px,
-                    (
-                        (xr.start - base.0) as f64,
-                        (xr.end - base.0) as f64,
-                        (yr.start - base.1) as f64,
-                        (yr.end - base.1) as f64,
-                    ),
-                )
-            };
-            // Caps belong to the data ends only: a run cut by the axes must stop
-            // flush at the spine rather than growing half a line width past it.
-            for run in clip_polyline(&px, clip) {
-                let caps = (
-                    px.first() == Some(&run[0]),
-                    px.last() == Some(&run[run.len() - 1]),
-                );
-                if has_sharp_join(&run, width) {
-                    draw_solid_polyline(area, &run, col, width)?;
-                } else {
-                    area.draw(&PathElement::new(run.clone(), col.stroke_width(width)))?;
-                }
-                draw_projected_caps(area, &run, col, width, caps)?;
-            }
-            if !s.label.is_empty() {
-                entries.push(LegendEntry {
-                    label: s.label.clone(),
-                    swatch: if s.marker.is_empty() {
-                        LegendSwatch::Line(col, width)
-                    } else {
-                        LegendSwatch::LineMarker(col, width, s.marker.clone())
-                    },
-                });
-            }
-        }
-        if !s.marker.is_empty() && s.markersize > 0.0 {
-            let stroked = matches!(s.marker.as_str(), "x" | "+");
-            let (fill_name, edge_name) = if stroked {
-                (
-                    s.mec.as_deref().unwrap_or(&s.color),
-                    s.mec.as_deref().unwrap_or(&s.color),
-                )
-            } else {
-                (
-                    s.mfc.as_deref().unwrap_or(&s.color),
-                    s.mec.as_deref().unwrap_or(&s.color),
-                )
-            };
-            let shade = |name: &str| match s.alpha {
-                Some(a) => color(name).mix(a.clamp(0.0, 1.0)),
-                None => color(name).mix(1.0),
-            };
-            let (fill, edge) = (shade(fill_name), shade(edge_name));
-            let r = marker_radius(s.markersize * s.markersize);
-            let stroke = s.mew.max(1.0).round() as u32;
-            let chart_area = chart.plotting_area();
-            let (clip_x, clip_y) = chart_area.get_pixel_range();
-            for (xv, yv) in xs.iter().zip(ys.iter()) {
-                let (px, py) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
-                // Markers outside the axes are clipped away like the line is.
-                if !clip_x.contains(&px) || !clip_y.contains(&py) {
-                    continue;
-                }
-                if let Some(layer) = series_marker_layer.as_mut() {
-                    draw_marker_raster(
-                        layer,
-                        series_base,
-                        (px, py),
-                        r,
-                        fill,
-                        edge,
-                        stroke,
-                        &s.marker,
-                    );
-                } else {
-                    draw_marker(area, base, (px, py), r, fill, edge, stroke, &s.marker)?;
-                }
-            }
-        }
-    }
-    if let Some(layer) = series_marker_layer {
-        let (w, h) = area.dim_in_pixel();
-        let png = crate::export::encode_png(&layer, PngCompression::Fast, false)
-            .map_err(|e| e.to_string())?;
-        overlays.push(format!(
-            "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
-             preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
-            series_base.0,
-            series_base.1,
-            w,
-            h,
-            base64(&png)
-        ));
-    }
-    // Error bars: one segment per point plus optional caps, in canvas pixels.
-    {
-        let chart_area = chart.plotting_area();
-        let base = area.get_base_pixel();
-        for (x, y, ylo, yhi, xlo, xhi, c, cap) in &p.errors {
-            let col = color(c);
-            let cap = cap.round().max(0.0) as i32;
-            let (ya, yb) = (ylo.as_array(), yhi.as_array());
-            let (xa, xb) = (xlo.as_array(), xhi.as_array());
-            let (xs_v, ys_v) = (x.as_array(), y.as_array());
-            let yz = ya.iter().zip(yb.iter());
-            let xz = xa.iter().zip(xb.iter());
-            let it = xs_v.iter().zip(ys_v.iter());
-            for ((xv, yv), ((lo, hi), (xl, xh))) in it.zip(yz.zip(xz)) {
-                let (cx, cy) = chart_area.map_coordinate(&(tx(*xv), ty(*yv)));
-                let (cx, cy) = (cx - base.0, cy - base.1);
-                if *lo > 0.0 || *hi > 0.0 {
-                    let (_, yt) = chart_area.map_coordinate(&(tx(*xv), ty(*yv + *hi)));
-                    let (_, yb) = chart_area.map_coordinate(&(tx(*xv), ty(*yv - *lo)));
-                    let (yt, yb) = (yt - base.1, yb - base.1);
-                    area.draw(&PathElement::new(
-                        vec![(cx, yt), (cx, yb)],
-                        col.stroke_width(1),
-                    ))?;
-                    if cap > 0 {
-                        for yc in [yt, yb] {
-                            area.draw(&PathElement::new(
-                                vec![(cx - cap, yc), (cx + cap, yc)],
-                                col.stroke_width(1),
-                            ))?;
-                        }
-                    }
-                }
-                if *xl > 0.0 || *xh > 0.0 {
-                    let (xl_px, _) = chart_area.map_coordinate(&(tx(*xv - *xl), ty(*yv)));
-                    let (xr_px, _) = chart_area.map_coordinate(&(tx(*xv + *xh), ty(*yv)));
-                    let (xl_px, xr_px) = (xl_px - base.0, xr_px - base.0);
-                    area.draw(&PathElement::new(
-                        vec![(xl_px, cy), (xr_px, cy)],
-                        col.stroke_width(1),
-                    ))?;
-                    if cap > 0 {
-                        for xc in [xl_px, xr_px] {
-                            area.draw(&PathElement::new(
-                                vec![(xc, cy - cap), (xc, cy + cap)],
-                                col.stroke_width(1),
-                            ))?;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    // Scatter markers: per-point size and colour, so they bypass PointSeries.
-    {
-        let chart_area = chart.plotting_area();
-        let base = area.get_base_pixel();
-        let mut legend_scatter: Vec<(String, RGBAColor)> = Vec::new();
-        // Any raster scatter benefits from the layer: tiny_skia keeps the
-        // fractional radius and anti-aliases the marker edge, which the
-        // integer plotters circles cannot do.
-        let mut marker_layer = if raster_scatter {
-            let (w, h) = area.dim_in_pixel();
-            // Falling back to per-point elements is better than failing a save.
-            tiny_skia::Pixmap::new(w.max(1), h.max(1))
-        } else {
-            None
-        };
-        for sc in &p.scatter {
-            let xs = sc.x.as_array();
-            let ys = sc.y.as_array();
-            let sizes = sc.sizes.as_array();
-            let values = sc.values.as_ref().map(|v| v.as_array());
-            let (cmin, cmax) = sc.clim.unwrap_or_else(|| match &values {
-                Some(v) => range(v.iter().copied()),
-                None => (0.0, 1.0),
-            });
-            let alpha = sc.alpha.clamp(0.0, 1.0);
-            for i in 0..xs.len().min(ys.len()) {
-                let (cx, cy) = chart_area.map_coordinate(&(tx(xs[i]), ty(ys[i])));
-                // matplotlib's `s` is an area in points^2; ~1.39 px/pt at 100 dpi.
-                let sz = sizes.get(i).copied().unwrap_or(36.0).max(0.0);
-                let r = marker_radius(sz);
-                let col = if !sc.colors.is_empty() {
-                    color(&sc.colors[i % sc.colors.len()])
-                } else if let Some(v) = &values {
-                    let t = if cmax > cmin {
-                        ((v[i] - cmin) / (cmax - cmin)).clamp(0.0, 1.0)
-                    } else {
-                        0.5
-                    };
-                    let c = colormap(&sc.cmap, t);
-                    RGBAColor(c[0], c[1], c[2], 1.0)
-                } else {
-                    RGBAColor(31, 119, 180, 1.0)
-                };
-                let col = col.mix(alpha);
-                if let Some(layer) = marker_layer.as_mut() {
-                    draw_marker_raster(layer, base, (cx, cy), r, col, col, 2, &sc.marker);
-                } else {
-                    draw_marker(area, base, (cx, cy), r, col, col, 2, &sc.marker)?;
-                }
-            }
-            if !sc.label.is_empty() {
-                let icon = if sc.colors.is_empty() {
-                    RGBAColor(31, 119, 180, 1.0)
-                } else {
-                    color(&sc.colors[0])
-                };
-                legend_scatter.push((sc.label.clone(), icon.mix(alpha)));
-            }
-        }
-        if let Some(layer) = marker_layer {
-            let (w, h) = area.dim_in_pixel();
-            let png = crate::export::encode_png(&layer, PngCompression::Fast, false)
-                .map_err(|e| e.to_string())?;
-            overlays.push(format!(
-                "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
-                 preserveAspectRatio=\"none\" href=\"data:image/png;base64,{}\"/>",
-                base.0,
-                base.1,
-                w,
-                h,
-                base64(&png)
-            ));
-        }
-        // Registered once the plotting-area borrow is released.
-        for (label, col) in legend_scatter {
-            entries.push(LegendEntry {
-                label: label.clone(),
-                swatch: LegendSwatch::Circle(col),
-            });
-            if !custom_legend {
-                let series = chart.draw_series(std::iter::once(Rectangle::new(
-                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                    RGBColor(0, 0, 0).mix(0.0).filled(),
-                )))?;
-                series
-                    .label(label.as_str())
-                    .legend(move |(x, y)| Circle::new((x + 10, y + 4), 4, col.filled()));
-            }
-        }
-    }
+    series::draw_series_section(
+        area,
+        &mut chart,
+        p,
+        &tx,
+        &ty,
+        &mut entries,
+        raster_scatter,
+        custom_legend,
+        overlays,
+    )?;
     // Iso-lines are stroked above the series, one segment per marching-squares cell.
     {
         let chart_area = chart.plotting_area();
@@ -3270,213 +2765,23 @@ where
                 },
             )?;
         }
-        for item in &p.images {
-            let (l, r, b, t) = item.4;
-            let (ax, ay) = chart_area.map_coordinate(&(tx(l), ty(t)));
-            let (zx, zy) = chart_area.map_coordinate(&(tx(r), ty(b)));
-            let (iw, ih) = ((ax - zx).abs(), (ay - zy).abs());
-            if iw == 0 || ih == 0 {
-                continue;
-            }
-            if draw_images {
-                let bg = p
-                    .facecolor
-                    .as_deref()
-                    .map(color)
-                    .map(|c| [c.0, c.1, c.2])
-                    .unwrap_or([255, 255, 255]);
-                let (x, y) = (ax.min(zx) - base.0, ay.min(zy) - base.1);
-                let rgb = image_rgb(item, iw as u32, ih as u32, bg)?;
-                if let Some(elem) = plotters::element::BitMapElement::with_owned_buffer(
-                    (x, y),
-                    (iw as u32, ih as u32),
-                    rgb,
-                ) {
-                    area.draw(&elem)?;
-                }
-                continue;
-            }
-            let hint = if matches!(item.7.as_str(), "none" | "nearest") {
-                " style=\"image-rendering:pixelated\""
-            } else {
-                ""
-            };
-            // Embedded into the root SVG, so this stays in canvas pixels.
-            overlays.push(format!(
-                "<image x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" \
-                 preserveAspectRatio=\"none\"{hint} href=\"data:image/png;base64,{}\"/>",
-                ax.min(zx),
-                ay.min(zy),
-                iw,
-                ih,
-                base64(&image_png(item)?)
-            ));
-        }
+        image::draw_panel_images(area, &chart, p, tx, ty, base, draw_images, overlays)?;
     }
-    // `loc="best"` scores candidate corners against the drawn artists, so collect
-    // their pixel geometry once, mirroring matplotlib's `Legend._auto_legend_data`.
-    let legend_obstacles = if custom_legend && p.legend.loc == "best" {
-        let pa = chart.plotting_area();
-        let base = area.get_base_pixel();
-        let mut obstacles = LegendObstacles::default();
-        let to_px = |x: f64, y: f64| {
-            let (px, py) = pa.map_coordinate(&(tx(x), ty(y)));
-            (px as f64 - base.0 as f64, py as f64 - base.1 as f64)
-        };
-        let sample = |xs: &OwnedArray1, ys: &OwnedArray1| -> Vec<(f64, f64)> {
-            let (xs, ys) = (xs.as_array(), ys.as_array());
-            let n = xs.len().min(ys.len());
-            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
-            (0..n)
-                .step_by(stride)
-                .map(|i| to_px(xs[i], ys[i]))
-                .collect()
-        };
-        for s in &p.series {
-            obstacles.push_line(sample(&s.x, &s.y));
-        }
-        for bar in &p.bars {
-            let (left, bottom) = (bar.left.as_array(), bar.bottom.as_array());
-            let (width, height) = (bar.width.as_array(), bar.height.as_array());
-            for i in 0..left
-                .len()
-                .min(bottom.len())
-                .min(width.len())
-                .min(height.len())
-            {
-                let (ax0, ay0) = to_px(left[i], bottom[i]);
-                let (ax1, ay1) = to_px(left[i] + width[i], bottom[i] + height[i]);
-                obstacles
-                    .boxes
-                    .push((ax0.min(ax1), ay0.min(ay1), ax0.max(ax1), ay0.max(ay1)));
-            }
-        }
-        for band in &p.bands {
-            obstacles.push_line(sample(&band.x, &band.y));
-        }
-        for sc in &p.scatter {
-            let (xs, ys) = (sc.x.as_array(), sc.y.as_array());
-            let n = xs.len().min(ys.len());
-            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
-            for i in (0..n).step_by(stride) {
-                obstacles.push_point(to_px(xs[i], ys[i]));
-            }
-        }
-        for err in &p.errors {
-            let (xs, ys) = (err.0.as_array(), err.1.as_array());
-            let n = xs.len().min(ys.len());
-            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
-            for i in (0..n).step_by(stride) {
-                obstacles.push_point(to_px(xs[i], ys[i]));
-            }
-        }
-        for patch in &p.patches {
-            match patch.kind.as_str() {
-                "rect" => {
-                    let (ax0, ay0) = to_px(patch.x, patch.y);
-                    let (ax1, ay1) = to_px(patch.x + patch.width, patch.y + patch.height);
-                    obstacles
-                        .boxes
-                        .push((ax0.min(ax1), ay0.min(ay1), ax0.max(ax1), ay0.max(ay1)));
-                }
-                "circle" => {
-                    let (cx, cy) = to_px(patch.x, patch.y);
-                    let (rx, _) = to_px(patch.x + patch.width, patch.y);
-                    let (_, ry) = to_px(patch.x, patch.y + patch.width);
-                    let (rx, ry) = ((rx - cx).abs(), (ry - cy).abs());
-                    let ring = (0..16)
-                        .map(|i| {
-                            let t = i as f64 / 16.0 * std::f64::consts::TAU;
-                            (cx + rx * t.cos(), cy + ry * t.sin())
-                        })
-                        .collect();
-                    obstacles.push_line(ring);
-                }
-                _ => {
-                    let pts = patch
-                        .points
-                        .as_chunks::<2>()
-                        .0
-                        .iter()
-                        .map(|pair| to_px(pair[0], pair[1]))
-                        .collect();
-                    obstacles.push_line(pts);
-                }
-            }
-        }
-        for coll in &p.collections {
-            let n = coll.points.len() / 2;
-            let stride = n.div_ceil(LEGEND_SCORE_VERTICES).max(1);
-            for i in (0..n).step_by(stride) {
-                obstacles.push_point(to_px(coll.points[i * 2], coll.points[i * 2 + 1]));
-            }
-            for seg in &coll.segments {
-                let pts = seg
-                    .as_chunks::<2>()
-                    .0
-                    .iter()
-                    .map(|pair| to_px(pair[0], pair[1]))
-                    .collect();
-                obstacles.push_line(pts);
-            }
-        }
-        obstacles
-    } else {
-        LegendObstacles::default()
-    };
-    if p.legend.show {
-        // Matplotlib collects line handles before patches and collections.
-        entries.sort_by_key(|entry| match &entry.swatch {
-            LegendSwatch::Line(..) | LegendSwatch::LineMarker(..) | LegendSwatch::Marker(..) => 0,
-            LegendSwatch::Rect(_) => 1,
-            LegendSwatch::Collection(_) | LegendSwatch::Circle(_) => 2,
-        });
-    }
-    if p.legend.show && custom_legend {
-        let base = area.get_base_pixel();
-        let pa = chart.plotting_area();
-        let tl = pa.map_coordinate(&(x0, y1));
-        let br = pa.map_coordinate(&(x1, y0));
-        draw_legend(
-            area,
-            (tl.0 - base.0, tl.1 - base.1, br.0 - base.0, br.1 - base.1),
-            &entries,
-            &p.legend,
-            &legend_obstacles,
-            fg,
-            dpi,
-        )?;
-    } else if p.legend.show {
-        let loc = p.legend.loc.as_str();
-        let position = match loc {
-            "upper left" => SeriesLabelPosition::UpperLeft,
-            "upper center" => SeriesLabelPosition::UpperMiddle,
-            "lower left" => SeriesLabelPosition::LowerLeft,
-            "lower center" => SeriesLabelPosition::LowerMiddle,
-            "lower right" => SeriesLabelPosition::LowerRight,
-            "center left" => SeriesLabelPosition::MiddleLeft,
-            "center right" | "right" => SeriesLabelPosition::MiddleRight,
-            "center" => SeriesLabelPosition::MiddleRight,
-            _ => SeriesLabelPosition::UpperRight,
-        };
-        let mut labels = chart.configure_series_labels();
-        labels.position(position).label_font((
-            p.legend.family.as_str(),
-            text_px(p.legend.fontsize.max(6.0), dpi).round() as u32,
-        ));
-        if p.legend.frameon {
-            labels
-                .background_style(RGBAColor(255, 255, 255, 0.92))
-                .border_style(RGBColor(200, 200, 200))
-                .margin(12)
-                .legend_area_size(24);
-        } else {
-            labels
-                .background_style(TRANSPARENT)
-                .border_style(TRANSPARENT);
-        }
-        labels.draw()?;
-    }
+    legend::draw_legend_section(
+        area,
+        &mut chart,
+        p,
+        &mut entries,
+        &tx,
+        &ty,
+        x0,
+        x1,
+        y0,
+        y1,
+        fg,
+        dpi,
+        custom_legend,
+    )?;
     if let Some((cmap, vmin, vmax, label)) = colorbar {
         let base = area.get_base_pixel();
         let pa = chart.plotting_area();
