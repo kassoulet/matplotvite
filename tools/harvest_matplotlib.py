@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from concurrent.futures import ThreadPoolExecutor
 import gzip
 import html
 import importlib.util
@@ -28,6 +29,7 @@ import os
 import pathlib
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -684,6 +686,109 @@ def render(snippet: str, out_path: pathlib.Path,
             os.chdir(previous)
 
 
+# Run each example in its own interpreter: gallery scripts set rcParams,
+# register styles and close figures in ways that would leak between cases. The
+# driver saves every figure the script produces, so examples that only call
+# show() (the usual ending) still yield a reference PNG.
+MATPLOTLIB_DRIVER = r'''
+import pathlib
+import runpy
+import sys
+
+script, out, extra = sys.argv[1:4]
+out = pathlib.Path(out)
+# Examples such as font_table.py parse argv; mimic `python script.py`.
+sys.argv = [script]
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+
+if extra:
+    sys.path.insert(0, str(pathlib.Path(extra).resolve()))
+
+_orig_savefig = Figure.savefig
+_copying = [False]
+
+
+def _save(fig, fname, *args, **kwargs):
+    result = _orig_savefig(fig, fname, *args, **kwargs)
+    if not _copying[0]:
+        _copying[0] = True
+        try:
+            _orig_savefig(fig, out, dpi=100)
+        finally:
+            _copying[0] = False
+    return result
+
+
+Figure.savefig = lambda self, fname, *args, **kwargs: _save(
+    self, fname, *args, **kwargs)
+
+
+def _show(*args, **kwargs):
+    for num in list(plt.get_fignums()):
+        _save(plt.figure(num), out)
+
+
+plt.show = _show
+plt.pause = lambda *args, **kwargs: None
+try:
+    runpy.run_path(script, run_name="__main__")
+finally:
+    if not out.exists() and plt.get_fignums():
+        _save(plt.figure(plt.get_fignums()[-1]), out)
+'''
+
+
+def render_matplotlib(script: pathlib.Path, out_path: pathlib.Path,
+                      extra_path: pathlib.Path | None = None) -> str | None:
+    """Render an unmodified gallery script with matplotlib's Agg backend.
+
+    Returns an error string or None. The script runs in a child interpreter in
+    a scratch directory so its rcParams, figures and relative writes cannot
+    leak into the next case.
+    """
+    if importlib.util.find_spec("matplotlib") is None:
+        return "matplotlib is not installed"
+    script = pathlib.Path(script).resolve()
+    out_path = out_path.resolve()
+    extra_path = (pathlib.Path(extra_path).resolve()
+                  if extra_path is not None else None)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as scratch:
+        command = [
+            sys.executable, "-c", MATPLOTLIB_DRIVER, str(script), str(out_path),
+            str(extra_path) if extra_path is not None else "",
+        ]
+        env = dict(os.environ, MPLBACKEND="Agg")
+        try:
+            result = subprocess.run(
+                command,
+                cwd=scratch,
+                env=env,
+                capture_output=True,
+                text=True,
+                errors="replace",
+                timeout=90,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            out_path.unlink(missing_ok=True)
+            return "TimeoutError: matplotlib render did not finish in 90s"
+        if result.returncode != 0:
+            # A script can save a partial figure before raising (usetex runs,
+            # for instance); the case is an error, so do not keep it.
+            out_path.unlink(missing_ok=True)
+            stderr = result.stderr.strip().splitlines()
+            return (stderr[-1] if stderr
+                    else f"matplotlib exited with status {result.returncode}")
+        if not out_path.exists():
+            return "no figure saved"
+    return None
+
+
 def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
     """RMS and visibly-different percentage against the baseline PNG.
 
@@ -834,6 +939,35 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     cases = harvest_examples(examples_root)
     sample_data = find_sample_data(source)
     out.mkdir(parents=True, exist_ok=True)
+    # Render the untouched scripts with matplotlib first, in parallel child
+    # interpreters, so the gallery can show the reference beside our render.
+    # Drop references from an earlier run; a case that no longer renders or
+    # moved category would otherwise leave an orphan image behind.
+    for stale in out.glob("*-matplotlib.png"):
+        stale.unlink()
+    mpl_available = importlib.util.find_spec("matplotlib") is not None
+    references: dict[str, tuple[str, str | None]] = {}
+    if mpl_available:
+        renderable = [
+            case for case in cases
+            if case["snippet"] is not None
+            and case["category"] not in OUT_OF_SCOPE_CATEGORIES
+        ]
+
+        def render_reference(case: dict[str, object]) -> tuple[str, str, str | None]:
+            slug = str(case["id"]).replace("/", "_")
+            path = out / f"{slug}-matplotlib.png"
+            try:
+                error = render_matplotlib(str(case["path"]), path,
+                                          pathlib.Path(str(case["path"])).parent)
+            except Exception as exc:  # noqa: BLE001 - one broken case must not stop the gallery
+                error = f"{type(exc).__name__}: {exc}"
+            return slug, str(path), error
+
+        workers = min(4, os.cpu_count() or 1)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for slug, path, error in pool.map(render_reference, renderable):
+                references[slug] = (path, error)
     rows: list[str] = []
     statuses: dict[str, list[int]] = {}
     for case in cases:
@@ -861,16 +995,31 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
                 entry["nonwhite"] = _nonwhite_pixels(ours)
                 if entry["nonwhite"] is not None and entry["nonwhite"] < BLANK_THRESHOLD:
                     entry["status"] = "blank"
+        if case["snippet"] is not None and case["category"] not in OUT_OF_SCOPE_CATEGORIES:
+            reference = references.get(slug)
+            if reference is None:
+                entry["matplotlib_error"] = "matplotlib is not installed"
+            elif reference[1] is None:
+                entry["matplotlib"] = reference[0]
+            else:
+                entry["matplotlib_error"] = reference[1]
         counts = statuses.setdefault(str(case["category"]), [0, 0])
         counts[0] += 1
         counts[1] += entry["status"] == "rendered"
         view = (f'<img src="{html.escape(slug)}.png">' if entry.get("ours")
                 else f'<pre style="color:#c00">{html.escape(str(entry["error"]))}</pre>')
+        if entry.get("matplotlib"):
+            mpl_view = (f'<img src="{html.escape(pathlib.Path(str(entry["matplotlib"])).name)}">')
+        elif entry.get("matplotlib_error"):
+            mpl_view = (f'<pre style="color:#c00">'
+                        f'{html.escape(str(entry["matplotlib_error"]))}</pre>')
+        else:
+            mpl_view = "—"
         rows.append(
             f"<tr><td>{html.escape(str(case['category']))}<br>"
             f"<b>{html.escape(str(case['id']))}</b><br>"
             f"{html.escape(str(case['description']))}</td>"
-            f"<td>{view}</td><td>{entry['status']}</td></tr>")
+            f"<td>{view}</td><td>{mpl_view}</td><td>{entry['status']}</td></tr>")
         case.clear()
         case.update(entry)
         print(f"{case['id']:60} {entry['status']:9} {entry['error'] or ''}".rstrip())
@@ -890,7 +1039,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
         f"gaps, {bugs} bugs</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
-        "<th>status</th></tr>" + "".join(rows)
+        "<th>matplotlib</th><th>status</th></tr>" + "".join(rows)
         + "</table><style>img{max-width:420px}</style>", encoding="utf-8")
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")

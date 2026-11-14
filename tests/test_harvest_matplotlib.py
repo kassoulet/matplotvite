@@ -5,13 +5,15 @@ import json
 from pathlib import Path
 
 import matplotvite
+import pytest
 
 from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
                                       failure_status, find_examples_root,
                                       find_sample_data, find_tests_root, harvest,
                                       harvest_examples, harvest_examples_gallery,
                                       harvest_gallery, prepare_body,
-                                      prepare_example, render)
+                                      prepare_example, render,
+                                      render_matplotlib)
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
@@ -319,6 +321,43 @@ def test_render_returns_the_failure_reason(tmp_path):
     out = tmp_path / "out.png"
     assert render("raise ValueError('boom')\n", out) == "ValueError: boom"
     assert render("plt.plot([0, 1])\n", out) == "no figure saved"
+
+
+def test_render_matplotlib_saves_the_script_figure(tmp_path):
+    pytest.importorskip("matplotlib")
+    script = tmp_path / "demo.py"
+    # The usual gallery ending is show(), not savefig.
+    script.write_text("import matplotlib.pyplot as plt\n"
+                      "plt.plot([0, 1], [1, 0])\n"
+                      "plt.show()\n", encoding="utf-8")
+    out = tmp_path / "reference.png"
+    assert render_matplotlib(script, out) is None
+    assert out.exists()
+
+
+def test_render_matplotlib_reports_a_broken_script(tmp_path):
+    pytest.importorskip("matplotlib")
+    script = tmp_path / "broken.py"
+    script.write_text("raise ValueError('boom')\n", encoding="utf-8")
+    error = render_matplotlib(script, tmp_path / "reference.png")
+    assert error is not None and "ValueError: boom" in error
+
+
+def test_examples_gallery_adds_matplotlib_references(tmp_path):
+    pytest.importorskip("matplotlib")
+    root = tmp_path / "examples"
+    (root / "lines").mkdir(parents=True)
+    (root / "lines" / "demo.py").write_text(
+        "import matplotlib.pyplot as plt\nplt.plot([0, 1], [1, 0])\n",
+        encoding="utf-8")
+    out = tmp_path / "gallery"
+    assert harvest_examples_gallery(root, out, out / "manifest.json") == 0
+    case = json.loads((out / "manifest.json").read_text(encoding="utf-8"))[0]
+    assert case["matplotlib"].endswith("lines_demo-matplotlib.png")
+    assert (out / "lines_demo-matplotlib.png").exists()
+    index = (out / "index.html").read_text(encoding="utf-8")
+    assert "<th>matplotlib</th>" in index
+    assert "lines_demo-matplotlib.png" in index
 
 
 def test_render_resolves_stripped_submodule_names(tmp_path):
