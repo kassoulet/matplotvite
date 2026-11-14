@@ -503,11 +503,22 @@ pub(crate) fn render_svg(
     Ok((svg, bounds))
 }
 
+/// Figure images are embedded at their natural size, outside the panel canvas
+/// budget, so bound both their dimensions and the base64 bytes they add.
+const MAX_FIGURE_IMAGE_DIM: usize = 16_384;
+const MAX_FIGURE_IMAGE_PIXELS: usize = 1 << 26;
+const MAX_FIGURE_IMAGE_BYTES: usize = 64 * 1024 * 1024;
+
+fn base64_len(bytes: usize) -> usize {
+    bytes.div_ceil(3) * 4
+}
+
 /// SVG for images placed directly on the figure canvas. These sit under every
 /// panel, in figure pixel coordinates with the origin at the lower-left.
 fn figure_images_fragment(size: (u32, u32), images: &[FigureImage]) -> Result<String, String> {
     let mut out = String::new();
     let canvas_h = size.1 as i64;
+    let mut embedded_bytes = 0usize;
     for (data, cmap, vmin, vmax, opacity, _origin_upper, xo, yo) in images {
         let arr = data.as_array();
         let shape = arr.shape();
@@ -519,7 +530,31 @@ fn figure_images_fragment(size: (u32, u32), images: &[FigureImage]) -> Result<St
         if iw == 0 || ih == 0 {
             continue;
         }
+        if iw > MAX_FIGURE_IMAGE_DIM || ih > MAX_FIGURE_IMAGE_DIM {
+            return Err(format!(
+                "figimage dimensions ({ih}x{iw}) exceed maximum allowed dimension of \
+                 {MAX_FIGURE_IMAGE_DIM}px"
+            ));
+        }
+        let pixels = iw
+            .checked_mul(ih)
+            .ok_or_else(|| format!("figimage dimensions {ih}x{iw} overflow"))?;
+        if pixels > MAX_FIGURE_IMAGE_PIXELS {
+            return Err(format!(
+                "figimage pixel count ({pixels}) exceeds maximum allowed \
+                 ({MAX_FIGURE_IMAGE_PIXELS}px)"
+            ));
+        }
         let png = image_png_parts(arr, cmap, *vmin, *vmax, *opacity)?;
+        embedded_bytes = embedded_bytes
+            .checked_add(base64_len(png.len()))
+            .ok_or("figimage embedded payload size overflow")?;
+        if embedded_bytes > MAX_FIGURE_IMAGE_BYTES {
+            return Err(format!(
+                "figimage embedded base64 payload ({embedded_bytes} bytes) exceeds \
+                 maximum allowed ({MAX_FIGURE_IMAGE_BYTES} bytes)"
+            ));
+        }
         let x = *xo;
         let y = canvas_h - *yo - ih as i64;
         out.push_str(&format!(

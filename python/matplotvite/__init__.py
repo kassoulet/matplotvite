@@ -1122,6 +1122,11 @@ _FORMATS = ("png", "svg", "pdf", "webp")
 _COMPRESSIONS = ("fast", "default", "best")
 _MAX_CANVAS_DIM = 32768
 _MAX_CANVAS_AREA = 67108864  # 2^26 pixels (~256 MiB RGBA raw buffer limit)
+# Figure-level images are embedded in the SVG as base64 PNGs, so they need
+# their own size and payload budgets instead of only the canvas budget.
+_MAX_FIGIMAGE_DIM = 16384
+_MAX_FIGIMAGE_PIXELS = 67108864
+_MAX_FIGIMAGE_BYTES = 64 * 1024 * 1024
 _MAX_BINS = 4096
 _MAX_BIN_CELLS = 4_000_000
 _MAX_EDGES = 100_000
@@ -5523,6 +5528,12 @@ def _norm_aspect(a):
     return a
 
 
+def _figimage_payload_estimate(data):
+    """Upper bound on the base64 payload for one RGBA figure image."""
+    pixels = int(data.shape[0]) * int(data.shape[1])
+    return (pixels * 4 + 2) // 3 * 4
+
+
 def _as_image(X):
     a = np.asarray(X, dtype=np.float64)
     if a.ndim == 3 and a.shape[2] in (3, 4):
@@ -6703,6 +6714,27 @@ class Figure:
         opacity = 1.0 if alpha is None else float(alpha)
         if not np.isfinite(opacity):
             raise ValueError("alpha must be finite")
+        height, width = (int(v) for v in a.shape[:2])
+        if height < 1 or width < 1:
+            raise ValueError("figimage needs a non-empty array")
+        if height > _MAX_FIGIMAGE_DIM or width > _MAX_FIGIMAGE_DIM:
+            raise ValueError(
+                f"figimage dimensions ({height}x{width}) exceed maximum allowed "
+                f"dimension of {_MAX_FIGIMAGE_DIM}px"
+            )
+        if height * width > _MAX_FIGIMAGE_PIXELS:
+            raise ValueError(
+                f"figimage pixel count ({height * width}) exceeds maximum allowed "
+                f"({_MAX_FIGIMAGE_PIXELS}px)"
+            )
+        payload = sum(_figimage_payload_estimate(e["data"])
+                      for e in self._figure_images)
+        payload += _figimage_payload_estimate(a)
+        if payload > _MAX_FIGIMAGE_BYTES:
+            raise ValueError(
+                f"figimage embedded base64 payload ({payload} bytes) exceeds "
+                f"maximum allowed ({_MAX_FIGIMAGE_BYTES} bytes)"
+            )
         entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
                      alpha=float(np.clip(opacity, 0.0, 1.0)),
                      xo=int(xo), yo=int(yo))

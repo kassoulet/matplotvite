@@ -1341,6 +1341,25 @@ def test_figimage_places_rgb_pixels_at_figure_offsets():
     assert pixel(5, 5) == (255, 255, 255)
 
 
+def test_figimage_rejects_oversized_dimensions_pixels_and_payload(monkeypatch):
+    fig = plt.figure((0.4, 0.3), dpi=100)
+    image = np.zeros((10, 10, 3))
+
+    monkeypatch.setattr(plt, "_MAX_FIGIMAGE_DIM", 8)
+    with pytest.raises(ValueError, match="exceed maximum allowed dimension"):
+        fig.figimage(image)
+
+    monkeypatch.setattr(plt, "_MAX_FIGIMAGE_DIM", 100)
+    monkeypatch.setattr(plt, "_MAX_FIGIMAGE_PIXELS", 50)
+    with pytest.raises(ValueError, match="pixel count"):
+        fig.figimage(image)
+
+    monkeypatch.setattr(plt, "_MAX_FIGIMAGE_PIXELS", 1_000)
+    monkeypatch.setattr(plt, "_MAX_FIGIMAGE_BYTES", 100)
+    with pytest.raises(ValueError, match="embedded base64 payload"):
+        fig.figimage(image)
+
+
 def test_large_tick_labels_reserve_axis_label_space(tmp_path):
     def plotting_rect(size, name):
         fig, ax = plt.subplots(figsize=(4, 3))
