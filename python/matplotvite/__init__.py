@@ -5210,13 +5210,25 @@ class Axes:
             cum = -np.sum(np.stack(layers), axis=0) / 2.0
         else:
             cum = np.zeros(x.size)
+        data_lo = data_hi = 0.0
         for i, layer in enumerate(layers):
             if layer.size != x.size:
                 raise ValueError("x and y must have the same length")
             colour = cols[i % len(cols)] if cols else _CYCLE[i % len(_CYCLE)]
             lab = str(labels[i]) if i < len(labels) else ""
             self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha, label=lab)
+            data_lo = min(data_lo, float(cum.min()), float((cum + layer).min()))
+            data_hi = max(data_hi, float(cum.max()), float((cum + layer).max()))
             cum = cum + layer
+        # Like bars, a stack that stays on one side of zero meets the axis at
+        # y=0 instead of autoscaling a margin below it.
+        if baseline == "zero" and self.ylim is None:
+            lo, hi = self.get_ylim()
+            if data_lo >= 0.0:
+                lo = 0.0
+            elif data_hi <= 0.0:
+                hi = 0.0
+            self.set_ylim(lo, hi)
 
     def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
         """Staircase line through `x`/`y`; `where` picks the corner placement."""

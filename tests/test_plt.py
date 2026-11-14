@@ -2333,6 +2333,11 @@ def test_stackplot_layers(tmp_path):
     s = p.read_text(encoding="utf-8").upper()
     assert "#FF0000" in s and "#008000" in s
     assert s.count("<POLYGON") >= 2
+    # Positive stacks meet the axis at zero, like bars.
+    assert ax.get_ylim()[0] == 0.0
+    negative = plt.figure()
+    negative.gca().stackplot(x, [-1, -1, -1, -1])
+    assert negative.gca().get_ylim()[1] == 0.0
     ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
     with pytest.raises(NotImplementedError):
         ax.stackplot(x, [1, 1, 1, 1], baseline="wiggle")
