@@ -4297,3 +4297,13 @@ def test_offsetbox_containers_accept_artists(tmp_path):
     image.image.axes = ax
     ax.add_artist(AnnotationBbox(image, xy=(0.5, 0.5), xybox=(10, 10)))
     fig.savefig(tmp_path / "offsetbox.png")
+
+
+def test_axes_arrow_adds_a_fancy_arrow(tmp_path):
+    """`Axes.arrow` returns the data-space patch it added."""
+    fig, ax = plt.subplots()
+    arrow = ax.arrow(0.1, 0.2, 0.5, 0.3, width=0.02,
+                     head_width=0.08, length_includes_head=True)
+    assert arrow in ax.patches
+    assert arrow.get_xy().shape[0] == 7
+    fig.savefig(tmp_path / "arrow.png")

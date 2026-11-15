@@ -3823,6 +3823,12 @@ class Axes:
         kwargs.setdefault("origin", "upper")
         kwargs.setdefault("aspect", "equal")
         return self.imshow(Z, **kwargs)
+    def arrow(self, x, y, dx, dy, **kwargs):
+        """Add a data-space `FancyArrow` and return the patch."""
+        patch = FancyArrow(x, y, dx, dy, **kwargs)
+        self.add_patch(patch)
+        return patch
+
     def add_patch(self, patch):
         try:
             patch.axes = self
