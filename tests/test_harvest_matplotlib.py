@@ -385,6 +385,16 @@ def test_render_runs_in_a_scratch_directory(tmp_path, monkeypatch):
     assert not (tmp_path / "stray.png").exists()
 
 
+def test_render_hides_the_parent_command_line(tmp_path):
+    out = tmp_path / "out.png"
+    snippet = ("import sys\n"
+               "assert sys.argv == ['snippet.py'], sys.argv\n"
+               "plt.plot([0, 1], [1, 0])\n"
+               "plt.savefig(OUT, dpi=100)\n")
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
 def test_render_returns_the_failure_reason(tmp_path):
     out = tmp_path / "out.png"
     assert render("raise ValueError('boom')\n", out) == "ValueError: boom"

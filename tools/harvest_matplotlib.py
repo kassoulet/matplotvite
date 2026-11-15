@@ -736,8 +736,12 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     # the script's current directory.
     with tempfile.TemporaryDirectory() as scratch:
         previous = pathlib.Path.cwd()
+        previous_argv = list(sys.argv)
         try:
             os.chdir(scratch)
+            # Examples with an argparse tail expect to see no command-line
+            # arguments, as when the gallery script is run without options.
+            sys.argv = ["snippet.py"]
             if added_path is not None:
                 sys.path.insert(0, added_path)
             matplotvite.close("all")
@@ -766,6 +770,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
                 ignored.extend(ignored_calls)
             if added_path is not None:
                 sys.path.remove(added_path)
+            sys.argv = previous_argv
             os.chdir(previous)
 
 
