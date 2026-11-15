@@ -1150,6 +1150,21 @@ def test_axes_spy_returns_an_image_handle(tmp_path):
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_axes_table_builds_cells_and_renders(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots()
+    table = ax.table(cellText=[["a", "b"]], rowLabels=["r"],
+                     colLabels=["x", "y"], loc="upper left")
+    cells = table.get_celld()
+    assert cells[(0, 0)].get_text() == "a" and cells[(0, 1)].get_text() == "b"
+    assert cells[(0, -1)].get_text() == "r" and cells[(-1, 0)].get_text() == "x"
+    cells[(0, 0)].set_text_props(color="red")
+    assert plt.table(cellText=[["c"]]) is not None
+    out = tmp_path / "table.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_axes_tick_labels_are_text_like():
     plt.figure()
     ax = plt.gca()

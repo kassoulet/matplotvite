@@ -17,7 +17,7 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
-    "TextPath", "Sankey", "BboxImage", "AnchoredOffsetbox", "AnnotationBbox",
+    "TextPath", "Sankey", "BboxImage", "Table", "AnchoredOffsetbox", "AnnotationBbox",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
     "TextArea", "VPacker",
     "ScalarMappable",
@@ -27,7 +27,7 @@ __all__ = (
     "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "spines", "axis",
     "projections", "register_projection", "units",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
-    "path", "dates", "cbook", "mlab", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
+    "path", "dates", "cbook", "mlab", "font_manager", "ft2font", "FT2Font", "FontProperties", "CapStyle", "JoinStyle",
     "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
     "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
     "MonthLocator", "DayLocator", "HourLocator", "MinuteLocator", "SecondLocator",
@@ -51,6 +51,7 @@ __all__ = (
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "polar", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
+    "table",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "set_cmap", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
@@ -889,6 +890,98 @@ class _TextArt:
     def get_zorder(self): return getattr(self, "_zorder", 3)
 
     def get_bbox_patch(self): return self._bbox_patch
+
+
+class _TableCell:
+    """A text artist plus the geometry the table API exposes for a cell."""
+
+    def __init__(self, art):
+        self._art = art
+
+    def get_text(self): return self._art.get_text()
+    def set_text(self, text): self._art.set_text(text); return self
+
+    def set_text_props(self, **kwargs):
+        if "color" in kwargs:
+            self._art.set_color(kwargs["color"])
+        if "fontsize" in kwargs:
+            self._art.set_fontsize(kwargs["fontsize"])
+        return self
+
+    def get_visible(self): return getattr(self, "_visible", True)
+    def set_visible(self, visible): self._visible = bool(visible); return self
+    def get_facecolor(self): return getattr(self, "_facecolor", "none")
+    def set_facecolor(self, color): self._facecolor = color; return self
+    def get_edgecolor(self): return "black"
+    def get_linewidth(self): return 0.8
+
+
+class Table:
+    """A lightweight table drawn with axes-fraction text cells."""
+
+    def __init__(self, ax, cellText=None, cellColours=None, cellLoc="right",
+                 colWidths=None, rowLabels=None, rowColours=None, rowLoc="left",
+                 colLabels=None, colColours=None, colLoc="center", loc="bottom",
+                 bbox=None, edges="closed", **kwargs):
+        rows = [list(row) for row in (cellText or [])]
+        nrows = len(rows)
+        ncols = max((len(row) for row in rows), default=0)
+        row_labels = [] if rowLabels is None else list(rowLabels)
+        col_labels = [] if colLabels is None else list(colLabels)
+        label_rows = 1 if col_labels else 0
+        label_cols = 1 if row_labels else 0
+        total_rows, total_cols = nrows + label_rows, ncols + label_cols
+        if total_rows == 0 or total_cols == 0:
+            raise ValueError("table needs at least one cell or label")
+        if bbox is None:
+            if str(loc).startswith("bottom"):
+                bbox = (0.0, -0.35, 1.0, 0.30)
+            elif str(loc).startswith("upper"):
+                bbox = (0.0, 0.65, 1.0, 0.30)
+            else:
+                bbox = (0.0, 0.0, 1.0, 1.0)
+        x0, y0, width, height = (float(v) for v in bbox)
+        cell_w, cell_h = width / total_cols, height / total_rows
+        fontsize = float(kwargs.get("fontsize", 8.0))
+        self._cells = {}
+        for row in range(total_rows):
+            for col in range(total_cols):
+                value, face, align = "", None, cellLoc
+                if row < label_rows:
+                    if col >= label_cols and col_labels:
+                        value, align = str(col_labels[col - label_cols]), colLoc
+                        if colColours is not None and (col - label_cols) < len(colColours):
+                            face = colColours[col - label_cols]
+                    else:
+                        align = rowLoc
+                elif col < label_cols:
+                    if row_labels:
+                        value, align = str(row_labels[row - label_rows]), rowLoc
+                        if rowColours is not None and (row - label_rows) < len(rowColours):
+                            face = rowColours[row - label_rows]
+                else:
+                    r, c = row - label_rows, col - label_cols
+                    if r < len(rows) and c < len(rows[r]):
+                        value = rows[r][c]
+                    if cellColours is not None and r < len(cellColours):
+                        colors = cellColours[r]
+                        if c < len(colors):
+                            face = colors[c]
+                x = x0 + (col + 0.5) * cell_w
+                y = y0 + (total_rows - row - 0.5) * cell_h
+                box = dict(boxstyle="square,pad=0", facecolor=face if face is not None else "none",
+                           edgecolor="black" if edges != "open" else "none",
+                           linewidth=0.8)
+                art = ax.text(x, y, value, transform=ax.transAxes,
+                              ha=align, va="center", fontsize=fontsize, bbox=box)
+                self._cells[(row - label_rows, col - label_cols)] = _TableCell(art)
+
+    def get_celld(self): return dict(self._cells)
+    def get_cell(self, row, col): return self._cells[(row, col)]
+    def auto_set_font_size(self, *args, **kwargs): return None
+    def set_fontsize(self, size):
+        for cell in self._cells.values():
+            cell._art.set_fontsize(size)
 
 
 class Text(_TextArt):
@@ -4026,6 +4119,10 @@ class Axes:
         kwargs.setdefault("origin", "upper")
         kwargs.setdefault("aspect", "equal")
         return self.imshow(Z, **kwargs)
+
+    def table(self, cellText=None, cellColours=None, **kwargs):
+        """Add a table to the Axes, as `Axes.table`."""
+        return Table(self, cellText=cellText, cellColours=cellColours, **kwargs)
 
     def spy(self, Z, precision=0, marker=None, markersize=None,
             aspect="equal", origin="upper", **kwargs):
@@ -8211,6 +8308,8 @@ def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
 def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
 def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
 def matshow(A, fignum=None, **kwargs): return gca().matshow(A, **kwargs)
+def table(cellText=None, cellColours=None, **kwargs):
+    return gca().table(cellText=cellText, cellColours=cellColours, **kwargs)
 def spy(Z, precision=0, marker=None, markersize=None, aspect="equal",
         origin="upper", **kwargs):
     return gca().spy(Z, precision=precision, marker=marker,
@@ -9669,8 +9768,22 @@ def _findfont(prop=None, **kwargs):
     return "DejaVuSans.ttf"
 
 
+class FT2Font:
+    """Small font-inspection stand-in backed by the bundled character map."""
+
+    def __init__(self, filename):
+        self.fname = str(filename)
+
+    def get_charmap(self):
+        return {code: code for code in range(0x20, 0x100)}
+
+    def get_glyph_name(self, glyph_index):
+        return f"glyph{glyph_index}"
+
+
 font_manager = _Namespace(FontProperties=FontProperties, findfont=_findfont,
                           fontManager=_Namespace(addfont=lambda path: None))
+ft2font = _Namespace(FT2Font=FT2Font)
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)
