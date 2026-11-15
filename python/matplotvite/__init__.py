@@ -8519,10 +8519,12 @@ class _BoundaryNorm(_Normalize):
 
 
 class _ListedColormap:
-    def __init__(self, colors, name="from_list"):
+    def __init__(self, colors, name="from_list", over=None, under=None, bad=None):
         self.colors = [_norm_color(c) for c in colors]
         self.name, self.N = str(name), len(self.colors)
-        self._bad = self._under = self._over = None
+        self._bad = _norm_color(bad) if bad is not None else None
+        self._under = _norm_color(under) if under is not None else None
+        self._over = _norm_color(over) if over is not None else None
 
     @classmethod
     def from_list(cls, name, colors, N=256):

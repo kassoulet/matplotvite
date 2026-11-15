@@ -4071,6 +4071,9 @@ def test_from_levels_and_colors_builds_a_discrete_norm():
     cmap, norm = plt.colors.from_levels_and_colors(
         [0, 1, 2, 3], ["red", "green", "blue"])
     assert cmap.colors == ["#ff0000", "#008000", "#0000ff"]
+    extended = plt.colors.ListedColormap(
+        ["red", "green"], over="#595959", under="#bfbfbf")
+    assert extended._over == "#595959" and extended._under == "#bfbfbf"
     assert norm([0.5, 1.5, 2.5]).tolist() == [0, 1, 2]
     plt.rcdefaults()
     plt.figure()
