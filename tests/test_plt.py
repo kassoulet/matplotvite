@@ -4386,3 +4386,25 @@ def test_percent_and_engineering_tick_formatters(tmp_path):
     ax.xaxis.set_major_formatter("{x} km")
     ax.plot([0, 1], [0, 1])
     fig.savefig(tmp_path / "formatters.png")
+
+
+def test_date_locator_helpers_and_epoch():
+    """Date helpers cover recurrence fallbacks, ranges and the epoch shim."""
+    import datetime
+
+    from matplotvite import dates
+
+    start = datetime.datetime(2000, 3, 2)
+    values = dates.drange(start, start + datetime.timedelta(hours=12),
+                          datetime.timedelta(hours=6))
+    assert len(values) == 3
+    rule = dates.rrulewrapper(dates.YEARLY, interval=5)
+    locator = dates.RRuleLocator(rule)
+    assert locator.tick_values(
+        dates.date2num(start),
+        dates.date2num(start + datetime.timedelta(days=365))).size > 0
+    formatter = dates.AutoDateFormatter(locator)
+    assert formatter(dates.date2num(start)) == "2000-03-02"
+    dates.set_epoch("2000-01-01")
+    assert dates.get_epoch() == "2000-01-01"
+    dates.set_epoch("1970-01-01")

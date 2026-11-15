@@ -29,6 +29,12 @@ __all__ = (
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
     "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
+    "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
+    "MonthLocator", "DayLocator", "HourLocator", "MinuteLocator", "SecondLocator",
+    "MicrosecondLocator", "WeekdayLocator", "RRuleLocator", "rrulewrapper", "drange",
+    "ConciseDateFormatter", "ConciseDateConverter",
+    "MO", "TU", "WE", "TH", "FR", "SA", "SU", "YEARLY", "MONTHLY", "WEEKLY",
+    "DAILY", "HOURLY", "MINUTELY", "SECONDLY",
     "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
@@ -8891,6 +8897,31 @@ class _DateFormatter:
     def get_offset(self): return ""
 
 
+class _AutoDateFormatter:
+    """Date formatter that chooses a readable format from the tick value."""
+
+    def __init__(self, locator=None, tz=None, formats=None, offset_formats=None,
+                 zero_formats=None, show_offset=True):
+        self.locator = locator
+        self.tz = tz
+        self.formats = formats
+        self.offset_formats = offset_formats
+        self.zero_formats = zero_formats
+        self.show_offset = show_offset
+
+    def __call__(self, x, pos=None):
+        dt = _date_from_num(float(x))
+        if dt.hour or dt.minute or dt.second or dt.microsecond:
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%Y-%m-%d")
+
+    def format_ticks(self, values):
+        return [self(value, i) for i, value in enumerate(values)]
+
+    def get_offset(self): return ""
+    def set_axis(self, axis): self.axis = axis
+
+
 class _ConciseDateFormatter:
     """Date formatter that picks a compact unit based on the tick's resolution."""
 
@@ -8965,6 +8996,32 @@ class _AutoDateLocator:
     def set_axis(self, axis): self.axis = axis
 
 
+class _rrulewrapper:
+    """Store recurrence-rule arguments; date ticks use the calendar fallback."""
+
+    def __init__(self, freq, **kwargs):
+        self.freq = freq
+        self.kwargs = kwargs
+
+
+class _RRuleLocator(_AutoDateLocator):
+    """Recurrence-rule locator, backed by the calendar locator."""
+
+    def __init__(self, rule=None, *args, **kwargs):
+        super().__init__()
+        self.rule = rule
+
+
+def _drange(dstart, dend, delta):
+    """Inclusive sequence of dates from `dstart` to `dend` by `delta`."""
+    out = []
+    current = dstart
+    while current <= dend:
+        out.append(current)
+        current = current + delta
+    return out
+
+
 class _CalendarLocator:
     """Ticks aligned to a calendar unit: years, months, days or smaller.
 
@@ -8975,6 +9032,9 @@ class _CalendarLocator:
     unit = "day"
 
     def __init__(self, interval=1, bymonth=None, bymonthday=None, **kwargs):
+        if isinstance(interval, (list, tuple, range, np.ndarray)):
+            self.byhour = list(interval)
+            interval = 1
         self.interval = max(int(interval), 1)
         self.bymonth = (list(bymonth) if isinstance(bymonth, (list, tuple))
                         else ([bymonth] if bymonth is not None else None))
@@ -9249,14 +9309,46 @@ FixedFormatter = _FixedFormatter
 PercentFormatter = _PercentFormatter
 EngFormatter = _EngFormatter
 
+MO, TU, WE, TH, FR, SA, SU = range(7)
+YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY, SECONDLY = range(7)
+AutoDateLocator = _AutoDateLocator
+AutoDateFormatter = _AutoDateFormatter
+DateFormatter = _DateFormatter
+YearLocator = _YearLocator
+MonthLocator = _MonthLocator
+DayLocator = _DayLocator
+HourLocator = _HourLocator
+MinuteLocator = _MinuteLocator
+SecondLocator = _SecondLocator
+MicrosecondLocator = _SecondLocator
+WeekdayLocator = _DayLocator
+RRuleLocator = _RRuleLocator
+rrulewrapper = _rrulewrapper
+drange = _drange
+ConciseDateFormatter = _ConciseDateFormatter
+ConciseDateConverter = _ConciseDateConverter
+
+_epoch = {"value": "1970-01-01T00:00:00"}
+
+
+def _set_epoch(epoch): _epoch["value"] = str(epoch)
+def _get_epoch(): return _epoch["value"]
+
 dates = _Namespace(
     date2num=_date_to_num, num2date=_num_to_date, DateFormatter=_DateFormatter,
-    AutoDateLocator=_AutoDateLocator, YearLocator=_YearLocator,
-    MonthLocator=_MonthLocator, DayLocator=_DayLocator, HourLocator=_HourLocator,
-    MinuteLocator=_MinuteLocator, SecondLocator=_SecondLocator,
-    WeekdayLocator=_DayLocator, MicrosecondLocator=_SecondLocator,
+    AutoDateLocator=_AutoDateLocator, AutoDateFormatter=_AutoDateFormatter,
+    YearLocator=_YearLocator, MonthLocator=_MonthLocator, DayLocator=_DayLocator,
+    HourLocator=_HourLocator, MinuteLocator=_MinuteLocator,
+    SecondLocator=_SecondLocator, WeekdayLocator=_DayLocator,
+    MicrosecondLocator=_SecondLocator, RRuleLocator=_RRuleLocator,
+    rrulewrapper=_rrulewrapper, drange=_drange,
     ConciseDateFormatter=_ConciseDateFormatter,
     ConciseDateConverter=_ConciseDateConverter,
+    MO=MO, TU=TU, WE=WE, TH=TH, FR=FR, SA=SA, SU=SU,
+    YEARLY=YEARLY, MONTHLY=MONTHLY, WEEKLY=WEEKLY, DAILY=DAILY,
+    HOURLY=HOURLY, MINUTELY=MINUTELY, SECONDLY=SECONDLY,
+    _reset_epoch_test_example=lambda: None,
+    set_epoch=_set_epoch, get_epoch=_get_epoch,
 )
 mdates = dates
 
