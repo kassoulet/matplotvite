@@ -798,6 +798,44 @@ def test_colorbar_uses_nice_ticks():
     assert not re.search(r">\s*0\.5\s*</text>", svg)
 
 
+def test_gallery_path_patch_and_subfigure_shims():
+    bbox = plt.mtransforms.Bbox.from_bounds(0.0, 0.0, 1.0, 1.0)
+    path = plt.Path([[0.0, 0.0], [2.0, 2.0]])
+    assert path.intersects_bbox(bbox)
+    assert plt.Path.NUM_VERTICES_FOR_CODE[plt.Path.CURVE4] == 3
+    compound = plt.Path.make_compound_path_from_polys(
+        np.array([[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]]))
+    assert len(compound.vertices) == 5
+
+    ellipse = plt.Ellipse((0.0, 0.0), 4.0, 2.0, angle=30.0)
+    assert len(ellipse.get_co_vertices()) == 2
+
+    fig, ax = plt.subplots()
+    pie = ax.pie([1.0, 2.0])
+    assert pie.wedges[0].theta2 > pie.wedges[0].theta1
+    scatter = ax.scatter([0.0, 1.0], [1.0, 0.0], c=[0.0, 1.0])
+    handles, labels = scatter.legend_elements(num=2)
+    assert len(handles) == len(labels) == 2
+    scatter.set_urls(["https://example.com", None])
+    assert scatter.get_urls()[0] == "https://example.com"
+    assert scatter.cmap.name == "viridis"
+    patch = plt.PathPatch(path)
+    patch.sticky_edges.y.append(0)
+    ax.add_patch(patch)
+    ax.set_rasterization_zorder(0)
+    ax.ticklabel_format(useOffset=False)
+    ax.xaxis.get_minor_locator().set_params(subs=[2, 3])
+
+    subfigs = fig.subfigures(1, 2)
+    assert subfigs[0].subfigures(1, 1).figure is fig
+    assert ax in fig.findobj(plt.Axes)
+    annotation = ax.annotate("note", (0.5, 0.5))
+    assert annotation.get_bbox_patch() is not None
+    assert annotation.arrow_patch is not None
+    assert [style.name for style in plt.CapStyle] == ["butt", "round", "projecting"]
+    assert plt.HandlerTuple(ndivide=None) is not None
+
+
 def test_colorbar_exposes_formatted_tick_labels():
     fig, ax = plt.subplots()
     image = ax.imshow(np.arange(12.0).reshape(3, 4))

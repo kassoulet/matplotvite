@@ -17,7 +17,8 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
-    "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "AnchoredOffsetbox", "AnnotationBbox",
+    "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "OffsetFrom", "AnchoredOffsetbox", "AnnotationBbox",
+    "HandlerTuple", "HandlerLineCollection",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
     "TextArea", "VPacker",
     "ScalarMappable",
@@ -628,6 +629,8 @@ class Path:
     CURVE3 = 3
     CURVE4 = 4
     CLOSEPOLY = 79
+    NUM_VERTICES_FOR_CODE = {STOP: 1, MOVETO: 1, LINETO: 1, CURVE3: 2,
+                             CURVE4: 3, CLOSEPOLY: 1}
 
     def __init__(self, vertices, codes=None, **kwargs):
         self.vertices = np.asarray(vertices, dtype=float).reshape(-1, 2)
@@ -648,6 +651,34 @@ class Path:
         if len(self.vertices) == 0:
             return []
         return [np.asarray(self.vertices, dtype=float)]
+
+    def intersects_bbox(self, bbox, filled=True):
+        """Whether any segment of the path touches `bbox`."""
+        points = self.vertices
+        if len(points) == 0:
+            return False
+        for x, y in points:
+            if bbox.contains(x, y):
+                return True
+        for start, end in zip(points[:-1], points[1:]):
+            if _segment_intersects_bbox(start, end, bbox):
+                return True
+        return False
+
+    @classmethod
+    def make_compound_path_from_polys(cls, XY):
+        """Build a compound path from an array of polygons, `(n, sides, 2)`."""
+        polys = np.asarray(XY, dtype=float)
+        if polys.ndim != 3 or polys.shape[2] != 2:
+            raise ValueError("XY must have shape (n, sides, 2)")
+        vertices, codes = [], []
+        for poly in polys:
+            vertices.extend(poly)
+            vertices.append((0.0, 0.0))
+            codes.extend([cls.MOVETO] + [cls.LINETO] * (len(poly) - 1)
+                         + [cls.CLOSEPOLY])
+        return cls(np.asarray(vertices, dtype=float),
+                   np.asarray(codes, dtype=np.uint8))
 
     def __copy__(self):
         clone = object.__new__(type(self))
@@ -811,6 +842,9 @@ class _Transform:
     def __init__(self, *args, **kwargs):
         self._args, self._kwargs = args, kwargs
 
+    linthresh = 1.0
+    linscale = 1.0
+
     def transform(self, points): return np.asarray(points, dtype=np.float64)
 
     def __add__(self, other): return self
@@ -861,6 +895,27 @@ class _FigureImage:
         return self
 
 
+def _segment_intersects_bbox(start, end, bbox):
+    x0, y0 = float(start[0]), float(start[1])
+    x1, y1 = float(end[0]), float(end[1])
+    dx, dy = x1 - x0, y1 - y0
+    lo, hi = 0.0, 1.0
+    for p, q in ((-dx, x0 - bbox.x0), (dx, bbox.x1 - x0),
+                 (-dy, y0 - bbox.y0), (dy, bbox.y1 - y0)):
+        if p == 0.0:
+            if q < 0.0:
+                return False
+            continue
+        t = q / p
+        if p < 0.0:
+            lo = max(lo, t)
+        else:
+            hi = min(hi, t)
+        if lo > hi:
+            return False
+    return True
+
+
 class _TextArt:
     """Return value for text creation; carries the mutable bbox patch."""
 
@@ -890,6 +945,9 @@ class _TextArt:
     def get_zorder(self): return getattr(self, "_zorder", 3)
 
     def get_bbox_patch(self): return self._bbox_patch
+    def draggable(self, *args, **kwargs): return None
+    def get_window_extent(self, renderer=None):
+        return _Bbox(0.0, 0.0, 1.0, 1.0)
 
 
 class _TableCell:
@@ -984,6 +1042,13 @@ class Table:
             cell._art.set_fontsize(size)
 
 
+class OffsetFrom:
+    """Text offset anchored to another artist's bbox; only the values are kept."""
+
+    def __init__(self, artist, ref_coord, unit="points"):
+        self.artist, self.ref_coord, self.unit = artist, ref_coord, unit
+
+
 class Text(_TextArt):
     """Constructible text artist used by code that imports `matplotlib.text`."""
 
@@ -996,6 +1061,9 @@ class Text(_TextArt):
     def set_text(self, text): self._text = str(text); return self
     def get_position(self): return (self._x, self._y)
     def set_position(self, xy): self._x, self._y = xy; return self
+    def set_figure(self, figure): return self
+    def set_transform(self, transform): return self
+    def draw(self, renderer): return None
 
 
 class _TextLabel:
@@ -1493,10 +1561,14 @@ def _output_format(filepath, format):
 class _Wedge:
     """Placeholder wedge returned by `pie`."""
 
-    def __init__(self, color=None):
+    def __init__(self, color=None, center=(0.0, 0.0), r=1.0,
+                 theta1=0.0, theta2=360.0):
         self._color = color
         self._gid = None
         self._zorder = 1
+        self.center = (float(center[0]), float(center[1]))
+        self.r = float(r)
+        self.theta1, self.theta2 = float(theta1), float(theta2)
 
     def set_facecolor(self, c):
         self._color = str(c)
@@ -1516,6 +1588,17 @@ class _Wedge:
         if "ec" in kwargs or "edgecolor" in kwargs:
             self.set_edgecolor(kwargs.get("ec", kwargs.get("edgecolor")))
         return self
+
+
+class HandlerTuple:
+    """Legend handler that packs tuple entries into one row; drawing is a no-op."""
+
+    def __init__(self, ndivide=None, pad=None, **kwargs):
+        self.ndivide, self.pad, self.kwargs = ndivide, pad, kwargs
+
+
+class HandlerLineCollection:
+    def __init__(self, **kwargs): self.kwargs = kwargs
 
 
 class _PieResult:
@@ -1646,6 +1729,8 @@ class _StemContainer:
 class _BarContainer(list):
     """List of `_BarHandle`, matching matplotlib's `BarContainer`."""
 
+    __hash__ = object.__hash__
+
     def __init__(self, handles, label=""):
         super().__init__(handles)
         self.label = label
@@ -1712,6 +1797,25 @@ class _ScatterHandle:
     def set_alpha(self, alpha):
         self._e["alpha"] = float(alpha)
         return self
+
+    @property
+    def cmap(self): return get_cmap(self._e["cmap"])
+
+    def set_urls(self, urls): self._urls = list(urls)
+    def get_urls(self): return getattr(self, "_urls", None)
+
+    def legend_elements(self, prop="colors", num="auto", alpha=None, **kwargs):
+        """Proxy handles and labels for a numeric color or size scale."""
+        values = self._e["values"] if prop == "colors" else self._e["sizes"]
+        if values is None:
+            values = np.arange(np.asarray(self._e["x"]).size)
+        vals = np.asarray(values, dtype=float).ravel()
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            return [], []
+        count = min(5, vals.size) if num == "auto" else max(1, int(num))
+        picks = vals[np.linspace(0, vals.size - 1, count).astype(int)]
+        return [self] * picks.size, [f"{value:g}" for value in picks]
 
     def get_array(self): return self._e["values"]
     def get_cmap(self): return self._e["cmap"]
@@ -1966,10 +2070,15 @@ def _color_list(value):
     return []
 
 
+class _StickyEdges:
+    def __init__(self): self.x, self.y = [], []
+
+
 class Patch:
     """Base class for matplotlib-style patches accepted by `add_patch`."""
 
     def __init__(self, **kwargs):
+        self.sticky_edges = _StickyEdges()
         fill = kwargs.pop("fill", True)
         color = kwargs.pop("color", None)
         self._facecolor = None if fill is False else (
@@ -2184,6 +2293,14 @@ class Ellipse(Patch):
     def set_width(self, width): self._width = float(width)
     def set_height(self, height): self._height = float(height)
     def set_angle(self, angle): self.angle = float(angle)
+
+    def get_co_vertices(self):
+        """The two rotated minor-axis endpoints, as Matplotlib exposes them."""
+        a = np.deg2rad(self.angle)
+        dx = 0.5 * self._width * np.cos(a)
+        dy = 0.5 * self._width * np.sin(a)
+        return [(self._center[0] - dx, self._center[1] - dy),
+                (self._center[0] + dx, self._center[1] + dy)]
 
     def get_xy(self):
         t = np.linspace(0.0, 2.0 * np.pi, 73)
@@ -2803,6 +2920,14 @@ class Line2D:
                              linestyle=kwargs.get("linestyle", kwargs.get("ls", "-")),
                              linewidth=kwargs.get("linewidth", kwargs.get("lw", 1.5)))
         self._series = series
+        self._axes = None
+        self._gid = None
+
+    @property
+    def axes(self): return self._axes
+
+    @axes.setter
+    def axes(self, value): self._axes = value
 
     def __getitem__(self, key):
         return self._series[key]
@@ -2861,10 +2986,16 @@ class Line2D:
 
     def set_dash_capstyle(self, style): return self
     def set_solid_capstyle(self, style): return self
+    def set_dash_joinstyle(self, style): return self
+    def set_solid_joinstyle(self, style): return self
 
     def get_xdata(self): return self._series["x"]
     def get_ydata(self): return self._series["y"]
     def get_data(self, *args, **kwargs): return (self.get_xdata(), self.get_ydata())
+    def set_gid(self, gid): self._gid = gid
+    def get_gid(self): return self._gid
+    def set_figure(self, figure): return self
+    def draw(self, renderer): return None
     def set_xdata(self, x): self._series["x"] = _as_f64(x)
     def set_ydata(self, y): self._series["y"] = _as_f64(y)
 
@@ -3106,6 +3237,7 @@ class _Axis:
         self.offsetText = _TextLabel()
         self._visible = True
         self._locator = None
+        self._minor_locator = None
         self._formatter = None
 
     def _labels(self):
@@ -3179,7 +3311,13 @@ class _Axis:
         else:
             self._parent._ylocator = locator
             self._parent._yticks = self._parent._yticklabels = None
-    def set_minor_locator(self, locator): return None
+    def set_minor_locator(self, locator):
+        self._minor_locator = locator
+        if hasattr(locator, "set_axis"):
+            locator.set_axis(self)
+    def get_minor_locator(self): return self._minor_locator or _LocatorHandle()
+    def minorticks_on(self): self._parent.minorticks_on()
+    def minorticks_off(self): self._parent.minorticks_off()
     def set_major_formatter(self, formatter): self._formatter = formatter
     def set_minor_formatter(self, formatter): return None
     def get_major_locator(self): return self._locator or _LocatorHandle()
@@ -4180,6 +4318,7 @@ class Axes:
         return collection
     def add_line(self, line):
         if isinstance(line, Line2D):
+            line.axes = self
             self.lines.append(line._series)
         else:
             self.artists.append(line)
@@ -5439,6 +5578,9 @@ class Axes:
         self.annotations.append((_mathtext(text, family), (float(xy[0]), float(xy[1])),
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size, family or ""))
+        art = _TextArt(str(text))
+        art.arrow_patch = _TextArt()
+        return art
 
     def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
                 vmin=None, vmax=None, data=None, norm=None, **kwargs):
@@ -5965,6 +6107,9 @@ class Axes:
 
     def minorticks_on(self): self.minor_ticks = True
     def minorticks_off(self): self.minor_ticks = False
+    def ticklabel_format(self, **kwargs): return None
+    def set_rasterization_zorder(self, zorder):
+        self._rasterization_zorder = None if zorder is None else float(zorder)
 
     def eventplot(self, positions, orientation="horizontal", lineoffsets=0.0, linelengths=1.0,
                   colors=None, linestyles=None, linewidths=None, **kwargs):
@@ -6194,7 +6339,9 @@ class Axes:
             self.bands.append(_band(np.concatenate([[ex], ex + np.cos(arc)]),
                                     np.concatenate([[ey], ey + np.sin(arc)]),
                                     cols[i % len(cols)], None))
-            wedges.append(_Wedge(cols[i % len(cols)]))
+            wedges.append(_Wedge(cols[i % len(cols)], center=(ex, ey),
+                                 theta1=float(np.degrees(a0)),
+                                 theta2=float(np.degrees(a1))))
             if labels is not None:
                 self.text(ex + 1.1 * np.cos(mid), ey + 1.1 * np.sin(mid), labels[i],
                           ha="center", va="center")
@@ -6771,6 +6918,10 @@ def _plot_args(args, fmt):
 # Marker characters the renderer understands; keep in sync with
 # `marker_shape` in src/draw.rs and `_STEM_MARKERS` below.
 _MARKERS = set("os^v<>Dx+.*hHpPXd8|_1234")
+Line2D.markers = {**{marker: "marker" for marker in sorted(_MARKERS)},
+                  "None": "nothing", "none": "nothing", " ": "nothing", "": "nothing"}
+Line2D.filled_markers = tuple("osD^v<>pP*hHX")
+Line2D.fillStyles = ("full", "left", "right", "bottom", "top", "none")
 
 
 class MarkerStyle:
@@ -8033,22 +8184,25 @@ class Figure:
                      xo=int(xo), yo=int(yo))
         self._figure_images.append(entry)
         return _FigureImage(entry)
-    def add_subfigure(self, *args, **kwargs):
+    def add_subfigure(self, spec=None, **kwargs):
+        if isinstance(spec, SubplotSpec):
+            return _SubFigure(self, spec.get_position().bounds)
         return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
 
     def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
         """Create independent subfigure views that place their own axes."""
-        nrows, ncols = _validate_grid_shape(nrows, ncols)
-        if nrows * ncols == 1:
-            return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
-        out = np.empty((nrows, ncols), dtype=object)
-        for row in range(nrows):
-            for col in range(ncols):
-                out[row, col] = _SubFigure(
-                    self, (col / ncols, 1.0 - (row + 1) / nrows,
-                           1.0 / ncols, 1.0 / nrows))
-        return out.squeeze() if squeeze else out
+        return _subfigure_array(self, nrows, ncols, squeeze=squeeze, **kwargs)
     def get_children(self): return list(self.axes)
+
+    def findobj(self, match=None, include_self=True):
+        """Return children accepted by `match`, a class or predicate."""
+        candidates = ([self] if include_self else []) + list(self.axes) + list(self.artists)
+        if match is None:
+            return candidates
+        if isinstance(match, type):
+            return [item for item in candidates if isinstance(item, match)]
+        return [item for item in candidates if match(item)]
+
     def get_tightbbox(self, renderer=None, *args, **kwargs): return None
     def set_tight_layout(self, value): return None
     def get_tight_layout(self): return False
@@ -8209,6 +8363,24 @@ class Figure:
         return None
 
 
+def _subfigure_array(figure, nrows=1, ncols=1, squeeze=True, bounds=(0.0, 0.0, 1.0, 1.0),
+                     width_ratios=None, height_ratios=None, wspace=None, hspace=None,
+                     **kwargs):
+    """Lay out subfigures on a grid confined to `bounds`."""
+    nrows, ncols = _validate_grid_shape(nrows, ncols)
+    left, bottom, width, height = bounds
+    gs = GridSpec(nrows, ncols, figure=figure, left=left, right=left + width,
+                  bottom=bottom, top=bottom + height, wspace=wspace, hspace=hspace,
+                  width_ratios=width_ratios, height_ratios=height_ratios)
+    out = np.empty((nrows, ncols), dtype=object)
+    for row in range(nrows):
+        for col in range(ncols):
+            out[row, col] = _SubFigure(figure, gs._bounds((row, row), (col, col)))
+    if nrows * ncols == 1 and squeeze:
+        return out[0, 0]
+    return out.squeeze() if squeeze else out
+
+
 class _SubFigure:
     """A rectangular view of a figure with its own subplot grid."""
 
@@ -8244,6 +8416,15 @@ class _SubFigure:
         gs = GridSpec(1, 1, figure=self.figure, left=x, right=x + width,
                       bottom=y, top=y + height)
         return self.figure.add_subplot(gs[0])
+
+    def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
+        return _subfigure_array(self.figure, nrows, ncols, squeeze=squeeze,
+                                bounds=self._bounds, **kwargs)
+
+    def add_subfigure(self, spec=None, **kwargs):
+        if isinstance(spec, SubplotSpec):
+            return _SubFigure(self.figure, spec.get_position().bounds)
+        return _SubFigure(self.figure, self._bounds)
 
     def colorbar(self, *args, **kwargs): return self.figure.colorbar(*args, **kwargs)
     def text(self, *args, **kwargs): return self.figure.text(*args, **kwargs)
@@ -9297,16 +9478,54 @@ class FontProperties:
     set_file = lambda self, value: setattr(self, "_fname", value)
 
 
-class CapStyle(str):
-    butt = "butt"
-    round = "round"
-    projecting = "projecting"
+class _StyleValue(str):
+    def __new__(cls, value, name):
+        obj = super().__new__(cls, value)
+        obj.name = name
+        return obj
 
 
-class JoinStyle(str):
-    miter = "miter"
-    round = "round"
-    bevel = "bevel"
+class _StyleMeta(type):
+    def __iter__(cls): return iter(cls._members())
+    def __len__(cls): return len(cls._members())
+
+
+class CapStyle(str, metaclass=_StyleMeta):
+    butt = _StyleValue("butt", "butt")
+    round = _StyleValue("round", "round")
+    projecting = _StyleValue("projecting", "projecting")
+
+    @classmethod
+    def _members(cls): return (cls.butt, cls.round, cls.projecting)
+
+    @staticmethod
+    def demo():
+        _, ax = subplots(figsize=(5, 2.5))
+        for row, style in enumerate(("butt", "round", "projecting")):
+            line, = ax.plot([0.2, 0.8], [row, row], linewidth=12)
+            line.set_solid_capstyle(style)
+        ax.set_xlim(0.0, 1.0)
+        ax.set_ylim(-0.5, 2.5)
+        ax.set_axis_off()
+
+
+class JoinStyle(str, metaclass=_StyleMeta):
+    miter = _StyleValue("miter", "miter")
+    round = _StyleValue("round", "round")
+    bevel = _StyleValue("bevel", "bevel")
+
+    @classmethod
+    def _members(cls): return (cls.miter, cls.round, cls.bevel)
+
+    @staticmethod
+    def demo():
+        _, ax = subplots(figsize=(5, 2.5))
+        for row, style in enumerate(("miter", "round", "bevel")):
+            line, = ax.plot([0.1, 0.4, 0.7], [row, row + 0.8, row], linewidth=12)
+            line.set_solid_joinstyle(style)
+        ax.set_xlim(0.0, 1.0)
+        ax.set_ylim(-0.5, 2.8)
+        ax.set_axis_off()
 
 
 def same_color(*colors):

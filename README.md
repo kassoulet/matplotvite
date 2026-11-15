@@ -310,8 +310,10 @@ quiver of arrows. Shims that cannot affect the renderer emit a one-time
 
 ### Not supported
 
-- `streamplot`, polar plots, 3-D axes, `Axes.table`, tripcolor/tricontour, and
-  other specialised matplotlib modules
+- 3-D axes, tripcolor/tricontour, `NonUniformImage`, custom `matplotlib.scale`
+  classes, and other specialised matplotlib modules
+- `stackplot(baseline="wiggle")` and horizontal `stairs`
+- EPS output, and SVG element gids used by post-processing examples
 - a pandas `.plot()` backend (planned for 0.7)
 - interactive display (planned for a future GPUI-based version)
 
@@ -363,7 +365,10 @@ python tools/harvest_seaborn.py --out dist/seaborn-gallery
 ```
 
 Each writes an `index.html` and a `manifest.json`; the baseline gallery copies its
-reference images alongside the page so it stays browsable when moved. The pixel
+reference images alongside the page so it stays browsable when moved. On the
+Matplotlib 3.11.2 checkout used here, the examples gallery renders **377 of 507**
+scripts: 19 still need API, 106 are interactive or environment-specific, 2 are
+blank, and 3 hit the known EPS/SVG-gid limitations above. The pixel
 metrics read PNGs through Matplotlib, so without it the corpus gallery still
 renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are
 rasterised at the rendered PNG's size when `pypdfium2`, `cairosvg`, and Ghostscript

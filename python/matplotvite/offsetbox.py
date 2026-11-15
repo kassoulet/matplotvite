@@ -359,6 +359,14 @@ class Shadow:
 
     def draw(self, renderer=None): return None
 
+    def set_gid(self, gid): self._gid = gid
+
+    def get_gid(self): return getattr(self, "_gid", None)
+
+    def set_zorder(self, zorder): self._zorder = zorder
+
+    def get_zorder(self): return getattr(self, "_zorder", 1)
+
     def get_visible(self): return True
 
     def _add_to_axes(self, ax):

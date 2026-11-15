@@ -1,15 +1,15 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
-Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
+Scope: `main` after the compatibility-shim, table, polar and gallery-reference changes. Closed findings have been removed; this file lists what is still open. The examples gallery was regenerated on 15 Nov with the current build.
 
-Results on this tree: Python suite 426 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 427 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 355 | 2 | 44 needs API | 0 harvester gaps, 0 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 377 | 2 | 19 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
-Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
+The examples gallery is current. The corpus row and its pixel metrics are from the last corpus run; they were not regenerated for this change.
 
 ## High
 
@@ -31,9 +31,8 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 
 | # | Finding |
 |---|---------|
-| G3 | **API gaps, most frequent first:** `NonUniformImage`, `matplotlib.image`/`matplotlib.scale` when used. 3-D remains out of scope. |
-| G4 | **Failures where the feature exists but crashes.** Remaining groups: `NoneType - NoneType` (7), `third arg must be a format string` (4), `AffineND has no len()` (4), real-Matplotlib transforms mixed with matplotvite transforms (4 examples, 2 corpus), `float() ... not 'ContourSet'` (2), `float() ... not 'dict_keys'` (2), string-to-float failures for `'x'`/`'green'` (4), `linewidths must ... match the number of levels` (1), `unsupported interpolation: 'bessel'` (1), `fill` argument forms (2 corpus), blit animation return type (3). |
-| F4 | **Smaller gaps, 2–3 cases each:** `MouseEvent`, `_ColorbarAxes.yaxis`, `Manager.key_press_handler_id`. |
+| G3 | **Remaining examples API gaps (19):** `NonUniformImage`; `matplotlib.image`, `matplotlib.scale` and `matplotlib.colorizer`; hand-built contour paths and manual `clabel`; per-pixel alpha arrays; `stackplot(baseline="wiggle")`; `stairs(orientation="horizontal")`; `PdfPages`; `FT2Font.set_charmap`/`num_named_instances`; `ContourSet.set_linestyle`; `BboxConnector`; radar `set_varlabels`; boxplot/`time_series_histogram` styling. 3-D remains out of scope. |
+| G4 | **Known example failures (3):** `rasterization_demo` saves EPS (only PNG/SVG/PDF/WebP are encoded); `svg_filter_line` and `svg_filter_pie` ask `ElementTree.XMLID` for gids that the SVG backend does not emit yet. |
 | F5 | **Environment cases:** install Pillow in the gallery job (`image_demo`, `image_clip_path`, `demo_annotation_box`, `demo_text_path`, `demo_ribbon_box`, `mathtext_asarray`); `units/*` now uses the bundled converter registry. |
 | E5 | **One-line API gaps:** `Axes.set()` rejects unknown keywords and `Axes.twin()` takes no argument. |
 
