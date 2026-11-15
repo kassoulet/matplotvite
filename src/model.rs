@@ -538,10 +538,19 @@ pub(crate) struct Panel {
     pub(crate) x_logit: bool,
     #[pyo3(item)]
     pub(crate) y_logit: bool,
+    /// Asinh axes: smooth log-like scaling with a linear width around zero.
+    #[pyo3(item)]
+    pub(crate) x_asinh: bool,
+    #[pyo3(item)]
+    pub(crate) y_asinh: bool,
     #[pyo3(item)]
     pub(crate) x_symlog_linthresh: f64,
     #[pyo3(item)]
     pub(crate) y_symlog_linthresh: f64,
+    #[pyo3(item)]
+    pub(crate) x_asinh_linear_width: f64,
+    #[pyo3(item)]
+    pub(crate) y_asinh_linear_width: f64,
     #[pyo3(item)]
     pub(crate) colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.

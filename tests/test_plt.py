@@ -4408,3 +4408,12 @@ def test_date_locator_helpers_and_epoch():
     dates.set_epoch("2000-01-01")
     assert dates.get_epoch() == "2000-01-01"
     dates.set_epoch("1970-01-01")
+
+
+def test_asinh_scale_renders_with_linear_width(tmp_path):
+    """Asinh axes accept Matplotlib's linear_width option."""
+    fig, ax = plt.subplots()
+    ax.plot([-1, 0, 1], [-100, 0, 100])
+    ax.set_yscale("asinh", linear_width=0.5)
+    assert ax.get_yscale() == "asinh"
+    fig.savefig(tmp_path / "asinh.png")

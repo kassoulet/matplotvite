@@ -252,6 +252,25 @@ fn logit(value: f64) -> f64 {
     (p / (1.0 - p)).ln()
 }
 
+/// Asinh transform: linear near zero and logarithmic for large magnitudes.
+fn asinh_scale(value: f64, linear_width: f64) -> f64 {
+    let w = if linear_width > 0.0 {
+        linear_width
+    } else {
+        1.0
+    };
+    w * (value / w).asinh()
+}
+
+fn asinh_inverse(value: f64, linear_width: f64) -> f64 {
+    let w = if linear_width > 0.0 {
+        linear_width
+    } else {
+        1.0
+    };
+    w * (value / w).sinh()
+}
+
 fn rotated_style<'a>(
     size: f64,
     col: RGBAColor,
@@ -1581,6 +1600,8 @@ where
             symlog(v, p.x_symlog_linthresh)
         } else if p.x_logit {
             logit(v)
+        } else if p.x_asinh {
+            asinh_scale(v, p.x_asinh_linear_width)
         } else {
             v
         }
@@ -1592,17 +1613,19 @@ where
             symlog(v, p.y_symlog_linthresh)
         } else if p.y_logit {
             logit(v)
+        } else if p.y_asinh {
+            asinh_scale(v, p.y_asinh_linear_width)
         } else {
             v
         }
     };
-    if p.x_log || p.x_symlog || p.x_logit {
+    if p.x_log || p.x_symlog || p.x_logit || p.x_asinh {
         (x0, x1) = (tx(x0), tx(x1));
         if x1 <= x0 {
             x1 = x0 + 1.0;
         }
     }
-    if p.y_log || p.y_symlog || p.y_logit {
+    if p.y_log || p.y_symlog || p.y_logit || p.y_asinh {
         (y0, y1) = (ty(y0), ty(y1));
         if y1 <= y0 {
             y1 = y0 + 1.0;
@@ -2526,7 +2549,14 @@ where
 
 #[cfg(test)]
 mod tick_tests {
-    use super::{logit, tick_format, tick_label};
+    use super::{asinh_inverse, asinh_scale, logit, tick_format, tick_label};
+
+    #[test]
+    fn asinh_is_linear_near_zero_and_inverts() {
+        assert!((asinh_scale(0.0, 2.0)).abs() < 1e-12);
+        assert!((asinh_scale(1.0, 1.0) - (1.0_f64).asinh()).abs() < 1e-12);
+        assert!((asinh_inverse(asinh_scale(12.0, 0.5), 0.5) - 12.0).abs() < 1e-9);
+    }
 
     #[test]
     fn logit_maps_probabilities_and_clamps_endpoints() {

@@ -3227,6 +3227,7 @@ class Axes:
         self.xscale = self.yscale = "linear"
         self.log_base = 10.0
         self.symlog_linthresh_x = self.symlog_linthresh_y = 1.0
+        self.asinh_linear_width_x = self.asinh_linear_width_y = 1.0
         self.logit_one_half = "1/2"
         self.logit_use_overline = False
         self.show_grid = False
@@ -4074,6 +4075,9 @@ class Axes:
         elif name == "symlog":
             self.xscale = "symlog"
             self.symlog_linthresh_x = self._symlog_linthresh(kwargs)
+        elif name == "asinh":
+            self.xscale = "asinh"
+            self.asinh_linear_width_x = self._asinh_width(kwargs)
         elif name == "logit":
             self.xscale = "logit"
             self.logit_one_half = kwargs.get("one_half", self.logit_one_half)
@@ -4090,6 +4094,9 @@ class Axes:
         elif name == "symlog":
             self.yscale = "symlog"
             self.symlog_linthresh_y = self._symlog_linthresh(kwargs)
+        elif name == "asinh":
+            self.yscale = "asinh"
+            self.asinh_linear_width_y = self._asinh_width(kwargs)
         elif name == "logit":
             self.yscale = "logit"
             self.logit_one_half = kwargs.get("one_half", self.logit_one_half)
@@ -4100,6 +4107,11 @@ class Axes:
     @staticmethod
     def _symlog_linthresh(kwargs):
         value = kwargs.get("linthresh")
+        return 1.0 if value is None else max(float(value), 1e-300)
+
+    @staticmethod
+    def _asinh_width(kwargs):
+        value = kwargs.get("linear_width")
         return 1.0 if value is None else max(float(value), 1e-300)
 
     def semilogx(self, *args, **kwargs):
@@ -6125,8 +6137,11 @@ class Axes:
                     x_log=self.xscale == "log", y_log=self.yscale == "log",
                     x_symlog=self.xscale == "symlog", y_symlog=self.yscale == "symlog",
                     x_logit=self.xscale == "logit", y_logit=self.yscale == "logit",
+                    x_asinh=self.xscale == "asinh", y_asinh=self.yscale == "asinh",
                     x_symlog_linthresh=float(self.symlog_linthresh_x),
                     y_symlog_linthresh=float(self.symlog_linthresh_y),
+                    x_asinh_linear_width=float(self.asinh_linear_width_x),
+                    y_asinh_linear_width=float(self.asinh_linear_width_y),
                     log_base=float(getattr(self, "log_base", 10.0)),
                     grid=dict(show=self.show_grid, color=self.grid_color,
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,

@@ -39,6 +39,8 @@ where
             symlog(v, p.x_symlog_linthresh)
         } else if p.x_logit {
             logit(v)
+        } else if p.x_asinh {
+            asinh_scale(v, p.x_asinh_linear_width)
         } else {
             v
         }
@@ -50,6 +52,8 @@ where
             symlog(v, p.y_symlog_linthresh)
         } else if p.y_logit {
             logit(v)
+        } else if p.y_asinh {
+            asinh_scale(v, p.y_asinh_linear_width)
         } else {
             v
         }
@@ -73,6 +77,8 @@ where
             .map(|v| {
                 if p.x_log {
                     log_label(*v, log_base)
+                } else if p.x_asinh {
+                    tick_label(asinh_inverse(*v, p.x_asinh_linear_width), xformat)
                 } else {
                     tick_label(*v, xformat)
                 }
@@ -88,6 +94,8 @@ where
             .map(|v| {
                 if p.y_log {
                     log_label(*v, log_base)
+                } else if p.y_asinh {
+                    tick_label(asinh_inverse(*v, p.y_asinh_linear_width), yformat)
                 } else {
                     tick_label(*v, yformat)
                 }
