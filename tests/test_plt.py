@@ -4373,3 +4373,16 @@ def test_concise_date_formatter_and_converter():
     info = dates.ConciseDateConverter().axisinfo(None, ax.xaxis)
     assert isinstance(info.majloc, dates.AutoDateLocator)
     assert isinstance(info.majfmt, dates.ConciseDateFormatter)
+
+
+def test_percent_and_engineering_tick_formatters(tmp_path):
+    """Percent and SI-prefix formatters produce compact tick labels."""
+    assert plt.PercentFormatter(xmax=5)(1.0) == "20%"
+    assert plt.PercentFormatter(xmax=1, decimals=1)(0.125) == "12.5%"
+    assert plt.EngFormatter(unit="Hz")(1500.0) == "1.5 kHz"
+    assert plt.EngFormatter(places=0)(1_000_000.0) == "1 M"
+
+    fig, ax = plt.subplots()
+    ax.xaxis.set_major_formatter("{x} km")
+    ax.plot([0, 1], [0, 1])
+    fig.savefig(tmp_path / "formatters.png")

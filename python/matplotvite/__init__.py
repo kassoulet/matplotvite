@@ -28,7 +28,7 @@ __all__ = (
     "projections", "register_projection", "units",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
-    "same_color", "FixedFormatter", "LogLocator",
+    "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
     "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
@@ -1078,10 +1078,16 @@ def _format_ticklabels(formatter, ticks):
         return None
     labels = []
     for pos, value in enumerate(ticks):
-        try:
-            label = formatter(float(value), pos)
-        except TypeError:
-            label = formatter(float(value))
+        if isinstance(formatter, str):
+            try:
+                label = formatter.format(x=float(value), pos=pos)
+            except (KeyError, IndexError, ValueError):
+                label = formatter
+        else:
+            try:
+                label = formatter(float(value), pos)
+            except TypeError:
+                label = formatter(float(value))
         labels.append(str(label))
     return labels
 
@@ -9049,6 +9055,66 @@ class _SecondLocator(_CalendarLocator):
     unit = "second"
 
 
+class _PercentFormatter:
+    """Format a value as a percentage of `xmax`."""
+
+    def __init__(self, xmax=100, decimals=None, symbol="%", is_latex=False):
+        self.xmax = float(xmax)
+        self.decimals = decimals
+        self.symbol = symbol
+        self.is_latex = is_latex
+
+    def __call__(self, x, pos=None):
+        if self.xmax == 0:
+            return ""
+        value = float(x) / self.xmax * 100.0
+        decimals = self.decimals
+        if decimals is None:
+            decimals = 0 if abs(value - round(value)) < 1e-9 else 1
+        return f"{value:.{decimals}f}{self.symbol}"
+
+    def set_axis(self, axis): return None
+
+
+class _EngFormatter:
+    """Format values with SI prefixes, as Matplotlib's EngFormatter."""
+
+    _PREFIXES = (("", 0), ("k", 3), ("M", 6), ("G", 9), ("T", 12),
+                 ("P", 15), ("E", 18), ("Z", 21), ("Y", 24))
+
+    def __init__(self, unit="", places=None, sep=" ", format=None, **kwargs):
+        self.unit = str(unit)
+        self.places = places
+        self.sep = str(sep)
+        self.format = format
+
+    def __call__(self, x, pos=None):
+        value = float(x)
+        if value == 0 or not np.isfinite(value):
+            return f"0{self.sep}{self.unit}" if self.unit else "0"
+        sign = "-" if value < 0 else ""
+        magnitude = abs(value)
+        exponent = int(np.floor(np.log10(magnitude) / 3.0) * 3)
+        exponent = max(-24, min(24, exponent))
+        prefix = ""
+        for text, power in self._PREFIXES:
+            if exponent == power:
+                prefix = text
+                break
+        else:
+            if exponent < 0:
+                prefix = ("m", "\u03bc", "n", "p", "f", "a", "z", "y")[
+                    min(7, (-exponent // 3) - 1)]
+        scaled = magnitude / (10.0 ** exponent)
+        places = self.places
+        if places is None:
+            places = 0 if abs(scaled - round(scaled)) < 1e-9 else 1
+        number = f"{scaled:.{places}f}"
+        return f"{sign}{number}{self.sep}{prefix}{self.unit}"
+
+    def set_axis(self, axis): return None
+
+
 class _FixedFormatter:
     """Formatter that returns `seq[pos]`, as Matplotlib's FixedFormatter."""
 
@@ -9170,6 +9236,7 @@ mticker = _Namespace(
     LogFormatter=_NoopFormatter, LogFormatterMathtext=_NoopFormatter,
     NullFormatter=_NoopFormatter,
     FixedFormatter=_FixedFormatter, IndexLocator=_IndexLocator,
+    PercentFormatter=_PercentFormatter, EngFormatter=_EngFormatter,
     AutoLocator=_MaxNLocator,
 )
 ticker = mticker
@@ -9179,6 +9246,8 @@ FixedLocator = _FixedLocator
 LinearLocator = _LinearLocator
 LogLocator = _LogLocator
 FixedFormatter = _FixedFormatter
+PercentFormatter = _PercentFormatter
+EngFormatter = _EngFormatter
 
 dates = _Namespace(
     date2num=_date_to_num, num2date=_num_to_date, DateFormatter=_DateFormatter,
