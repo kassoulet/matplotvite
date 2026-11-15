@@ -3989,6 +3989,10 @@ def test_polar_grid_setters_accept_matplotlib_arguments(tmp_path):
     assert panel["ticks"]["yticks"] == [0.25, 0.75]
     assert panel["ticks"]["yticklabels"] == ["0.25", "0.75"]
     assert panel["ticks"]["xticklabels"] == ["east", "north"]
+    plt.polar([0.0, 1.0], [1.0, 2.0])
+    line, = ax.plot(np.float64(1.0), np.int64(2))
+    assert line.get_xdata().tolist() == [1.0]
+    assert line.get_ydata().tolist() == [2.0]
     out = tmp_path / "polar_grids.png"
     fig.savefig(out)
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"

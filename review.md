@@ -7,7 +7,7 @@ Results on this tree: Python suite 423 passed, 7 skipped; `ruff`, `cargo fmt`, `
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 348 | 2 | 48 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 350 | 2 | 48 needs API | 0 harvester gaps, 1 bug, 106 unsupported |
 
 Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 
@@ -35,7 +35,7 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 | G4 | **Failures where the feature exists but crashes.** Remaining groups: `NoneType - NoneType` (7), `third arg must be a format string` (4), `AffineND has no len()` (4), real-Matplotlib transforms mixed with matplotvite transforms (4 examples, 2 corpus), `float() ... not 'ContourSet'` (2), `float() ... not 'dict_keys'` (2), string-to-float failures for `'x'`/`'green'` (4), `linewidths must ... match the number of levels` (1), `unsupported interpolation: 'bessel'` (1), `fill` argument forms (2 corpus), blit animation return type (3). |
 | F4 | **Smaller gaps, 2–3 cases each:** `MouseEvent`, `_ColorbarAxes.yaxis`, `Manager.key_press_handler_id`. |
 | F5 | **Environment cases:** install Pillow in the gallery job (`image_demo`, `image_clip_path`, `demo_annotation_box`, `demo_text_path`, `demo_ribbon_box`, `mathtext_asarray`); `units/*` now uses the bundled converter registry. |
-| E5 | **One-line API gaps:** `Axes.set()` rejects unknown keywords, `Axes.twin()` takes no argument, and `matplotvite.polar` is missing at module level. |
+| E5 | **One-line API gaps:** `Axes.set()` rejects unknown keywords and `Axes.twin()` takes no argument. |
 
 ## Accounting, tests and trust
 

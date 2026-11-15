@@ -50,7 +50,7 @@ __all__ = (
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
-    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
+    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "polar", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "set_cmap", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
     "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
@@ -6433,7 +6433,7 @@ def _convert_units(values, axis, unit=None):
     if values is None:
         return values
     items = _as_list(values)
-    if not hasattr(items, "__getitem__") or len(items) == 0:
+    if np.ndim(items) == 0 or not hasattr(items, "__getitem__") or len(items) == 0:
         return values
     converter = units.registry.get_converter(items[0])
     if converter is None:
@@ -8178,6 +8178,7 @@ def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
 def figtext(x, y, s, **kwargs):
     return gcf().text(x, y, s, **kwargs)
 def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
+def polar(*args, **kwargs): return gca().plot(*args, **kwargs)
 def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
 def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
 def title(text, fontsize=None, **kwargs):
