@@ -3916,7 +3916,27 @@ class Axes:
     def set_rorigin(self, value): return None
     def set_rlabel_position(self, value): return None
     def set_thetalim(self, *args, **kwargs): return None
+    def set_theta_zero_location(self, loc, offset=0.0): return None
+    def set_theta_offset(self, offset): return None
+    def set_thetamin(self, value): return None
+    def set_thetamax(self, value): return None
     def pie_label(self, *args, **kwargs): return None
+
+    def set_rticks(self, ticks, labels=None, **kwargs):
+        """Set the radial tick positions, as PolarAxes.set_rticks."""
+        return self.set_yticks(ticks, labels=labels, **kwargs)
+
+    def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kwargs):
+        """Set the radial grid positions, as PolarAxes.set_rgrids."""
+        if labels is None and fmt is not None:
+            labels = [fmt % r for r in radii]
+        return self.set_yticks(radii, labels=labels, **kwargs)
+
+    def set_thetagrids(self, angles, labels=None, fmt=None, **kwargs):
+        """Set the angular grid positions, as PolarAxes.set_thetagrids."""
+        if labels is None and fmt is not None:
+            labels = [fmt % a for a in angles]
+        return self.set_xticks(angles, labels=labels, **kwargs)
 
     def get_window_extent(self, renderer=None):
         """Pixel box covering the axes plus the space its labels and title use."""

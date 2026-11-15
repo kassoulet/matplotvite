@@ -3958,6 +3958,25 @@ def test_stem_and_specgram_return_matplotlib_containers(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_polar_grid_setters_accept_matplotlib_arguments(tmp_path):
+    plt.rcdefaults()
+    fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+    ax.set_rticks([0.5, 1.0])
+    ax.set_rlabel_position(-22.5)
+    ax.set_theta_zero_location("N", offset=10)
+    ax.set_thetamin(0)
+    ax.set_thetamax(180)
+    ax.set_rgrids([0.25, 0.75], fmt="%.2f")
+    ax.set_thetagrids([0, 90], labels=["east", "north"])
+    panel = ax._panel()
+    assert panel["ticks"]["yticks"] == [0.25, 0.75]
+    assert panel["ticks"]["yticklabels"] == ["0.25", "0.75"]
+    assert panel["ticks"]["xticklabels"] == ["east", "north"]
+    out = tmp_path / "polar_grids.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_signal_processing_axes_methods(tmp_path):
     plt.rcdefaults()
     rng = np.random.default_rng(0)
