@@ -3958,6 +3958,34 @@ def test_stem_and_specgram_return_matplotlib_containers(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_signal_processing_axes_methods(tmp_path):
+    plt.rcdefaults()
+    rng = np.random.default_rng(0)
+    x = rng.normal(size=512)
+    y = rng.normal(size=512)
+    fig, axs = plt.subplots(3, 3, figsize=(10, 8))
+    coh, freqs = axs[0, 0].cohere(x, y, NFFT=64, Fs=100)
+    assert coh.shape == freqs.shape and 0.0 <= coh.min() <= coh.max() <= 1.0
+    psd, freqs = axs[0, 1].psd(x, NFFT=64, Fs=100)
+    assert psd.shape == freqs.shape
+    csd, freqs = axs[0, 2].csd(x, y, NFFT=64, Fs=100)
+    assert csd.shape == freqs.shape
+    magnitude, freqs = axs[1, 0].magnitude_spectrum(x, Fs=100)
+    assert magnitude.shape == freqs.shape
+    phase, freqs = axs[1, 1].phase_spectrum(x, Fs=100)
+    assert phase.shape == freqs.shape
+    angle, freqs = axs[1, 2].angle_spectrum(x, Fs=100)
+    assert angle.shape == freqs.shape
+    lags, corr, _, _ = axs[2, 0].xcorr(x, y, maxlags=20, normed=True)
+    assert lags.shape == corr.shape == (41,)
+    axs[2, 1].acorr(x, maxlags=20, usevlines=False)
+    ecdf_x, ecdf_y, _ = axs[2, 2].ecdf(x)
+    assert ecdf_x.shape == ecdf_y.shape and ecdf_y[-1] == 1.0
+    out = tmp_path / "signal_methods.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_categorical_y_axes_for_barh_and_broken_barh():
     plt.rcdefaults()
     fig, ax = plt.subplots()

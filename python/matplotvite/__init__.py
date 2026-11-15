@@ -27,7 +27,7 @@ __all__ = (
     "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "spines", "axis",
     "projections", "register_projection", "units",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
-    "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
+    "path", "dates", "cbook", "mlab", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
     "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
     "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
     "MonthLocator", "DayLocator", "HourLocator", "MinuteLocator", "SecondLocator",
@@ -3209,6 +3209,36 @@ class _GroupedBarResult:
         self.bar_containers = list(bar_containers)
 
 
+def _spectral_estimates(x, y=None, NFFT=256, Fs=2.0, Fc=0.0, window=None,
+                        noverlap=None, pad_to=None):
+    """One-sided periodogram estimates used by the signal-processing helpers."""
+    x = np.asarray(x, dtype=np.float64).ravel()
+    nfft = max(int(NFFT), 2)
+    if x.size < nfft:
+        raise ValueError("the signal must be at least NFFT samples long")
+    step = nfft - (nfft // 2 if noverlap is None else int(noverlap))
+    if step <= 0:
+        raise ValueError("noverlap must be smaller than NFFT")
+    size = max(int(pad_to or nfft), nfft)
+    taper = np.ones(nfft) if window is None else np.asarray(window(np.ones(nfft)))
+    px = np.stack([x[i:i + nfft] * taper
+                   for i in range(0, x.size - nfft + 1, step)])
+    freqs = np.fft.rfftfreq(size, d=1.0 / float(Fs)) + float(Fc)
+    fx = np.fft.rfft(px, n=size, axis=1)
+    norm = max(float(Fs) * float(np.sum(taper ** 2)), 1e-20)
+    pxx = np.mean(np.abs(fx) ** 2, axis=0) / norm
+    if y is None:
+        return pxx, freqs
+    y = np.asarray(y, dtype=np.float64).ravel()
+    if y.size != x.size:
+        raise ValueError("x and y must have the same length")
+    py = np.stack([y[i:i + nfft] * taper
+                   for i in range(0, y.size - nfft + 1, step)])
+    fy = np.fft.rfft(py, n=size, axis=1)
+    pxy = np.mean(fx * np.conj(fy), axis=0) / norm
+    return pxx, np.mean(np.abs(fy) ** 2, axis=0) / norm, pxy, freqs
+
+
 class Axes:
     def __init__(self, pos=0, *args, **kwargs):
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
@@ -3775,8 +3805,114 @@ class Axes:
                                     float(freqs[0]), float(freqs[-1])), **kwargs)
         return pxx, freqs, bins, image
 
-    def psd(self, *args, **kwargs): return None
-    def magnitude_spectrum(self, *args, **kwargs): return None
+    def psd(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
+            return_line=False, **kwargs):
+        """Plot a one-sided power spectral density estimate."""
+        pxx, freqs = _spectral_estimates(
+            x, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
+            pad_to=pad_to)
+        line = self.plot(freqs, 10.0 * np.log10(np.maximum(pxx, 1e-20)), **kwargs)
+        return (line if return_line else (pxx, freqs))
+
+    def csd(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
+            return_line=False, **kwargs):
+        """Plot the cross spectral density of two signals."""
+        _, _, pxy, freqs = _spectral_estimates(
+            x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
+            pad_to=pad_to)
+        line = self.plot(freqs, 10.0 * np.log10(np.maximum(np.abs(pxy), 1e-20)),
+                         **kwargs)
+        return (line if return_line else (pxy, freqs))
+
+    def cohere(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+               noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
+               **kwargs):
+        """Plot the magnitude-squared coherence of two signals."""
+        pxx, pyy, pxy, freqs = _spectral_estimates(
+            x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
+            pad_to=pad_to)
+        coh = np.clip(np.abs(pxy) ** 2 / np.maximum(pxx * pyy, 1e-20), 0.0, 1.0)
+        self.plot(freqs, coh, **kwargs)
+        return coh, freqs
+
+    def magnitude_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
+                           sides="default", scale="linear", **kwargs):
+        """Plot the single-sided magnitude spectrum of a signal."""
+        pxx, freqs = _spectral_estimates(
+            x, NFFT=min(max(len(np.asarray(x).ravel()), 2), 256), Fs=Fs, Fc=Fc,
+            window=window, pad_to=pad_to)
+        magnitude = np.sqrt(pxx)
+        if scale == "dB":
+            magnitude = 20.0 * np.log10(np.maximum(magnitude, 1e-20))
+        self.plot(freqs, magnitude, **kwargs)
+        return magnitude, freqs
+
+    def angle_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
+                       sides="default", **kwargs):
+        """Plot the wrapped phase spectrum of a signal."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
+        spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
+        freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
+        angle = np.angle(spectrum)
+        self.plot(freqs[:angle.size], angle, **kwargs)
+        return angle, freqs[:angle.size]
+
+    def phase_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
+                       sides="default", **kwargs):
+        """Plot the unwrapped phase spectrum of a signal."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
+        spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
+        freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
+        phase = np.unwrap(np.angle(spectrum))
+        self.plot(freqs[:phase.size], phase, **kwargs)
+        return phase, freqs[:phase.size]
+
+    def xcorr(self, x, y, normed=False, maxlags=10, usevlines=True, **kwargs):
+        """Plot the cross-correlation of two signals."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        maxlags = x.size - 1 if maxlags is None else max(int(maxlags), 0)
+        corr = np.correlate(x, y, mode="full")[x.size - 1 - maxlags:
+                                                x.size + maxlags]
+        if normed:
+            corr = corr / max(np.sqrt(np.sum(x ** 2) * np.sum(y ** 2)), 1e-20)
+        lags = np.arange(-maxlags, maxlags + 1)
+        line = self.vlines(lags, 0, corr, **kwargs) if usevlines else self.plot(
+            lags, corr, **kwargs)
+        if usevlines:
+            self.axhline(0, color="black", linewidth=0.8)
+        return lags, corr, line, None
+
+    def acorr(self, x, normed=False, maxlags=10, usevlines=True, **kwargs):
+        """Plot the autocorrelation of a signal."""
+        return self.xcorr(x, x, normed=normed, maxlags=maxlags,
+                          usevlines=usevlines, **kwargs)
+
+    def ecdf(self, x, weights=None, complementary=False, orientation="vertical",
+             **kwargs):
+        """Plot the empirical cumulative distribution function of a sample."""
+        x = np.sort(np.asarray(x, dtype=np.float64).ravel())
+        if weights is None:
+            y = np.arange(1, x.size + 1) / max(x.size, 1)
+        else:
+            w = np.asarray(weights, dtype=np.float64).ravel()
+            if w.size != x.size:
+                raise ValueError("weights must match the sample size")
+            y = np.cumsum(w) / max(w.sum(), 1e-20)
+        if complementary:
+            y = 1.0 - y
+        if orientation == "horizontal":
+            line = self.step(y, x, where="post", **kwargs)
+        else:
+            line = self.step(x, y, where="post", **kwargs)
+        return x, y, line
+
     def set_rorigin(self, value): return None
     def set_rlabel_position(self, value): return None
     def set_thetalim(self, *args, **kwargs): return None
@@ -8485,6 +8621,26 @@ def _rgba_tuple(color):
     return tuple(rgba)
 
 
+class _Mlab:
+    """Small subset of matplotlib.mlab used by the signal examples."""
+
+    @staticmethod
+    def window_hanning(x):
+        x = np.asarray(x)
+        return np.hanning(x.size) * x
+
+    @staticmethod
+    def window_none(x): return x
+
+    @staticmethod
+    def detrend_none(x, axis=-1): return x
+
+    @staticmethod
+    def detrend_mean(x, axis=-1):
+        x = np.asarray(x)
+        return x - np.mean(x, axis=axis, keepdims=True)
+
+
 class _MColors:
     Normalize = _Normalize
     LogNorm = _LogNorm
@@ -9442,6 +9598,7 @@ cbook = _Namespace(get_sample_data=_get_sample_data, flatten=_flatten,
                    silent_list=lambda *items: list(items[0]) if items else [],
                    to_rgba=lambda color, alpha=None: _rgba_tuple(color) if alpha is None
                    else (*_rgba_tuple(color)[:3], float(alpha)))
+mlab = _Mlab()
 
 
 def _findfont(prop=None, **kwargs):
