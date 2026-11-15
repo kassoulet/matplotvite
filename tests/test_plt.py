@@ -1135,6 +1135,21 @@ def test_module_level_matshow_xkcd_and_data_path():
     assert ax.twin(object) is not ax
 
 
+def test_axes_spy_returns_an_image_handle(tmp_path):
+    plt.rcdefaults()
+    fig, axs = plt.subplots(1, 2)
+    x = np.eye(5)
+    image = axs[0].spy(x, markersize=5)
+    assert image in axs[0].images
+    assert len(axs[0].get_xticks()) == 0 and len(axs[0].get_yticks()) == 0
+    axs[1].spy(x, precision=0.1)
+    plt.spy(x)
+    assert plt.gca().images
+    out = tmp_path / "spy.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_axes_tick_labels_are_text_like():
     plt.figure()
     ax = plt.gca()

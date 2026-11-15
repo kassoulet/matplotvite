@@ -44,7 +44,7 @@ __all__ = (
     "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
     "AnchoredText", "offsetbox",
     "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
-    "matshow", "xkcd", "get_data_path",
+    "matshow", "spy", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
@@ -4015,6 +4015,23 @@ class Axes:
         kwargs.setdefault("origin", "upper")
         kwargs.setdefault("aspect", "equal")
         return self.imshow(Z, **kwargs)
+
+    def spy(self, Z, precision=0, marker=None, markersize=None,
+            aspect="equal", origin="upper", **kwargs):
+        """Plot the sparsity pattern of an array."""
+        data = np.asarray(Z)
+        if precision == "present":
+            mask = np.isfinite(data)
+        elif precision in (None, 0):
+            mask = data != 0
+        else:
+            mask = np.abs(data) > float(precision)
+        image = self.imshow(
+            mask.astype(float), cmap="binary_r", interpolation="nearest",
+            aspect=aspect, origin=origin, **kwargs)
+        self.set_xticks([])
+        self.set_yticks([])
+        return image
     def arrow(self, x, y, dx, dy, **kwargs):
         """Add a data-space `FancyArrow` and return the patch."""
         patch = FancyArrow(x, y, dx, dy, **kwargs)
@@ -8182,6 +8199,10 @@ def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
 def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
 def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
 def matshow(A, fignum=None, **kwargs): return gca().matshow(A, **kwargs)
+def spy(Z, precision=0, marker=None, markersize=None, aspect="equal",
+        origin="upper", **kwargs):
+    return gca().spy(Z, precision=precision, marker=marker,
+                     markersize=markersize, aspect=aspect, origin=origin, **kwargs)
 def xkcd(scale=1, length=100, randomness=2):
     """Matplotlib's sketch style has no renderer support; accept and ignore it.
 
