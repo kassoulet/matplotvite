@@ -8885,6 +8885,67 @@ class _DateFormatter:
     def get_offset(self): return ""
 
 
+class _ConciseDateFormatter:
+    """Date formatter that picks a compact unit based on the tick's resolution."""
+
+    _DEFAULT_FORMATS = ["%Y", "%b", "%d", "%H:%M", "%H:%M", "%S.%f"]
+
+    def __init__(self, locator=None, tz=None, formats=None,
+                 offset_formats=None, zero_formats=None, show_offset=True):
+        self.locator = locator
+        self.tz = tz
+        self.formats = list(formats or self._DEFAULT_FORMATS)
+        self.zero_formats = list(zero_formats or [""] + self.formats[:-1])
+        self.offset_formats = list(offset_formats or [""] * 6)
+        self.show_offset = show_offset
+
+    def __call__(self, x, pos=None):
+        dt = _date_from_num(float(x))
+        if dt.microsecond or dt.second:
+            level = 5
+        elif dt.minute:
+            level = 4
+        elif dt.hour:
+            level = 3
+        elif dt.day != 1:
+            level = 2
+        elif dt.month != 1:
+            level = 1
+        else:
+            level = 0
+        fmt = self.formats[min(level, len(self.formats) - 1)]
+        return dt.strftime(fmt)
+
+    def format_ticks(self, values):
+        return [self(value, i) for i, value in enumerate(values)]
+
+    def format_data(self, value): return self(value)
+    def format_data_short(self, value): return self(value)
+    def get_offset(self): return ""
+    def set_axis(self, axis): self.axis = axis
+    def set_tzinfo(self, tz): self.tz = tz
+
+
+class _ConciseDateConverter:
+    """Units converter that installs the concise date locator and formatter."""
+
+    def __init__(self, formats=None, zero_formats=None, offset_formats=None):
+        self.formats = formats
+        self.zero_formats = zero_formats
+        self.offset_formats = offset_formats
+
+    def axisinfo(self, unit, axis):
+        locator = _AutoDateLocator()
+        formatter = _ConciseDateFormatter(
+            locator, formats=self.formats, zero_formats=self.zero_formats,
+            offset_formats=self.offset_formats)
+        return units.AxisInfo(majloc=locator, majfmt=formatter)
+
+    def default_units(self, x, axis): return None
+
+    def convert(self, value, unit, axis): return _date_to_num(value)
+
+
 class _AutoDateLocator:
     """Calendar-aware locator on the date-number axis."""
 
@@ -9125,6 +9186,8 @@ dates = _Namespace(
     MonthLocator=_MonthLocator, DayLocator=_DayLocator, HourLocator=_HourLocator,
     MinuteLocator=_MinuteLocator, SecondLocator=_SecondLocator,
     WeekdayLocator=_DayLocator, MicrosecondLocator=_SecondLocator,
+    ConciseDateFormatter=_ConciseDateFormatter,
+    ConciseDateConverter=_ConciseDateConverter,
 )
 mdates = dates
 

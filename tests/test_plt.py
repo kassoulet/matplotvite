@@ -4355,3 +4355,21 @@ def test_registered_unit_converter_is_used_by_plot(tmp_path):
         fig.savefig(tmp_path / "units.png")
     finally:
         units.registry.pop(Foo, None)
+
+
+def test_concise_date_formatter_and_converter():
+    """Concise date ticks choose compact labels and install a date locator."""
+    import datetime
+
+    from matplotvite import dates
+
+    value = dates.date2num(datetime.datetime(2005, 2, 4, 11, 30))
+    formatter = dates.ConciseDateFormatter()
+    assert formatter(value) == "11:30"
+    assert formatter(dates.date2num(datetime.datetime(2005, 2, 4))) == "04"
+    assert formatter(dates.date2num(datetime.datetime(2005, 3, 1))) == "Mar"
+
+    fig, ax = plt.subplots()
+    info = dates.ConciseDateConverter().axisinfo(None, ax.xaxis)
+    assert isinstance(info.majloc, dates.AutoDateLocator)
+    assert isinstance(info.majfmt, dates.ConciseDateFormatter)
