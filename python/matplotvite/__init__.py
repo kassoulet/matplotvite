@@ -18,7 +18,7 @@ from ._core import __version__, render as _render
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
     "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "OffsetFrom", "AnchoredOffsetbox", "AnnotationBbox",
-    "HandlerTuple", "HandlerLineCollection", "StepPatch",
+    "HandlerTuple", "HandlerLineCollection", "StepPatch", "NonUniformImage",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
     "TextArea", "VPacker",
     "ScalarMappable",
@@ -4324,6 +4324,16 @@ class Axes:
         self.add_patch(patch)
         return patch
 
+    def add_image(self, image):
+        if isinstance(image, NonUniformImage):
+            data, extent = image._render_spec()
+            return self.imshow(data, extent=extent, cmap=image._cmap,
+                               interpolation=image._interpolation, origin="lower")
+        if isinstance(image, AxesImage):
+            self.images.append(image)
+            return image
+        raise TypeError("add_image expects an AxesImage or NonUniformImage")
+
     def add_patch(self, patch):
         try:
             patch.axes = self
@@ -4708,13 +4718,30 @@ class Axes:
                 extent = (extent[0], extent[1], extent[3], extent[2])
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
+        alpha_data = None
+        if alpha is not None and np.ndim(alpha) > 0:
+            alpha_data = np.asarray(alpha, dtype=np.float64)
+            opacity = 1.0
+        else:
+            opacity = 1.0 if alpha is None else float(alpha)
+        if alpha_data is not None:
+            alpha_data = np.broadcast_to(alpha_data, a.shape[:2])
+            if a.ndim == 2:
+                lo = vmin if vmin is not None else float(np.nanmin(a))
+                hi = vmax if vmax is not None else float(np.nanmax(a))
+                span = hi - lo
+                normalized = (np.zeros_like(a) if span == 0.0
+                              else np.clip((a - lo) / span, 0.0, 1.0))
+                a = np.dstack([get_cmap(cmap)(normalized)[..., :3], alpha_data])
+            elif a.shape[2] == 3:
+                a = np.dstack([a, alpha_data])
+            else:
+                a = a.copy()
+                a[..., 3] *= alpha_data
         if interp == "auto":
             interp = "antialiased"
         if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
             raise ValueError(f"unsupported interpolation: {setting!r}")
-        if alpha is not None and np.ndim(alpha) > 0:
-            raise NotImplementedError("per-pixel alpha arrays are not supported yet")
-        opacity = 1.0 if alpha is None else float(alpha)
         if not np.isfinite(opacity):
             raise ValueError("alpha must be finite")
         entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
@@ -7645,6 +7672,47 @@ class BboxImage:
     def draw(self, renderer=None): return None
 
 
+class NonUniformImage:
+    """Rectilinear image; irregular coordinate arrays are resampled for display."""
+
+    def __init__(self, ax=None, *, extent=None, cmap=None, interpolation="nearest",
+                 **kwargs):
+        self.axes = ax
+        self._extent = None if extent is None else tuple(float(v) for v in extent)
+        self._cmap = _cmap_name(cmap)
+        self._interpolation = str(interpolation)
+        self._data = None
+
+    def set_data(self, x, y, z):
+        self._x = np.asarray(x, dtype=float).ravel()
+        self._y = np.asarray(y, dtype=float).ravel()
+        self._data = np.asarray(z, dtype=float)
+        if self._data.shape != (self._y.size, self._x.size):
+            raise ValueError("z must have shape (len(y), len(x))")
+        return self
+
+    def get_array(self): return self._data
+    def get_extent(self): return self._extent
+    def set_extent(self, extent): self._extent = tuple(float(v) for v in extent)
+    def get_cmap(self): return get_cmap(self._cmap)
+    def set_cmap(self, cmap): self._cmap = _cmap_name(cmap)
+    def set_interpolation(self, value): self._interpolation = str(value)
+
+    def _render_spec(self):
+        data = np.asarray(self._data, dtype=float)
+        x, y = self._x, self._y
+        if x.size > 1 and not np.allclose(np.diff(x), np.diff(x)[0]):
+            target = np.linspace(x[0], x[-1], x.size)
+            data = np.vstack([np.interp(target, x, row) for row in data])
+        if y.size > 1 and not np.allclose(np.diff(y), np.diff(y)[0]):
+            target = np.linspace(y[0], y[-1], y.size)
+            data = np.vstack([np.interp(target, y, data[:, col])
+                              for col in range(data.shape[1])]).T
+        extent = self._extent or (float(x[0]), float(x[-1]),
+                                  float(y[0]), float(y[-1]))
+        return data, extent
+
+
 class AxesImage:
     """Handle returned by `Axes.imshow`, for later tweaks.
 
@@ -9965,7 +10033,7 @@ mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
 collections = mcollections
 markers = _Namespace(MarkerStyle=MarkerStyle)
 mmarkers = markers
-image = _Namespace(imread=_imread)
+image = _Namespace(imread=_imread, NonUniformImage=NonUniformImage)
 colorizer = _Namespace(Colorizer=Colorizer)
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          BboxTransformTo=_Transform, IdentityTransform=_IdentityTransform,

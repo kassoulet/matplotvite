@@ -836,6 +836,22 @@ def test_gallery_path_patch_and_subfigure_shims():
     assert plt.HandlerTuple(ndivide=None) is not None
 
 
+def test_imshow_per_pixel_alpha_and_nonuniform_image():
+    fig, ax = plt.subplots()
+    alpha = np.array([[0.0, 0.5], [1.0, 0.25]])
+    image = ax.imshow(np.arange(4.0).reshape(2, 2), alpha=alpha)
+    assert image.get_array().shape == (2, 2, 4)
+    assert np.allclose(image.get_array()[..., 3], alpha)
+
+    nonuniform = plt.NonUniformImage(ax, extent=(-1.0, 1.0, -1.0, 1.0),
+                                     cmap="Purples")
+    nonuniform.set_data([-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0], np.arange(9.0).reshape(3, 3))
+    rendered = ax.add_image(nonuniform)
+    assert isinstance(rendered, plt.AxesImage)
+    assert rendered.get_extent() == (-1.0, 1.0, -1.0, 1.0)
+    assert fig is not None
+
+
 def test_streamgraph_and_horizontal_stairs():
     fig, ax = plt.subplots()
     ax.stackplot([0.0, 1.0, 2.0], [1.0, 1.0, 1.0], [1.0, 2.0, 1.0],
