@@ -7239,6 +7239,12 @@ class SubplotSpec:
         x, y, w, h = self.gridspec._bounds(self.rows, self.cols)
         return _Bbox(x, y, x + w, y + h)
 
+    def get_gridspec(self): return self.gridspec
+    def is_first_row(self): return self.rows[0] == 0
+    def is_last_row(self): return self.rows[1] == self.gridspec.nrows - 1
+    def is_first_col(self): return self.cols[0] == 0
+    def is_last_col(self): return self.cols[1] == self.gridspec.ncols - 1
+
     def subgridspec(self, nrows, ncols, **kwargs):
         """Nested grid confined to this region."""
         x, y, w, h = self.gridspec._bounds(self.rows, self.cols)
@@ -7420,6 +7426,24 @@ class Figure:
         self._suptitle = dict(text=_mathtext(t, family), size=size, x=float(x),
                               y=float(y), family=family)
         return None
+
+    def supxlabel(self, t, x=0.5, y=0.01, fontsize=None, **kwargs):
+        """Draw a figure-level x label below the panel grid."""
+        kwargs.setdefault("ha", "center")
+        kwargs.setdefault("va", "bottom")
+        return self.text(x, y, t, fontsize=fontsize, **kwargs)
+
+    def supylabel(self, t, x=0.02, y=0.5, fontsize=None, **kwargs):
+        """Draw a figure-level y label left of the panel grid."""
+        kwargs.setdefault("ha", "center")
+        kwargs.setdefault("va", "bottom")
+        kwargs.setdefault("rotation", 90)
+        return self.text(x, y, t, fontsize=fontsize, **kwargs)
+
+    def align_xlabels(self, axs=None): return None
+    def align_ylabels(self, axs=None): return None
+    def align_titles(self, axs=None): return None
+    def align_labels(self, axs=None): return None
 
     def text(self, x, y, s, fontdict=None, **kwargs):
         """Figure-fraction text, drawn above every panel so nothing clips it."""
@@ -7837,6 +7861,9 @@ class _SubFigure:
     def get_position(self):
         x, y, width, height = self._bounds
         return _Bbox(x, y, x + width, y + height)
+
+    @property
+    def canvas(self): return self.figure.canvas
 
     def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False,
                  squeeze=True, **kwargs):

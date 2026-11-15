@@ -4078,6 +4078,27 @@ def test_get_subplotspec_reports_the_grid_cell():
     ax = fig.add_subplot(gs[1])
     spec = ax.get_subplotspec()
     assert spec.cols == (1, 1) and spec.gridspec is gs
+    assert spec.get_gridspec() is gs
+    assert spec.is_first_row() and spec.is_last_row()
+    assert not spec.is_first_col() and not spec.is_last_col()
+    assert axs[0, 0].get_subplotspec().is_first_row()
+    assert axs[1, 1].get_subplotspec().is_last_col()
+
+
+def test_figure_level_x_and_y_labels_and_alignment(tmp_path):
+    plt.rcdefaults()
+    fig, axs = plt.subplots(2, 2)
+    for ax in axs.flat:
+        ax.plot([0, 1], [0, 1])
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+    fig.align_labels()
+    fig.supxlabel("Shared x")
+    fig.supylabel("Shared y")
+    assert len(fig._figure_texts) == 2
+    out = tmp_path / "figure_labels.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_symlog_scale_renders_symmetric_decade_ticks(tmp_path):
