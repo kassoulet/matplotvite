@@ -18,7 +18,7 @@ from ._core import __version__, render as _render
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
     "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "OffsetFrom", "AnchoredOffsetbox", "AnnotationBbox",
-    "HandlerTuple", "HandlerLineCollection",
+    "HandlerTuple", "HandlerLineCollection", "StepPatch",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
     "TextArea", "VPacker",
     "ScalarMappable",
@@ -2514,6 +2514,27 @@ class Annulus(Patch):
         return np.vstack([outer, inner[::-1]])
 
 
+class StepPatch(Patch):
+    """Filled step outline from bin values and edges."""
+
+    def __init__(self, values, edges, orientation="vertical", baseline=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self._values = np.asarray(values, dtype=float).ravel()
+        self._edges = np.asarray(edges, dtype=float).ravel()
+        if self._edges.size != self._values.size + 1:
+            raise ValueError("edges must have len(values) + 1 entries")
+        self._orientation, self._baseline = str(orientation), float(baseline)
+
+    def get_xy(self):
+        points = [(self._edges[0], self._baseline)]
+        for index, value in enumerate(self._values):
+            points.extend([(self._edges[index], value),
+                           (self._edges[index + 1], value)])
+        points.append((self._edges[-1], self._baseline))
+        out = np.asarray(points, dtype=float)
+        return out if self._orientation == "vertical" else out[:, ::-1]
+
+
 class _PatchesNamespace:
     pass
 
@@ -2521,7 +2542,7 @@ class _PatchesNamespace:
 patches = _PatchesNamespace()
 for _patch_name in ("Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc",
                     "Wedge", "RegularPolygon", "FancyArrow", "FancyArrowPatch",
-                    "FancyBboxPatch", "PathPatch", "Annulus"):
+                    "FancyBboxPatch", "PathPatch", "Annulus", "StepPatch"):
     setattr(patches, _patch_name, globals()[_patch_name])
 
 
@@ -6363,8 +6384,9 @@ class Axes:
     def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
                   **kwargs):
         """Stacked areas: each layer fills between the running total and itself."""
-        if baseline not in ("zero", "sym"):
+        if baseline not in ("zero", "sym", "wiggle"):
             raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
+        wiggle = baseline == "wiggle"
         x = np.asarray(x, dtype=np.float64).ravel()
         layers = []
         for y in ys:
@@ -6379,7 +6401,7 @@ class Axes:
             raise ValueError("stackplot needs at least one y array")
         labels = list(_as_list(labels)) if labels else []
         cols = _colors(colors)
-        if baseline == "sym":
+        if baseline in ("sym", "wiggle"):
             cum = -np.sum(np.stack(layers), axis=0) / 2.0
         else:
             cum = np.zeros(x.size)
@@ -6395,9 +6417,12 @@ class Axes:
             cum = cum + layer
         # Like bars, a stack that stays on one side of zero meets the axis at
         # y=0 instead of autoscaling a margin below it.
-        if baseline == "zero" and self.ylim is None:
+        if (baseline == "zero" or wiggle) and self.ylim is None:
             lo, hi = self.get_ylim()
-            if data_lo >= 0.0:
+            if wiggle:
+                reach = max(abs(data_lo), abs(data_hi))
+                lo, hi = -reach, reach
+            elif data_lo >= 0.0:
                 lo = 0.0
             elif data_hi <= 0.0:
                 hi = 0.0
@@ -6424,14 +6449,16 @@ class Axes:
             e = np.asarray(edges, dtype=np.float64).ravel()
             if e.size != v.size + 1:
                 raise ValueError("edges must have len(values) + 1 entries")
-        if orientation != "vertical":
-            raise NotImplementedError(f"orientation={orientation!r} is not supported yet")
-        xs = np.empty(2 * v.size)
-        ys = np.empty(2 * v.size)
-        xs[0::2] = e[:-1]
-        xs[1::2] = e[1:]
-        ys[0::2] = v
-        ys[1::2] = v
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        first = np.empty(2 * v.size)
+        second = np.empty(2 * v.size)
+        first[0::2] = e[:-1]
+        first[1::2] = e[1:]
+        second[0::2] = v
+        second[1::2] = v
+        xs, ys = ((first, second) if orientation == "vertical"
+                  else (second, first))
         if not fill:
             return self.plot(xs, ys, color=color, label=label, **kwargs)
         # A filled `stairs` is one StepPatch: `color` fills it, `alpha` applies to
@@ -6440,7 +6467,13 @@ class Axes:
         edge = kwargs.pop("edgecolor", kwargs.pop("ec", None))
         linewidth = kwargs.pop("linewidth", kwargs.pop("lw", None))
         face = kwargs.pop("facecolor", kwargs.pop("fc", None)) or color
-        self.fill_between(xs, ys, baseline, color=face, alpha=alpha, label=label)
+        base = baseline
+        if not np.isscalar(baseline):
+            base = np.repeat(np.asarray(baseline, dtype=float).ravel(), 2)
+        if orientation == "vertical":
+            self.fill_between(xs, ys, base, color=face, alpha=alpha, label=label)
+        else:
+            self.fill_betweenx(ys, xs, base, color=face, alpha=alpha, label=label)
         if edge is not None:
             self.plot(xs, ys, color=edge, alpha=alpha, label="",
                       linewidth=linewidth if linewidth is not None else 1.0)

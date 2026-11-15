@@ -836,6 +836,22 @@ def test_gallery_path_patch_and_subfigure_shims():
     assert plt.HandlerTuple(ndivide=None) is not None
 
 
+def test_streamgraph_and_horizontal_stairs():
+    fig, ax = plt.subplots()
+    ax.stackplot([0.0, 1.0, 2.0], [1.0, 1.0, 1.0], [1.0, 2.0, 1.0],
+                 baseline="wiggle")
+    low, high = ax.get_ylim()
+    assert low < 0.0 < high
+
+    fig2, ax2 = plt.subplots()
+    line = ax2.stairs([1.0, 2.0, 3.0], range(4), orientation="horizontal",
+                      fill=True)
+    assert line is None
+    patch = plt.StepPatch([1.0, 2.0], [0.0, 1.0, 2.0])
+    assert patch.get_xy().shape == (6, 2)
+    assert fig is not None and fig2 is not None
+
+
 def test_colorizer_and_contour_linestyle_shims():
     fig, ax = plt.subplots()
     norm = plt.colors.Normalize(vmin=0.0, vmax=1.0)
@@ -2739,8 +2755,10 @@ def test_stackplot_layers(tmp_path):
     negative.gca().stackplot(x, [-1, -1, -1, -1])
     assert negative.gca().get_ylim()[1] == 0.0
     ax.stackplot(x, [1, 1, 1, 1], baseline="sym")
-    with pytest.raises(NotImplementedError):
-        ax.stackplot(x, [1, 1, 1, 1], baseline="wiggle")
+    wiggle = plt.figure()
+    wiggle.gca().stackplot(x, [1, 1, 1, 1], baseline="wiggle")
+    lo, hi = wiggle.gca().get_ylim()
+    assert lo < 0.0 < hi
     with pytest.raises(ValueError):
         ax.stackplot(x, [1, 2])
 
@@ -2869,8 +2887,9 @@ def test_stackplot_sym_baseline(tmp_path):
     p = tmp_path / "sym.svg"
     plt.savefig(p)
     assert "<POLYGON" in p.read_text(encoding="utf-8").upper()
-    with pytest.raises(NotImplementedError):
-        ax.stackplot(x, [1, 1, 1], baseline="wiggle")
+    ax.stackplot(x, [1, 1, 1], baseline="wiggle")
+    lo, hi = ax.get_ylim()
+    assert lo < 0.0 < hi
 
 
 def test_css_colors_and_color_specs(tmp_path):
