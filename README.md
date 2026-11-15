@@ -366,8 +366,8 @@ python tools/harvest_seaborn.py --out dist/seaborn-gallery
 
 Each writes an `index.html` and a `manifest.json`; the baseline gallery copies its
 reference images alongside the page so it stays browsable when moved. On the
-Matplotlib 3.11.2 checkout used here, the examples gallery renders **377 of 507**
-scripts: 19 still need API, 106 are interactive or environment-specific, 2 are
+Matplotlib 3.11.2 checkout used here, the examples gallery renders **380 of 507**
+scripts: 16 still need API, 106 are interactive or environment-specific, 2 are
 blank, and 3 hit the known EPS/SVG-gid limitations above. The pixel
 metrics read PNGs through Matplotlib, so without it the corpus gallery still
 renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are

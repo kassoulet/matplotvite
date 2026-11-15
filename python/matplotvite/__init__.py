@@ -4646,7 +4646,7 @@ class Axes:
 
     def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
                interpolation=None, aspect=None, alpha=None, clim=None, norm=None,
-               **kwargs):
+               colorizer=None, **kwargs):
         """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
         (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
         `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
@@ -4655,6 +4655,11 @@ class Axes:
         accepted."""
         if clim is not None:
             vmin, vmax = clim
+        if colorizer is not None:
+            cmap = colorizer.cmap if colorizer.cmap is not None else cmap
+            if colorizer.norm is not None:
+                vmin = getattr(colorizer.norm, "vmin", vmin)
+                vmax = getattr(colorizer.norm, "vmax", vmax)
         setting = (rcParams.get("image.interpolation", "nearest")
                    if interpolation is None else interpolation)
         interp = str(setting).lower()
@@ -7517,6 +7522,13 @@ class ContourSet:
     def get_linewidths(self):
         widths = self._e.get("linewidths") or []
         return list(widths)
+    @property
+    def linestyles(self):
+        return self._e.get("linestyles") or "solid"
+    def set_linestyle(self, linestyle):
+        self._e["linestyles"] = linestyle
+        return self
+    def get_linestyle(self): return self.linestyles
     def get_cmap(self): return get_cmap(self._e["cmap"])
     def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
     def set_clim(self, vmin=None, vmax=None): pass
@@ -9186,6 +9198,14 @@ class LightSource:
         return np.where(rgb <= 0.5, low, high)
 
 
+class Colorizer:
+    """Shared norm/cmap pair accepted by `imshow(colorizer=...)`."""
+
+    def __init__(self, norm=None, cmap=None):
+        self.norm = norm
+        self.cmap = cmap
+
+
 class ScalarMappable:
     """Minimal `matplotlib.cm.ScalarMappable` for standalone colorbars."""
 
@@ -9840,6 +9860,18 @@ class _FixedFormatter:
     def set_axis(self, axis): return None
 
 
+def _imread(fname, format=None):
+    """Read an image through Pillow when it is installed."""
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise ImportError("matplotvite.image.imread needs Pillow") from exc
+    with Image.open(fname, formats=None if format is None else [format]) as image:
+        if image.mode in ("RGBA", "LA") or "transparency" in image.info:
+            return np.asarray(image.convert("RGBA"), dtype=np.float64) / 255.0
+        return np.asarray(image.convert("RGB"), dtype=np.float64) / 255.0
+
+
 def _get_sample_data(name, asfileobj=True):
     """Matplotlib's sample-data directory is not shipped with matplotvite."""
     raise FileNotFoundError(
@@ -9900,6 +9932,8 @@ mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
 collections = mcollections
 markers = _Namespace(MarkerStyle=MarkerStyle)
 mmarkers = markers
+image = _Namespace(imread=_imread)
+colorizer = _Namespace(Colorizer=Colorizer)
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          BboxTransformTo=_Transform, IdentityTransform=_IdentityTransform,
                          ScaledTranslation=_Transform, TransformedBbox=_TransformedBbox,

@@ -2,12 +2,12 @@
 
 Scope: `main` after the compatibility-shim, table, polar and gallery-reference changes. Closed findings have been removed; this file lists what is still open. The examples gallery was regenerated on 15 Nov with the current build.
 
-Results on this tree: Python suite 427 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 428 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 377 | 2 | 19 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 380 | 2 | 16 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
 The examples gallery is current. The corpus row and its pixel metrics are from the last corpus run; they were not regenerated for this change.
 
@@ -31,7 +31,7 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 
 | # | Finding |
 |---|---------|
-| G3 | **Remaining examples API gaps (19):** `NonUniformImage`; `matplotlib.image`, `matplotlib.scale` and `matplotlib.colorizer`; hand-built contour paths and manual `clabel`; per-pixel alpha arrays; `stackplot(baseline="wiggle")`; `stairs(orientation="horizontal")`; `PdfPages`; `FT2Font.set_charmap`/`num_named_instances`; `ContourSet.set_linestyle`; `BboxConnector`; radar `set_varlabels`; boxplot/`time_series_histogram` styling. 3-D remains out of scope. |
+| G3 | **Remaining examples API gaps (16):** `NonUniformImage`; `matplotlib.scale`; hand-built contour paths and manual `clabel`; per-pixel alpha arrays; `stackplot(baseline="wiggle")`; `stairs(orientation="horizontal")`; `PdfPages`; `FT2Font.set_charmap`/`num_named_instances`; `BboxConnector`; radar `set_varlabels`; boxplot/`time_series_histogram` styling. 3-D remains out of scope. |
 | G4 | **Known example failures (3):** `rasterization_demo` saves EPS (only PNG/SVG/PDF/WebP are encoded); `svg_filter_line` and `svg_filter_pie` ask `ElementTree.XMLID` for gids that the SVG backend does not emit yet. |
 | F5 | **Environment cases:** install Pillow in the gallery job (`image_demo`, `image_clip_path`, `demo_annotation_box`, `demo_text_path`, `demo_ribbon_box`, `mathtext_asarray`); `units/*` now uses the bundled converter registry. |
 | E5 | **One-line API gaps:** `Axes.set()` rejects unknown keywords and `Axes.twin()` takes no argument. |

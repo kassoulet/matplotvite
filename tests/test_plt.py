@@ -836,6 +836,19 @@ def test_gallery_path_patch_and_subfigure_shims():
     assert plt.HandlerTuple(ndivide=None) is not None
 
 
+def test_colorizer_and_contour_linestyle_shims():
+    fig, ax = plt.subplots()
+    norm = plt.colors.Normalize(vmin=0.0, vmax=1.0)
+    colorizer = plt.colorizer.Colorizer(norm=norm, cmap="viridis")
+    assert colorizer.norm is norm
+    image = ax.imshow(np.arange(9.0).reshape(3, 3), colorizer=colorizer)
+    assert image.get_clim() == (0.0, 1.0)
+    contour = ax.contour(np.arange(9.0).reshape(3, 3), levels=[2.0, 5.0])
+    contour.set_linestyle("solid")
+    assert contour.get_linestyle() == "solid"
+    assert fig is not None
+
+
 def test_colorbar_exposes_formatted_tick_labels():
     fig, ax = plt.subplots()
     image = ax.imshow(np.arange(12.0).reshape(3, 4))
