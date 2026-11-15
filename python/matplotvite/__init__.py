@@ -17,7 +17,7 @@ from ._core import __version__, render as _render
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
-    "TextPath", "Sankey", "BboxImage", "Table", "AnchoredOffsetbox", "AnnotationBbox",
+    "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "AnchoredOffsetbox", "AnnotationBbox",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
     "TextArea", "VPacker",
     "ScalarMappable",
@@ -2864,6 +2864,7 @@ class Line2D:
 
     def get_xdata(self): return self._series["x"]
     def get_ydata(self): return self._series["y"]
+    def get_data(self, *args, **kwargs): return (self.get_xdata(), self.get_ydata())
     def set_xdata(self, x): self._series["x"] = _as_f64(x)
     def set_ydata(self, y): self._series["y"] = _as_f64(y)
 
@@ -3242,8 +3243,26 @@ class _Timer:
         self.add_callback(func, *args, **kwargs)
 
 
+class MouseEvent:
+    """Headless mouse event used by examples that simulate a pointer move."""
+
+    def __init__(self, name, canvas, x, y, button=None, key=None,
+                 step=0, dblclick=False, guiEvent=None):
+        self.name, self.canvas = str(name), canvas
+        self.x, self.y = float(x), float(y)
+        self.xdata = self.ydata = None
+        self.button, self.key, self.step = button, key, step
+        self.dblclick, self.guiEvent = bool(dblclick), guiEvent
+        self.inaxes = None
+
+    def _process(self):
+        return None
+
+
 class _Manager:
-    def __init__(self, canvas): self.canvas = canvas
+    def __init__(self, canvas):
+        self.canvas = canvas
+        self.key_press_handler_id = None
     def set_window_title(self, *args, **kwargs): return None
     def get_window_title(self): return ""
     def destroy(self): return None
@@ -7676,7 +7695,8 @@ class _ColorbarAxis:
 
 
 class _ColorbarAxes:
-    def __init__(self):
+    def __init__(self, entry=None):
+        self._e = entry or {}
         self.yaxis = self.xaxis = _ColorbarAxis()
     def get_position(self, original=False): return _Bbox(0.0, 0.0, 1.0, 1.0)
     def get_window_extent(self, renderer=None): return _Bbox(0.0, 0.0, 1.0, 1.0)
@@ -7690,6 +7710,19 @@ class _ColorbarAxes:
     def set_xticks(self, *args, **kwargs): return None
     def set_yticklabels(self, *args, **kwargs): return None
     def set_xticklabels(self, *args, **kwargs): return None
+    def get_yticklabels(self): return self._ticklabels()
+    def get_xticklabels(self): return self._ticklabels()
+    def get_yticks(self): return self._e.get("ticks") or []
+    def get_xticks(self): return self._e.get("ticks") or []
+
+    def _ticklabels(self):
+        ticks = self._e.get("ticks")
+        if ticks is None:
+            return []
+        formatter = self._e.get("format")
+        if formatter is None:
+            return [_TextLabel(f"{tick:g}") for tick in ticks]
+        return [_TextLabel(str(formatter(tick, i))) for i, tick in enumerate(ticks)]
 
 
 class Colorbar:
@@ -7697,7 +7730,7 @@ class Colorbar:
 
     def __init__(self, entry):
         self._e = entry
-        self.ax = _ColorbarAxes()
+        self.ax = _ColorbarAxes(entry)
 
     def set_label(self, label, loc=None, **kwargs): self._e["label"] = str(label)
     def get_label(self): return self._e["label"]
@@ -8079,7 +8112,8 @@ class Figure:
                 raise ValueError("colorbar needs an image or contour to describe")
             spec = collection._colorbar_spec()
         entry = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
-                     vmax=float(spec["vmax"]), label=str(label))
+                     vmax=float(spec["vmax"]), label=str(label),
+                     ticks=kwargs.get("ticks"), format=kwargs.get("format"))
         axes._colorbar = entry
         self._colorbar = entry
         return Colorbar(entry)

@@ -798,6 +798,17 @@ def test_colorbar_uses_nice_ticks():
     assert not re.search(r">\s*0\.5\s*</text>", svg)
 
 
+def test_colorbar_exposes_formatted_tick_labels():
+    fig, ax = plt.subplots()
+    image = ax.imshow(np.arange(12.0).reshape(3, 4))
+    cbar = fig.colorbar(image, ticks=[-1, 0, 1],
+                        format=plt.FixedFormatter(["< -1", "0", "> 1"]))
+    labels = cbar.ax.get_yticklabels()
+    assert [label.get_text() for label in labels] == ["< -1", "0", "> 1"]
+    labels[0].set_verticalalignment("top")
+    assert cbar.ax.get_yticks() == [-1, 0, 1]
+
+
 def test_colorbar_ticks_have_no_float_noise():
     fig, ax = plt.subplots(figsize=(5, 4))
     x = np.linspace(0, 4, 40)
@@ -3810,6 +3821,8 @@ def test_matplotlib_namespace_and_cycler_shims():
     assert plt.mticker.NullLocator() is not None
     assert plt.NullLocator() is not None
     assert plt.cycler(color=["red", "green"]).by_key()["color"] == ["red", "green"]
+    assert plt.MouseEvent("motion_notify_event", plt.figure().canvas, 0, 0)._process() is None
+    assert plt.gcf().canvas.manager.key_press_handler_id is None
     assert plt.mtransforms.offset_copy(None) is not None
     assert plt.path_effects.withStroke(linewidth=1) is not None
     line = plt.Line2D([0, 1], [1, 0])
