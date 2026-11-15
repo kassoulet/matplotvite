@@ -672,7 +672,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
         mpl_polar_axes = None
 
     mpl_helpers = {name: value for name, value in (
-        ("animation", mpl_animation), ("units", mpl_units),
+        ("animation", mpl_animation), ("jpl_units", mpl_units),
         ("PolarAxes", mpl_polar_axes),
     ) if value is not None}
 

@@ -4324,3 +4324,34 @@ def test_custom_projection_spines_and_axis_names():
     ax.spines["bottom"] = spine
     assert ax.spines["bottom"] is spine
     assert isinstance(maxis.XTick(ax, 0.0), maxis.XTick)
+
+
+def test_registered_unit_converter_is_used_by_plot(tmp_path):
+    """Plots convert registered unit objects and apply their axis info."""
+    from matplotvite import units
+
+    class Foo:
+        def __init__(self, value): self._value = value
+        def value(self, unit=None): return self._value
+
+    class FooConverter(units.ConversionInterface):
+        @staticmethod
+        def axisinfo(unit, axis):
+            return units.AxisInfo(label="foo")
+
+        @staticmethod
+        def default_units(x, axis): return None
+
+        @staticmethod
+        def convert(obj, unit, axis):
+            return [item.value(unit) for item in obj]
+
+    units.registry[Foo] = FooConverter()
+    try:
+        fig, ax = plt.subplots()
+        line, = ax.plot([Foo(1), Foo(2)], [3, 4])
+        assert line.get_xdata().tolist() == [1.0, 2.0]
+        assert ax.get_xlabel() == "foo"
+        fig.savefig(tmp_path / "units.png")
+    finally:
+        units.registry.pop(Foo, None)

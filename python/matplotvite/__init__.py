@@ -25,7 +25,7 @@ __all__ = (
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
     "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "spines", "axis",
-    "projections", "register_projection",
+    "projections", "register_projection", "units",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
     "same_color", "FixedFormatter", "LogLocator",
@@ -2055,8 +2055,9 @@ class Circle(Patch):
 class Ellipse(Patch):
     def __init__(self, xy, width, height, angle=0.0, **kwargs):
         super().__init__(**kwargs)
-        self._center = (float(xy[0]), float(xy[1]))
-        self._width, self._height = float(width), float(height)
+        self._center = (float(_as_f64(xy[0])[0]), float(_as_f64(xy[1])[0]))
+        self._width = float(_as_f64(width)[0])
+        self._height = float(_as_f64(height)[0])
         self.angle = float(angle)
 
     def get_center(self): return self._center
@@ -2102,8 +2103,9 @@ class Arc(Patch):
         kwargs.setdefault("fill", False)
         kwargs.setdefault("facecolor", "none")
         super().__init__(**kwargs)
-        self._center = (float(xy[0]), float(xy[1]))
-        self._width, self._height = float(width), float(height)
+        self._center = (float(_as_f64(xy[0])[0]), float(_as_f64(xy[1])[0]))
+        self._width = float(_as_f64(width)[0])
+        self._height = float(_as_f64(height)[0])
         self.angle = float(angle)
         self.theta1, self.theta2 = float(theta1), float(theta2)
 
@@ -3310,6 +3312,8 @@ class Axes:
         `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
         `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
         args = _resolve_data_args(args, data, x, y)
+        xunits = kwargs.pop("xunits", None)
+        yunits = kwargs.pop("yunits", None)
         if drawstyle == "steps":
             drawstyle = "steps-pre"
         if drawstyle not in ("default", "steps-pre", "steps-mid", "steps-post"):
@@ -3337,6 +3341,8 @@ class Axes:
                     gmarker = f_marker
             line_color = self._next_color() if gcolor is None else gcolor
             edge = markeredgecolor or mec
+            gx = _convert_units(gx, self.xaxis, xunits)
+            gy = _convert_units(gy, self.yaxis, yunits)
             xvals = self._xdate(gx)
             gy = self._ydate(gy)
             series_style = drawstyle
@@ -6195,6 +6201,29 @@ def _as_image(X):
     raise ValueError("imshow expects a 2-D array or an (H, W, 3|4) RGB(A) array")
 
 
+def _convert_units(values, axis, unit=None):
+    """Apply a registered `matplotlib.units` converter, if the data has one."""
+    if values is None:
+        return values
+    items = _as_list(values)
+    if not hasattr(items, "__getitem__") or len(items) == 0:
+        return values
+    converter = units.registry.get_converter(items[0])
+    if converter is None:
+        return values
+    if unit is None:
+        unit = converter.default_units(values, axis)
+    info = converter.axisinfo(unit, axis)
+    if info is not None:
+        if info.label:
+            axis.set_label_text(info.label)
+        if info.majloc is not None:
+            axis.set_major_locator(info.majloc)
+        if info.majfmt is not None:
+            axis.set_major_formatter(info.majfmt)
+    return converter.convert(values, unit, axis)
+
+
 def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markersize=6.0,
             mfc=None, mec=None, mew=1.0, alpha=None, drawstyle="default"):
     return dict(x=_as_f64(x), y=_as_f64(y),
@@ -6767,7 +6796,14 @@ def _err_pair(err, n, name):
     if err is None:
         z = np.zeros(n)
         return z, z.copy()
-    a = np.asarray(err, dtype=np.float64)
+    if np.isscalar(err) or not np.iterable(err):
+        v = np.full(n, abs(float(_as_f64(err)[0])))
+        return v, v.copy()
+    raw = np.asarray(err, dtype=object)
+    if raw.ndim == 2:
+        a = np.asarray([_as_f64(row) for row in err])
+    else:
+        a = _as_f64(err)
     if a.ndim == 0:
         v = np.full(n, abs(float(a)))
         return v, v.copy()
@@ -9298,3 +9334,4 @@ from .offsetbox import (  # noqa: E402
 )
 from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
 from . import spines  # noqa: E402 - public module for custom projections
+from . import units  # noqa: E402 - unit-converter registry
