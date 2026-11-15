@@ -4307,3 +4307,20 @@ def test_axes_arrow_adds_a_fancy_arrow(tmp_path):
     assert arrow in ax.patches
     assert arrow.get_xy().shape[0] == 7
     fig.savefig(tmp_path / "arrow.png")
+
+
+def test_custom_projection_spines_and_axis_names():
+    """Projection subclasses can build spines and name axis classes."""
+    from matplotvite import axis as maxis
+    from matplotvite import spines as mspines
+
+    fig, ax = plt.subplots()
+    spine = mspines.Spine.linear_spine(ax, "bottom")
+    spine.register_axis(maxis.XAxis(ax))
+    assert spine.spine_type == "bottom"
+    assert spine.get_path().vertices.shape == (2, 2)
+    circle = mspines.Spine.circular_spine(ax, (0.5, 0.5), 0.5)
+    assert circle.get_path().vertices.shape == (65, 2)
+    ax.spines["bottom"] = spine
+    assert ax.spines["bottom"] is spine
+    assert isinstance(maxis.XTick(ax, 0.0), maxis.XTick)

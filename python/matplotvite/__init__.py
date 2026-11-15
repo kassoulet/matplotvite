@@ -24,7 +24,8 @@ __all__ = (
     "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
     "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
     "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
-    "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines",
+    "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "spines", "axis",
+    "projections", "register_projection",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "font_manager", "FontProperties", "CapStyle", "JoinStyle",
     "same_color", "FixedFormatter", "LogLocator",
@@ -36,7 +37,7 @@ __all__ = (
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps", "tri",
     "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
     "AnchoredText", "offsetbox",
-    "annotate", "axes", "axis", "axhline", "axhspan", "axline", "axvline", "axvspan",
+    "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "matshow", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
@@ -2856,6 +2857,8 @@ class _Spines:
         if isinstance(name, (list, tuple)):
             return _SpineSelection(getattr(self, str(item)) for item in name)
         return getattr(self, name)
+    def __setitem__(self, name, spine): setattr(self, name, spine)
+    def register_axis(self, axis): return None
     def __iter__(self): return iter(("left", "right", "bottom", "top"))
     def keys(self): return ("left", "right", "bottom", "top")
     def values(self): return (self.left, self.right, self.bottom, self.top)
@@ -7934,7 +7937,7 @@ def axes(*args, **kwargs):
     return gca()
 
 
-def axis(*args, **kwargs): return gca().axis(*args, **kwargs)
+
 
 
 def show(*args, **kwargs): pass
@@ -8114,6 +8117,12 @@ _RC_DEFAULTS = dict(rcParams)
 
 class _Namespace:
     def __init__(self, **values): self.__dict__.update(values)
+
+
+class _AxisModule(_Namespace):
+    """`matplotlib.axis` plus the callable `plt.axis` compatibility shim."""
+
+    def __call__(self, *args, **kwargs): return gca().axis(*args, **kwargs)
 
 
 class _NoopContext:
@@ -9022,6 +9031,39 @@ mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
                          blended_transform_factory=_blended_transform_factory,
                          offset_copy=_offset_copy)
 transforms = mtransforms
+class _Tick:
+    """Minimal tick container for projection subclasses."""
+
+    def __init__(self, axes=None, loc=None, major=True):
+        self.axes = axes
+        self._loc = loc
+        self.major = major
+
+    def get_loc(self): return self._loc
+
+
+class _ProjectionAxis:
+    """Minimal axis object for custom projection class definitions."""
+
+    def __init__(self, axes=None): self.axes = axes
+
+    def set_minor_locator(self, locator): return None
+    def set_major_locator(self, locator): return None
+    def set_ticks_position(self, position): return None
+    def get_view_interval(self): return (0.0, 1.0)
+
+
+class _XAxis(_ProjectionAxis): pass
+class _YAxis(_ProjectionAxis): pass
+class _XTick(_Tick): pass
+class _YTick(_Tick): pass
+
+
+axis = _AxisModule(Axis=_ProjectionAxis, XAxis=_XAxis, YAxis=_YAxis,
+                   Tick=_Tick, XTick=_XTick, YTick=_YTick)
+projections = _Namespace(register_projection=lambda cls: None)
+register_projection = projections.register_projection
+
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
     LinearLocator=_LinearLocator, LogLocator=_LogLocator, MaxNLocator=_MaxNLocator,
@@ -9255,3 +9297,4 @@ from .offsetbox import (  # noqa: E402
     HPacker, OffsetImage, Shadow, TextArea, VPacker,
 )
 from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
+from . import spines  # noqa: E402 - public module for custom projections
