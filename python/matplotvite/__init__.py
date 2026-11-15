@@ -35,7 +35,8 @@ __all__ = (
     "ConciseDateFormatter", "ConciseDateConverter",
     "MO", "TU", "WE", "TH", "FR", "SA", "SU", "YEARLY", "MONTHLY", "WEEKLY",
     "DAILY", "HOURLY", "MINUTELY", "SECONDLY",
-    "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator",
+    "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator", "NullLocator",
+    "cycler",
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
     "MarkerStyle", "markers", "mmarkers",
@@ -556,6 +557,16 @@ class _CycleList(list):
 
     def by_key(self): return {"color": [entry["color"] for entry in self]}
     def __call__(self): return iter(self)
+
+
+def cycler(*args, **kwargs):
+    """Build a colour property cycle, as `matplotlib.cycler`."""
+    if len(args) == 2:
+        kwargs = {**kwargs, args[0]: args[1]}
+    elif args:
+        raise TypeError("cycler needs pairs of property names and values")
+    colors = kwargs.get("color", ())
+    return _CycleList(list(colors) if not isinstance(colors, str) else [colors])
 
 
 def _cycle_colors(value):
@@ -8902,6 +8913,9 @@ class _NoopLocator:
     def tick_values(self, vmin, vmax): return np.array([vmin, vmax], dtype=float)
     def set_params(self, **kwargs): return None
     def set_axis(self, axis): return None
+
+
+NullLocator = _NoopLocator
 
 
 class _Locator:

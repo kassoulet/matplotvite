@@ -7,7 +7,7 @@ Results on this tree: Python suite 423 passed, 7 skipped; `ruff`, `cargo fmt`, `
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 346 | 2 | 50 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 348 | 2 | 48 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
 
 Of the 368 rendered corpus cases, 338 have a pixel metric and all 338 match the baseline's pixel dimensions. The median differing-pixel share is 13.2%; 35 are above 50%. Both gallery runs are current.
 

@@ -3793,6 +3793,8 @@ def test_matplotlib_namespace_and_cycler_shims():
     assert plt.mpatches.ArrowStyle.CurveFilledB() is not None
     assert plt.gridspec.GridSpecFromSubplotSpec(1, 1) is not None
     assert plt.mticker.NullLocator() is not None
+    assert plt.NullLocator() is not None
+    assert plt.cycler(color=["red", "green"]).by_key()["color"] == ["red", "green"]
     assert plt.mtransforms.offset_copy(None) is not None
     assert plt.path_effects.withStroke(linewidth=1) is not None
     line = plt.Line2D([0, 1], [1, 0])
