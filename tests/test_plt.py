@@ -364,10 +364,15 @@ def test_imshow_rgb_handle_and_errors(tmp_path):
     ax = plt.gca()
     ax.imshow(np.random.rand(8, 8, 3), extent=(-1, 1, -1, 1))
     im = ax.imshow(np.zeros((4, 4)))
+    assert ax.images[-1] is im
     assert im.get_array().shape == (4, 4)
     im.set_clim(0, 1)
     im.set_data(np.ones((4, 4)))
     im.set_cmap("gray")
+    im.set(data=np.zeros((3, 3)), extent=(-2, 2, -3, 3), clim=(1, 2))
+    assert im.get_array().shape == (3, 3)
+    assert im.get_extent() == (-2.0, 2.0, -3.0, 3.0)
+    assert im.get_clim() == (1, 2)
     with pytest.raises(ValueError):
         ax.imshow(np.zeros((2, 2, 2)))
     with pytest.raises(ValueError):
@@ -2409,6 +2414,10 @@ def test_layout_noops_and_in_layout():
     ax.set_in_layout(False)
     assert ax.get_in_layout() is False
     assert ax.get_layout_engine() is None
+    assert fig.get_layout_engine() is not None
+    fig.get_layout_engine().set(hspace=0.15)
+    fig.set_layout_engine("constrained")
+    assert fig.get_layout_engine().name == "constrained"
 
 
 def test_hlines_vlines(tmp_path):
@@ -3635,7 +3644,7 @@ def test_images_have_sticky_edges_and_no_default_resampling():
     ax.imshow(np.zeros((3, 4)))
     assert ax.get_xlim() == (-0.5, 3.5) and ax.get_ylim() == (2.5, -0.5)
     assert ax.yaxis_inverted()
-    assert ax.images[0]["interpolation"] == "nearest"
+    assert ax.images[0].get_interpolation() == "nearest"
     ax.plot([0, 10], [0, 1])
     assert ax.get_xlim() == pytest.approx((-0.5, 10.525))
 
@@ -3647,7 +3656,7 @@ def test_image_interpolation_rc_default(tmp_path):
         fig = plt.figure((3, 3))
         ax = fig.gca()
         ax.imshow(np.linspace(0, 1, 64).reshape(8, 8), cmap="gray")
-        assert ax.images[0]["interpolation"] == "antialiased"
+        assert ax.images[0].get_interpolation() == "antialiased"
         p = tmp_path / "smooth.svg"
         fig.savefig(p)
         assert "image-rendering:pixelated" not in p.read_text(encoding="utf-8")
@@ -3989,7 +3998,7 @@ def test_custom_colormaps_from_a_list_and_channel_tables():
     plt.colormaps.register(table)
     plt.figure()
     plt.imshow(np.linspace(0, 1, 64).reshape(8, 8), cmap=table)
-    assert plt.gca().images[0]["cmap"] == "test_table"
+    assert plt.gca().images[0].get_cmap().name == "test_table"
 
 
 def test_eventplot_accepts_a_2d_array_and_stackplot_dict_values():
@@ -4038,7 +4047,7 @@ def test_from_levels_and_colors_builds_a_discrete_norm():
     plt.rcdefaults()
     plt.figure()
     plt.pcolormesh(np.array([[0.5, 1.5], [2.5, 0.5]]), cmap=cmap, norm=norm)
-    assert plt.gca().images[0]["vmin"] == 0.0
+    assert plt.gca().images[0].get_clim()[0] == 0.0
 
 
 def test_scatter_accepts_a_norm():

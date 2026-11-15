@@ -3188,6 +3188,20 @@ class _SubplotPars:
         return self
 
 
+class _LayoutEngine:
+    """Accepted layout-engine object; matplotvite owns the actual layout."""
+
+    def __init__(self, name=None):
+        self.name = name
+        self.params = {}
+
+    def set(self, **kwargs):
+        self.params.update(kwargs)
+        return None
+
+    def get(self): return dict(self.params)
+
+
 class _GroupedBarResult:
     """Result of `Axes.grouped_bar`: one bar container per data series."""
 
@@ -3589,8 +3603,8 @@ class Axes:
         for entry in self.lines:
             ext = _update_extent(ext, entry["x"])
         for im in self.images:
-            ext = _update_extent(ext, im["extent"][0])
-            ext = _update_extent(ext, im["extent"][1])
+            ext = _update_extent(ext, im._e["extent"][0])
+            ext = _update_extent(ext, im._e["extent"][1])
         for c in self.contours:
             ext = _update_extent(ext, float(c["x"][0]))
             ext = _update_extent(ext, float(c["x"][-1]))
@@ -3615,8 +3629,8 @@ class Axes:
         for entry in self.lines:
             ext = _update_extent(ext, entry["y"])
         for im in self.images:
-            ext = _update_extent(ext, im["extent"][2])
-            ext = _update_extent(ext, im["extent"][3])
+            ext = _update_extent(ext, im._e["extent"][2])
+            ext = _update_extent(ext, im._e["extent"][3])
         for c in self.contours:
             ext = _update_extent(ext, float(c["y"][0]))
             ext = _update_extent(ext, float(c["y"][-1]))
@@ -3643,7 +3657,7 @@ class Axes:
         lo, hi = _log_bounds(lo, hi, self.xscale, extent)
         bounds = (lo, hi) if explicit else _margin(
             lo, hi, self.xscale,
-            [e for im in self.images for e in (im["extent"][0], im["extent"][1])]
+            [e for im in self.images for e in (im._e["extent"][0], im._e["extent"][1])]
             + self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)],
         )
         return (bounds[1], bounds[0]) if self._inverted[0] else bounds
@@ -3656,7 +3670,7 @@ class Axes:
         lo, hi = _log_bounds(lo, hi, self.yscale, extent)
         bounds = (lo, hi) if explicit else _margin(
             lo, hi, self.yscale,
-            [e for im in self.images for e in (im["extent"][2], im["extent"][3])]
+            [e for im in self.images for e in (im._e["extent"][2], im._e["extent"][3])]
             + self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)],
         )
         return (bounds[1], bounds[0]) if self._inverted[1] else bounds
@@ -4241,10 +4255,11 @@ class Axes:
         entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
                      extent=tuple(float(v) for v in extent),
                      alpha=float(np.clip(opacity, 0.0, 1.0)), interpolation=interp)
-        self.images.append(entry)
+        image = AxesImage(entry, self)
+        self.images.append(image)
         # matplotlib's image.aspect default is "equal".
         self.set_aspect("equal" if aspect is None else aspect)
-        return AxesImage(entry, self)
+        return image
 
     def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
@@ -6174,9 +6189,10 @@ class Axes:
                     twin_reserve=self._twin_reserve,
                     xlabel_color=self.xlabel_color, ylabel_color=self.ylabel_color,
                     patches=patches, collections=collections,
-                    images=[(e["data"], e["cmap"], e["vmin"], e["vmax"], e["extent"], True,
-                             e["alpha"], e["interpolation"])
-                            for e in self.images])
+                    images=[(im._e["data"], im._e["cmap"], im._e["vmin"],
+                             im._e["vmax"], im._e["extent"], True,
+                             im._e["alpha"], im._e["interpolation"])
+                            for im in self.images])
 
     def _resolve_text(self, t, x0, x1, y0, y1):
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
@@ -7182,7 +7198,7 @@ class AxesImage:
     def remove(self):
         if self.axes is not None:
             self.axes.images[:] = [image for image in self.axes.images
-                                   if image is not self._e]
+                                   if image is not self]
         return None
     def set_path_effects(self, value): _ignored("AxesImage.set_path_effects")
     def set_url(self, value): _ignored("AxesImage.set_url")
@@ -7196,6 +7212,29 @@ class AxesImage:
 
     def set_clim(self, vmin=None, vmax=None):
         self._e["vmin"], self._e["vmax"] = vmin, vmax
+
+    def get_clim(self): return self._e["vmin"], self._e["vmax"]
+
+    def set(self, **kwargs):
+        """Apply Matplotlib's image `.set(data=..., extent=..., clim=...)` form."""
+        for key, value in kwargs.items():
+            if key == "data":
+                self.set_data(value)
+            elif key == "extent":
+                self.set_extent(value)
+            elif key == "clim":
+                self.set_clim(*value)
+            elif key == "cmap":
+                self.set_cmap(value)
+            elif key == "alpha":
+                self.set_alpha(value)
+            elif key == "interpolation":
+                self.set_interpolation(value)
+            elif key in ("vmin", "vmax"):
+                self._e[key] = value
+            else:
+                _ignored(f"AxesImage.set({key})")
+        return self
 
     def _colorbar_spec(self):
         data = self._e["data"]
@@ -7412,6 +7451,7 @@ class Figure:
         self.transFigure = _CoordTransform("figure")
         self.transSubfigure = self.transFigure
         self.canvas = _Canvas(self)
+        self.layout_engine = _LayoutEngine()
         self.subplotpars = _SubplotPars()
         self.patch = Rectangle((0, 0), 1, 1, transform=self.transFigure,
                                facecolor=self.get_facecolor())
@@ -7610,7 +7650,10 @@ class Figure:
     # cells, so there are no margins to negotiate.
     def tight_layout(self, **kwargs): return None
     def subplots_adjust(self, *args, **kwargs): return None
-    def set_layout_engine(self, engine=None, **kwargs): self.layout_engine = engine
+    def set_layout_engine(self, engine=None, **kwargs):
+        self.layout_engine = (engine if isinstance(engine, _LayoutEngine)
+                              else _LayoutEngine(engine))
+
     def get_layout_engine(self): return getattr(self, "layout_engine", None)
     def get_axes(self): return list(self.axes)
     def get_dpi(self): return self.dpi or DPI
@@ -7733,7 +7776,8 @@ class Figure:
                 entry = getattr(mappable, "_e", None)
                 owner = next((a for a in self.axes
                               if entry is not None
-                              and (any(item is entry for item in a.images)
+                              and (any(item is mappable or item._e is entry
+                                       for item in a.images)
                                    or any(item is entry for item in a.contours)
                                    or any(item is entry for item in a.scatter_pts))), None)
                 axes = owner or axes
@@ -7744,7 +7788,7 @@ class Figure:
         elif axes.contours:
             spec = ContourSet(axes.contours[-1])._colorbar_spec()
         elif axes.images:
-            spec = AxesImage(axes.images[-1])._colorbar_spec()
+            spec = axes.images[-1]._colorbar_spec()
         else:
             collection = next(
                 (artist for artist in reversed(axes.artists)
