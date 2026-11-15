@@ -140,6 +140,21 @@ def test_render_uses_module_alias_imports(tmp_path):
     assert out.exists()
 
 
+def test_render_binds_stripped_mdates_alias(tmp_path):
+    out = tmp_path / "dates.png"
+    snippet = prepare_example(
+        "import datetime\n"
+        "import matplotlib.pyplot as plt\n"
+        "import matplotlib.dates as mdates\n"
+        "fig, ax = plt.subplots()\n"
+        "dates = [datetime.datetime(2020, 1, 1), datetime.datetime(2020, 2, 1)]\n"
+        "ax.plot(dates, [1, 2])\n"
+        "ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))\n")
+    assert "mdates = matplotlib.dates" in snippet
+    assert render(snippet, out) is None
+    assert out.exists()
+
+
 def test_prepare_example_rewrites_toolkit_imports_to_the_scoped_shim():
     # The wheel deliberately ships no top-level `mpl_toolkits`, so a harvested
     # snippet must import the shim inside matplotvite.

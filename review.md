@@ -2,7 +2,7 @@
 
 Scope: `main` after the tick-label, gallery-reference and release-workflow changes. Closed findings have been removed; this file lists what is still open. Galleries were regenerated on 14 Nov with the current build.
 
-Results on this tree: Python suite 418 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
+Results on this tree: Python suite 419 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery now renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | other |
 |---------|-------|----------|-------|--------------------|-------|
@@ -43,7 +43,6 @@ No open high-severity findings. All 23 `axes_grid1` and all 17 `axisartist` gall
 |---|---------|
 | G5 | **Environment accounting:** 9 examples need `gi` and 7 need `wx`; `user_interfaces` (25), `widgets` (16) and `animation` (10) are interactive by nature and should be `unsupported` up front. Local runs should also state when `cairosvg`/`pypdfium2` are missing, because SVG/PDF baselines then get no metric. |
 | F7 / N7 | **"Rendered" is not proof of correctness.** It still includes ignored calls (see the per-case `ignored` count). Treat rendered counts as an upper bound and check the remaining float-conversion and `_ListedColormap` cases did not merely move into `needs-api`. |
-| E6 | **Test gap:** every `mpl-examples` failure now carries a `reason` and the gallery test checks it; still add a test that a stripped `import matplotlib.dates as mdates` binds `mdates`. |
 
 ## Watch items and residual risks
 
