@@ -1599,8 +1599,7 @@ def test_streamplot_colors_masks_arrows_and_colorbar(tmp_path):
 
 
 def test_small_api_gaps_for_grids_effects_and_artists(tmp_path):
-    from matplotlib.colors import AsinhNorm
-    from matplotlib.patheffects import withTickedStroke
+    from matplotvite import colors, patheffects
 
     fig = plt.figure()
     gs = fig.add_gridspec(2, 2)
@@ -1609,7 +1608,8 @@ def test_small_api_gaps_for_grids_effects_and_artists(tmp_path):
     assert axs[0, 0]._share_x is not None
     assert fig.dpi_scale_trans is not None
 
-    line, = axs[0, 0].plot([0, 1], [0, 1], path_effects=[withTickedStroke()])
+    line, = axs[0, 0].plot([0, 1], [0, 1],
+                           path_effects=[patheffects.withTickedStroke()])
     line.set_dashes([2, 2, 10, 2])
     line.set_dash_capstyle("round")
     patch = plt.Rectangle((0, 0), 1, 1)
@@ -1620,7 +1620,7 @@ def test_small_api_gaps_for_grids_effects_and_artists(tmp_path):
     axs[0, 0].get_xticklabels()[0].set_picker(True)
     assert axs[0, 0].legend().get_lines() == []
 
-    norm = AsinhNorm(linear_width=0.5, vmin=-2, vmax=2)
+    norm = colors.AsinhNorm(linear_width=0.5, vmin=-2, vmax=2)
     assert float(norm(0.0)) == 0.5
     fig.savefig(tmp_path / "small_gaps.png")
 
