@@ -1321,39 +1321,68 @@ fn clip_value(poly: Vec<(f64, f64, f64)>, bound: f64, keep_above: bool) -> Vec<(
     out
 }
 
-/// Greedily drop points closer than `tolerance` pixels to the last kept point.
-/// Matplotlib simplifies dense paths before drawing; without this a 100k-point
-/// line becomes a 0.8 MB SVG path and swamps the render time.
+/// Collapse runs of points that share one pixel column to their first, lowest,
+/// highest and last points, in path order. The stroke inside a column spans
+/// [min, max] and enters and leaves at first/last, so the drawn path is
+/// visually unchanged while dense series shrink to at most four points per
+/// column, whatever their noise. Cost is O(n); the `tolerance` argument of the
+/// old greedy scheme is gone because it kept every point of a noisy series.
 fn simplify_polyline(
-    pts: &[(f64, f64)],
-    tolerance: f64,
+    n: usize,
+    point: impl Fn(usize) -> (f64, f64),
     map: impl Fn(&(f64, f64)) -> (f64, f64),
 ) -> Vec<(f64, f64)> {
-    let mut out = Vec::new();
-    if pts.len() < 3 {
-        return pts.to_vec();
+    if n < 3 {
+        return (0..n).map(point).collect();
     }
-    out.push(pts[0]);
-    let mut last = map(&pts[0]);
-    for p in &pts[1..pts.len().saturating_sub(1)] {
-        let (x, y) = map(p);
+    let mut out = Vec::new();
+    // Indices of the current column's first, min-y, max-y and last points.
+    let mut col: Option<(f64, [usize; 4], f64, f64)> = None;
+    fn flush(out: &mut Vec<(f64, f64)>, point: &impl Fn(usize) -> (f64, f64), idx: [usize; 4]) {
+        let mut idx = idx;
+        idx.sort_unstable();
+        let mut prev = usize::MAX;
+        for i in idx {
+            if i != prev {
+                out.push(point(i));
+                prev = i;
+            }
+        }
+    }
+    for i in 0..n {
+        let p = point(i);
+        let (x, y) = map(&p);
         if !x.is_finite() || !y.is_finite() {
-            // Keep non-finite points and stop simplifying the rest so the
-            // undrawn gaps in the series stay where they were.
-            out.push(*p);
-            last = (x, y);
+            // Keep non-finite points so the undrawn gaps stay where they were.
+            if let Some((_, idx, _, _)) = col.take() {
+                flush(&mut out, &point, idx);
+            }
+            out.push(p);
             continue;
         }
-        let (dx, dy) = (x - last.0, y - last.1);
-        if dx * dx + dy * dy >= tolerance * tolerance {
-            out.push(*p);
-            last = (x, y);
+        let column = x.floor();
+        match &mut col {
+            Some((c, idx, lo, hi)) if *c == column => {
+                if y < *lo {
+                    *lo = y;
+                    idx[1] = i;
+                }
+                if y > *hi {
+                    *hi = y;
+                    idx[2] = i;
+                }
+                idx[3] = i;
+            }
+            _ => {
+                if let Some((_, idx, _, _)) = col.take() {
+                    flush(&mut out, &point, idx);
+                }
+                col = Some((column, [i; 4], y, y));
+            }
         }
     }
-    if let Some(last_pt) = pts.last() {
-        if out.last() != Some(last_pt) {
-            out.push(*last_pt);
-        }
+    if let Some((_, idx, _, _)) = col {
+        flush(&mut out, &point, idx);
     }
     out
 }

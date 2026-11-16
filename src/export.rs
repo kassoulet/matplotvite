@@ -421,7 +421,7 @@ fn fragment_key(
     top_pad: i32,
     raster_scatter: bool,
 ) -> String {
-    // `cache_key` is a 128-bit blake2b digest; keep all of it instead of
+    // `cache_key` is a 160-bit SHA-1 digest; keep all of it instead of
     // folding it into a 64-bit hash. Raster and vector output differ for dense
     // scatter, so the mode is part of the key too.
     format!(

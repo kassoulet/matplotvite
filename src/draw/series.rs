@@ -42,33 +42,34 @@ where
         let xs = s.x.as_array();
         let ys = s.y.as_array();
         let n = xs.len().min(ys.len());
-        // Step drawstyles insert the corner points instead of a diagonal.
-        let mut pts: Vec<(f64, f64)> = Vec::with_capacity(n * 2);
-        for i in 0..n {
-            pts.push((tx(xs[i]), ty(ys[i])));
-            if i + 1 < n {
-                match s.drawstyle.as_str() {
-                    "steps-post" => pts.push((tx(xs[i + 1]), ty(ys[i]))),
-                    "steps-pre" => pts.push((tx(xs[i]), ty(ys[i + 1]))),
-                    _ => {}
-                }
-            }
-        }
-        if n > 2000 && s.drawstyle != "steps-pre" && s.drawstyle != "steps-post" {
-            // Pixel-space simplification leaves the drawn path visually
-            // unchanged while cutting the SVG path (and rasteriser work) by
-            // orders of magnitude for dense series.
-            let kept = {
-                let chart_area = chart.plotting_area();
-                simplify_polyline(&pts, 0.5, |p| {
+        let step = matches!(s.drawstyle.as_str(), "steps-pre" | "steps-post");
+        let pts: Vec<(f64, f64)> = if n > 2000 && !step {
+            // Pixel-column decimation straight from the arrays: no 1M-point
+            // intermediate, and the drawn path is visually unchanged.
+            let chart_area = chart.plotting_area();
+            simplify_polyline(
+                n,
+                |i| (tx(xs[i]), ty(ys[i])),
+                |p| {
                     let (x, y) = chart_area.map_coordinate(p);
                     (x as f64, y as f64)
-                })
-            };
-            if kept.len() < pts.len() {
-                pts = kept;
+                },
+            )
+        } else {
+            // Step drawstyles insert the corner points instead of a diagonal.
+            let mut pts = Vec::with_capacity(n * 2);
+            for i in 0..n {
+                pts.push((tx(xs[i]), ty(ys[i])));
+                if i + 1 < n {
+                    match s.drawstyle.as_str() {
+                        "steps-post" => pts.push((tx(xs[i + 1]), ty(ys[i]))),
+                        "steps-pre" => pts.push((tx(xs[i]), ty(ys[i + 1]))),
+                        _ => {}
+                    }
+                }
             }
-        }
+            pts
+        };
         let width = s.linewidth.max(1.0).round() as u32;
         let col = match s.alpha {
             Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),

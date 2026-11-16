@@ -14,6 +14,35 @@ fn raw_range(it: impl Iterator<Item = f64>) -> (f64, f64) {
     }
 }
 
+/// Running finite min/max, so dense series are not copied just to be scanned.
+struct Extent(f64, f64);
+
+impl Extent {
+    fn new() -> Self {
+        Self(f64::INFINITY, f64::NEG_INFINITY)
+    }
+
+    fn push(&mut self, v: f64) {
+        if v.is_finite() {
+            self.0 = self.0.min(v);
+            self.1 = self.1.max(v);
+        }
+    }
+
+    fn extend(&mut self, it: impl IntoIterator<Item = f64>) {
+        it.into_iter().for_each(|v| self.push(v));
+    }
+
+    /// `(0, 1)` when nothing finite was seen, matching `raw_range`.
+    fn finish(self) -> (f64, f64) {
+        if self.0.is_finite() && self.1.is_finite() {
+            (self.0, self.1)
+        } else {
+            (0.0, 1.0)
+        }
+    }
+}
+
 pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
     let (lo, hi) = raw_range(it);
     if lo < hi {
@@ -94,8 +123,8 @@ pub(crate) fn aspect_datalim(
 /// Raw data ranges for a panel: series values plus image extents. Explicit
 /// limits are applied later by [`axis_bounds`], after any log transform.
 pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
-    let mut xs: Vec<f64> = Vec::new();
-    let mut ys: Vec<f64> = Vec::new();
+    let mut xs = Extent::new();
+    let mut ys = Extent::new();
     for s in &p.series {
         xs.extend(s.x.as_array().iter().copied());
         ys.extend(s.y.as_array().iter().copied());
@@ -180,14 +209,8 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
             }
         }
     }
-    if xs.is_empty() {
-        xs = vec![0.0, 1.0];
-    }
-    if ys.is_empty() {
-        ys = vec![0.0, 1.0];
-    }
-    let (x0, x1) = raw_range(xs.into_iter());
-    let (y0, y1) = raw_range(ys.into_iter());
+    let (x0, x1) = xs.finish();
+    let (y0, y1) = ys.finish();
     (x0, x1, y0, y1)
 }
 

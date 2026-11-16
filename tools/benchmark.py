@@ -557,6 +557,64 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         compare("Statistical", "Scatter (50,000 points, PNG)", 50_000,
                 fn_rs_scatter_big, fn_mpl_scatter_big, iters=iters_heavy)
 
+        # Scaling sweeps: the speedup shrinks as the point count grows, so
+        # track each size separately and watch the large ones.
+        iters_huge = 2 if quick else 3
+        for n, label in ((1_000, "1,000"), (10_000, "10,000"),
+                         (100_000, "100,000"), (1_000_000, "1,000,000")):
+            sx = rng.normal(size=n)
+            sy = 0.5 * sx + rng.normal(size=n)
+
+            def fn_rs_sc(sx=sx, sy=sy):
+                rs_plt.figure(figsize=(6.4, 4.8))
+                rs_plt.scatter(sx, sy, s=4, alpha=0.6)
+                rs_plt.savefig(stat_rs)
+                rs_plt.close()
+
+            def fn_mpl_sc(sx=sx, sy=sy):
+                mpl_plt.figure(figsize=(6.4, 4.8))
+                mpl_plt.scatter(sx, sy, s=4, alpha=0.6)
+                mpl_plt.savefig(stat_mpl)
+                mpl_plt.close("all")
+
+            compare("Data Scaling", f"Scatter ({label} points, PNG)", n, fn_rs_sc, fn_mpl_sc,
+                    iters=iters_fast if n <= 10_000 else iters_huge)
+
+            hx = rng.normal(size=n)
+
+            def fn_rs_hist(hx=hx):
+                rs_plt.figure(figsize=(6.4, 4.8))
+                rs_plt.hist(hx, bins=50)
+                rs_plt.savefig(stat_rs)
+                rs_plt.close()
+
+            def fn_mpl_hist(hx=hx):
+                mpl_plt.figure(figsize=(6.4, 4.8))
+                mpl_plt.hist(hx, bins=50)
+                mpl_plt.savefig(stat_mpl)
+                mpl_plt.close("all")
+
+            compare("Data Scaling", f"Histogram ({label} samples, PNG)", n, fn_rs_hist, fn_mpl_hist,
+                    iters=iters_fast if n <= 10_000 else iters_huge)
+
+        line_x = np.linspace(0, 10, 1_000_000)
+        line_y = np.sin(line_x * 30) + 0.1 * rng.normal(size=1_000_000)
+
+        def fn_rs_line_huge():
+            rs_plt.figure(figsize=(6.4, 4.8))
+            rs_plt.plot(line_x, line_y)
+            rs_plt.savefig(stat_rs)
+            rs_plt.close()
+
+        def fn_mpl_line_huge():
+            mpl_plt.figure(figsize=(6.4, 4.8))
+            mpl_plt.plot(line_x, line_y)
+            mpl_plt.savefig(stat_mpl)
+            mpl_plt.close("all")
+
+        compare("Data Scaling", "Noisy Line (1,000,000 points, PNG)", 1_000_000,
+                fn_rs_line_huge, fn_mpl_line_huge, iters=iters_huge)
+
         cached_rs = os.path.join(tmp, "cached_rs.png")
         cached_mpl = os.path.join(tmp, "cached_mpl.png")
         rs_fig = rs_plt.figure(figsize=(6.4, 4.8))
