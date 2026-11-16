@@ -8,7 +8,7 @@
 > output before relying on it in production.
 
 Matplotvite renders matplotlib-style static figures from Python through a compiled
-Rust extension (PyO3 + plotters). It writes PNG, SVG, PDF, and WebP, and NumPy is its
+Rust extension (PyO3 + plotters). It writes PNG, SVG, PDF, WebP, and EPS, and NumPy is its
 only Python runtime dependency.
 
 - [Example gallery](https://kassoulet.github.io/matplotvite/)
@@ -130,7 +130,7 @@ plt.figure(figsize=(8, 5))
 plt.plot(x, np.sin(x), label="sin", color="red")
 plt.plot(x, np.cos(x), label="cos")
 plt.xlabel("x"); plt.ylabel("y"); plt.title("Demo"); plt.legend()
-plt.savefig("demo.png")  # or "demo.svg" / "demo.pdf" / "demo.webp"
+plt.savefig("demo.png")  # or "demo.svg" / "demo.pdf" / "demo.webp" / "demo.eps"
 ```
 
 Gridded data, contours and a colorbar:
@@ -267,8 +267,8 @@ plt.savefig("contours.png")
   matplotlib's `adjustable="box"` (images default to `"equal"`)
 - `savefig(path | file-like | None, format=, dpi=, bbox_inches="tight", transparent=,
   facecolor=, edgecolor=, compression=)` — PNG, SVG, vector PDF (text stays selectable;
-  the page is sized from `figsize`) and lossless WebP; no path returns `bytes`. PNG
-  compression is `"fast"` (default), `"default"`, or `"best"`
+  the page is sized from `figsize`), lossless WebP, and raster-backed EPS; no path
+  returns `bytes`. PNG compression is `"fast"` (default), `"default"`, or `"best"`
 - `GridSpec` and `SubplotSpec` via `fig.add_gridspec(...)`, including row/column spans
   and `width_ratios`/`height_ratios`; `subplot2grid((rows, cols), (row, col),
   rowspan=, colspan=)` for the same layout shortcut
@@ -312,7 +312,8 @@ quiver of arrows. Shims that cannot affect the renderer emit a one-time
 
 - 3-D axes, tripcolor/tricontour, custom `matplotlib.scale` classes, and other
   specialised matplotlib modules
-- EPS output, and SVG element gids used by post-processing examples
+- SVG element gids used by post-processing examples (EPS is written as a
+  raster-backed PostScript page rather than a vector one)
 - a pandas `.plot()` backend (planned for 0.7)
 - interactive display (planned for a future GPUI-based version)
 

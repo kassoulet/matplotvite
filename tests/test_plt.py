@@ -1849,6 +1849,18 @@ def test_axes_set_accepts_artist_properties():
     assert fig is not None
 
 
+def test_savefig_eps_writes_postscript(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    path = tmp_path / "figure.eps"
+    fig.savefig(path, dpi=150)
+    data = path.read_bytes()
+    assert data.startswith(b"%!PS-Adobe-3.0 EPSF-3.0\n")
+    assert b"%%BoundingBox: 0 0 " in data
+    assert b"showpage" in data
+    assert data.rstrip().endswith(b"%%EOF")
+
+
 def test_ft2font_reports_face_properties():
     from matplotvite import FaceFlags, FT2Font, StyleFlags, ft2font
 

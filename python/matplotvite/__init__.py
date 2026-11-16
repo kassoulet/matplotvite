@@ -1432,7 +1432,7 @@ def _date_ticks(lo, hi):
         start += step
     return ticks, labels
 DPI = 100
-_FORMATS = ("png", "svg", "pdf", "webp")
+_FORMATS = ("png", "svg", "pdf", "webp", "eps")
 _COMPRESSIONS = ("fast", "default", "best")
 _MAX_CANVAS_DIM = 32768
 _MAX_CANVAS_AREA = 67108864  # 2^26 pixels (~256 MiB RGBA raw buffer limit)
@@ -1556,7 +1556,9 @@ def _output_format(filepath, format):
     else:
         fmt = str(format).lower().lstrip(".")
     if fmt not in _FORMATS:
-        raise ValueError(f"unsupported format: {fmt!r} (use 'png', 'svg', 'pdf', or 'webp')")
+        raise ValueError(
+            f"unsupported format: {fmt!r} (use 'png', 'svg', 'pdf', 'webp', or 'eps')"
+        )
     return fmt
 
 

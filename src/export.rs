@@ -683,6 +683,59 @@ pub(crate) fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String>
     Ok(encoded.to_vec())
 }
 
+/// Encode a pixmap as Encapsulated PostScript.
+///
+/// PostScript has no alpha channel, so transparent pixels are blended over
+/// white. The Level-2 `image` operator paints the raster, written as ASCII
+/// hex so the EPS stays a text file; the page size is the raster at `dpi`
+/// pixels per inch, matching the PDF path's physical size.
+pub(crate) fn encode_eps(pixmap: &tiny_skia::Pixmap, dpi: f64) -> Vec<u8> {
+    use std::fmt::Write as _;
+
+    let (width, height) = (pixmap.width(), pixmap.height());
+    let scale = 72.0 / dpi.max(f64::MIN_POSITIVE);
+    let point_w = (width as f64 * scale).round().max(1.0) as u32;
+    let point_h = (height as f64 * scale).round().max(1.0) as u32;
+    let mut out = String::with_capacity(pixmap.data().len() * 2 + 512);
+    out.push_str("%!PS-Adobe-3.0 EPSF-3.0\n");
+    out.push_str("%%Creator: matplotvite\n");
+    let _ = writeln!(out, "%%BoundingBox: 0 0 {point_w} {point_h}");
+    out.push_str("%%Pages: 1\n%%EndComments\n%%Page: 1 1\n");
+    let _ = writeln!(
+        out,
+        "gsave {point_w} {point_h} scale\n\
+         /DeviceRGB setcolorspace\n\
+         << /ImageType 1 /Width {width} /Height {height} /BitsPerComponent 8 \
+         /Decode [0 1 0 1 0 1] /ImageMatrix [{width} 0 0 -{height} 0 {height}] \
+         /DataSource currentfile /ASCIIHexDecode filter >> image"
+    );
+    let mut line_len = 0usize;
+    for px in pixmap.data().as_chunks::<4>().0 {
+        let alpha = px[3] as u32;
+        let channel = |c: u8| -> u32 {
+            // Premultiplied -> straight alpha -> blend over white.
+            let straight = (c as u32 * 255 + alpha / 2) / alpha.max(1);
+            (straight.min(255) * alpha + 255 * (255 - alpha) + 127) / 255
+        };
+        let (r, g, b) = if alpha == 0 {
+            (255, 255, 255)
+        } else {
+            (channel(px[0]), channel(px[1]), channel(px[2]))
+        };
+        let _ = write!(out, "{r:02x}{g:02x}{b:02x}");
+        line_len += 6;
+        if line_len >= 72 {
+            out.push('\n');
+            line_len = 0;
+        }
+    }
+    if line_len != 0 {
+        out.push('\n');
+    }
+    out.push_str(">\ngrestore\nshowpage\n%%EOF\n");
+    out.into_bytes()
+}
+
 pub(crate) type Bbox = (u32, u32, u32, u32); // x, y, width, height
 
 /// The opaque pixel produced by painting `background` over the rasteriser's

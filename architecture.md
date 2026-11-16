@@ -70,7 +70,7 @@ and the native work is independent of Python.
 | `src/draw.rs` | Plotters drawing of series, axes, text, legends, images, contours, and collections. |
 | `src/fonts.rs` | Registration of the embedded Geist font faces used by the drawing stack. |
 | `src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
-| `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP encoding. |
+| `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP/EPS encoding. |
 | `src/image.rs` | Image scaling, background compositing, and image-to-PNG helpers. |
 | `src/color.rs`, `src/cmap_data.rs`, `src/cmaps.txt` | Colour normalisation and colormap tables. |
 | `src/scale.rs` | Integer-oversampling drawing backend used by the bitmap path. |

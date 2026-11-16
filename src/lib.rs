@@ -16,8 +16,9 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
 use crate::export::{
-    background_pixel, content_bbox, crop_pixmap, encode_png, encode_webp, figure_background,
-    rasterize, render_pdf, render_svg, svg_tight, FigureDecorations, RenderOutput,
+    background_pixel, content_bbox, crop_pixmap, encode_eps, encode_png, encode_webp,
+    figure_background, rasterize, render_pdf, render_svg, svg_tight, FigureDecorations,
+    RenderOutput,
 };
 use crate::fonts::register_plotters_fonts;
 use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
@@ -76,9 +77,9 @@ fn render(
         return Err(PyValueError::new_err("dpi must be positive and finite"));
     }
     let fmt = format.to_ascii_lowercase();
-    if !matches!(fmt.as_str(), "png" | "svg" | "pdf" | "webp") {
+    if !matches!(fmt.as_str(), "png" | "svg" | "pdf" | "webp" | "eps") {
         return Err(PyValueError::new_err(format!(
-            "unsupported format: {format:?} (use 'png', 'svg', 'pdf', or 'webp')"
+            "unsupported format: {format:?} (use 'png', 'svg', 'pdf', 'webp', or 'eps')"
         )));
     }
     let compression = match compression {
@@ -110,7 +111,7 @@ fn render(
     };
     let output = RenderOutput {
         dpi,
-        raster: matches!(fmt.as_str(), "png" | "webp"),
+        raster: matches!(fmt.as_str(), "png" | "webp" | "eps"),
         // PDF measures its own bounds while embedding the SVG, so only SVG
         // needs the extra usvg pass here.
         tight_bounds: tight && fmt == "svg",
@@ -182,7 +183,9 @@ fn render(
                 Some(bbox) => crop_pixmap(&pixmap, bbox)?,
                 None => pixmap,
             };
-            if fmt == "webp" {
+            if fmt == "eps" {
+                Ok(encode_eps(&pixmap, dpi))
+            } else if fmt == "webp" {
                 encode_webp(&pixmap)
             } else {
                 encode_png(
@@ -281,6 +284,28 @@ mod tests {
             let encoded = encode_png(&pixmap, compression, false).unwrap();
             assert_eq!(decode_png(&encoded), reference);
         }
+    }
+
+    #[test]
+    fn eps_wraps_the_raster_in_postscript() {
+        let mut pixmap = tiny_skia::Pixmap::new(2, 1).unwrap();
+        pixmap.pixels_mut()[0] =
+            tiny_skia::PremultipliedColorU8::from_rgba(255, 255, 255, 255).unwrap();
+        pixmap.pixels_mut()[1] = tiny_skia::PremultipliedColorU8::from_rgba(0, 0, 0, 255).unwrap();
+        let eps = String::from_utf8(encode_eps(&pixmap, 72.0)).unwrap();
+        assert!(eps.starts_with("%!PS-Adobe-3.0 EPSF-3.0\n"));
+        assert!(eps.contains("%%BoundingBox: 0 0 2 1\n"));
+        assert!(eps.contains("ffffff000000"));
+        assert!(eps.trim_end().ends_with("%%EOF"));
+    }
+
+    #[test]
+    fn eps_blends_transparency_over_white() {
+        let mut pixmap = tiny_skia::Pixmap::new(1, 1).unwrap();
+        pixmap.pixels_mut()[0] = tiny_skia::PremultipliedColorU8::from_rgba(0, 0, 0, 128).unwrap();
+        let eps = String::from_utf8(encode_eps(&pixmap, 144.0)).unwrap();
+        assert!(eps.contains("%%BoundingBox: 0 0 1 1\n"));
+        assert!(eps.contains("7f7f7f"));
     }
 
     #[test]
