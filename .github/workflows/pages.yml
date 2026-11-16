@@ -33,7 +33,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install -c .github/requirements-ci.txt maturin numpy pandas "matplotlib==3.11.2" pypdfium2 cairosvg
+          pip install -c .github/requirements-ci.txt maturin numpy pandas "matplotlib==3.11.2" pypdfium2 cairosvg Pillow
           maturin develop --release
 
       - name: Fetch the harvested sources
