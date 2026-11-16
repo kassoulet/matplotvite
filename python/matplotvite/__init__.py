@@ -1655,6 +1655,15 @@ class _BarHandle:
     def get_width(self): return self._get("width")
     def get_height(self): return self._get("height")
 
+    def get_xdata(self):
+        """The rectangle's four corners and closing vertex, as Matplotlib's box."""
+        x, w = self.get_x(), self.get_width()
+        return np.asarray([x, x, x + w, x + w, x], dtype=float)
+
+    def get_ydata(self):
+        y, h = self.get_y(), self.get_height()
+        return np.asarray([y, y + h, y + h, y, y], dtype=float)
+
     def get_facecolor(self):
         return self._axes.bars[self._group]["colors"][:1] or ["#1f77b4"]
 
@@ -1951,6 +1960,46 @@ class _LineHandle:
     def set_label(self, label):
         self._e["label"] = str(label)
         return self
+
+    def set_marker(self, marker):
+        self._e["marker"] = str(marker)
+        return self
+
+    def set_markersize(self, size):
+        self._e["markersize"] = float(size)
+        return self
+
+    def set_markerfacecolor(self, color):
+        self._e["mfc"] = _norm_color(color)
+        return self
+
+    def set_markeredgecolor(self, color):
+        self._e["mec"] = _norm_color(color)
+        return self
+
+    def set_markeredgewidth(self, width):
+        self._e["mew"] = float(width)
+        return self
+
+    def set_alpha(self, alpha):
+        self._e["alpha"] = None if alpha is None else float(alpha)
+        return self
+
+    def set_drawstyle(self, drawstyle):
+        self._e["drawstyle"] = str(drawstyle)
+        return self
+
+    def set_gid(self, gid):
+        self._e["gid"] = "" if gid is None else str(gid)
+        return self
+
+    def get_gid(self): return self._e.get("gid", "")
+    def set_zorder(self, zorder): self._e["zorder"] = int(zorder); return self
+    def get_zorder(self): return self._e.get("zorder", 2)
+    def set_visible(self, visible): return self
+    def set_path_effects(self, effects): return self
+    def set_rasterized(self, value): return self
+    def set_clip_on(self, value): return self
 
 
 def _call(obj, name):
@@ -4760,6 +4809,23 @@ class Axes:
             "bessel": "bicubic", "mitchell": "bicubic",
         }.get(interp, interp)
         a = _as_image(X)
+        if isinstance(norm, str):
+            # Matplotlib accepts "log" as shorthand for a LogNorm; map it before
+            # the normalisation pass, which expects an object with vmin/vmax.
+            kind = norm.lower()
+            if kind == "log":
+                positive = a[np.isfinite(a) & (a > 0.0)] if a.ndim == 2 else np.empty(0)
+                lo = vmin if vmin is not None else (
+                    float(positive.min()) if positive.size else 1.0)
+                hi = vmax if vmax is not None else (
+                    float(positive.max()) if positive.size else float(lo) * 10.0)
+                if not float(hi) > float(lo):
+                    hi = float(lo) * 10.0
+                norm = _LogNorm(vmin=lo, vmax=hi)
+            elif kind in ("linear", "none", ""):
+                norm = None
+            else:
+                raise NotImplementedError(f"norm={norm!r} is not supported yet")
         if norm is not None and a.ndim == 2:
             a, vmin, vmax = _norm_values(norm, a)
         h, w = a.shape[:2]
@@ -8881,8 +8947,11 @@ def setp(obj, *args, **kwargs):
     A sequence of artists is updated element by element, as in Matplotlib.
     """
     if _is_artist_sequence(obj):
+        # Boxplot returns `None` in place of a hidden flier; Matplotlib skips
+        # such entries, and so must setp when styling a whole boxplot dict.
         for item in obj:
-            setp(item, *args, **kwargs)
+            if item is not None:
+                setp(item, *args, **kwargs)
         return getp(obj, *args) if args else None
     for name, value in kwargs.items():
         setter = getattr(obj, f"set_{name}", None)
@@ -9110,6 +9179,14 @@ def from_levels_and_colors(levels, colors, extend="neither"):
 
 def _norm_values(norm, data):
     """Fold `norm` into the data so the renderer's 0-1 mapping is linear."""
+    if isinstance(norm, str):
+        kind = norm.lower()
+        if kind in ("linear", "none", ""):
+            return np.asarray(data, dtype=float), None, None
+        if kind == "log":
+            norm = _LogNorm()
+        else:
+            raise NotImplementedError(f"norm={norm!r} is not supported yet")
     values = np.asarray(data, dtype=float)
     finite = values[np.isfinite(values)]
     if getattr(norm, "vmin", None) is None and finite.size:
