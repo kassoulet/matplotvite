@@ -1016,6 +1016,23 @@ def test_imshow_vmin_changes_pixels(tmp_path):
     assert uris[0] != uris[1]
 
 
+def test_antialiased_interpolation_resamples_shrunk_images():
+    # A one-pixel checkerboard shrunk more than 3x must turn into grey; nearest
+    # sampling keeps only the original black and white.
+    z = (np.indices((1000, 1000)).sum(axis=0) % 2).astype(float)
+    blended = []
+    for interpolation in ("nearest", "antialiased"):
+        plt.figure((3, 3))
+        plt.imshow(z, cmap="gray", interpolation=interpolation)
+        plt.axis("off")
+        width, height, rows = decode_png_rgba(plt.savefig(format="png"))
+        blended.append(sum(
+            40 < rows[y][x * 4] < 215
+            for y in range(height // 4, 3 * height // 4)
+            for x in range(width // 4, 3 * width // 4)))
+    assert blended[1] > blended[0] + 20
+
+
 def test_imshow_alpha_and_interpolation(tmp_path):
     z = np.linspace(0, 1, 64).reshape(8, 8)
     uris = []

@@ -43,6 +43,63 @@ fn scaled_alpha(value: f64, opacity: f64) -> u8 {
     (value * opacity.clamp(0.0, 1.0)).round().clamp(0.0, 255.0) as u8
 }
 
+/// Matplotlib's `antialiased` keeps nearest sampling until an image is shrunk
+/// by more than 3x, where it filters to avoid aliasing.
+fn needs_box_filter(source_width: u32, source_height: u32, width: u32, height: u32) -> bool {
+    width > 0
+        && height > 0
+        && (source_width as f64 / width as f64 > 3.0 || source_height as f64 / height as f64 > 3.0)
+}
+
+/// Area-average a premultiplied source pixmap into the requested size.
+fn resample_area(
+    source: &tiny_skia::Pixmap,
+    width: u32,
+    height: u32,
+) -> Result<tiny_skia::Pixmap, String> {
+    if width == 0 || height == 0 {
+        return Err("cannot resample an image to zero pixels".into());
+    }
+    let (sw, sh) = (source.width() as usize, source.height() as usize);
+    let data = source.data();
+    let stride = sw * 4;
+    let mut out = tiny_skia::Pixmap::new(width, height)
+        .ok_or_else(|| format!("failed to allocate {width}x{height} resampled image"))?;
+    out.pixels_mut()
+        .par_chunks_mut(width as usize)
+        .enumerate()
+        .for_each(|(y, row)| {
+            let sy0 = (y as u64 * sh as u64 / height as u64) as usize;
+            let sy1 = ((((y as u64 + 1) * sh as u64).div_ceil(height as u64)) as usize)
+                .max(sy0 + 1)
+                .min(sh);
+            for (x, dst) in row.iter_mut().enumerate() {
+                let sx0 = (x as u64 * sw as u64 / width as u64) as usize;
+                let sx1 = ((((x as u64 + 1) * sw as u64).div_ceil(width as u64)) as usize)
+                    .max(sx0 + 1)
+                    .min(sw);
+                let mut sums = [0u64; 4];
+                for sy in sy0..sy1 {
+                    for sx in sx0..sx1 {
+                        let i = sy * stride + sx * 4;
+                        for channel in 0..4 {
+                            sums[channel] += data[i + channel] as u64;
+                        }
+                    }
+                }
+                let count = ((sy1 - sy0) * (sx1 - sx0)) as u64;
+                *dst = tiny_skia::PremultipliedColorU8::from_rgba(
+                    (sums[0] / count) as u8,
+                    (sums[1] / count) as u8,
+                    (sums[2] / count) as u8,
+                    (sums[3] / count) as u8,
+                )
+                .expect("averaged channels are in range");
+            }
+        });
+    Ok(out)
+}
+
 /// Convert an `imshow` array into premultiplied RGBA pixels.
 pub(crate) fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String> {
     let (arr, cmap, vmin, vmax, _, _, opacity, _interpolation) = item;
@@ -170,10 +227,25 @@ pub(crate) fn image_pixmap_parts(
     Ok(pm)
 }
 
-/// Encode an `imshow` array as a PNG: 2-D through the colormap, 3-D as RGB(A).
-pub(crate) fn image_png(item: &ImageItem) -> Result<Vec<u8>, String> {
-    let (arr, cmap, vmin, vmax, _, _, opacity, _) = item;
-    image_png_parts(arr.as_array(), cmap, *vmin, *vmax, *opacity)
+/// Encode an axes image at the size it will occupy, box-filtering
+/// `antialiased` images that are shrunk by more than 3x.
+pub(crate) fn image_png_for_size(
+    item: &ImageItem,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, String> {
+    let (arr, _, _, _, _, _, opacity, interpolation) = item;
+    let shape = arr.as_array().shape().to_vec();
+    let opaque = *opacity >= 1.0 && (shape.len() != 3 || shape[2] == 3);
+    let pm = image_pixmap(item)?;
+    let pm = if interpolation == "antialiased"
+        && needs_box_filter(pm.width(), pm.height(), width, height)
+    {
+        resample_area(&pm, width, height)?
+    } else {
+        pm
+    };
+    crate::export::encode_png(&pm, PngCompression::Fast, opaque).map_err(|e| e.to_string())
 }
 
 /// Encode an image array for a `figimage` overlay.
@@ -205,6 +277,20 @@ pub(crate) fn image_rgb(
         return Ok(Vec::new());
     }
     let pm = image_pixmap(item)?;
+    if item.7 == "antialiased" && needs_box_filter(pm.width(), pm.height(), width, height) {
+        let pm = resample_area(&pm, width, height)?;
+        return rgba_to_rgb(&pm, width, height, background);
+    }
+    rgba_to_rgb(&pm, width, height, background)
+}
+
+/// Flatten a premultiplied pixmap over the axes background at the target size.
+fn rgba_to_rgb(
+    pm: &tiny_skia::Pixmap,
+    width: u32,
+    height: u32,
+    background: [u8; 3],
+) -> Result<Vec<u8>, String> {
     let (sw, sh) = (pm.width(), pm.height());
     let src = pm.data();
     // The source column depends only on x, so compute it once instead of doing
@@ -228,4 +314,30 @@ pub(crate) fn image_rgb(
             }
         });
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn antialiased_only_filters_when_shrinking_past_three_x() {
+        assert!(!needs_box_filter(3, 3, 1, 1));
+        assert!(needs_box_filter(4, 4, 1, 1));
+        assert!(needs_box_filter(10, 2, 1, 2));
+    }
+
+    #[test]
+    fn area_filter_blends_a_shrunk_checkerboard() {
+        let mut source = tiny_skia::Pixmap::new(4, 4).unwrap();
+        for (i, pixel) in source.pixels_mut().iter_mut().enumerate() {
+            let v = if ((i % 4) + (i / 4)) % 2 == 0 { 255 } else { 0 };
+            *pixel = tiny_skia::ColorU8::from_rgba(v, v, v, 255).premultiply();
+        }
+        let out = resample_area(&source, 2, 2).unwrap();
+        for pixel in out.data().chunks_exact(4) {
+            assert!((127..=128).contains(&pixel[0]), "got {pixel:?}");
+            assert_eq!(pixel[3], 255);
+        }
+    }
 }

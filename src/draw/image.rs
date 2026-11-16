@@ -61,7 +61,7 @@ where
             ay.min(zy),
             iw,
             ih,
-            base64(&image_png(item)?)
+            base64(&image_png_for_size(item, iw as u32, ih as u32)?)
         ));
     }
     Ok(())

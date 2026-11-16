@@ -6,7 +6,7 @@ use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
 
 use crate::color::{color, colormap};
-use crate::image::{base64, image_png, image_rgb};
+use crate::image::{base64, image_png_for_size, image_rgb};
 use crate::layout::{
     aspect_datalim, auto_ticks, auto_ticks_for, axis_bounds, panel_ranges, range, tick_target,
 };
