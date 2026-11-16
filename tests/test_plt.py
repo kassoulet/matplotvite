@@ -2057,6 +2057,18 @@ def test_ft2font_reports_face_properties():
     assert [flag.name for flag in StyleFlags] == ["ITALIC", "BOLD"]
 
 
+def test_ft2font_names_glyphs_and_loads_characters():
+    from matplotvite import Kerning, ft2font
+
+    font = ft2font.FT2Font("DejaVuSans.ttf")
+    assert font.get_glyph_name(ord("A")) == "A"
+    assert font.get_glyph_name(ord("V")) == "V"
+    glyph = font.load_char(ord("A"))
+    assert len(glyph.bbox) == 4
+    assert font.get_kerning(ord("A"), ord("V"), Kerning.DEFAULT) == 0
+    assert ft2font.Kerning is Kerning
+
+
 def test_inset_axes_png_keeps_parent_and_child_content():
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1], color="blue", linewidth=3)

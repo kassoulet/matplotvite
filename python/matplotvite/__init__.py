@@ -29,7 +29,7 @@ __all__ = (
     "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "spines", "axis",
     "projections", "register_projection", "units",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
-    "path", "dates", "cbook", "mlab", "font_manager", "ft2font", "FT2Font", "FontProperties", "CapStyle", "JoinStyle",
+    "path", "dates", "cbook", "mlab", "font_manager", "ft2font", "FT2Font", "Kerning", "FontProperties", "CapStyle", "JoinStyle",
     "StyleFlags", "FaceFlags",
     "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
     "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
@@ -11326,6 +11326,25 @@ class FaceFlags(metaclass=_FontFlagsMeta):
             "GLYPH_NAMES", "EXTERNAL_STREAM", "HINTER"))
 
 
+class Kerning:
+    """Kerning modes accepted by `FT2Font.get_kerning`."""
+
+    DEFAULT = 0
+    UNFITTED = 1
+    UNSCALED = 2
+
+
+class _FT2Glyph:
+    """Glyph metrics returned by the font-inspection shim."""
+
+    def __init__(self, glyph_index):
+        self.glyph_index = int(glyph_index)
+        self.bbox = (0, 0, 600, 700)
+        self.width = self.horiAdvance = 600
+        self.height = self.horiBearingY = 700
+        self.horiBearingX = 0
+
+
 class FT2Font:
     """Small font-inspection stand-in backed by the bundled DejaVu metrics."""
 
@@ -11377,12 +11396,23 @@ class FT2Font:
         return 0
 
     def get_glyph_name(self, glyph_index):
-        return f"glyph{glyph_index}"
+        index = int(glyph_index)
+        if 0x20 <= index <= 0x7E:
+            return chr(index)
+        return f"uni{index:04X}"
+
+    def load_char(self, charcode):
+        return _FT2Glyph(charcode)
+
+    def get_kerning(self, left, right, mode=Kerning.DEFAULT):
+        """The bundled metrics shim has no kerning table."""
+        return 0
 
 
 font_manager = _Namespace(FontProperties=FontProperties, findfont=_findfont,
                           fontManager=_Namespace(addfont=lambda path: None))
-ft2font = _Namespace(FT2Font=FT2Font, StyleFlags=StyleFlags, FaceFlags=FaceFlags)
+ft2font = _Namespace(FT2Font=FT2Font, Kerning=Kerning,
+                     StyleFlags=StyleFlags, FaceFlags=FaceFlags)
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)
