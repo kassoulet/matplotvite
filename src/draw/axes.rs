@@ -27,6 +27,8 @@ where
         || p.ticks.xstyle.is_custom()
         || p.ticks.ystyle.is_custom()
         || !p.twin.is_empty()
+        || !p.ticks.yside.is_empty()
+        || (p.axes_bounds && !p.ylabel.is_empty())
         || p.xlabel_color.is_some()
         || p.ylabel_color.is_some()
         || (p.grid.show
@@ -101,12 +103,15 @@ where
             } else {
                 ""
             };
-        let y_desc =
-            if twin_side.is_empty() && p.ylabel_color.is_none() && p.ylabel_family.is_none() {
-                p.ylabel.as_str()
-            } else {
-                ""
-            };
+        let y_desc = if twin_side.is_empty()
+            && p.ylabel_color.is_none()
+            && p.ylabel_family.is_none()
+            && !p.axes_bounds
+        {
+            p.ylabel.as_str()
+        } else {
+            ""
+        };
         let spine_width = (0.8 * dpi / 72.0).round().max(1.0) as u32;
         mesh.label_style((p.font_family.as_str(), label_size).into_font().color(&fg))
             .axis_desc_style((p.font_family.as_str(), desc_size).into_font().color(&fg))

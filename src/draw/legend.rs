@@ -27,6 +27,17 @@ where
     FX: Fn(f64) -> f64,
     FY: Fn(f64) -> f64,
 {
+    // Matplotlib lists handles in artist creation order; artists the model did
+    // not stamp keep their draw order after the stamped ones, lines first.
+    entries.sort_by_key(|entry| {
+        let kind = match &entry.swatch {
+            LegendSwatch::Line(..) | LegendSwatch::LineMarker(..) | LegendSwatch::Marker(..) => 0,
+            LegendSwatch::Rect(_) => 1,
+            LegendSwatch::Collection(_) | LegendSwatch::Circle(_) => 2,
+        };
+        let seen = p.legend.order.iter().position(|l| *l == entry.label);
+        (seen.unwrap_or(usize::MAX), kind)
+    });
     if p.legend.labels.is_empty() {
         // Matplotlib hides artists whose label starts with an underscore from
         // automatic legends (`_nolegend_` is the common sentinel).
@@ -145,14 +156,6 @@ where
     } else {
         LegendObstacles::default()
     };
-    if p.legend.show {
-        // Matplotlib collects line handles before patches and collections.
-        entries.sort_by_key(|entry| match &entry.swatch {
-            LegendSwatch::Line(..) | LegendSwatch::LineMarker(..) | LegendSwatch::Marker(..) => 0,
-            LegendSwatch::Rect(_) => 1,
-            LegendSwatch::Collection(_) | LegendSwatch::Circle(_) => 2,
-        });
-    }
     if p.legend.show && custom_legend {
         let base = area.get_base_pixel();
         let pa = chart.plotting_area();
@@ -180,6 +183,40 @@ where
             "center" => SeriesLabelPosition::MiddleRight,
             _ => SeriesLabelPosition::UpperRight,
         };
+        // Registered here, after sorting, so plotters lists them in order.
+        for entry in entries.iter() {
+            let blank = || {
+                std::iter::once(Rectangle::new(
+                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
+                    RGBColor(0, 0, 0).mix(0.0).filled(),
+                ))
+            };
+            let label = entry.label.as_str();
+            match entry.swatch.clone() {
+                LegendSwatch::Line(c, w) | LegendSwatch::LineMarker(c, w, _) => {
+                    chart
+                        .draw_series(blank())?
+                        .label(label)
+                        .legend(move |(x, y)| {
+                            PathElement::new(vec![(x, y), (x + 20, y)], c.stroke_width(w))
+                        });
+                }
+                LegendSwatch::Marker(c, _) | LegendSwatch::Circle(c) => {
+                    chart
+                        .draw_series(blank())?
+                        .label(label)
+                        .legend(move |(x, y)| Circle::new((x + 10, y + 4), 4, c.filled()));
+                }
+                LegendSwatch::Rect(c) | LegendSwatch::Collection(c) => {
+                    chart
+                        .draw_series(blank())?
+                        .label(label)
+                        .legend(move |(x, y)| {
+                            Rectangle::new([(x, y - 3), (x + 20, y + 7)], c.filled())
+                        });
+                }
+            }
+        }
         let mut labels = chart.configure_series_labels();
         labels.position(position).label_font((
             p.legend.family.as_str(),

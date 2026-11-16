@@ -193,7 +193,12 @@ where
         for (v, label) in ys.iter().zip(ylabels.iter()) {
             let (_, py) = pa.map_coordinate(&(x0, *v));
             let py = py - origin.1;
-            let (tick_x, edge_x, label_x, hpos) = if side == "right" {
+            let on_right = match p.ticks.yside.as_str() {
+                "right" => true,
+                "left" => false,
+                _ => side == "right",
+            };
+            let (tick_x, edge_x, label_x, hpos) = if on_right {
                 (
                     right + ytick_len as i32,
                     right,
@@ -262,7 +267,7 @@ where
             style,
         ))?;
     } else if side.is_empty() {
-        if p.ylabel_color.is_some() && !p.ylabel.is_empty() {
+        if (p.ylabel_color.is_some() || p.axes_bounds) && !p.ylabel.is_empty() {
             let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
             let style = rotated_style(
                 size,

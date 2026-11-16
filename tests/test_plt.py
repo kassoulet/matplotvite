@@ -623,7 +623,7 @@ def test_fill_between_color_does_not_advance_the_cycle():
     assert ax.lines[-1]["color"] == plt.rcParams["axes.prop_cycle"].by_key()["color"][0]
 
 
-def test_legend_orders_lines_before_patches_and_collections(tmp_path):
+def test_legend_follows_creation_order_with_bar_containers_last(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.bar([0, 1], [1, 2], label="bars")
     ax.fill_between([0, 1], [1, 2], label="band")
@@ -634,7 +634,7 @@ def test_legend_orders_lines_before_patches_and_collections(tmp_path):
     fig.savefig(p)
     s = p.read_text(encoding="utf-8")
     order = [re.search(rf">\s*{name}\s*<", s).start()
-             for name in ("line", "bars", "band", "dots")]
+             for name in ("band", "line", "dots", "bars")]
     assert order == sorted(order)
 
 

@@ -12,7 +12,6 @@ pub(super) fn draw_series_section<'a, DB, FX, FY>(
     ty: &FY,
     entries: &mut Vec<LegendEntry>,
     raster_scatter: bool,
-    custom_legend: bool,
     overlays: &mut Vec<String>,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
@@ -122,17 +121,6 @@ where
                         LegendSwatch::LineMarker(col, width, s.marker.clone())
                     },
                 });
-                if !custom_legend {
-                    chart
-                        .draw_series(LineSeries::new(
-                            Vec::<(f64, f64)>::new(),
-                            col.stroke_width(width),
-                        ))?
-                        .label(s.label.as_str())
-                        .legend(move |(x, y)| {
-                            PathElement::new(vec![(x, y), (x + 20, y)], col.stroke_width(width))
-                        });
-                }
             }
         } else {
             let (px, clip) = {
@@ -324,7 +312,9 @@ where
                 let (cx, cy) = chart_area.map_coordinate(&(tx(xs[i]), ty(ys[i])));
                 // matplotlib's `s` is an area in points^2; ~1.39 px/pt at 100 dpi.
                 let sz = sizes.get(i).copied().unwrap_or(36.0).max(0.0);
-                let r = marker_radius(sz);
+                // Fill diameter sqrt(s) pt plus a 1 px edge: matplotlib's D is
+                // 1.39 * (sqrt(s) + 1) px.
+                let r = (sz.sqrt() * 0.695 + 0.35).clamp(0.5, MAX_MARKER_RADIUS);
                 let col = if !sc.colors.is_empty() {
                     color(&sc.colors[i % sc.colors.len()])
                 } else if let Some(v) = &values {
@@ -340,9 +330,9 @@ where
                 };
                 let col = col.mix(alpha);
                 if let Some(layer) = marker_layer.as_mut() {
-                    draw_marker_raster(layer, base, (cx, cy), r, col, col, 2, &sc.marker);
+                    draw_marker_raster(layer, base, (cx, cy), r, col, col, 1, &sc.marker);
                 } else {
-                    draw_marker(area, base, (cx, cy), r, col, col, 2, &sc.marker)?;
+                    draw_marker(area, base, (cx, cy), r, col, col, 1, &sc.marker)?;
                 }
             }
             if !sc.label.is_empty() {
@@ -374,15 +364,6 @@ where
                 label: label.clone(),
                 swatch: LegendSwatch::Circle(col),
             });
-            if !custom_legend {
-                let series = chart.draw_series(std::iter::once(Rectangle::new(
-                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                    RGBColor(0, 0, 0).mix(0.0).filled(),
-                )))?;
-                series
-                    .label(label.as_str())
-                    .legend(move |(x, y)| Circle::new((x + 10, y + 4), 4, col.filled()));
-            }
         }
     }
     Ok(())

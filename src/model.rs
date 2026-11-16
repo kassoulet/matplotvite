@@ -379,9 +379,13 @@ pub(crate) struct Ticks {
     pub(crate) hide_xlabels: bool,
     #[pyo3(item)]
     pub(crate) hide_ylabels: bool,
+    /// `"left"` or `"right"` forces the y tick side; empty keeps the default.
+    #[pyo3(item)]
+    pub(crate) yside: String,
 }
 
 /// One collected legend row; icons match the artist that registered it.
+#[derive(Clone)]
 pub(crate) enum LegendSwatch {
     Line(RGBAColor, u32),
     LineMarker(RGBAColor, u32, String),
@@ -419,6 +423,9 @@ pub(crate) struct Legend {
     /// Labels supplied directly to `legend(labels)`; they replace artist labels.
     #[pyo3(item)]
     pub(crate) labels: Vec<String>,
+    /// Labels of the drawn artists in creation order, as Matplotlib lists them.
+    #[pyo3(item)]
+    pub(crate) order: Vec<String>,
 }
 
 impl Legend {

@@ -1160,7 +1160,7 @@ where
     if !label.is_empty() {
         // Matplotlib puts the colorbar label on the right of its tick text,
         // rotated a quarter turn and centred on the strip.
-        let label_x = (x1 + 6 + widest_tick.ceil() as i32 + 8).min(w as i32 - 4);
+        let label_x = (x1 + 6 + widest_tick.ceil() as i32 + 16).min(w as i32 - 4);
         draw_label(
             area,
             (0, 0),
@@ -2108,15 +2108,6 @@ where
                 label: label.clone(),
                 swatch: LegendSwatch::Collection(col),
             });
-            if !custom_legend {
-                let series = chart.draw_series(std::iter::once(Rectangle::new(
-                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                    RGBColor(0, 0, 0).mix(0.0).filled(),
-                )))?;
-                series.label(label.as_str()).legend(move |(x, y)| {
-                    Rectangle::new([(x, y - 3), (x + 20, y + 7)], col.filled())
-                });
-            }
         }
     }
     // Bars: axis-aligned rectangles, above the filled contours and below lines.
@@ -2166,15 +2157,6 @@ where
                 label: label.clone(),
                 swatch: LegendSwatch::Rect(cs),
             });
-            if !custom_legend {
-                let series = chart.draw_series(std::iter::once(Rectangle::new(
-                    [(0.0f64, 0.0f64), (0.0f64, 0.0f64)],
-                    RGBColor(0, 0, 0).mix(0.0).filled(),
-                )))?;
-                series.label(label.as_str()).legend(move |(x, y)| {
-                    Rectangle::new([(x, y - 3), (x + 20, y + 7)], cs.filled())
-                });
-            }
         }
     }
     // Patches and collections registered through add_patch/add_collection.
@@ -2401,7 +2383,6 @@ where
         &ty,
         &mut entries,
         raster_scatter,
-        custom_legend,
         overlays,
     )?;
     // Iso-lines are stroked above the series, one segment per marching-squares cell.

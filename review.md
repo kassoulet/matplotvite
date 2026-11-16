@@ -48,6 +48,22 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 | R9 | **Shared golden-image test set** rendering the same scenes through the Python wrapper and the Rust crate, so the two front ends cannot drift. |
 | R10 | **Decide the output paths:** the direct-PNG and SVG paths produce slightly different output; choose whether the crate exposes one or both before the API is public. |
 
+## KARIOS lacraux comparison (16 Nov)
+
+Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplotvite/lacraux-matplotvite-0.6.1dev/...`. The old output overlaps badly because `karios-matplotvite` (`karios/report/commons.py`) still carries workarounds for older matplotvite: `_AXES_MARGIN_PX = (72, 28, 52, 75)` enlarges every `add_axes` rect, but `add_axes` now treats the rect as the plot area (verified: a 0.1..0.9 rect gives a 0.1..0.9 frame). With the margins zeroed in a scratch copy (current `python/`, same inputs), layout is nearly right; pixel RMS fell from 92.6/55.1/53.1/51.3 to 66.4/42.9/41.6/40.6 (overview/dx/dy/ce). Remaining differences are matplotvite parity bugs:
+
+| # | Finding |
+|---|---------|
+| K0 | **KARIOS workarounds are stale** (not a matplotvite bug): drop `_AXES_MARGIN_PX`, `text_block`/`figure_text` line splitting, the manual colorbar and `grid_rects` where matplotvite now has the real feature (`\n` text, `fig.text`, `GridSpec` ratios, `colorbar`). Re-run the four images afterwards. |
+| K1 | **`ylabel` overlaps wide tick labels** (`04_ce` Radial Error, Northing displacement, row histogram): label offset is not derived from the measured tick-label width. **Status: partly fixed: `ylabel` of `add_axes` axes now sits beside the measured tick labels; the 40 px margin still limits very wide labels.** |
+| K2 | **`imshow` leaves the y axis uninverted:** overview image axes read 0 at the bottom, Matplotlib reads 0 at the top (origin `upper`). **Status: fixed.** |
+| K3 | **Scatter markers draw larger than Matplotlib** for the same `s` (overview, dx, dy). **Status: fixed.** |
+| K4 | **`twinx` sides and styling (confirms M5):** in `02_dx` the left axis shows the KP-per-col counts (0..100) and the right shows the mean (-1..1), the reverse of expected; the `Mean dx by col` legend entry is missing and the `std` `fill_between` is peach (cycle colour) instead of light blue. **Status: fixed.** |
+| K5 | **Tick density on narrow axes:** the row panel shows `-2.50.02.5` where Matplotlib picks 3-5 non-overlapping ticks; `MaxNLocator` should use the axis size. **Status: fixed (colorbar strip now counted).** |
+| K6 | **Legend order:** expected lists `Count` (histogram) before `Normal` (line); ours lists lines first. Matplotlib uses artist creation order. **Status: fixed (creation order, bar containers last).** |
+| K7 | **Colorbar tick text (confirms M3):** `8e+03`-style labels instead of `8000`. **Status: not a matplotvite bug: KARIOS formats labels with `.3g`.** |
+| K8 | **Colorbar and axes geometry:** colorbar is narrower than expected and the top `dx` axes is shorter and shifted; re-check after K0. |
+
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.

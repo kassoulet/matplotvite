@@ -3641,6 +3641,20 @@ _AXES_ARTIST_PROPS = frozenset(
 )
 
 
+class _Stamped(list):
+    """List that records the creation order of labelled artists on `order`."""
+
+    def __init__(self, order):
+        super().__init__()
+        self._order = order
+
+    def append(self, item):
+        super().append(item)
+        label = item.get("label") if isinstance(item, dict) else getattr(item, "label", "")
+        if label and isinstance(label, str):
+            self._order.append(label)
+
+
 class Axes:
     def __init__(self, pos=0, *args, **kwargs):
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
@@ -3649,15 +3663,16 @@ class Axes:
         rect_arg = args[0] if args else None
         if args:
             pos = 0
-        self.pos, self.lines, self.texts = pos, [], []
+        self._label_order, self._container_order = [], []
+        self.pos, self.lines, self.texts = pos, _Stamped(self._label_order), []
         self._subplotspec = None
         self.images, self.annotations = [], []
         self.contours = []
         self.errors = []
-        self.scatter_pts = []
+        self.scatter_pts = _Stamped(self._label_order)
         self.arrows = []
         self.bars = []
-        self.bands = []
+        self.bands = _Stamped(self._label_order)
         self._hline_refs = []
         self._vline_refs = []
         self.hspans = []
@@ -3686,6 +3701,7 @@ class Axes:
         self.grid_axis = "both"
         self.minor_ticks = False
         self.tick_params_box = {}
+        self._yside = ""
         self.tick_params_x = {}
         self.tick_params_y = {}
         self.legend_loc = "best"
@@ -3718,7 +3734,7 @@ class Axes:
         self._share_x = self._share_y = None
         self.hide_xticklabels = self.hide_yticklabels = False
         self._prop_cycle = _cycle_colors(rcParams.get("axes.prop_cycle")) or list(_CYCLE)
-        self._cycle_pos = 0
+        self._cycle_pos = self._patch_pos = 0
         self._twin, self._twin_gap, self._twin_of = "", 0.0, None
         self._twin_reserve = ""
         self.xlabel_color = self.ylabel_color = None
@@ -3729,8 +3745,8 @@ class Axes:
         self.yaxis = _Axis(self, "y")
         self.spines = _Spines()
         self.axis = _AxisAccessor(self)
-        self.patches = []
-        self.collections = []
+        self.patches = _Stamped(self._label_order)
+        self.collections = _Stamped(self._label_order)
         self.callbacks = _Callbacks()
         self._box_aspect = None
         self._axes_locator = None
@@ -3743,10 +3759,16 @@ class Axes:
         """Transform hook for projection subclasses; base axes add none."""
         return None
 
-    def _next_color(self):
+    def _next_color(self, patch=False):
+        # Matplotlib keeps one cycle position for lines and another for
+        # patches (bar, fill*, scatter, ...).
         cycle = self._prop_cycle or _CYCLE
-        color = cycle[self._cycle_pos % len(cycle)]
-        self._cycle_pos += 1
+        if patch:
+            color = cycle[self._patch_pos % len(cycle)]
+            self._patch_pos += 1
+        else:
+            color = cycle[self._cycle_pos % len(cycle)]
+            self._cycle_pos += 1
         return color
 
     def set_prop_cycle(self, *args, **kwargs):
@@ -3769,7 +3791,7 @@ class Axes:
         if isinstance(colors, str) or _is_rgb(colors):
             colors = [colors]
         self._prop_cycle = [_norm_color(c) for c in colors]
-        self._cycle_pos = 0
+        self._cycle_pos = self._patch_pos = 0
         return self
 
     def get_prop_cycle(self):
@@ -3884,7 +3906,7 @@ class Axes:
         the outer panel; the tick, label and title margins live outside it.
         The renderer takes a panel rectangle, so add those margins back before
         drawing. Plain axes boxes use the same 40/30/25/25 px margins as the
-        renderer's exact path; styled panels keep the roomier legacy margins.
+        renderer's exact path ; styled panels keep the roomier legacy margins.
         """
         if self._pos_override is None:
             return None
@@ -4566,6 +4588,8 @@ class Axes:
         self.tick_params_x.clear()
         self.tick_params_y.clear()
         self.tick_params_box.clear()
+        self._label_order.clear()
+        self._container_order.clear()
         self.legend_loc, self.legend_ncol = "best", 1
         self.legend_frameon, self.legend_fontsize = True, None
         self.legend_title, self.legend_title_fontsize = "", None
@@ -4657,6 +4681,8 @@ class Axes:
                       else position.height * figure.figsize[1] * dpi)
         except (AttributeError, TypeError, ValueError):
             return 8
+        if axis == "x" and self._colorbar is not None:
+            pixels -= 95.0  # the renderer's colorbar strip takes room from the right
         per_label = 55.0 if axis == "x" else 45.0
         return max(3, min(8, int(round(pixels / per_label))))
 
@@ -4943,6 +4969,8 @@ class Axes:
                 extent = (extent[0], extent[1], extent[3], extent[2])
         elif len(extent) != 4:
             raise ValueError("extent must be (left, right, bottom, top)")
+        elif extent[2] > extent[3]:
+            self._inverted[1] = True  # bottom > top reads as a descending y axis
         alpha_data = None
         if alpha is not None and np.ndim(alpha) > 0:
             alpha_data = np.asarray(alpha, dtype=np.float64)
@@ -5043,7 +5071,7 @@ class Axes:
                         raise NotImplementedError("stacked hist bars need orientation='vertical'")
                     handles.append(self.bar(centers, count, width=widths, bottom=running,
                                             align=bar_align, color=colour,
-                                            edgecolor=edgecolor, alpha=alpha, label=text))
+                                            edgecolor=edgecolor, alpha=alpha, label=text, _hist=True))
                 elif orientation != "vertical":
                     raise NotImplementedError("stacked hist steps need orientation='vertical'")
                 else:
@@ -5075,11 +5103,11 @@ class Axes:
             if orientation == "horizontal":
                 handles = self.barh(centers, counts, height=widths, left=base,
                                     align=bar_align, color=color, edgecolor=edgecolor,
-                                    alpha=alpha, label=lab)
+                                    alpha=alpha, label=lab, _hist=True)
             elif orientation == "vertical":
                 handles = self.bar(centers, counts, width=widths, bottom=base,
                                    align=bar_align, color=color, edgecolor=edgecolor,
-                                   alpha=alpha, label=lab)
+                                   alpha=alpha, label=lab, _hist=True)
             else:
                 raise ValueError(f"unsupported orientation: {orientation!r}")
             return np.asarray(counts, dtype=np.float64), edges, handles
@@ -5476,9 +5504,16 @@ class Axes:
                         [loc - half, loc + half], [value, value], line_color))
         return out
 
+    def _note_bar_label(self, label, hist):
+        # Matplotlib lists bar containers after every other artist, but a
+        # histogram labels its first patch, so it keeps creation order.
+        if label:
+            (self._label_order if hist else self._container_order).append(str(label))
+
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
+        self._note_bar_label(label, kwargs.pop("_hist", False))
         x = _as_f64(self._xdate(x))
         n = x.size
         h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
@@ -5487,7 +5522,7 @@ class Axes:
         left = x - w / 2.0 if align == "center" else x
         # Matplotlib pins each bar's baseline so autoscaling keeps it on the axis.
         self._sticky_y += [float(v) for v in np.asarray(b).ravel()]
-        colors = _bar_colors(color if color is not None else self._next_color(), n)
+        colors = _bar_colors(color if color is not None else self._next_color(patch=True), n)
         self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
                               colors=colors,
                               edgecolor=(_bar_colors(edgecolor, n)
@@ -5566,6 +5601,7 @@ class Axes:
     def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
              align="center", alpha=None, linewidth=None, **kwargs):
         """Horizontal bars, stored as the same rectangles as `bar`."""
+        self._note_bar_label(label, kwargs.pop("_hist", False))
         y = (self._category_positions(y) if _looks_like_categories(y)
              else _as_f64(y))
         n = y.size
@@ -5575,7 +5611,7 @@ class Axes:
         bottom = y - h / 2.0 if align == "center" else y
         self._sticky_x += [float(v) for v in np.asarray(l).ravel()]
         self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
-                              colors=_bar_colors(color if color is not None else self._next_color(), n),
+                              colors=_bar_colors(color if color is not None else self._next_color(patch=True), n),
                               edgecolor=(_bar_colors(edgecolor, n)
                                          if edgecolor is not None else None),
                               alpha=None if alpha is None else float(alpha), label=str(label),
@@ -5617,7 +5653,7 @@ class Axes:
         """Fill between two curves; `where` masks split the area into runs."""
         x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
         a, b = _fill(y1, x.size), _fill(y2, x.size)
-        c = color if color is not None else self._next_color()
+        c = color if color is not None else self._next_color(patch=True)
         for xs, ya, yb in _runs(x, a, b, where):
             self.bands.append(_band(np.concatenate([xs, xs[::-1]]),
                                     np.concatenate([ya, yb[::-1]]), c, alpha, label))
@@ -5626,7 +5662,7 @@ class Axes:
                       **kwargs):
         y = _as_f64(y)
         a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
-        c = color if color is not None else self._next_color()
+        c = color if color is not None else self._next_color(patch=True)
         for ys, xa, xb in _runs(y, a, b, where):
             self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
                                     np.concatenate([ys, ys[::-1]]), c, alpha, label))
@@ -5649,7 +5685,7 @@ class Axes:
         if pair:
             raise TypeError("fill expects x, y pairs, optionally followed by a colour")
         for (x, y), spec in groups:
-            c = spec or color or self._next_color()
+            c = spec or color or self._next_color(patch=True)
             self.bands.append(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
 
     def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
@@ -5873,7 +5909,7 @@ class Axes:
         if x.size != y.size:
             raise ValueError("x and y must have the same length")
         n = y.size
-        values, colors = _scatter_colors(c if c is not None else self._next_color(), n)
+        values, colors = _scatter_colors(c if c is not None else self._next_color(patch=True), n)
         if norm is not None and values is not None:
             values, vmin, vmax = _norm_values(norm, values)
         entry = dict(
@@ -6493,6 +6529,14 @@ class Axes:
             raise ValueError(f"unsupported tick axis: {axis!r}")
         self.tick_params_box.update(kwargs)
         axes = ("x", "y") if axis == "both" else (axis,)
+        if "y" in axes:
+            # Moving the labels to one side of the axes (twinx idiom).
+            left = kwargs.get("labelleft", kwargs.get("left"))
+            right = kwargs.get("labelright", kwargs.get("right"))
+            if right and not left:
+                self._yside = "right"
+            elif left and not right:
+                self._yside = "left"
         for name in axes:
             self._tick_style(name, **{
                 "rotation": kwargs.get("rotation"),
@@ -6911,7 +6955,8 @@ class Axes:
                                 fontsize=legend_font, family=self.legend_family or _font_family(),
                                 title=self.legend_title,
                                 title_fontsize=legend_title, anchor=self.legend_anchor,
-                                labels=list(self.legend_labels or [])),
+                                labels=list(self.legend_labels or []),
+                                order=[*self._label_order, *self._container_order]),
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
                     aspect_datalim=self._adjustable == "datalim",
@@ -6940,7 +6985,8 @@ class Axes:
                                xstyle=self._tick_style_dict("x"),
                                ystyle=self._tick_style_dict("y"),
                                hide_xlabels=self.hide_xticklabels or self._twin == "y",
-                               hide_ylabels=self.hide_yticklabels or self._twin == "x"),
+                               hide_ylabels=self.hide_yticklabels or self._twin == "x",
+                               yside=self._yside),
                     scatter=[dict(x=e["x"], y=e["y"], sizes=e["sizes"], values=e["values"],
                                   cmap=e["cmap"], clim=e["clim"], colors=e["colors"],
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
@@ -11103,7 +11149,7 @@ class PolarAxes(Axes):
             raise ValueError(f"unsupported align: {align!r}")
         starts = theta - widths / 2.0 if align == "center" else theta
         ends = starts + widths
-        colors = _bar_colors(color if color is not None else self._next_color(), n)
+        colors = _bar_colors(color if color is not None else self._next_color(patch=True), n)
         edges = _bar_colors(edgecolor, n) if edgecolor is not None else None
         line_widths = None if linewidth is None else _fill(linewidth, n)
         limits = self._polar_theta_limits()
