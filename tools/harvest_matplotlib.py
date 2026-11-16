@@ -676,6 +676,18 @@ def find_sample_data(source: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
+def _fallback_multi_font_text():
+    """A local approximation of Matplotlib's multi-font test payload."""
+    accents = "".join(chr(code) for code in range(0xC5, 0x180))
+    text = (
+        "There are basic characters\n"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz\n"
+        "0123456789\n"
+        f"and accented characters\n{accents}\nin between!"
+    )
+    return ["DejaVu Sans"], text
+
+
 def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
            ignored: list[str] | None = None,
@@ -770,8 +782,8 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
         # `get_data_path()` is often used as `Path(get_data_path(),
         # "sample_data", ...)`; point it at the checkout's mpl-data directory.
         namespace["get_data_path"] = lambda: str(sample_data.parent)
-    if mpl_font_text is not None:
-        namespace["_gen_multi_font_text"] = mpl_font_text
+    namespace["_gen_multi_font_text"] = (mpl_font_text
+                                         or _fallback_multi_font_text)
     ignored_calls = getattr(matplotvite, "_IGNORED_CALLS", None)
     # Resolve helper paths before the scratch-directory change.
     added_path = str(extra_path.resolve()) if extra_path is not None else None
