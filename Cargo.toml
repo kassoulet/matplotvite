@@ -20,7 +20,7 @@ png = "0.18"
 plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "svg_backend", "line_series", "ab_glyph"] }
 plotters-backend = "0.3"
 resvg = "0.50.0"
-usvg = "0.49.0"
+usvg = "0.50.0"
 tiny-skia = "0.12.0"
 svg2pdf = "0.13"
 pdf-writer = "0.12"

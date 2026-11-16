@@ -698,7 +698,7 @@ fn svg_bounds(svg: &str, (w, h): (u32, u32)) -> Option<Bbox> {
         ..Default::default()
     };
     let tree = usvg::Tree::from_str(svg, &opts).ok()?;
-    let rect = tree.root().abs_stroke_bounding_box();
+    let rect = tree.root().abs_stroke_bounding_box()?;
     if !rect.width().is_finite() || !rect.height().is_finite() {
         return None;
     }
