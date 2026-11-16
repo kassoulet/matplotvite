@@ -7195,12 +7195,14 @@ class Axes:
         style = self.tick_params_x if axis == "x" else self.tick_params_y
         font = float(rcParams.get("font.size", 10.0))
         default = rcParams.get(f"{axis}tick.labelsize", font)
+        rotation = style.get("rotation", 0.0)
+        rotation = 0.0 if rotation == "auto" else float(rotation)
         return dict(labelsize=_font_size(style.get("labelsize"), default),
                     length=float(style.get("length", 3.5)),
                     width=float(style.get("width", 1.0)),
                     color=_norm_color(style.get("labelcolor")),
                     labelcolor=_norm_color(style.get("labelcolor")),
-                    rotation=float(style.get("rotation", 0.0)))
+                    rotation=rotation)
 
 
 def _norm_aspect(a):

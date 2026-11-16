@@ -3552,6 +3552,14 @@ def test_default_sans_font_is_dejavu():
     assert b"DejaVuSans" in pdf
 
 
+def test_tick_params_accepts_auto_rotation():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.tick_params(rotation="auto")
+    assert ax._tick_style_dict("x")["rotation"] == 0.0
+    assert ax._tick_style_dict("y")["rotation"] == 0.0
+
+
 def test_module_level_plot_aliases_and_testing_units():
     fig, ax = plt.subplots()
     ax.plot([0, 1], [0, 1])
