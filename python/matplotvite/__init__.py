@@ -11732,3 +11732,27 @@ from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
 from . import spines  # noqa: E402 - public module for custom projections
 from . import units  # noqa: E402 - unit-converter registry
 from .backends.backend_pdf import PdfPages  # noqa: E402 - needs the figure API
+
+
+def _data_kwargs(method):
+    """Resolve Matplotlib `data=` string arguments before a plotting method."""
+
+    def wrapper(self, *args, **kwargs):
+        data = kwargs.pop("data", None)
+        if data is not None and hasattr(data, "get"):
+            def resolve(value):
+                return data.get(value, value) if isinstance(value, str) else value
+            args = tuple(resolve(value) for value in args)
+            kwargs = {key: resolve(value) for key, value in kwargs.items()}
+        return method(self, *args, **kwargs)
+
+    wrapper.__name__ = getattr(method, "__name__", "wrapped")
+    wrapper.__doc__ = getattr(method, "__doc__", None)
+    return wrapper
+
+
+for _data_method in ("plot", "step", "bar", "barh", "errorbar", "stackplot",
+                     "boxplot", "violinplot", "pie", "imshow", "fill_between",
+                     "fill_betweenx", "fill"):
+    setattr(Axes, _data_method, _data_kwargs(getattr(Axes, _data_method)))
+del _data_method

@@ -3552,6 +3552,15 @@ def test_default_sans_font_is_dejavu():
     assert b"DejaVuSans" in pdf
 
 
+def test_data_mapping_resolves_string_arguments():
+    fig, ax = plt.subplots()
+    ax.plot("x", "y", data={"x": [0, 1], "y": [1, 2]})
+    assert ax.lines
+    ax.bar("a", "b", data={"a": 0, "b": 1})
+    ax.step("x", "y", data={"x": [0, 1], "y": [1, 2]})
+    ax.imshow("image", data={"image": [[0.0, 1.0], [1.0, 0.0]]})
+
+
 def test_tick_params_accepts_auto_rotation():
     fig, ax = plt.subplots()
     ax.plot([0, 1], [0, 1])
