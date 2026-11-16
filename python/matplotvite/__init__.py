@@ -606,6 +606,7 @@ class _CoordTransform:
     def rotate_deg(self, *args, **kwargs): return self
     def scale(self, *args, **kwargs): return self
     def skew_deg(self, *args, **kwargs): return self
+    def clear(self): return self
 
 
 class Affine2D:
@@ -620,6 +621,7 @@ class Affine2D:
     def rotate_deg(self, *args, **kwargs): _ignored("Affine2D.rotate_deg"); return self
     def scale(self, *args, **kwargs): _ignored("Affine2D.scale"); return self
     def skew_deg(self, *args, **kwargs): _ignored("Affine2D.skew_deg"); return self
+    def clear(self): return self
     def get_matrix(self): return np.eye(3)
 
 
@@ -3706,6 +3708,10 @@ class Axes:
         self.callbacks = _Callbacks()
         self._box_aspect = None
         self._axes_locator = None
+        # Custom projections (Hammer, geo, ...) initialise their transform
+        # graph here; base axes have no such method.
+        if hasattr(self, "_set_lim_and_transforms"):
+            self._set_lim_and_transforms()
 
     def _next_color(self):
         cycle = self._prop_cycle or _CYCLE
@@ -9196,6 +9202,7 @@ rcParams = {
     "figure.facecolor": "#ffffff",
     "axes.facecolor": "#ffffff",
     "axes.edgecolor": "#000000",
+    "axes.grid": False,
     "axes.labelcolor": "#000000",
     "xtick.color": "#000000",
     "ytick.color": "#000000",
