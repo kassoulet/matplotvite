@@ -3551,6 +3551,27 @@ def test_default_sans_font_is_dejavu():
     assert b"DejaVuSans" in pdf
 
 
+def test_default_font_sizes_and_tick_label_handles():
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.plot([0, 1], [0, 1])
+    ax.set_title("Title")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    fig.suptitle("Sup")
+    panel = ax._panel()
+    assert panel["title_size"] == 12.0
+    assert panel["xlabel_size"] == 10.0
+    assert panel["ylabel_size"] == 10.0
+    assert fig._suptitle["size"] == 12.0
+    assert ax.get_xticklabels()[0].get_fontsize() == 10.0
+    assert ax.get_yticklabels()[0].get_fontsize() == 10.0
+    ax.tick_params(labelsize=8)
+    assert ax.get_xticklabels()[0].get_fontsize() == 8.0
+    assert ax.get_yticklabels()[0].get_fontsize() == 8.0
+    fig.suptitle("Big", fontsize=16)
+    assert fig._suptitle["size"] == 16.0
+
+
 def test_subplots_share_limits_and_hide_inner_labels(tmp_path):
     fig, axs = plt.subplots(2, 2, figsize=(4, 4), sharex=True, sharey=True)
     axs[0, 0].plot([0, 10], [0, 10])

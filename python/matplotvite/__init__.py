@@ -1074,8 +1074,8 @@ class Text(_TextArt):
 class _TextLabel:
     """Minimal tick-label stand-in for code that pokes at Text objects."""
 
-    def __init__(self, text=""):
-        self._text, self._visible, self._fontsize = str(text), True, 12.0
+    def __init__(self, text="", fontsize=10.0):
+        self._text, self._visible, self._fontsize = str(text), True, float(fontsize)
         self._rotation = 0.0
         self._color = "black"
 
@@ -2044,27 +2044,28 @@ def _number(value, default):
         return default
 
 
-_FONT_SIZE_NAMES = {
-    "xx-small": 6.0, "x-small": 8.0, "small": 10.0, "medium": 12.0,
-    "large": 14.0, "x-large": 18.0, "xx-large": 24.0,
-    "larger": 14.0, "smaller": 8.0,
+_FONT_SCALINGS = {
+    "xx-small": 0.579, "x-small": 0.694, "small": 0.833, "medium": 1.0,
+    "large": 1.2, "x-large": 1.44, "xx-large": 1.728,
+    "larger": 1.2, "smaller": 0.833,
 }
 
 
 def _font_size(value, default=10.0):
-    """Resolve numeric and named font sizes accepted by matplotlib."""
+    """Resolve numeric and named font sizes relative to `font.size`."""
+    base = float(rcParams.get("font.size", 10.0))
     if value is None:
         value = default
     if isinstance(value, str):
-        resolved = _FONT_SIZE_NAMES.get(value.lower())
-        if resolved is not None:
-            return resolved
+        scale = _FONT_SCALINGS.get(value.lower())
+        if scale is not None:
+            return base * scale
         value = default
     try:
         return float(value)
     except (TypeError, ValueError):
         if isinstance(default, str):
-            return _FONT_SIZE_NAMES.get(default.lower(), 10.0)
+            return base * _FONT_SCALINGS.get(default.lower(), 1.0)
         return float(default)
 
 
@@ -4718,7 +4719,8 @@ class Axes:
             labels = _format_ticklabels(self.xaxis._formatter, self.get_xticks())
         if labels is None:
             labels = [f"{v:g}" for v in self.get_xticks()]
-        return [_TextLabel(t) for t in labels]
+        size = self._tick_style_dict("x")["labelsize"]
+        return [_TextLabel(t, size) for t in labels]
 
     def get_yticklabels(self, minor=False, which=None):
         labels = self._yticklabels
@@ -4729,7 +4731,8 @@ class Axes:
             labels = _format_ticklabels(self.yaxis._formatter, self.get_yticks())
         if labels is None:
             labels = [f"{v:g}" for v in self.get_yticks()]
-        return [_TextLabel(t) for t in labels]
+        size = self._tick_style_dict("y")["labelsize"]
+        return [_TextLabel(t, size) for t in labels]
 
     def _set_scale(self, axis, value, base=10, **kwargs):
         """Install a built-in, function, or registered custom scale on `axis`."""
@@ -7190,7 +7193,8 @@ class Axes:
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
         font = float(rcParams.get("font.size", 10.0))
-        return dict(labelsize=_font_size(style.get("labelsize"), font),
+        default = rcParams.get(f"{axis}tick.labelsize", font)
+        return dict(labelsize=_font_size(style.get("labelsize"), default),
                     length=float(style.get("length", 3.5)),
                     width=float(style.get("width", 1.0)),
                     color=_norm_color(style.get("labelcolor")),
@@ -8708,7 +8712,7 @@ class Figure:
 
     def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
         """Draw a figure-level title above the panel grid."""
-        size = _font_size(fontsize, rcParams.get("figure.titlesize", 14.0))
+        size = _font_size(fontsize, rcParams.get("figure.titlesize", 12.0))
         family = _family_override(kwargs)
         self._suptitle = dict(text=_mathtext(t, family), size=size, x=float(x),
                               y=float(y), family=family)
@@ -9123,7 +9127,7 @@ class Figure:
             "suptitle": self._suptitle["text"] if self._suptitle else "",
             "suptitle_family": (self._suptitle.get("family") or _font_family())
             if self._suptitle else _font_family(),
-            "suptitle_size": self._suptitle["size"] if self._suptitle else 14.0,
+            "suptitle_size": self._suptitle["size"] if self._suptitle else 12.0,
             "suptitle_x": self._suptitle["x"] if self._suptitle else 0.5,
             "suptitle_y": self._suptitle["y"] if self._suptitle else 0.98,
             "figure_texts": self._figure_texts,
@@ -9226,7 +9230,7 @@ class _SubFigure:
 
     def suptitle(self, text, x=0.5, y=0.98, fontsize=None, **kwargs):
         left, bottom, width, height = self._bounds
-        size = _font_size(fontsize, rcParams.get("figure.titlesize", 14.0))
+        size = _font_size(fontsize, rcParams.get("figure.titlesize", 12.0))
         return self.figure.text(left + x * width, bottom + y * height, text,
                                 ha="center", va="top", fontsize=size)
 
@@ -9528,7 +9532,9 @@ rcParams = {
     "font.size": 10.0,
     "axes.labelsize": 10.0,
     "axes.titlesize": 12.0,
-    "figure.titlesize": 14.0,
+    "xtick.labelsize": 10.0,
+    "ytick.labelsize": 10.0,
+    "figure.titlesize": 12.0,
     "legend.fontsize": 10.0,
     "axes.prop_cycle": _CycleList(_CYCLE),
     "image.cmap": "viridis",
