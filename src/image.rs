@@ -335,7 +335,7 @@ mod tests {
             *pixel = tiny_skia::ColorU8::from_rgba(v, v, v, 255).premultiply();
         }
         let out = resample_area(&source, 2, 2).unwrap();
-        for pixel in out.data().chunks_exact(4) {
+        for pixel in out.data().as_chunks::<4>().0 {
             assert!((127..=128).contains(&pixel[0]), "got {pixel:?}");
             assert_eq!(pixel[3], 255);
         }
