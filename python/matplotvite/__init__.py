@@ -8711,12 +8711,87 @@ class _ColorbarAxes:
         return [_TextLabel(str(formatter(tick, i))) for i, tick in enumerate(ticks)]
 
 
-class Colorbar:
-    """Handle returned by `Figure.colorbar`."""
+class _ColorbarDividers:
+    """Divider lines for a standalone colorbar, in the colorbar axes' data units."""
 
-    def __init__(self, entry):
+    def __init__(self, axes, boundaries, orientation, enabled, extend=None):
+        self.axes = axes
+        self.boundaries = np.asarray(boundaries, dtype=float) if boundaries is not None else None
+        self.orientation = orientation or "vertical"
+        self.enabled = bool(enabled)
+        self.extend = extend
+
+    def get_segments(self):
+        if not self.enabled:
+            return []
+        horizontal = self.orientation == "horizontal"
+        lo, hi = self.axes.get_xlim() if horizontal else self.axes.get_ylim()
+        lo, hi = float(lo), float(hi)
+        if not (np.isfinite(lo) and np.isfinite(hi)) or hi <= lo:
+            return []
+        cuts = [float(v) for v in (self.boundaries if self.boundaries is not None else ())
+                if lo < float(v) < hi]
+        if self.extend is None or self.extend in ("both", "min"):
+            cuts.append(lo)
+        if self.extend is None or self.extend in ("both", "max"):
+            cuts.append(hi)
+        cuts.sort()
+        if horizontal:
+            return [[[v, 0.0], [v, 1.0]] for v in cuts]
+        return [[[0.0, v], [1.0, v]] for v in cuts]
+
+
+class Colorbar:
+    """Handle returned by `Figure.colorbar` or constructed around an axes."""
+
+    def __init__(self, ax=None, mappable=None, *, cmap=None, norm=None, values=None,
+                 boundaries=None, orientation=None, ticklocation="auto", extend=None,
+                 spacing="uniform", ticks=None, format=None, drawedges=False,
+                 extendfrac=None, extendrect=False, label="", **kwargs):
+        if isinstance(ax, dict):
+            self._e = ax
+            self.ax = _ColorbarAxes(ax)
+            self.dividers = _ColorbarDividers(self.ax, boundaries, orientation, drawedges,
+                                              extend)
+            return
+        if ax is None:
+            raise TypeError("Colorbar needs an axes")
+        self.ax = ax
+        if extend is None:
+            extend = getattr(norm, "extend", None)
+        if extend is None and cmap is not None:
+            under = getattr(cmap, "_under", None) is not None
+            over = getattr(cmap, "_over", None) is not None
+            extend = (("both" if under and over else "min" if under else "max" if over
+                       else "neither"))
+        bounds = boundaries
+        if bounds is None and hasattr(norm, "boundaries"):
+            bounds = norm.boundaries
+        if bounds is not None:
+            values_arr = np.asarray(bounds, dtype=float).ravel()
+            values_arr = values_arr[np.isfinite(values_arr)]
+        else:
+            values_arr = np.array([], dtype=float)
+        lo = getattr(norm, "vmin", None)
+        hi = getattr(norm, "vmax", None)
+        if lo is None and values_arr.size:
+            lo = values_arr[0]
+        if hi is None and values_arr.size:
+            hi = values_arr[-1]
+        if lo is None:
+            lo = 0.0
+        if hi is None:
+            hi = 1.0
+        if not float(hi) > float(lo):
+            lo, hi = float(lo) - 0.5, float(lo) + 0.5
+        entry = dict(cmap=_cmap_name(cmap), vmin=float(lo), vmax=float(hi),
+                     label=str(label), ticks=ticks, format=format)
+        ax._colorbar = entry
+        fig = getattr(ax, "_fig", None)
+        if fig is not None:
+            fig._colorbar = entry
         self._e = entry
-        self.ax = _ColorbarAxes(entry)
+        self.dividers = _ColorbarDividers(ax, bounds, orientation, drawedges, extend)
 
     def set_label(self, label, loc=None, **kwargs): self._e["label"] = str(label)
     def get_label(self): return self._e["label"]
@@ -9798,10 +9873,11 @@ class _AsinhNorm(_Normalize):
 
 
 class _BoundaryNorm(_Normalize):
-    def __init__(self, boundaries, ncolors, clip=False, **kwargs):
+    def __init__(self, boundaries, ncolors, clip=False, extend=None, **kwargs):
         super().__init__(clip=clip)
         self.boundaries = np.asarray(boundaries, dtype=float)
         self.ncolors = int(ncolors)
+        self.extend = extend
 
     def __call__(self, value, clip=None):
         return np.clip(np.digitize(value, self.boundaries) - 1, 0, self.ncolors - 1)
@@ -10837,6 +10913,11 @@ mcolors.rgb_to_hsv = rgb_to_hsv
 mcolors.hsv_to_rgb = hsv_to_rgb
 mcolors.Normalize = _Normalize
 mcolors.from_levels_and_colors = from_levels_and_colors
+mcolorbar = _Namespace(Colorbar=Colorbar, ColorbarBase=Colorbar)
+# The gallery binds `matplotlib.colorbar` to this callable, so expose the
+# classes on the function as well as in the standalone namespace.
+colorbar.Colorbar = Colorbar
+colorbar.ColorbarBase = Colorbar
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches

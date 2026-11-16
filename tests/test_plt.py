@@ -924,6 +924,21 @@ def test_colorbar_exposes_formatted_tick_labels():
     assert cbar.ax.get_yticks() == [-1, 0, 1]
 
 
+def test_standalone_colorbar_constructor_and_dividers(tmp_path):
+    fig, ax = plt.subplots(figsize=(4, 2))
+    cmap = plt.get_cmap("viridis")
+    norm = plt.colors.BoundaryNorm([0, 1, 2, 3, 4], 4, extend="both")
+    cb = plt.Colorbar(ax, cmap=cmap, norm=norm, orientation="horizontal",
+                      drawedges=True)
+    ax.set_xlim(1.1, 2.9)
+    segments = np.asarray(cb.dividers.get_segments())
+    assert segments.shape == (3, 2, 2)
+    assert np.allclose(segments[:, 0, 0], [1.1, 2.0, 2.9])
+    assert ax._panel()["colorbar"][:3] == ("viridis", 0.0, 4.0)
+    assert plt.mcolorbar.ColorbarBase is plt.Colorbar
+    fig.savefig(tmp_path / "standalone-colorbar.png")
+
+
 def test_colorbar_ticks_have_no_float_noise():
     fig, ax = plt.subplots(figsize=(5, 4))
     x = np.linspace(0, 4, 40)
