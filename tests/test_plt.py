@@ -4253,6 +4253,26 @@ def test_stem_and_specgram_return_matplotlib_containers(tmp_path):
     assert p.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_polar_projection_projects_data_and_draws_labels(tmp_path):
+    fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+    line, = ax.plot([0.0, np.pi / 2], [1.0, 2.0])
+    assert line.get_xdata().tolist() == [0.0, np.pi / 2]
+    ax.set_thetagrids([0.0, 90.0], ["east", "north"])
+    ax.set_rgrids([0.5, 1.0])
+    svg = fig.savefig(format="svg").decode()
+    assert "east" in svg and "north" in svg
+    assert "0.5" in svg
+
+
+def test_explicit_legend_labels_replace_internal_labels(tmp_path):
+    fig, ax = plt.subplots()
+    ax.fill([0, 1, 0], [0, 0, 1], color="red", label="_nolegend_")
+    ax.legend(["Factor"])
+    svg = fig.savefig(format="svg").decode()
+    assert "Factor" in svg
+    assert "_nolegend_" not in svg
+
+
 def test_polar_grid_setters_accept_matplotlib_arguments(tmp_path):
     plt.rcdefaults()
     fig, ax = plt.subplots(subplot_kw={"projection": "polar"})

@@ -17,7 +17,7 @@ from ._core import __version__, colormaps as _colormaps, render as _render
 _CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
 __all__ = (
-    "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
+    "Axes", "PolarAxes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
     "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "OffsetFrom", "AnchoredOffsetbox", "AnnotationBbox",
     "HandlerTuple", "HandlerLineCollection", "StepPatch", "NonUniformImage",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
@@ -3640,6 +3640,7 @@ class Axes:
         self._adjustable = "box"
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
+        self.legend_labels = None
         self._sticky_x, self._sticky_y = [], []
         self.visible, self._removed, self._axis_off = True, False, False
         self.artists, self.label, self.zorder = [], "", 0
@@ -4497,6 +4498,7 @@ class Axes:
         self.title = self.xlabel = self.ylabel = ""
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.show_legend, self.xlim, self.ylim = False, None, None
+        self.legend_labels = None
         self._xticks = self._yticks = None
         self._xlocator = self._ylocator = None
         self.xaxis._locator = self.yaxis._locator = None
@@ -6257,6 +6259,7 @@ class Axes:
                title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
                labels=None, fontfamily=None, **kwargs):
         """Show a legend. Supports placement, layout and explicit handles/labels."""
+        _handles = _labels = None
         if len(args) == 1:
             arg = args[0]
             if isinstance(arg, (list, tuple)) and arg and isinstance(arg[0], str):
@@ -6270,6 +6273,9 @@ class Axes:
             if len(args) > 2 and isinstance(args[2], str):
                 loc = args[2]
         self.show_legend = True
+        explicit_labels = labels if labels is not None else _labels
+        if explicit_labels is not None:
+            self.legend_labels = [str(v) for v in explicit_labels]
         if isinstance(loc, (tuple, list)):
             self.legend_anchor = (float(loc[0]), float(loc[1]))
             self.legend_loc = "lower left"
@@ -6710,9 +6716,20 @@ class Axes:
                        mec=_norm_color(s["mec"])) for s in series]
         bars = [dict(b, colors=[_norm_color(c) for c in b["colors"]],                              edgecolor=b["edgecolor"]) for b in bars]
         bands = [dict(b, color=_norm_color(b["color"])) for b in self.bands]
+        polar_texts = []
+        if getattr(self, "_polar", False):
+            polar_lines, polar_texts = self._polar_grid()
+            projected = []
+            for s in series:
+                x, y = self._polar_xy(s["x"], s["y"])
+                projected.append(dict(s, x=x, y=y))
+            series = polar_lines + projected
+            bands = [dict(b, x=self._polar_xy(b["x"], b["y"])[0],
+                          y=self._polar_xy(b["x"], b["y"])[1]) for b in bands]
         patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
         collections = [c for c in (_collection_entry(a) for a in self.artists) if c is not None]
-        texts = [self._resolve_text(t, x0, x1, y0, y1) for t in self.texts]
+        texts = polar_texts + [self._resolve_text(t, x0, x1, y0, y1)
+                              for t in self.texts]
         scatter = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
                    for e in self.scatter_pts]
         arrows = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
@@ -6798,7 +6815,8 @@ class Axes:
                                 ncol=self.legend_ncol, frameon=self.legend_frameon,
                                 fontsize=legend_font, family=self.legend_family or _font_family(),
                                 title=self.legend_title,
-                                title_fontsize=legend_title, anchor=self.legend_anchor),
+                                title_fontsize=legend_title, anchor=self.legend_anchor,
+                                labels=list(self.legend_labels or [])),
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
                     aspect_datalim=self._adjustable == "datalim",
@@ -8394,7 +8412,12 @@ class Figure:
     def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
         """index is 1-based, row-major (matplotlib convention); a `SubplotSpec`
         may be passed instead to place the axes on an irregular grid."""
-        axes_class = kwargs.pop("axes_class", Axes)
+        axes_class = kwargs.pop("axes_class", None)
+        projection = kwargs.pop("projection", None)
+        if projection is not None:
+            axes_class = _get_projection_class(projection)
+        elif axes_class is None:
+            axes_class = Axes
         grid_helper = kwargs.pop("grid_helper", None)
         options = dict(kwargs)
         if isinstance(nrows, SubplotSpec):
@@ -8484,7 +8507,10 @@ class Figure:
         # `plt.subplots` builds its grid from a GridSpec in Matplotlib, so
         # `ax.get_gridspec()` must return one here too.
         self._gridspec = GridSpec(nrows, ncols, figure=self)
-        axs = [self.add_subplot(nrows, ncols, i + 1) for i in range(nrows * ncols)]
+        subplot_kw = dict(kwargs.pop("subplot_kw", None) or {})
+        subplot_kw.update(kwargs)
+        axs = [self.add_subplot(nrows, ncols, i + 1, **subplot_kw)
+               for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
         if len(axs) == 1 and squeeze:
             return axs[0]
@@ -8504,7 +8530,12 @@ class Figure:
             self._cur = ax
             return ax
         locator = kwargs.pop("axes_locator", None)
-        axes_class = kwargs.pop("axes_class", Axes)
+        axes_class = kwargs.pop("axes_class", None)
+        projection = kwargs.pop("projection", None)
+        if projection is not None:
+            axes_class = _get_projection_class(projection)
+        elif axes_class is None:
+            axes_class = Axes
         grid_helper = kwargs.pop("grid_helper", None)
         ax = axes_class(len(self.axes) + 1000)
         ax._fig = self
@@ -8885,7 +8916,8 @@ def close(*_): global _fig; _fig = None
 def subplots(nrows=1, ncols=1, figsize=None, dpi=None, facecolor=None,
              edgecolor=None, sharex=False, sharey=False, squeeze=True, **kwargs):
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
-    return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey, squeeze=squeeze)
+    return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey,
+                             squeeze=squeeze, **kwargs)
 
 
 def subplot(*args, **kwargs):
@@ -10386,8 +10418,278 @@ class _YTick(_Tick): pass
 
 axis = _AxisModule(Axis=_ProjectionAxis, XAxis=_XAxis, YAxis=_YAxis,
                    Tick=_Tick, XTick=_XTick, YTick=_YTick)
-projections = _Namespace(register_projection=lambda cls: None)
+_PROJECTIONS = {}
+
+
+def _register_projection(cls):
+    """Register a projection class under its `name`, as Matplotlib does."""
+    _PROJECTIONS[str(getattr(cls, "name", cls.__name__)).lower()] = cls
+    return None
+
+
+def _get_projection_class(projection):
+    if isinstance(projection, type):
+        return projection
+    name = str(projection).lower()
+    cls = _PROJECTIONS.get(name)
+    if cls is None:
+        raise ValueError(f"unknown projection: {projection!r}")
+    return cls
+
+
+def _get_projection_names():
+    return tuple(sorted(_PROJECTIONS))
+
+
+def _polar_text(texts, x, y, label, ha, va):
+    """Append one data-space label used by the polar grid."""
+    texts.append((float(x), float(y), str(label),
+                  rcParams.get("xtick.color", "black"), 10.0, ha, va,
+                  None, 0.0, _font_family(), (0.0, 0.0)))
+
+
+class PolarAxes(Axes):
+    """Polar axes drawn by projecting theta/r data into Cartesian series.
+
+    The renderer has one Cartesian panel model, so polar support lives here:
+    data and grid geometry are projected before they reach `_panel`, while
+    labels and frames are ordinary line and text entries.
+    """
+    name = "polar"
+
+    class PolarTransform:
+        def __init__(self, axis=None): self.axis = axis
+
+        def transform(self, values):
+            values = np.asarray(values, dtype=float)
+            theta, radius = values[..., 0], values[..., 1]
+            return np.stack((radius * np.cos(theta),
+                             radius * np.sin(theta)), axis=-1)
+
+        def transform_non_affine(self, values): return self.transform(values)
+
+        def transform_path_non_affine(self, path):
+            return Path(self.transform(path.vertices), getattr(path, "codes", None))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._polar = True
+        self._axis_off = True
+        self.aspect = 1.0
+        self._polar_theta_offset = 0.0
+        self._polar_theta_direction = 1.0
+        self._polar_rmax = None
+        self._polar_rmin = 0.0
+        self._polar_data_max = 0.0
+        self._polar_rgrids = []
+        self._polar_rgrid_labels = []
+        self._polar_thetagrids = []
+        self._polar_thetagrid_labels = None
+        self._polar_rlabel_position = 22.5
+        self._polar_frame = "circle"
+        self._polar_num_vertices = 0
+        patch = self._gen_axes_patch()
+        if isinstance(patch, RegularPolygon):
+            self._polar_frame = "polygon"
+            self._polar_num_vertices = int(getattr(patch, "numvertices", 0))
+        self._update_polar_limits()
+
+    def _gen_axes_patch(self): return Circle((0.5, 0.5), 0.5)
+    def _gen_axes_spines(self): return {}
+
+    def _polar_rmax_value(self):
+        if self._polar_rmax is not None:
+            return max(float(self._polar_rmax), 1e-9)
+        return self._polar_data_max if self._polar_data_max > 0 else 1.0
+
+    def _polar_limit(self):
+        return max(self._polar_rmax_value() * 1.18, 1e-6)
+
+    def _update_polar_limits(self):
+        limit = self._polar_limit()
+        self.xlim = (-limit, limit)
+        self.ylim = (-limit, limit)
+
+    def _limits(self):
+        radii = []
+        for entry in list(self.lines) + list(self.bands):
+            values = np.asarray(entry["y"], dtype=float)
+            finite = values[np.isfinite(values)]
+            if finite.size:
+                radii.append(float(np.max(np.abs(finite))))
+        if radii:
+            self._polar_data_max = max(self._polar_data_max, max(radii))
+        self._update_polar_limits()
+        return super()._limits()
+
+    def _polar_xy(self, theta, radius):
+        theta = np.asarray(theta, dtype=float)
+        radius = np.asarray(radius, dtype=float)
+        theta, radius = np.broadcast_arrays(theta, radius)
+        finite = radius[np.isfinite(radius)]
+        if finite.size:
+            self._polar_data_max = max(self._polar_data_max,
+                                       float(np.max(np.abs(finite))))
+        angle = self._polar_theta_offset + self._polar_theta_direction * theta
+        self._update_polar_limits()
+        return radius * np.cos(angle), radius * np.sin(angle)
+
+    def plot(self, *args, **kwargs): return super().plot(*args, **kwargs)
+
+    def fill(self, *args, closed=True, **kwargs):
+        """Polar fill, closing the polygon at the first theta by default."""
+        if closed:
+            values, i = [], 0
+            args = list(args)
+            while i < len(args):
+                if isinstance(args[i], str) or i + 1 >= len(args):
+                    values.append(args[i])
+                    i += 1
+                    continue
+                x = np.asarray(args[i], dtype=float).ravel()
+                y = np.asarray(args[i + 1], dtype=float).ravel()
+                if x.size and (x[0] != x[-1] or y[0] != y[-1]):
+                    x, y = np.append(x, x[0]), np.append(y, y[0])
+                values.extend((x, y))
+                i += 2
+            args = values
+        return super().fill(*args, **kwargs)
+
+    def set_theta_zero_location(self, loc, offset=0.0):
+        points = {"N": 90.0, "NNE": 67.5, "NE": 45.0, "ENE": 22.5,
+                  "E": 0.0, "ESE": -22.5, "SE": -45.0, "SSE": -67.5,
+                  "S": -90.0, "SSW": -112.5, "SW": -135.0, "WSW": -157.5,
+                  "W": 180.0, "WNW": 157.5, "NW": 135.0, "NNW": 112.5}
+        try:
+            degrees = points[str(loc).upper()] if isinstance(loc, str) else float(loc)
+        except KeyError:
+            raise ValueError(f"unknown theta zero location: {loc!r}") from None
+        self._polar_theta_offset = np.deg2rad(degrees + float(offset))
+
+    def set_theta_offset(self, offset): self._polar_theta_offset = float(offset)
+
+    def set_theta_direction(self, direction):
+        if isinstance(direction, str):
+            direction = -1.0 if direction.lower() == "clockwise" else 1.0
+        self._polar_theta_direction = 1.0 if float(direction) >= 0 else -1.0
+
+    def set_rlabel_position(self, value): self._polar_rlabel_position = float(value)
+    def set_rorigin(self, value): self._polar_rorigin = float(value)
+    def set_thetalim(self, *args, **kwargs): return None
+    def set_thetamin(self, value): return None
+    def set_thetamax(self, value): return None
+
+    def set_rlim(self, bottom=None, top=None, **kwargs):
+        if top is None and bottom is not None:
+            values = np.asarray(bottom, dtype=float).ravel()
+            if values.size == 2:
+                bottom, top = values
+        if bottom is not None:
+            self._polar_rmin = float(bottom)
+        if top is not None:
+            self._polar_rmax = float(top)
+        self._update_polar_limits()
+        return self.get_rlim()
+
+    def set_rmax(self, value):
+        self._polar_rmax = float(value)
+        self._update_polar_limits()
+        return self.get_rmax()
+
+    def set_rmin(self, value):
+        self._polar_rmin = float(value)
+        return self.get_rmin()
+
+    def get_rmax(self): return self._polar_rmax_value()
+    def get_rmin(self): return self._polar_rmin
+    def get_rlim(self): return (self._polar_rmin, self.get_rmax())
+
+    def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kwargs):
+        radii = [float(v) for v in np.asarray(radii, dtype=float).ravel()]
+        if labels is None and fmt is not None:
+            labels = [fmt % r for r in radii]
+        self._polar_rgrids = radii
+        self._polar_rgrid_labels = [] if labels is None else [str(v) for v in labels]
+        if angle is not None:
+            self._polar_rlabel_position = float(angle)
+        self._yticks = radii
+        self._yticklabels = self._polar_rgrid_labels or None
+
+    def set_rticks(self, ticks, labels=None, **kwargs):
+        return self.set_rgrids(ticks, labels=labels)
+
+    def set_thetagrids(self, angles, labels=None, fmt=None, **kwargs):
+        angles = [float(v) for v in np.asarray(angles, dtype=float).ravel()]
+        if labels is None and fmt is not None:
+            labels = [fmt % a for a in angles]
+        self._polar_thetagrids = angles
+        self._polar_thetagrid_labels = (None if labels is None
+                                        else [str(v) for v in labels])
+        self._xticks = angles
+        self._xticklabels = self._polar_thetagrid_labels
+
+    def _polar_grid(self):
+        rmax = self._polar_rmax_value()
+        offset, direction = self._polar_theta_offset, self._polar_theta_direction
+        edge = rcParams.get("axes.edgecolor", "black")
+        grid = rcParams.get("grid.color", "#b0b0b0")
+        lines, texts = [], []
+
+        def circle(radius):
+            angles = offset + direction * np.linspace(0.0, 2.0 * np.pi, 181)
+            return radius * np.cos(angles), radius * np.sin(angles)
+
+        if self._polar_frame == "polygon" and self._polar_num_vertices >= 3:
+            angles = (offset + direction * np.arange(self._polar_num_vertices + 1)
+                      * 2.0 * np.pi / self._polar_num_vertices)
+            lines.append(_series(rmax * np.cos(angles), rmax * np.sin(angles),
+                                 "", edge, linewidth=0.8))
+        else:
+            x, y = circle(rmax)
+            lines.append(_series(x, y, "", edge, linewidth=0.8))
+
+        for radius in self._polar_rgrids:
+            if 0.0 < radius <= rmax:
+                x, y = circle(radius)
+                lines.append(_series(x, y, "", grid, linewidth=0.8))
+
+        angles = self._polar_thetagrids or list(np.arange(0.0, 360.0, 45.0))
+        for degrees in angles:
+            angle = offset + direction * np.deg2rad(float(degrees))
+            lines.append(_series([0.0, rmax * np.cos(angle)],
+                                 [0.0, rmax * np.sin(angle)],
+                                 "", grid, linewidth=0.8))
+
+        labels = self._polar_thetagrid_labels
+        if labels is None:
+            labels = [f"{float(a):g}°" for a in angles]
+        for degrees, label in zip(angles, labels):
+            angle = offset + direction * np.deg2rad(float(degrees))
+            x, y = rmax * 1.06 * np.cos(angle), rmax * 1.06 * np.sin(angle)
+            c, s = np.cos(angle), np.sin(angle)
+            ha = "center" if abs(c) < 0.35 else ("left" if c > 0 else "right")
+            va = "center" if abs(s) < 0.35 else ("bottom" if s > 0 else "top")
+            _polar_text(texts, x, y, label, ha, va)
+
+        if self._polar_rgrids:
+            radial_labels = self._polar_rgrid_labels or [
+                f"{float(r):g}" for r in self._polar_rgrids]
+            angle = offset + direction * np.deg2rad(self._polar_rlabel_position)
+            for radius, label in zip(self._polar_rgrids, radial_labels):
+                if 0.0 < radius <= rmax:
+                    _polar_text(texts, radius * np.cos(angle),
+                                radius * np.sin(angle), label, "center", "center")
+        return lines, texts
+
+
+projections = _Namespace(
+    register_projection=_register_projection,
+    get_projection_class=_get_projection_class,
+    get_projection_names=_get_projection_names,
+    polar=_Namespace(PolarAxes=PolarAxes, PolarTransform=PolarAxes.PolarTransform),
+)
 register_projection = projections.register_projection
+_register_projection(PolarAxes)
 
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,

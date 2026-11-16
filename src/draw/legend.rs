@@ -10,7 +10,7 @@ pub(super) fn draw_legend_section<'a, DB, FX, FY>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     chart: &mut ChartContext<'a, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
     p: &Panel,
-    entries: &mut [LegendEntry],
+    entries: &mut Vec<LegendEntry>,
     tx: &FX,
     ty: &FY,
     x0: f64,
@@ -27,6 +27,15 @@ where
     FX: Fn(f64) -> f64,
     FY: Fn(f64) -> f64,
 {
+    if p.legend.labels.is_empty() {
+        // Matplotlib hides artists whose label starts with an underscore from
+        // automatic legends (`_nolegend_` is the common sentinel).
+        entries.retain(|entry| !entry.label.starts_with('_'));
+    } else {
+        for (entry, label) in entries.iter_mut().zip(&p.legend.labels) {
+            entry.label = label.clone();
+        }
+    }
     let legend_obstacles = if custom_legend && p.legend.loc == "best" {
         let pa = chart.plotting_area();
         let base = area.get_base_pixel();

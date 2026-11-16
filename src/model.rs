@@ -416,6 +416,9 @@ pub(crate) struct Legend {
     pub(crate) title_fontsize: f64,
     #[pyo3(item)]
     pub(crate) anchor: Option<(f64, f64)>,
+    /// Labels supplied directly to `legend(labels)`; they replace artist labels.
+    #[pyo3(item)]
+    pub(crate) labels: Vec<String>,
 }
 
 impl Legend {
