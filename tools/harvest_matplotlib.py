@@ -401,6 +401,39 @@ OUT_OF_SCOPE_CATEGORIES = frozenset({
 # (the `units/*` examples import its test helpers).
 ENVIRONMENT_MODULES = frozenset({"PIL", "gi", "wx", "matplotlib"})
 
+# Examples that import a GUI toolkit are interactive by nature. Detect them
+# from the source and skip them before execution, so a local machine that has
+# the toolkit installed cannot accidentally open a window or hang the gallery.
+GUI_MODULES = ("gi", "wx")
+
+# Vector baselines need an optional converter before a pixel metric exists, so
+# local runs state which ones are missing instead of silently scoring n/a.
+METRIC_CONVERTERS = {
+    "PIL": ("Pillow", "EPS"),
+    "pypdfium2": ("pypdfium2", "PDF"),
+    "cairosvg": ("cairosvg", "SVG"),
+}
+
+
+def requires_gui(source: str | None) -> bool:
+    """Whether an example imports a GUI toolkit that the harness cannot drive."""
+    if not source:
+        return False
+    return any(
+        re.search(rf"^\s*(?:import|from)\s+{module}\b", source, re.MULTILINE)
+        for module in GUI_MODULES
+    )
+
+
+def report_missing_metrics_converters() -> list[str]:
+    """Name the converters whose absence leaves vector baselines unscored."""
+    missing = []
+    for module, (package, kind) in METRIC_CONVERTERS.items():
+        if importlib.util.find_spec(module) is None:
+            print(f"Note: {package} is not installed; {kind} baselines get no pixel metric.")
+            missing.append(package)
+    return missing
+
 
 def _nonwhite_pixels(path: pathlib.Path) -> int | None:
     """Sampled non-white pixel count, using the stdlib decoder in tests/."""
@@ -979,6 +1012,7 @@ def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
 def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
                     manifest_path: pathlib.Path) -> dict[str, int]:
     """Render every baseline case and write the side-by-side gallery."""
+    report_missing_metrics_converters()
     cases = harvest(tests_root)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -1124,6 +1158,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
             case for case in cases
             if case["snippet"] is not None
             and case["category"] not in OUT_OF_SCOPE_CATEGORIES
+            and not requires_gui(str(case.get("source", "")))
         ]
 
         def render_reference(case: dict[str, object]) -> tuple[str, str, str | None]:
@@ -1154,6 +1189,10 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         elif case["category"] in OUT_OF_SCOPE_CATEGORIES:
             entry["status"] = "unsupported"
             entry["error"] = f"{case['category']} is out of scope"
+            entry["reason"] = "out_of_scope"
+        elif requires_gui(str(case.get("source", ""))):
+            entry["status"] = "unsupported"
+            entry["error"] = "requires a GUI toolkit"
             entry["reason"] = "out_of_scope"
         else:
             ours = out / f"{slug}.png"

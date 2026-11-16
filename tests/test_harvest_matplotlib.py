@@ -348,6 +348,15 @@ def test_examples_gallery_marks_out_of_scope_categories(tmp_path):
     assert "1 needs API" in index
 
 
+def test_requires_gui_skips_toolkit_examples_up_front():
+    from tools.harvest_matplotlib import requires_gui
+
+    assert requires_gui("import gi\nfrom gi.repository import Gtk\n")
+    assert requires_gui("from wx import Frame\n")
+    assert not requires_gui("import numpy as np\nimport matplotlib.pyplot as plt\n")
+    assert not requires_gui(None)
+
+
 def test_failure_status_splits_gaps_from_missing_apis():
     assert failure_status(None) == "failed"
     # A stripped name matplotvite already exposes is the harvester's fault.
