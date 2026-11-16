@@ -11025,6 +11025,7 @@ class PolarAxes(Axes):
         ends = starts + widths
         colors = _bar_colors(color if color is not None else self._next_color(), n)
         edges = _bar_colors(edgecolor, n) if edgecolor is not None else None
+        line_widths = None if linewidth is None else _fill(linewidth, n)
         limits = self._polar_theta_limits()
         wedges = []
         for i in range(n):
@@ -11050,7 +11051,7 @@ class PolarAxes(Axes):
             face = colors[i % len(colors)] if colors else "#1f77b4"
             edge = edges[i % len(edges)] if edges else None
             patch = Polygon(points, closed=True, facecolor=face, edgecolor=edge,
-                            linewidth=0.0 if linewidth is None else float(linewidth),
+                            linewidth=0.0 if line_widths is None else float(line_widths[i]),
                             alpha=alpha, label=label if not wedges else "")
             self.add_patch(patch)
             wedges.append(patch)

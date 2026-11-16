@@ -4350,6 +4350,17 @@ def test_polar_bars_and_theta_limits_clip_to_the_wedge():
     assert blue < 5
 
 
+def test_polar_bar_linewidths_accept_one_value_per_wedge(tmp_path):
+    fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+    bars = ax.bar([0.0, np.pi / 2], [1.0, 1.0], width=np.pi / 4,
+                  color=["red", "blue"], edgecolor="black",
+                  linewidth=[2, 4])
+    assert [patch.get_linewidth() for patch in bars.patches] == [2.0, 4.0]
+    out = tmp_path / "polar_linewidths.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_explicit_legend_labels_replace_internal_labels(tmp_path):
     fig, ax = plt.subplots()
     ax.fill([0, 1, 0], [0, 0, 1], color="red", label="_nolegend_")
