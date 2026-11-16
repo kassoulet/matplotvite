@@ -197,9 +197,23 @@ fn render(
     result.map_err(PyRuntimeError::new_err)
 }
 
+/// Colormap tables as `{name: bytes}` (packed RGB triples).
+#[pyfunction]
+fn colormaps<'py>(py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
+    let d = pyo3::types::PyDict::new(py);
+    for c in cmap_data::cmaps() {
+        d.set_item(
+            c.name,
+            pyo3::types::PyBytes::new(py, c.colors.as_flattened()),
+        )?;
+    }
+    Ok(d)
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
+    m.add_function(wrap_pyfunction!(colormaps, m)?)?;
     m.add_function(wrap_pyfunction!(render, m)?)
 }
 

@@ -11,9 +11,10 @@ from contextlib import contextmanager
 import numpy as np
 
 from . import tri
-from ._cmaps import COLORMAPS as _CMAP_DATA
 from ._colors import CSS_COLORS as _CSS_COLORS
-from ._core import __version__, render as _render
+from ._core import __version__, colormaps as _colormaps, render as _render
+
+_CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
 __all__ = (
     "Axes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
@@ -3577,6 +3578,8 @@ class Axes:
         self.title_family = self.xlabel_family = self.ylabel_family = None
         self.transAxes = _CoordTransform("axes")
         self.transData = _CoordTransform("data")
+        self.transScale = _Transform()
+        self.transLimits = _Transform()
         self.patch = Rectangle((0, 0), 1, 1, transform=self.transAxes,
                                facecolor=self.get_facecolor(), edgecolor="none")
         self._axlines = []
@@ -4050,6 +4053,13 @@ class Axes:
     def get_transform(self): return _Transform()
     @property
     def bbox(self): return self.get_window_extent()
+
+    @property
+    def viewLim(self):
+        x0, x1 = self.get_xlim()
+        y0, y1 = self.get_ylim()
+        return _Bbox(min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+
     def get_xticklines(self): return []
     def get_yticklines(self): return []
     def get_legend(self): return None

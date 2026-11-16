@@ -7,9 +7,12 @@ and delegates to `Axes.inset_axes`.
 
 import math
 
-from matplotvite import rcParams
+import numpy as np
 
-__all__ = ("inset_axes", "mark_inset", "zoomed_inset_axes")
+from matplotvite import Patch, rcParams
+
+__all__ = ("BboxConnector", "BboxConnectorPatch", "BboxPatch",
+           "inset_axes", "mark_inset", "zoomed_inset_axes")
 
 _LOCS = {
     "upper right": "upper right",
@@ -143,6 +146,54 @@ def inset_axes(parent_axes, width="30%", height="30%", loc="upper right",
     # axes_class, projection and the remaining artist kwargs are accepted for
     # source compatibility; the renderer always creates its own Axes type.
     return child
+
+
+def _corner(bbox, loc):
+    x = bbox.x1 if loc in (2, 4) else bbox.x0
+    y = bbox.y1 if loc in (3, 4) else bbox.y0
+    return (float(x), float(y))
+
+
+class BboxPatch(Patch):
+    """Rectangle spanning a bbox; coordinates are kept in the bbox's space."""
+
+    def __init__(self, bbox, **kwargs):
+        super().__init__(**kwargs)
+        self._bbox = bbox
+
+    def get_x(self): return float(self._bbox.x0)
+    def get_y(self): return float(self._bbox.y0)
+    def get_width(self): return float(self._bbox.width)
+    def get_height(self): return float(self._bbox.height)
+
+
+class BboxConnector(Patch):
+    """Line joining one corner of each bbox."""
+
+    def __init__(self, bbox1, bbox2, loc1=1, loc2=1, **kwargs):
+        super().__init__(**kwargs)
+        self.bbox1, self.bbox2 = bbox1, bbox2
+        self.loc1, self.loc2 = int(loc1), int(loc2)
+
+    def get_xy(self):
+        return np.asarray([_corner(self.bbox1, self.loc1),
+                           _corner(self.bbox2, self.loc2)], dtype=float)
+
+
+class BboxConnectorPatch(Patch):
+    """Filled quadrilateral spanning the connector corners."""
+
+    def __init__(self, bbox1, bbox2, loc1a=1, loc2a=1, loc1b=2, loc2b=2, **kwargs):
+        super().__init__(**kwargs)
+        self.bbox1, self.bbox2 = bbox1, bbox2
+        self.loc1a, self.loc2a = int(loc1a), int(loc2a)
+        self.loc1b, self.loc2b = int(loc1b), int(loc2b)
+
+    def get_xy(self):
+        return np.asarray([_corner(self.bbox1, self.loc1a),
+                           _corner(self.bbox2, self.loc2a),
+                           _corner(self.bbox2, self.loc2b),
+                           _corner(self.bbox1, self.loc1b)], dtype=float)
 
 
 def mark_inset(parent_axes, inset_axes, loc1=1, loc2=2, **kwargs):

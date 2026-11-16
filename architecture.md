@@ -72,7 +72,7 @@ and the native work is independent of Python.
 | `src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
 | `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP encoding. |
 | `src/image.rs` | Image scaling, background compositing, and image-to-PNG helpers. |
-| `src/color.rs`, `src/cmap_data.rs` | Colour normalisation and colormap tables. |
+| `src/color.rs`, `src/cmap_data.rs`, `src/cmaps.txt` | Colour normalisation and colormap tables. |
 | `src/scale.rs` | Integer-oversampling drawing backend used by the bitmap path. |
 | `bench.rs`, `benches/render.rs` | Criterion-facing output-stage benchmarks. |
 

@@ -1825,6 +1825,23 @@ def test_mpl_toolkits_inset_axes(tmp_path):
     assert "#FF0000" in p.read_text(encoding="utf-8").upper()
 
 
+def test_bbox_connector_shims():
+    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import (
+        BboxConnector, BboxConnectorPatch, BboxPatch)
+
+    fig, ax = plt.subplots()
+    first = plt.Bbox.from_extents(0.0, 0.0, 1.0, 1.0)
+    second = plt.Bbox.from_extents(2.0, 2.0, 4.0, 3.0)
+    connector = BboxConnector(first, second, loc1=1, loc2=2)
+    assert connector.get_xy().shape == (2, 2)
+    area = BboxConnectorPatch(first, second, loc1a=1, loc2a=1, loc1b=3, loc2b=3)
+    assert area.get_xy().shape == (4, 2)
+    patch = BboxPatch(second)
+    assert patch.get_width() == 2.0 and patch.get_height() == 1.0
+    ax.add_patch(patch)
+    assert fig is not None
+
+
 def test_inset_axes_png_keeps_parent_and_child_content():
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1], color="blue", linewidth=3)
