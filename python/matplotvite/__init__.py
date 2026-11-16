@@ -4090,12 +4090,19 @@ class Axes:
         return _span_extent(ext)
 
     def get_xlim(self):
-        extent = self._extent_x()
         group = self._share_x
         explicit = group.limits if group is not None else self.xlim
-        lo, hi = explicit or (group.union("x") if group is not None else extent)
-        lo, hi = _log_bounds(lo, hi, self.xscale, extent)
-        bounds = (lo, hi) if explicit else _margin(
+        extent = None
+        if explicit is not None:
+            lo, hi = explicit
+        elif group is not None:
+            lo, hi = group.union("x")
+        else:
+            lo, hi = extent = self._extent_x()
+        lo, hi = _log_bounds(
+            lo, hi, self.xscale,
+            (lambda: extent) if extent is not None else (lambda: self._extent_x()))
+        bounds = (lo, hi) if explicit is not None else _margin(
             lo, hi, self.xscale,
             [e for im in self.images for e in (im._e["extent"][0], im._e["extent"][1])]
             + self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)],
@@ -4106,12 +4113,19 @@ class Axes:
         return (bounds[1], bounds[0]) if self._inverted[0] else bounds
 
     def get_ylim(self):
-        extent = self._extent_y()
         group = self._share_y
         explicit = group.limits if group is not None else self.ylim
-        lo, hi = explicit or (group.union("y") if group is not None else extent)
-        lo, hi = _log_bounds(lo, hi, self.yscale, extent)
-        bounds = (lo, hi) if explicit else _margin(
+        extent = None
+        if explicit is not None:
+            lo, hi = explicit
+        elif group is not None:
+            lo, hi = group.union("y")
+        else:
+            lo, hi = extent = self._extent_y()
+        lo, hi = _log_bounds(
+            lo, hi, self.yscale,
+            (lambda: extent) if extent is not None else (lambda: self._extent_y()))
+        bounds = (lo, hi) if explicit is not None else _margin(
             lo, hi, self.yscale,
             [e for im in self.images for e in (im._e["extent"][2], im._e["extent"][3])]
             + self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)],
@@ -7505,11 +7519,15 @@ def _parse_fmt(fmt):
 
 def _log_bounds(lo, hi, scale, extent):
     """Log axes can only cover positive data; the lower bound climbs to the
-    smallest positive sample when the data crosses zero."""
+    smallest positive sample when the data crosses zero.
+
+    Avoids evaluating extent if scale is not 'log'.
+    """
     lo, hi = float(lo), float(hi)
     if scale != "log":
         return (lo, hi)
-    positive = [float(v) for v in extent if v > 0]
+    extent_vals = extent() if callable(extent) else extent
+    positive = [float(v) for v in extent_vals if v > 0]
     lo = max(lo, min(positive)) if positive else 1e-10
     if hi <= lo:
         hi = lo * 10.0
