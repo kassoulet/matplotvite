@@ -1,13 +1,13 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
-tasks are listed. Results on this tree: Python suite **445 passed, 12 skipped**;
+tasks are listed. Results on this tree: Python suite **447 passed, 12 skipped**;
 `cargo test --all-targets` passes 36 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 394 | 5 | 101 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 405 | 5 | 90 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
 Both gallery rows are current. The corpus was regenerated with the same tree.
@@ -28,7 +28,7 @@ The 3×3 tick-density check is covered by the eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The refreshed corpus still has 101 failures.** The top groups are categorical string-to-float paths (10), missing `matplotlib.testing` (8), and `_gen_multi_font_text` (6), followed by Colorbar constructor kwargs, colour parsing and Path helpers. Work down these groups before the next corpus refresh. |
+| V2 | **The refreshed corpus still has 90 failures.** The latest shims fixed the `matplotlib.testing`, module-level alias and contour-label cases. The top remaining groups are categorical string-to-float paths (10), `_gen_multi_font_text` (6), and Colorbar constructor kwargs (3), followed by colour parsing and Path helpers. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
