@@ -1109,6 +1109,7 @@ fn draw_colorbar<DB: DrawingBackend>(
     orientation: &str,
     extend: &str,
     extendrect: bool,
+    extendfrac: f64,
     line_scale: f64,
     family: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
@@ -1172,7 +1173,8 @@ where
         ))?;
     }
     let frame = RGBColor(90, 90, 90);
-    let tri = 18;
+    let span = if horizontal { x1 - x0 } else { y1 - y0 };
+    let tri = (span as f64 * extendfrac.max(0.0)).round() as i32;
     let low_color = colormap(cmap, 0.0);
     let high_color = colormap(cmap, 1.0);
     if extend == "min" || extend == "both" {
@@ -2747,8 +2749,19 @@ where
         dpi,
         custom_legend,
     )?;
-    if let Some((cmap, vmin, vmax, label, log, limits, base, orientation, extend, extendrect)) =
-        colorbar
+    if let Some((
+        cmap,
+        vmin,
+        vmax,
+        label,
+        log,
+        limits,
+        base,
+        orientation,
+        extend,
+        extendrect,
+        extendfrac,
+    )) = colorbar
     {
         let origin = area.get_base_pixel();
         let pa = chart.plotting_area();
@@ -2772,6 +2785,7 @@ where
             orientation,
             extend,
             *extendrect,
+            *extendfrac,
             line_scale,
             p.font_family.as_str(),
         )?;

@@ -6884,7 +6884,8 @@ class Axes:
                 entry.get(f"{axis}scale", "linear") == "log",
                 entry.get(f"{axis}lim"), float(entry.get("log_base", 10.0)),
                 orientation, entry.get("extend", "neither"),
-                bool(entry.get("extendrect", False)))
+                bool(entry.get("extendrect", False)),
+                float(entry.get("extendfrac", 0.05)))
 
     def _panel(self, dpi=None):
         (x0, x1), (y0, y1) = self._limits()
@@ -8890,6 +8891,42 @@ class _ColorbarDividers:
         return [[[0.0, v], [1.0, v]] for v in cuts]
 
 
+def _resolve_colorbar_extendfrac(value, boundaries, extend):
+    """Normalize `extendfrac` to the fraction of the strip used per end."""
+    if value is None:
+        return 0.05
+    if isinstance(value, str):
+        if value != "auto":
+            raise ValueError(f"invalid extendfrac: {value!r}")
+        if boundaries is None:
+            return 0.05
+        bounds = np.asarray(boundaries, dtype=float).ravel()
+        bounds = bounds[np.isfinite(bounds)]
+        if bounds.size < 2:
+            return 0.05
+        if extend == "both" and bounds.size >= 3:
+            interior = bounds[1:-1]
+        elif extend == "min":
+            interior = bounds[1:]
+        elif extend == "max":
+            interior = bounds[:-1]
+        else:
+            return 0.05
+        span = interior[-1] - interior[0] if interior.size else 0.0
+        if not span > 0.0:
+            return 0.05
+        if extend == "both":
+            return max((interior[0] - bounds[0]) / span,
+                       (bounds[-1] - interior[-1]) / span)
+        if extend == "min":
+            return (interior[0] - bounds[0]) / span
+        return (bounds[-1] - interior[-1]) / span
+    fraction = float(value)
+    if not np.isfinite(fraction) or fraction < 0.0:
+        raise ValueError(f"invalid extendfrac: {value!r}")
+    return fraction
+
+
 class Colorbar:
     """Handle returned by `Figure.colorbar` or constructed around an axes."""
 
@@ -8942,7 +8979,8 @@ class Colorbar:
         entry = dict(cmap=_cmap_name(cmap), vmin=float(lo), vmax=float(hi),
                      label=str(label), ticks=ticks, format=format,
                      orientation=orientation, extend=extend,
-                     extendrect=bool(extendrect))
+                     extendrect=bool(extendrect),
+                     extendfrac=_resolve_colorbar_extendfrac(extendfrac, bounds, extend))
         ax._colorbar = entry
         fig = getattr(ax, "_fig", None)
         if fig is not None:
@@ -9353,7 +9391,10 @@ class Figure:
                      ticks=kwargs.get("ticks"), format=kwargs.get("format"),
                      orientation=orientation,
                      extend=str(kwargs.get("extend", "neither")).lower(),
-                     extendrect=bool(kwargs.get("extendrect", False)))
+                     extendrect=bool(kwargs.get("extendrect", False)),
+                     extendfrac=_resolve_colorbar_extendfrac(
+                         kwargs.get("extendfrac"), None,
+                         str(kwargs.get("extend", "neither")).lower()))
         axes._colorbar = entry
         self._colorbar = entry
         return Colorbar(entry)

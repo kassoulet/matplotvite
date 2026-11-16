@@ -259,7 +259,8 @@ pub(crate) type ErrorItem = (
 );
 
 /// (colormap, vmin, vmax, label, log scale, display limits, log base,
-/// orientation, extend, rectangular extensions): a gradient strip panel.
+/// orientation, extend, rectangular extensions, extension fraction): a
+/// gradient strip panel.
 pub(crate) type ColorbarItem = (
     String,
     f64,
@@ -271,6 +272,7 @@ pub(crate) type ColorbarItem = (
     String,
     String,
     bool,
+    f64,
 );
 
 /// One `scatter` call: per-point sizes and either per-point colours or values

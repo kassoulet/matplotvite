@@ -985,13 +985,13 @@ def test_horizontal_colorbar_scale_limits_and_extensions(tmp_path):
     panel = ax._panel()
     assert panel["colorbar"][4] is True
     assert panel["colorbar"][5] == (20.0, 90.0)
-    assert panel["colorbar"][7:] == ("horizontal", "both", False)
+    assert panel["colorbar"][7:] == ("horizontal", "both", False, 0.05)
 
     fig2, ax2 = plt.subplots(figsize=(5, 2))
     image2 = ax2.imshow(np.arange(100.0).reshape(10, 10) + 1)
     cbar2 = fig2.colorbar(image2, orientation="horizontal", extend="both",
-                          extendrect=True)
-    assert ax2._panel()["colorbar"][7:] == ("horizontal", "both", True)
+                          extendrect=True, extendfrac=0.2)
+    assert ax2._panel()["colorbar"][7:] == ("horizontal", "both", True, 0.2)
     out = tmp_path / "horizontal-colorbar.png"
     fig2.savefig(out)
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
