@@ -222,6 +222,8 @@ plt.savefig("contours.png")
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
   ranges, resolved against the final limits
 - `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(...)` — segment collections with optional `linewidths`
+- `Path` / `PathPatch` — unit shapes, compound and transformed paths, deepcopy and clip helpers
+- `collections.EventCollection` — positions, orientation, offsets, lengths, colors and generic property setters
 - `set_xscale`/`set_yscale`, `semilogx`, `semilogy`, `loglog` and the `xscale`/`yscale`
   pyplot shims — linear, log (any positive base), `symlog`, `logit`, `asinh`, and
   `function`/`functionlog` scales, plus classes registered through `register_scale`;
@@ -250,8 +252,10 @@ plt.savefig("contours.png")
   at the midpoint of its longest segment (`manual=True` raises)
 - `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes
 - `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=)` — standalone
-  colorbar construction with divider geometry and `ColorbarBase` compatibility;
-  `cbar.ax.set_yscale("log")` and `cbar.ax.set_ylim(...)` adjust its scale/range
+  vertical or horizontal colorbar construction with divider geometry,
+  `extend=` triangle/rectangle ends, and `ColorbarBase` compatibility;
+  `cbar.ax.set_yscale("log")` / `set_ylim(...)` and their x-axis equivalents
+  adjust the scale/range
 
 ### Axes and layout
 - `figure(figsize=, dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through,
