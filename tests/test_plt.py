@@ -924,6 +924,30 @@ def test_colorbar_exposes_formatted_tick_labels():
     assert cbar.ax.get_yticks() == [-1, 0, 1]
 
 
+def test_colorbar_axes_accept_scale_and_limits(tmp_path):
+    fig, axs = plt.subplots(1, 2)
+    pc0 = axs[0].pcolormesh(np.arange(100).reshape(10, 10) + 1)
+    cb0 = fig.colorbar(pc0, ax=axs[0])
+    cb0.ax.set_yscale("log")
+    assert cb0.ax.get_yscale() == "log"
+    assert cb0.ax.get_ylim() == (1.0, 100.0)
+    panel0 = axs[0]._panel()
+    assert panel0["colorbar"][4] is True
+    assert panel0["colorbar"][5] is None
+
+    pc1 = axs[1].pcolormesh(np.arange(100).reshape(10, 10) + 1)
+    cb1 = fig.colorbar(pc1, ax=axs[1])
+    cb1.ax.set_ylim(20, 90)
+    assert cb1.ax.get_ylim() == (20.0, 90.0)
+    panel1 = axs[1]._panel()
+    assert panel1["colorbar"][4] is False
+    assert panel1["colorbar"][5] == (20.0, 90.0)
+
+    out = tmp_path / "colorbar-scale-limits.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_axes_facecolor_accepts_rgb_tuples(tmp_path):
     fig, ax = plt.subplots()
     ax.set_facecolor((0, 0, 0))

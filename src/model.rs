@@ -258,8 +258,9 @@ pub(crate) type ErrorItem = (
     f64,
 );
 
-/// (colormap, vmin, vmax, label): a stand-alone gradient strip panel.
-pub(crate) type ColorbarItem = (String, f64, f64, String);
+/// (colormap, vmin, vmax, label, log scale, display limits, log base):
+/// a stand-alone gradient strip panel.
+pub(crate) type ColorbarItem = (String, f64, f64, String, bool, Option<(f64, f64)>, f64);
 
 /// One `scatter` call: per-point sizes and either per-point colours or values
 /// mapped through `cmap`.

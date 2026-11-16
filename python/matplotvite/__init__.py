@@ -6994,7 +6994,10 @@ class Axes:
                     arrows=arrows,
                     colorbar=(
                         (self._colorbar["cmap"], self._colorbar["vmin"],
-                         self._colorbar["vmax"], self._colorbar["label"])
+                         self._colorbar["vmax"], self._colorbar["label"],
+                         self._colorbar.get("yscale", "linear") == "log",
+                         self._colorbar.get("ylim"),
+                         float(self._colorbar.get("log_base", 10.0)))
                         if self._colorbar is not None else None
                     ),
                     axis_off=self._axis_off,
@@ -8700,6 +8703,35 @@ class _ColorbarAxes:
     def get_xticklabels(self): return self._ticklabels()
     def get_yticks(self): return self._e.get("ticks") or []
     def get_xticks(self): return self._e.get("ticks") or []
+
+    def set_yscale(self, value, base=10, **kwargs):
+        name = str(value).lower()
+        if name not in ("linear", "log"):
+            raise NotImplementedError(f"unsupported colorbar scale: {value!r}")
+        self._e["yscale"] = name
+        self._e["log_base"] = float(base)
+        return None
+
+    def get_yscale(self): return self._e.get("yscale", "linear")
+
+    def set_ylim(self, bottom=None, top=None, **kwargs):
+        bottom = kwargs.pop("ymin", bottom)
+        top = kwargs.pop("ymax", top)
+        if top is None and bottom is not None:
+            candidate = np.asarray(bottom, dtype=float).ravel()
+            if candidate.size == 2:
+                bottom, top = candidate
+        current = self.get_ylim()
+        bottom = current[0] if bottom is None else float(bottom)
+        top = current[1] if top is None else float(top)
+        self._e["ylim"] = (bottom, top)
+        return self.get_ylim()
+
+    def get_ylim(self):
+        limits = self._e.get("ylim")
+        if limits is not None:
+            return tuple(float(v) for v in limits)
+        return (float(self._e.get("vmin", 0.0)), float(self._e.get("vmax", 1.0)))
 
     def _ticklabels(self):
         ticks = self._e.get("ticks")

@@ -1102,6 +1102,9 @@ fn draw_colorbar<DB: DrawingBackend>(
     vmin: f64,
     vmax: f64,
     label: &str,
+    log_scale: bool,
+    limits: Option<(f64, f64)>,
+    base: f64,
     line_scale: f64,
     family: &str,
 ) -> Result<(), Box<dyn std::error::Error>>
@@ -1115,9 +1118,31 @@ where
     if x1 >= w as i32 || y1 - y0 < 4 {
         return Ok(());
     }
+    let (lo, hi) = limits
+        .map(|(a, b)| (a.min(b), a.max(b)))
+        .unwrap_or((vmin.min(vmax), vmax.max(vmin)));
+    let base = if base > 1.0 { base } else { 10.0 };
+    let log = log_scale && lo > 0.0 && hi > 0.0;
+    let (scale_lo, scale_hi) = if log {
+        (lo.log(base), hi.log(base))
+    } else {
+        (lo, hi)
+    };
+    let scale_span = scale_hi - scale_lo;
     let steps = y1 - y0;
+    let (norm_lo, norm_hi) = (vmin.min(vmax), vmax.max(vmin));
     for i in 0..steps {
-        let t = 1.0 - (i as f64 + 0.5) / steps as f64;
+        let f = 1.0 - (i as f64 + 0.5) / steps as f64;
+        let value = if log {
+            base.powf(scale_lo + f * scale_span)
+        } else {
+            lo + f * scale_span
+        };
+        let t = if norm_hi > norm_lo {
+            ((value - norm_lo) / (norm_hi - norm_lo)).clamp(0.0, 1.0)
+        } else {
+            f
+        };
         let c = colormap(cmap, t);
         area.draw(&Rectangle::new(
             [(x0, y0 + i), (x1, y0 + i + 1)],
@@ -1126,17 +1151,28 @@ where
     }
     let frame = RGBColor(90, 90, 90);
     area.draw(&Rectangle::new([(x0, y0), (x1, y1)], frame.stroke_width(1)))?;
-    let ticks = if vmax > vmin {
-        auto_ticks(vmin, vmax, false)
+    let tick_positions = if scale_span > 0.0 {
+        auto_ticks(scale_lo, scale_hi, log)
     } else {
         Vec::new()
     };
-    let format = tick_format(&ticks);
+    let format = if log {
+        TickFormat {
+            decimals: 0,
+            scientific: false,
+        }
+    } else {
+        tick_format(&tick_positions)
+    };
     let mut widest_tick = 0.0_f64;
-    for &v in &ticks {
-        let text = tick_label(v, format);
+    for &v in &tick_positions {
+        let text = if log {
+            log_label(v, base)
+        } else {
+            tick_label(v, format)
+        };
         widest_tick = widest_tick.max(crate::fonts::text_width(&text, 13.0));
-        let t = (v - vmin) / (vmax - vmin);
+        let t = (v - scale_lo) / scale_span;
         let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
         area.draw(&PathElement::new(
             vec![(x0 - 4, y), (x0, y)],
@@ -2595,18 +2631,26 @@ where
         dpi,
         custom_legend,
     )?;
-    if let Some((cmap, vmin, vmax, label)) = colorbar {
-        let base = area.get_base_pixel();
+    if let Some((cmap, vmin, vmax, label, log, limits, base)) = colorbar {
+        let origin = area.get_base_pixel();
         let pa = chart.plotting_area();
         let tl = pa.map_coordinate(&(x0, y1));
         let br = pa.map_coordinate(&(x1, y0));
         draw_colorbar(
             area,
-            (tl.0 - base.0, tl.1 - base.1, br.0 - base.0, br.1 - base.1),
+            (
+                tl.0 - origin.0,
+                tl.1 - origin.1,
+                br.0 - origin.0,
+                br.1 - origin.1,
+            ),
             cmap,
             *vmin,
             *vmax,
             label,
+            *log,
+            *limits,
+            *base,
             line_scale,
             p.font_family.as_str(),
         )?;
