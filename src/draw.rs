@@ -1573,6 +1573,36 @@ fn mix_at(a: (f64, f64, f64), b: (f64, f64, f64), bound: f64) -> (f64, f64, f64)
 }
 
 #[allow(clippy::too_many_arguments)]
+fn hex_encode(text: &str) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(text.len() * 2);
+    for byte in text.bytes() {
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
+}
+
+/// Mark the start or end of an artist carrying an SVG `gid`. The exporter
+/// turns these text elements into `<g id="...">` / `</g>` after drawing, since
+/// plotters' SVG backend has no hook for raw attributes.
+pub(crate) fn draw_gid_marker<DB: DrawingBackend>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    gid: &str,
+    opening: bool,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB::ErrorType: 'static,
+{
+    let marker = format!(
+        "__matplotvite_gid_{}_{}__",
+        if opening { 'o' } else { 'c' },
+        hex_encode(gid)
+    );
+    area.draw(&Text::new(marker, (0, 0), ("sans-serif", 1u32).into_font()))?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn draw_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     p: &Panel,
@@ -1962,67 +1992,76 @@ where
         let base = area.get_base_pixel();
         let mut legend_bands: Vec<(String, RGBAColor)> = Vec::new();
         for band in &p.bands {
-            let (xs, ys) = (band.x.as_array(), band.y.as_array());
-            if xs.len() < 3 || xs.len() != ys.len() {
-                continue;
+            if !band.gid.is_empty() {
+                draw_gid_marker(area, &band.gid, true)?;
             }
-            let alpha = band.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
-            let map = |x: f64, y: f64| {
-                let (px, py) = chart_area.map_coordinate(&(tx(x), ty(y)));
-                (px - base.0, py - base.1)
-            };
-            // Batched bands carry one closed ring and one RGB triple per cell;
-            // hexbin uses this to avoid one Python dict per hexagon.
-            if band.cells > 0
-                && band.cell_colors.len() == band.cells * 6
-                && xs.len() % band.cells == 0
-            {
-                let per_cell = xs.len() / band.cells;
-                let parse = |h: &str| u8::from_str_radix(h, 16).unwrap_or(0);
-                for k in 0..band.cells {
-                    let start = k * per_cell;
-                    let pts: Vec<(i32, i32)> = (0..per_cell)
-                        .map(|i| map(xs[start + i], ys[start + i]))
-                        .collect();
-                    let hex = &band.cell_colors[k * 6..k * 6 + 6];
-                    let col =
-                        RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
-                            .mix(alpha);
-                    // Matplotlib's hexbin uses edgecolors="face". Plotters'
-                    // polygon ignores strokes, so grow each cell about its
-                    // centre instead: adjacent fills overlap and the white
-                    // antialiased seam between them disappears.
-                    let n = pts.len() as f64;
-                    let cx = pts.iter().map(|p| p.0 as f64).sum::<f64>() / n;
-                    let cy = pts.iter().map(|p| p.1 as f64).sum::<f64>() / n;
-                    let grown: Vec<(i32, i32)> = pts
-                        .iter()
-                        .map(|&(x, y)| {
-                            let (dx, dy) = (x as f64 - cx, y as f64 - cy);
-                            let len = (dx * dx + dy * dy).sqrt().max(1.0);
-                            (
-                                (x as f64 + dx / len).round() as i32,
-                                (y as f64 + dy / len).round() as i32,
-                            )
-                        })
-                        .collect();
-                    area.draw(&Polygon::new(grown, col.filled()))?;
+            'band: {
+                let (xs, ys) = (band.x.as_array(), band.y.as_array());
+                if xs.len() < 3 || xs.len() != ys.len() {
+                    break 'band;
                 }
+                let alpha = band.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
+                let map = |x: f64, y: f64| {
+                    let (px, py) = chart_area.map_coordinate(&(tx(x), ty(y)));
+                    (px - base.0, py - base.1)
+                };
+                // Batched bands carry one closed ring and one RGB triple per cell;
+                // hexbin uses this to avoid one Python dict per hexagon.
+                if band.cells > 0
+                    && band.cell_colors.len() == band.cells * 6
+                    && xs.len() % band.cells == 0
+                {
+                    let per_cell = xs.len() / band.cells;
+                    let parse = |h: &str| u8::from_str_radix(h, 16).unwrap_or(0);
+                    for k in 0..band.cells {
+                        let start = k * per_cell;
+                        let pts: Vec<(i32, i32)> = (0..per_cell)
+                            .map(|i| map(xs[start + i], ys[start + i]))
+                            .collect();
+                        let hex = &band.cell_colors[k * 6..k * 6 + 6];
+                        let col =
+                            RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
+                                .mix(alpha);
+                        // Matplotlib's hexbin uses edgecolors="face". Plotters'
+                        // polygon ignores strokes, so grow each cell about its
+                        // centre instead: adjacent fills overlap and the white
+                        // antialiased seam between them disappears.
+                        let n = pts.len() as f64;
+                        let cx = pts.iter().map(|p| p.0 as f64).sum::<f64>() / n;
+                        let cy = pts.iter().map(|p| p.1 as f64).sum::<f64>() / n;
+                        let grown: Vec<(i32, i32)> = pts
+                            .iter()
+                            .map(|&(x, y)| {
+                                let (dx, dy) = (x as f64 - cx, y as f64 - cy);
+                                let len = (dx * dx + dy * dy).sqrt().max(1.0);
+                                (
+                                    (x as f64 + dx / len).round() as i32,
+                                    (y as f64 + dy / len).round() as i32,
+                                )
+                            })
+                            .collect();
+                        area.draw(&Polygon::new(grown, col.filled()))?;
+                    }
+                    if !band.label.is_empty() {
+                        let hex = &band.cell_colors[..6];
+                        legend_bands.push((
+                            band.label.clone(),
+                            RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
+                                .mix(alpha),
+                        ));
+                    }
+                    break 'band;
+                }
+                let pts: Vec<(i32, i32)> =
+                    xs.iter().zip(ys.iter()).map(|(x, y)| map(*x, *y)).collect();
+                let col = color(&band.color).mix(alpha);
+                area.draw(&Polygon::new(pts, col.filled()))?;
                 if !band.label.is_empty() {
-                    let hex = &band.cell_colors[..6];
-                    legend_bands.push((
-                        band.label.clone(),
-                        RGBAColor(parse(&hex[0..2]), parse(&hex[2..4]), parse(&hex[4..6]), 1.0)
-                            .mix(alpha),
-                    ));
+                    legend_bands.push((band.label.clone(), col));
                 }
-                continue;
             }
-            let pts: Vec<(i32, i32)> = xs.iter().zip(ys.iter()).map(|(x, y)| map(*x, *y)).collect();
-            let col = color(&band.color).mix(alpha);
-            area.draw(&Polygon::new(pts, col.filled()))?;
-            if !band.label.is_empty() {
-                legend_bands.push((band.label.clone(), col));
+            if !band.gid.is_empty() {
+                draw_gid_marker(area, &band.gid, false)?;
             }
         }
         for (label, col) in legend_bands {
@@ -2138,72 +2177,80 @@ where
                 let (px, py) = chart_area.map_coordinate(&(tx(x), ty(y)));
                 (px - base.0, py - base.1)
             };
-            match patch.kind.as_str() {
-                "rect" => {
-                    let (ax0, ay0) = map(patch.x, patch.y);
-                    let (ax1, ay1) = map(patch.x + patch.width, patch.y + patch.height);
-                    let (xl, xr) = (ax0.min(ax1), ax0.max(ax1));
-                    let (yt, yb) = (ay0.min(ay1), ay0.max(ay1));
-                    if xr <= xl || yb <= yt {
-                        continue;
+            if !patch.gid.is_empty() {
+                draw_gid_marker(area, &patch.gid, true)?;
+            }
+            'patch: {
+                match patch.kind.as_str() {
+                    "rect" => {
+                        let (ax0, ay0) = map(patch.x, patch.y);
+                        let (ax1, ay1) = map(patch.x + patch.width, patch.y + patch.height);
+                        let (xl, xr) = (ax0.min(ax1), ax0.max(ax1));
+                        let (yt, yb) = (ay0.min(ay1), ay0.max(ay1));
+                        if xr <= xl || yb <= yt {
+                            break 'patch;
+                        }
+                        let rect = [(xl, yt), (xr, yb)];
+                        if let Some(c) = fill {
+                            area.draw(&Rectangle::new(rect, c.filled()))?;
+                        }
+                        if let Some(c) = stroke {
+                            area.draw(&Rectangle::new(rect, c))?;
+                        }
                     }
-                    let rect = [(xl, yt), (xr, yb)];
-                    if let Some(c) = fill {
-                        area.draw(&Rectangle::new(rect, c.filled()))?;
-                    }
-                    if let Some(c) = stroke {
-                        area.draw(&Rectangle::new(rect, c))?;
-                    }
-                }
-                "circle" => {
-                    let (cx, cy) = map(patch.x, patch.y);
-                    let (rxp, _) = map(patch.x + patch.width, patch.y);
-                    let (_, ryp) = map(patch.x, patch.y + patch.width);
-                    let (rx, ry) = ((rxp - cx).abs() as f64, (ryp - cy).abs() as f64);
-                    let pts: Vec<(i32, i32)> = (0..48)
-                        .map(|i| {
-                            let t = i as f64 / 48.0 * std::f64::consts::TAU;
-                            (
-                                cx + (rx * t.cos()).round() as i32,
-                                cy + (ry * t.sin()).round() as i32,
-                            )
-                        })
-                        .collect();
-                    if let Some(c) = fill {
-                        area.draw(&Polygon::new(pts.clone(), c.filled()))?;
-                    }
-                    if let Some(c) = stroke {
-                        let mut outline = pts.clone();
-                        outline.push(pts[0]);
-                        area.draw(&PathElement::new(outline, c))?;
-                    }
-                }
-                _ => {
-                    if patch.points.len() < 4 {
-                        continue;
-                    }
-                    let pts: Vec<(i32, i32)> = patch
-                        .points
-                        .as_chunks::<2>()
-                        .0
-                        .iter()
-                        .map(|pair| map(pair[0], pair[1]))
-                        .collect();
-                    if let Some(c) = fill {
-                        if pts.len() >= 3 {
+                    "circle" => {
+                        let (cx, cy) = map(patch.x, patch.y);
+                        let (rxp, _) = map(patch.x + patch.width, patch.y);
+                        let (_, ryp) = map(patch.x, patch.y + patch.width);
+                        let (rx, ry) = ((rxp - cx).abs() as f64, (ryp - cy).abs() as f64);
+                        let pts: Vec<(i32, i32)> = (0..48)
+                            .map(|i| {
+                                let t = i as f64 / 48.0 * std::f64::consts::TAU;
+                                (
+                                    cx + (rx * t.cos()).round() as i32,
+                                    cy + (ry * t.sin()).round() as i32,
+                                )
+                            })
+                            .collect();
+                        if let Some(c) = fill {
                             area.draw(&Polygon::new(pts.clone(), c.filled()))?;
                         }
-                    }
-                    if let Some(c) = stroke {
-                        let mut outline = pts.clone();
-                        if let Some(&first) = pts.first() {
-                            outline.push(first);
-                        }
-                        if outline.len() >= 2 {
+                        if let Some(c) = stroke {
+                            let mut outline = pts.clone();
+                            outline.push(pts[0]);
                             area.draw(&PathElement::new(outline, c))?;
                         }
                     }
+                    _ => {
+                        if patch.points.len() < 4 {
+                            break 'patch;
+                        }
+                        let pts: Vec<(i32, i32)> = patch
+                            .points
+                            .as_chunks::<2>()
+                            .0
+                            .iter()
+                            .map(|pair| map(pair[0], pair[1]))
+                            .collect();
+                        if let Some(c) = fill {
+                            if pts.len() >= 3 {
+                                area.draw(&Polygon::new(pts.clone(), c.filled()))?;
+                            }
+                        }
+                        if let Some(c) = stroke {
+                            let mut outline = pts.clone();
+                            if let Some(&first) = pts.first() {
+                                outline.push(first);
+                            }
+                            if outline.len() >= 2 {
+                                area.draw(&PathElement::new(outline, c))?;
+                            }
+                        }
+                    }
                 }
+            }
+            if !patch.gid.is_empty() {
+                draw_gid_marker(area, &patch.gid, false)?;
             }
         }
         for coll in &p.collections {

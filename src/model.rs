@@ -182,6 +182,9 @@ pub(crate) struct Series {
     pub(crate) alpha: Option<f64>,
     #[pyo3(item)]
     pub(crate) drawstyle: String,
+    /// SVG element id, emitted as a group around this artist's output.
+    #[pyo3(item)]
+    pub(crate) gid: String,
 }
 
 #[derive(FromPyObject)]
@@ -616,6 +619,8 @@ pub(crate) struct ArtistPatch {
     #[pyo3(item)]
     pub(crate) alpha: f64,
     #[pyo3(item)]
+    pub(crate) gid: String,
+    #[pyo3(item)]
     pub(crate) label: String,
 }
 
@@ -681,4 +686,7 @@ pub(crate) struct Band {
     /// Six hex digits per cell when `cells > 0` (hexbin's per-cell colours).
     #[pyo3(item)]
     pub(crate) cell_colors: String,
+    /// SVG element id for the filled area (pie wedges use this).
+    #[pyo3(item)]
+    pub(crate) gid: String,
 }

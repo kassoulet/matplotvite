@@ -287,7 +287,66 @@ fn panel_fragment(
         }
         root.present().map_err(|e| e.to_string())?;
     }
-    Ok((svg_body(&svg).to_string(), overlays))
+    Ok((apply_gid_groups(svg_body(&svg)), overlays))
+}
+
+/// Turn the boundary text elements drawn by `draw_gid_marker` into SVG
+/// groups. Sealing elements stay complete in the fragment, so remove the whole
+/// `<text>...</text>` and put `<g id="...">` (or `</g>`) in its place.
+fn apply_gid_groups(body: &str) -> String {
+    const PREFIX: &str = "__matplotvite_gid_";
+    let mut out = String::with_capacity(body.len());
+    let mut rest = 0usize;
+    while let Some(offset) = body[rest..].find(PREFIX) {
+        let at = rest + offset;
+        let Some(tag_start) = body[..at].rfind("<text") else {
+            break;
+        };
+        let Some(close) = body[at..].find("</text>") else {
+            break;
+        };
+        let tag_end = at + close + "</text>".len();
+        let after = &body[at + PREFIX.len()..];
+        let kind = after.as_bytes().first().copied();
+        let hex = after
+            .get(2..)
+            .and_then(|tail| tail.find("__").map(|end| &tail[..end]))
+            .unwrap_or("");
+        let gid = decode_hex(hex).unwrap_or_default();
+        out.push_str(&body[rest..tag_start]);
+        if !gid.is_empty() {
+            if kind == Some(b'o') {
+                out.push_str(&format!("<g id=\"{}\">", escape_xml(&gid)));
+            } else if kind == Some(b'c') {
+                out.push_str("</g>");
+            }
+        }
+        rest = tag_end;
+    }
+    out.push_str(&body[rest..]);
+    out
+}
+
+fn decode_hex(hex: &str) -> Option<String> {
+    if !hex.len().is_multiple_of(2) {
+        return None;
+    }
+    let bytes = hex
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).ok()?, 16).ok())
+        .collect::<Option<Vec<u8>>>()?;
+    String::from_utf8(bytes).ok()
+}
+
+fn escape_xml(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
 }
 
 fn fragment_key(
@@ -827,4 +886,31 @@ pub(crate) fn svg_tight(svg: &str, (bx, by, bw, bh): Bbox) -> Option<String> {
     }
     let tag = format!("{tag} width=\"{bw}\" height=\"{bh}\" viewBox=\"{bx} {by} {bw} {bh}\"");
     Some(format!("{}{}{}", &svg[..start], tag, &svg[end..]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gid_markers_become_svg_groups() {
+        let body = concat!(
+            "<text x=\"0\" y=\"0\">__matplotvite_gid_o_6c696e65__</text>",
+            "<polyline points=\"0,0 1,1\"/>",
+            "<text x=\"0\" y=\"0\">__matplotvite_gid_c_6c696e65__</text>"
+        );
+        assert_eq!(
+            apply_gid_groups(body),
+            "<g id=\"line\"><polyline points=\"0,0 1,1\"/></g>"
+        );
+    }
+
+    #[test]
+    fn gid_attributes_are_escaped() {
+        let body = concat!(
+            "<text>__matplotvite_gid_o_6126623c22__</text>",
+            "<text>__matplotvite_gid_c_6126623c22__</text>"
+        );
+        assert_eq!(apply_gid_groups(body), "<g id=\"a&amp;b&lt;&quot;\"></g>");
+    }
 }

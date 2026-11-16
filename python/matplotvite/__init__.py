@@ -1566,8 +1566,10 @@ class _Wedge:
     """Placeholder wedge returned by `pie`."""
 
     def __init__(self, color=None, center=(0.0, 0.0), r=1.0,
-                 theta1=0.0, theta2=360.0):
+                 theta1=0.0, theta2=360.0, band=None, label=""):
         self._color = color
+        self._band = band
+        self._label = str(label or "")
         self._gid = None
         self._zorder = 1
         self.center = (float(center[0]), float(center[1]))
@@ -1581,9 +1583,13 @@ class _Wedge:
     def set_edgecolor(self, c): return self
     def set_color(self, c): return self.set_facecolor(c)
     def get_facecolor(self): return self._color
-    def set_gid(self, gid): self._gid = gid
+    def set_gid(self, gid):
+        self._gid = "" if gid is None else str(gid)
+        if self._band is not None:
+            self._band["gid"] = self._gid
+        return self
     def get_gid(self): return self._gid
-    def get_label(self): return ""
+    def get_label(self): return self._label
     def get_zorder(self): return self._zorder
     def set_zorder(self, zorder): self._zorder = zorder
     def set_agg_filter(self, value): return self
@@ -2098,6 +2104,7 @@ class Patch:
         self._linestyle = kwargs.pop("linestyle", kwargs.pop("ls", "-"))
         self._hatch = kwargs.pop("hatch", None)
         self._transform = kwargs.pop("transform", None)
+        self._gid = str(kwargs.pop("gid", "") or "")
         self._kwargs = kwargs
 
     def get_facecolor(self):
@@ -2112,6 +2119,10 @@ class Patch:
     def get_linestyle(self): return self._linestyle
     def get_alpha(self): return self._alpha
     def get_label(self): return self._label
+    def get_gid(self): return self._gid
+    def set_gid(self, gid):
+        self._gid = "" if gid is None else str(gid)
+        return self
     def get_visible(self): return self._visible
     def get_zorder(self): return self._zorder
     def get_fill(self): return self._fill
@@ -2226,7 +2237,6 @@ class Patch:
     def set_rasterized(self, value): return None
     def set_agg_filter(self, value): return None
     def set_url(self, value): return None
-    def set_gid(self, value): return None
     def set_sketch_params(self, *args, **kwargs): return None
     def set_snap(self, value): return None
     def set_in_layout(self, value): return None
@@ -2607,6 +2617,7 @@ def _patch_entry(artist):
                 edgecolor=_single_color(_call(artist, "get_edgecolor")),
                 linewidth=_number(_call(artist, "get_linewidth"), 1.0),
                 alpha=_number(_call(artist, "get_alpha"), 1.0),
+                gid=str(_call(artist, "get_gid") or ""),
                 label=str(_call(artist, "get_label") or ""))
 
 
@@ -3017,7 +3028,10 @@ class Line2D:
     def get_xdata(self): return self._series["x"]
     def get_ydata(self): return self._series["y"]
     def get_data(self, *args, **kwargs): return (self.get_xdata(), self.get_ydata())
-    def set_gid(self, gid): self._gid = gid
+    def set_gid(self, gid):
+        self._gid = gid
+        self._series["gid"] = "" if gid is None else str(gid)
+        return self
     def get_gid(self): return self._gid
     def set_figure(self, figure): return self
     def draw(self, renderer): return None
@@ -3666,6 +3680,7 @@ class Axes:
         `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
         `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
         args = _resolve_data_args(args, data, x, y)
+        gid = str(kwargs.pop("gid", "") or "")
         xunits = kwargs.pop("xunits", None)
         yunits = kwargs.pop("yunits", None)
         if drawstyle == "steps":
@@ -3710,7 +3725,7 @@ class Axes:
                 markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
                 mfc=markerfacecolor or mfc, mec=edge,
                 mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
-                alpha=alpha, drawstyle=series_style)
+                alpha=alpha, drawstyle=series_style, gid=gid)
             self.lines.append(handle)
             handles.append(Line2D(handle))
         return handles
@@ -5634,7 +5649,7 @@ class Axes:
             x=np.ascontiguousarray(xs), y=np.ascontiguousarray(ys),
             color="#000000", alpha=None if alpha is None else float(alpha), label="",
             cells=int(shown.size),
-            cell_colors="".join(c[1:] for c in colors),
+            cell_colors="".join(c[1:] for c in colors), gid="",
         ))
         self._sticky_x += [ex0, ex1]
         self._sticky_y += [ey0, ey1]
@@ -6414,12 +6429,14 @@ class Axes:
             mid = (a0 + a1) / 2.0
             ex, ey = float(offsets[i]) * np.cos(mid), float(offsets[i]) * np.sin(mid)
             arc = np.linspace(a0, a1, 48)
-            self.bands.append(_band(np.concatenate([[ex], ex + np.cos(arc)]),
-                                    np.concatenate([[ey], ey + np.sin(arc)]),
-                                    cols[i % len(cols)], None))
+            band = _band(np.concatenate([[ex], ex + np.cos(arc)]),
+                         np.concatenate([[ey], ey + np.sin(arc)]),
+                         cols[i % len(cols)], None)
+            self.bands.append(band)
             wedges.append(_Wedge(cols[i % len(cols)], center=(ex, ey),
                                  theta1=float(np.degrees(a0)),
-                                 theta2=float(np.degrees(a1))))
+                                 theta2=float(np.degrees(a1)), band=band,
+                                 label=labels[i] if labels is not None else ""))
             if labels is not None:
                 self.text(ex + 1.1 * np.cos(mid), ey + 1.1 * np.sin(mid), labels[i],
                           ha="center", va="center")
@@ -6805,12 +6822,13 @@ def _convert_units(values, axis, unit=None):
 
 
 def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markersize=6.0,
-            mfc=None, mec=None, mew=1.0, alpha=None, drawstyle="default"):
+            mfc=None, mec=None, mew=1.0, alpha=None, drawstyle="default", gid=""):
     return dict(x=_as_f64(x), y=_as_f64(y),
                 label=str(label), color=_norm_color(color), linestyle=str(linestyle),
                 linewidth=float(linewidth), marker=str(marker), markersize=float(markersize),
                 mfc=_norm_color(mfc), mec=_norm_color(mec), mew=float(mew),
-                alpha=None if alpha is None else float(alpha), drawstyle=str(drawstyle))
+                alpha=None if alpha is None else float(alpha), drawstyle=str(drawstyle),
+                gid=str(gid or ""))
 
 
 def _streamplot_field(x, y, u, v):
@@ -7160,7 +7178,7 @@ def _as_f64(v):
 def _band(xs, ys, color, alpha, label=""):
     return dict(x=_as_f64(xs), y=_as_f64(ys), color=_norm_color(color),
                 alpha=None if alpha is None else float(alpha), label=str(label),
-                cells=0, cell_colors="")
+                cells=0, cell_colors="", gid="")
 
 
 def _mid_steps(x, y):

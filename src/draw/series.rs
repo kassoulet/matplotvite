@@ -35,6 +35,9 @@ where
         None
     };
     for s in &p.series {
+        if !s.gid.is_empty() {
+            draw_gid_marker(area, &s.gid, true)?;
+        }
         let base = area.get_base_pixel();
         let xs = s.x.as_array();
         let ys = s.y.as_array();
@@ -219,6 +222,9 @@ where
                     draw_marker(area, base, (px, py), r, fill, edge, stroke, &s.marker)?;
                 }
             }
+        }
+        if !s.gid.is_empty() {
+            draw_gid_marker(area, &s.gid, false)?;
         }
     }
     if let Some(layer) = series_marker_layer {

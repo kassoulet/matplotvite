@@ -1849,6 +1849,30 @@ def test_axes_set_accepts_artist_properties():
     assert fig is not None
 
 
+def test_svg_emits_gids_for_lines_and_patches():
+    import xml.etree.ElementTree as ET
+
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [1, 0], gid="line-one")
+    ax.add_patch(plt.Rectangle((0.2, 0.2), 0.3, 0.3, gid="rect-one"))
+    _, ids = ET.XMLID(fig.savefig(None, format="svg"))
+    assert ids["line-one"].tag.endswith("g")
+    assert ids["rect-one"].tag.endswith("g")
+
+
+def test_svg_gid_after_creation_and_pie_wedges():
+    import xml.etree.ElementTree as ET
+
+    fig, ax = plt.subplots()
+    line, = ax.plot([0, 1], [0, 1])
+    line.set_gid("moved-line")
+    pie = ax.pie([1, 2, 3])
+    pie.wedges[1].set_gid("wedge")
+    _, ids = ET.XMLID(fig.savefig(None, format="svg"))
+    assert ids["moved-line"].tag.endswith("g")
+    assert ids["wedge"].tag.endswith("g")
+
+
 def test_savefig_eps_writes_postscript(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])
