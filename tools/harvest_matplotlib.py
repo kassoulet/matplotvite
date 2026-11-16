@@ -647,6 +647,9 @@ class _SampleDataCbook:
 
     def __init__(self, root: pathlib.Path): self._root = root.resolve()
 
+    def boxplot_stats(self, *args, **kwargs):
+        return matplotvite.cbook.boxplot_stats(*args, **kwargs)
+
     def get_sample_data(self, fname, asfileobj=True, np_load=False):
         path = pathlib.Path(str(fname))
         candidate = path if path.is_absolute() else self._root / path

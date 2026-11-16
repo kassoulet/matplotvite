@@ -3737,6 +3737,10 @@ class Axes:
         if hasattr(self, "_set_lim_and_transforms"):
             self._set_lim_and_transforms()
 
+    def _set_lim_and_transforms(self):
+        """Transform hook for projection subclasses; base axes add none."""
+        return None
+
     def _next_color(self):
         cycle = self._prop_cycle or _CYCLE
         color = cycle[self._cycle_pos % len(cycle)]
