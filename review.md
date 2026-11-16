@@ -7,7 +7,7 @@ tasks are listed. Results on this tree: Python suite **447 passed, 12 skipped**;
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 412 | 5 | 83 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 422 | 5 | 73 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
 Both gallery rows are current. The corpus was regenerated with the same tree.
