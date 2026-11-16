@@ -43,20 +43,20 @@ machine- and load-dependent, not as a general guarantee.
 
 | Workload | Matplotvite | matplotlib | Ratio |
 |---|---:|---:|---:|
-| Single line, 100 points, PNG | 5.11 ms | 161.48 ms | 31.6× |
-| Single line, 1,000 points, PNG | 6.23 ms | 131.82 ms | 21.1× |
-| Single line, 10,000 points, PNG | 6.78 ms | 137.12 ms | 20.2× |
-| Single line, 100,000 points, PNG | 30.04 ms | 192.15 ms | 6.4× |
-| Five series, 2,000 points each, PNG | 13.74 ms | 197.95 ms | 14.4× |
-| 2×2 subplot grid, PNG | 10.85 ms | 268.86 ms | 24.8× |
-| Scatter, 5,000 points, PNG | 11.27 ms | 276.89 ms | 24.6× |
-| Scatter, 50,000 points, PNG | 26.16 ms | 145.35 ms | 5.6× |
-| Bar chart, 20 categories, PNG | 5.89 ms | 169.14 ms | 28.7× |
-| Filled contours, 160×160, PNG | 34.49 ms | 108.65 ms | 3.2× |
-| Hexagonal bins, 5,000 points, PNG | 21.16 ms | 154.18 ms | 7.3× |
-| SVG export, 1,000 points | 0.95 ms | 116.29 ms | 121.9× |
-| PDF export, 1,000 points | 3.16 ms | 134.02 ms | 42.3× |
-| Cold CLI process, plot, and save | 146.30 ms | 762.00 ms | 5.2× |
+| Single line, 100 points, PNG | 5.43 ms | 75.64 ms | 13.9× |
+| Single line, 1,000 points, PNG | 2.28 ms | 75.27 ms | 33.1× |
+| Single line, 10,000 points, PNG | 2.75 ms | 79.42 ms | 28.9× |
+| Single line, 100,000 points, PNG | 6.83 ms | 104.79 ms | 15.3× |
+| Five series, 2,000 points each, PNG | 4.67 ms | 121.10 ms | 25.9× |
+| 2×2 subplot grid, PNG | 3.43 ms | 121.71 ms | 35.5× |
+| Scatter, 5,000 points, PNG | 6.00 ms | 139.29 ms | 23.2× |
+| Scatter, 50,000 points, PNG | 6.74 ms | 69.90 ms | 10.4× |
+| Bar chart, 20 categories, PNG | 5.13 ms | 117.63 ms | 22.9× |
+| Filled contours, 160×160, PNG | 7.21 ms | 60.39 ms | 8.4× |
+| Hexagonal bins, 5,000 points, PNG | 7.95 ms | 85.03 ms | 10.7× |
+| SVG export, 1,000 points | 0.31 ms | 66.52 ms | 211.8× |
+| PDF export, 1,000 points | 1.73 ms | 64.80 ms | 37.4× |
+| Cold CLI process, plot, and save | 113.20 ms | 460.70 ms | 4.1× |
 
 The suite now measures 25 workloads, including line scaling, dense SVG export,
 subplots, scatter up to 50,000 points, bar, histogram, box/violin summaries,
@@ -70,7 +70,7 @@ series, scatter and collection markers are composited into a raster layer for
 PNG/WebP, and hexbin cells and filled-contour interiors are drawn in batches;
 those keep the slow paths bounded by output resolution instead of input size.
 
-Measured on a Linux x86_64 host (Python 3.14, matplotlib 3.10.7). Wall-clock
+Measured on a Linux x86_64 host (Python 3.14, matplotlib 3.11.2). Wall-clock
 times vary with machine load and should be reproduced on the target system.
 
 ## Criterion benchmarks
