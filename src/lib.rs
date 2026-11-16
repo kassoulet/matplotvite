@@ -7,6 +7,7 @@ mod image;
 mod layout;
 mod model;
 mod raster;
+mod render;
 mod scale;
 
 #[doc(hidden)]
@@ -15,189 +16,28 @@ pub mod bench;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
-use crate::export::{
-    background_pixel, content_bbox, crop_pixmap, encode_eps, encode_png, encode_webp,
-    figure_background, rasterize, render_pdf, render_svg, svg_tight, FigureDecorations,
-    RenderOutput,
-};
-use crate::fonts::register_plotters_fonts;
-use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
-use crate::raster::{direct_eligible, render_png};
+use crate::model::{Panel, RenderOptions};
+use crate::render::render_figure;
 
-/// Render a figure and return its encoded bytes.
-///
-/// The Python layer owns path handling and format inference; this function only
-/// validates its inputs, draws, and encodes. `tight` crops to drawn content.
+/// Render a figure and return its encoded bytes. All drawing and validation
+/// happen off the GIL; only the Python exception mapping runs with it held.
 #[pyfunction]
-#[pyo3(signature = (size, grid, panels, options))]
-fn render(
+#[pyo3(name = "render", signature = (size, grid, panels, options))]
+fn render_figure_py(
     py: Python<'_>,
     size: (u32, u32),
     grid: (usize, usize),
     panels: Vec<Panel>,
     options: RenderOptions,
 ) -> PyResult<Vec<u8>> {
-    let RenderOptions {
-        format,
-        transparent,
-        tight,
-        dpi,
-        facecolor,
-        edgecolor,
-        compression,
-        suptitle,
-        suptitle_family,
-        suptitle_size,
-        suptitle_x,
-        suptitle_y,
-        figure_texts,
-        figure_images,
-    } = options;
-    register_plotters_fonts();
-    let (w, h) = size;
-    // Defend against integer overflow and unconstrained allocations (DoS)
-    const MAX_CANVAS_DIM: u32 = 32768;
-    const MAX_CANVAS_AREA: u64 = 67_108_864; // 2^26 px (~256 MiB RGBA)
-    if w == 0 || h == 0 {
-        return Err(PyValueError::new_err(
-            "size dimensions must be at least 1x1",
-        ));
-    }
-    if w > MAX_CANVAS_DIM || h > MAX_CANVAS_DIM {
-        return Err(PyValueError::new_err(format!(
-            "size {w}x{h} exceeds maximum dimension of {MAX_CANVAS_DIM}px"
-        )));
-    }
-    if (w as u64) * (h as u64) > MAX_CANVAS_AREA {
-        return Err(PyValueError::new_err(format!(
-            "total canvas area of {w}x{h} exceeds maximum allowed pixel count of {MAX_CANVAS_AREA}"
-        )));
-    }
-    if !dpi.is_finite() || dpi <= 0.0 {
-        return Err(PyValueError::new_err("dpi must be positive and finite"));
-    }
-    let fmt = format.to_ascii_lowercase();
-    if !matches!(fmt.as_str(), "png" | "svg" | "pdf" | "webp" | "eps") {
-        return Err(PyValueError::new_err(format!(
-            "unsupported format: {format:?} (use 'png', 'svg', 'pdf', 'webp', or 'eps')"
-        )));
-    }
-    let compression = match compression {
-        Some(value) => Some(PngCompression::parse(&value).ok_or_else(|| {
-            PyValueError::new_err(format!(
-                "unsupported compression: {value:?} (use 'fast', 'default', or 'best')"
-            ))
-        })?),
-        None => None,
-    };
-    if compression.is_some() && fmt != "png" {
-        return Err(PyValueError::new_err(
-            "compression is only supported for PNG output",
-        ));
-    }
-
-    let background = figure_background(transparent, facecolor.as_deref());
-    let title = (!suptitle.is_empty()).then_some(Suptitle {
-        text: &suptitle,
-        family: &suptitle_family,
-        size: suptitle_size,
-        x: suptitle_x,
-        y: suptitle_y,
-    });
-    let decorations = FigureDecorations {
-        suptitle: title,
-        texts: &figure_texts,
-        edgecolor: edgecolor.as_deref(),
-    };
-    let output = RenderOutput {
-        dpi,
-        raster: matches!(fmt.as_str(), "png" | "webp" | "eps"),
-        // PDF measures its own bounds while embedding the SVG, so only SVG
-        // needs the extra usvg pass here.
-        tight_bounds: tight && fmt == "svg",
-    };
-
-    // The direct bitmap path skips SVG generation and resvg. It currently
-    // covers opaque PNGs without embedded images or figure decorations; the
-    // vector path remains the fallback for everything else.
-    let direct = fmt == "png"
-        && !transparent
-        && decorations.is_empty()
-        && figure_images.is_empty()
-        && direct_eligible(&panels);
-    let direct_background =
-        background_pixel(background).map(|pixel| [pixel[0], pixel[1], pixel[2]]);
-
-    // All input has been copied out of NumPy, so drawing, rasterisation and
-    // encoding no longer need the GIL. Other Python threads can run while a
-    // large figure is rendered.
-    let result = py.detach(move || -> Result<Vec<u8>, String> {
-        if direct {
-            let background = direct_background.ok_or("direct PNG requires an opaque background")?;
-            let pixmap = render_png(size, grid, &panels, background)?;
-            let pixmap = match if tight {
-                content_bbox(
-                    &pixmap,
-                    Some([background[0], background[1], background[2], 255]),
-                )
+    py.detach(move || render_figure(size, grid, panels, options))
+        .map_err(|err| {
+            if err.is_value_error() {
+                PyValueError::new_err(err.into_message())
             } else {
-                None
-            } {
-                Some(bbox) => crop_pixmap(&pixmap, bbox)?,
-                None => pixmap,
-            };
-            return encode_png(&pixmap, compression.unwrap_or(PngCompression::Fast), true)
-                .map_err(|e| e.to_string());
-        }
-        // PDF receives an unbacked SVG so its single parse can measure the
-        // drawn content; it paints the background onto the cropped page.
-        let svg_background = if fmt == "pdf" { None } else { background };
-        let (svg, bounds) = render_svg(
-            size,
-            grid,
-            &panels,
-            &figure_images,
-            svg_background,
-            decorations,
-            output,
-        )?;
-        if fmt == "pdf" {
-            render_pdf(&svg, dpi, size, tight, background)
-        } else if fmt == "svg" {
-            let svg = match if tight {
-                bounds.and_then(|bbox| svg_tight(&svg, bbox))
-            } else {
-                None
-            } {
-                Some(svg) => svg,
-                None => svg,
-            };
-            Ok(svg.into_bytes())
-        } else {
-            let pixmap = rasterize(&svg, w, h, transparent)?;
-            let pixmap = match if tight {
-                content_bbox(&pixmap, background_pixel(background))
-            } else {
-                None
-            } {
-                Some(bbox) => crop_pixmap(&pixmap, bbox)?,
-                None => pixmap,
-            };
-            if fmt == "eps" {
-                Ok(encode_eps(&pixmap, dpi))
-            } else if fmt == "webp" {
-                encode_webp(&pixmap)
-            } else {
-                encode_png(
-                    &pixmap,
-                    compression.unwrap_or(PngCompression::Fast),
-                    !transparent,
-                )
-                .map_err(|e| e.to_string())
+                PyRuntimeError::new_err(err.into_message())
             }
-        }
-    });
-    result.map_err(PyRuntimeError::new_err)
+        })
 }
 
 /// Colormap tables as `{name: bytes}` (packed RGB triples).
@@ -217,7 +57,7 @@ fn colormaps<'py>(py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> 
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(colormaps, m)?)?;
-    m.add_function(wrap_pyfunction!(render, m)?)
+    m.add_function(wrap_pyfunction!(render_figure_py, m)?)
 }
 
 #[cfg(test)]
@@ -225,7 +65,9 @@ mod tests {
     use super::*;
     use plotters::prelude::RGBAColor;
 
+    use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
+    use crate::model::PngCompression;
 
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
