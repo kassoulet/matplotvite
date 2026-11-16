@@ -7,7 +7,7 @@ tasks are listed. Results on this tree: Python suite **447 passed, 12 skipped**;
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 411 | 5 | 84 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 412 | 5 | 83 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
 Both gallery rows are current. The corpus was regenerated with the same tree.
@@ -28,7 +28,7 @@ The 3×3 tick-density check is covered by the eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The refreshed corpus still has 84 failures.** The multi-font helper group now renders. The largest remaining group is categorical string-to-float paths (10), followed by Colorbar constructor kwargs (3), colour parsing and Path helpers. |
+| V2 | **The refreshed corpus still has 83 failures.** The multi-font helper group now renders. The largest remaining group is categorical string-to-float paths (10), followed by Colorbar constructor kwargs (3), colour parsing and Path helpers. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
