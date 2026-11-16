@@ -1,3 +1,4 @@
+import datetime
 import os
 import re
 
@@ -3549,6 +3550,23 @@ def test_default_sans_font_is_dejavu():
     ax.set_title("DejaVu Sans")
     pdf = fig.savefig(None, format="pdf")
     assert b"DejaVuSans" in pdf
+
+
+def test_module_level_plot_aliases_and_testing_units():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    twin = plt.twinx(ax)
+    assert twin._twin_of is ax
+    assert plt.FormatStrFormatter("%08.2lf")(1.25) == "00001.25"
+    assert plt.testing.km == 1.0 and plt.testing.sec == 1.0
+    assert plt.testing.day.convert("sec") == 86400.0
+    assert float(plt.testing.Epoch("ET", dt=datetime.datetime(2009, 4, 27))) > 0.0
+
+
+def test_module_level_clabel_labels_contours():
+    fig, ax = plt.subplots()
+    cs = ax.contour([[0.0, 1.0], [1.0, 0.0]], levels=[0.5])
+    assert plt.clabel(cs, levels=[0.5])
 
 
 def test_default_font_sizes_and_tick_label_handles():

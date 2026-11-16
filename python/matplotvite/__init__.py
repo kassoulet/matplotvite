@@ -31,7 +31,8 @@ __all__ = (
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "mlab", "font_manager", "ft2font", "FT2Font", "Kerning", "FontProperties", "CapStyle", "JoinStyle",
     "StyleFlags", "FaceFlags",
-    "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
+    "same_color", "FixedFormatter", "FormatStrFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
+    "testing",
     "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
     "MonthLocator", "DayLocator", "HourLocator", "MinuteLocator", "SecondLocator",
     "MicrosecondLocator", "WeekdayLocator", "RRuleLocator", "rrulewrapper", "drange",
@@ -50,7 +51,7 @@ __all__ = (
     "AnchoredText", "offsetbox",
     "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "matshow", "spy", "xkcd", "get_data_path",
-    "bar", "bar_label", "barh", "boxplot", "broken_barh", "close", "colorbar", "contour", "contourf",
+    "bar", "bar_label", "barh", "boxplot", "broken_barh", "clabel", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
     "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
@@ -58,7 +59,7 @@ __all__ = (
     "table",
     "rcParams", "savefig", "scatter", "semilogx", "semilogy", "set_cmap", "setp", "show", "style",
     "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
-    "tight_layout", "title", "vlines", "xlabel", "xlim", "xscale", "xticks",
+    "tight_layout", "title", "twinx", "twiny", "vlines", "xlabel", "xlim", "xscale", "xticks",
     "ylabel", "ylim", "yscale", "yticks", "__version__",
 )
 
@@ -9285,6 +9286,73 @@ def subplot_mosaic(mosaic, empty_sentinel=".", figsize=None, dpi=None,
                    facecolor=None, edgecolor=None, **kwargs):
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
+class FormatStrFormatter:
+    """Old-style `%` formatter used by `FormatStrFormatter`."""
+
+    def __init__(self, fmt):
+        self.fmt = str(fmt)
+
+    def __call__(self, x, pos=None):
+        return self.fmt % x
+
+
+class _Epoch(float):
+    """Date-number-compatible epoch used by the harvested JPL unit tests."""
+
+    def __new__(cls, name, dt=None):
+        if dt is None:
+            value = 0.0
+        elif isinstance(dt, _datetime.datetime):
+            value = (dt - _datetime.datetime(1970, 1, 1)).total_seconds() / 86400.0
+        else:
+            value = float(dt)
+        return float.__new__(cls, value)
+
+
+class _Duration(float):
+    """Second-based duration with the small `convert` surface tests use."""
+
+    def __new__(cls, name, seconds=0.0):
+        return float.__new__(cls, float(seconds))
+
+    def convert(self, unit):
+        return float(self)
+
+
+class _TestingUnits:
+    """Small `matplotlib.testing` stand-in for the harvested unit tests."""
+
+    sec = 1.0
+    km = 1.0
+    deg = 1.0
+    Epoch = _Epoch
+    Duration = _Duration
+
+    def __init__(self):
+        self.day = _Duration("ET", 86400.0)
+
+    def register(self):
+        return None
+
+
+testing = _TestingUnits()
+
+
+def twinx(ax=None):
+    """`plt.twinx()` shim."""
+    return (ax or gca()).twinx()
+
+
+def twiny(ax=None):
+    """`plt.twiny()` shim."""
+    return (ax or gca()).twiny()
+
+
+def clabel(CS, levels=None, **kwargs):
+    """`plt.clabel()` shim for the current axes."""
+    return gca().clabel(CS, levels=levels, **kwargs)
+
+
 def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
     return gcf().suptitle(t, x=x, y=y, fontsize=fontsize, **kwargs)
 def figtext(x, y, s, **kwargs):
