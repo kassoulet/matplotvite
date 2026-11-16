@@ -192,6 +192,9 @@ plt.savefig("contours.png")
   whiskers, caps, medians and fliers from the 1.5-IQR rule, with notched outlines,
   horizontal orientation and optional filled boxes; `cbook.boxplot_stats` exposes
   the same calculations for separate plotting
+- `data=` dictionaries resolve string arguments across the main plotting and fill
+  helpers (`plot`, `step`, `bar`, `barh`, `errorbar`, `stackplot`, `boxplot`,
+  `violinplot`, `pie`, `imshow`, `fill`, `fill_between`, `fill_betweenx`)
 - `violinplot(dataset, positions=, vert=, widths=)` — Gaussian-KDE violins with
   optional mean, median, extrema and quantile lines
 - `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline (`orientation="horizontal"` works)

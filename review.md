@@ -1,7 +1,7 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
-tasks are listed. Results on this tree: Python suite **447 passed, 12 skipped**;
+tasks are listed. Results on this tree: Python suite **449 passed, 12 skipped**;
 `cargo test --all-targets` passes 36 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 

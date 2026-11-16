@@ -197,6 +197,8 @@ than a full transform stack:
   compression, figure title, and figure-level text.
 - Axis transforms cover linear, log, symlog, logit, asinh, function, and registered
   custom scales; custom projections can override `_set_lim_and_transforms`.
+- `data=` dictionaries are resolved to their array values before numeric
+  conversion in the main plotting and fill helpers.
 - The Rust side never imports Python modules or calls back into user code; after
   extraction it works only with copied numeric arrays and strings.
 
