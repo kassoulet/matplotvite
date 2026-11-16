@@ -1108,7 +1108,7 @@ fn draw_colorbar<DB: DrawingBackend>(
 where
     DB::ErrorType: 'static,
 {
-    let (w, h) = area.dim_in_pixel();
+    let (w, _) = area.dim_in_pixel();
     let (_, top, right, bottom) = plot;
     let (x0, x1) = (right + 18, right + 48);
     let (y0, y1) = (top, bottom);
@@ -1126,44 +1126,52 @@ where
     }
     let frame = RGBColor(90, 90, 90);
     area.draw(&Rectangle::new([(x0, y0), (x1, y1)], frame.stroke_width(1)))?;
-    if vmax > vmin {
-        let ticks = auto_ticks(vmin, vmax, false);
-        let format = tick_format(&ticks);
-        for v in ticks {
-            let t = (v - vmin) / (vmax - vmin);
-            let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
-            area.draw(&PathElement::new(
-                vec![(x0 - 4, y), (x0, y)],
-                frame.stroke_width(1),
-            ))?;
-            draw_label(
-                area,
-                (0, 0),
-                (x1 + 6, y),
-                &tick_label(v, format),
-                RGBAColor(0, 0, 0, 1.0),
-                13.0,
-                "left",
-                "center",
-                None,
-                0.0,
-                line_scale,
-                family,
-            )?;
-        }
-    }
-    if !label.is_empty() {
+    let ticks = if vmax > vmin {
+        auto_ticks(vmin, vmax, false)
+    } else {
+        Vec::new()
+    };
+    let format = tick_format(&ticks);
+    let mut widest_tick = 0.0_f64;
+    for &v in &ticks {
+        let text = tick_label(v, format);
+        widest_tick = widest_tick.max(crate::fonts::text_width(&text, 13.0));
+        let t = (v - vmin) / (vmax - vmin);
+        let y = (y0 as f64 + (1.0 - t) * (y1 - y0) as f64).round() as i32;
+        area.draw(&PathElement::new(
+            vec![(x0 - 4, y), (x0, y)],
+            frame.stroke_width(1),
+        ))?;
         draw_label(
             area,
             (0, 0),
-            (x1 + 6, (y1 + 8).min(h as i32 - 2)),
+            (x1 + 6, y),
+            &text,
+            RGBAColor(0, 0, 0, 1.0),
+            13.0,
+            "left",
+            "center",
+            None,
+            0.0,
+            line_scale,
+            family,
+        )?;
+    }
+    if !label.is_empty() {
+        // Matplotlib puts the colorbar label on the right of its tick text,
+        // rotated a quarter turn and centred on the strip.
+        let label_x = (x1 + 6 + widest_tick.ceil() as i32 + 8).min(w as i32 - 4);
+        draw_label(
+            area,
+            (0, 0),
+            (label_x, (y0 + y1) / 2),
             label,
             RGBAColor(0, 0, 0, 1.0),
             14.0,
-            "left",
-            "top",
+            "center",
+            "center",
             None,
-            0.0,
+            90.0,
             line_scale,
             family,
         )?;
@@ -2651,6 +2659,13 @@ mod tick_tests {
         assert!(format.scientific);
         assert_eq!(tick_label(0.0, format), "0.00e0");
         assert_eq!(tick_label(200000.0, format), "2.00e5");
+    }
+
+    #[test]
+    fn colorbar_scale_labels_stay_plain_thousands() {
+        let format = tick_format(&[0.0, 4000.0, 8000.0]);
+        assert!(!format.scientific);
+        assert_eq!(tick_label(8000.0, format), "8000");
     }
 
     #[test]
