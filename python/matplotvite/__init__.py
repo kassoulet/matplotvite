@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 import numpy as np
 
-from . import tri
+from . import scale, tri
 from ._colors import CSS_COLORS as _CSS_COLORS
 from ._core import __version__, colormaps as _colormaps, render as _render
 
@@ -45,6 +45,7 @@ __all__ = (
     "MarkerStyle", "markers", "mmarkers",
     "mcollections", "collections", "ConnectionPatch",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps", "tri",
+    "scale", "PdfPages",
     "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
     "AnchoredText", "offsetbox",
     "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
@@ -10505,3 +10506,4 @@ from .offsetbox import (  # noqa: E402
 from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
 from . import spines  # noqa: E402 - public module for custom projections
 from . import units  # noqa: E402 - unit-converter registry
+from .backends.backend_pdf import PdfPages  # noqa: E402 - needs the figure API

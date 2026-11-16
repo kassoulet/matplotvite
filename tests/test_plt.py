@@ -1849,6 +1849,40 @@ def test_axes_set_accepts_artist_properties():
     assert fig is not None
 
 
+def test_scale_module_exposes_matplotlib_classes():
+    import numpy as np
+
+    import matplotvite.scale as mscales
+
+    assert mscales.get_scale_names() == [
+        "asinh", "function", "functionlog", "linear", "log", "logit", "symlog"
+    ]
+    assert str(mscales.LogScale(None)) == "log"
+    transform = mscales.LogitScale(None).get_transform()
+    assert np.allclose(transform.transform([0.5]), [0.0])
+    assert np.allclose(transform.inverted().transform([0.0]), [0.5])
+    forward, inverse = np.exp, np.log
+    func = mscales.FuncScale(None, functions=(forward, inverse)).get_transform()
+    assert np.allclose(func.transform([1.0]), [np.e])
+
+
+def test_pdfpages_writes_multiple_pages(tmp_path):
+    from matplotvite.backends.backend_pdf import PdfPages
+
+    path = tmp_path / "multipage.pdf"
+    with PdfPages(path) as pdf:
+        for index in range(2):
+            fig, ax = plt.subplots(figsize=(3, 2))
+            ax.plot([0, 1], [index, index + 1])
+            pdf.savefig(fig)
+            plt.close(fig)
+        pdf.attach_note("a note")
+        pdf.infodict()["Title"] = "Two pages"
+    data = path.read_bytes()
+    assert data.startswith(b"%PDF")
+    assert b"/Count 2" in data
+
+
 def test_svg_emits_gids_for_lines_and_patches():
     import xml.etree.ElementTree as ET
 

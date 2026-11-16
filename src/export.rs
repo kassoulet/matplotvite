@@ -37,33 +37,97 @@ pub(crate) fn render_pdf(
     background: Option<RGBAColor>,
 ) -> Result<Vec<u8>, String> {
     let tree = svg2pdf::usvg::Tree::from_str(svg, &pdf_options()).map_err(|e| e.to_string())?;
-    let scale = (72.0 / dpi) as f32;
-    let (crop_x, crop_y, crop_w, crop_h) = if tight {
+    let crop = if tight {
         pdf_bounds(&tree, size).unwrap_or((0, 0, size.0, size.1))
     } else {
         (0, 0, size.0, size.1)
     };
+    let mut pdf = Pdf::new();
+    let mut alloc = Ref::new(1);
+    let catalog_id = alloc.bump();
+    let page_tree_id = alloc.bump();
+    let mut page_ids = Vec::new();
+    pdf.catalog(catalog_id).pages(page_tree_id);
+    pdf_add_page(
+        &mut pdf,
+        &mut alloc,
+        page_tree_id,
+        &mut page_ids,
+        &tree,
+        dpi,
+        size,
+        crop,
+        background,
+    )?;
+    pdf.pages(page_tree_id)
+        .kids(page_ids.iter().copied())
+        .count(page_ids.len() as i32);
+    Ok(pdf.finish())
+}
+
+/// Build one PDF from several SVG pages, as `PdfPages` needs.
+pub(crate) fn render_pdf_pages(svgs: &[Vec<u8>], dpis: &[f64]) -> Result<Vec<u8>, String> {
+    if svgs.len() != dpis.len() {
+        return Err("PDF page count and DPI list differ".into());
+    }
+    let mut pdf = Pdf::new();
+    let mut alloc = Ref::new(1);
+    let catalog_id = alloc.bump();
+    let page_tree_id = alloc.bump();
+    let mut page_ids = Vec::new();
+    pdf.catalog(catalog_id).pages(page_tree_id);
+    for (svg, dpi) in svgs.iter().zip(dpis) {
+        let text = std::str::from_utf8(svg).map_err(|e| e.to_string())?;
+        let tree =
+            svg2pdf::usvg::Tree::from_str(text, &pdf_options()).map_err(|e| e.to_string())?;
+        let (w, h) = (
+            tree.size().width().round() as u32,
+            tree.size().height().round() as u32,
+        );
+        pdf_add_page(
+            &mut pdf,
+            &mut alloc,
+            page_tree_id,
+            &mut page_ids,
+            &tree,
+            *dpi,
+            (w, h),
+            (0, 0, w, h),
+            None,
+        )?;
+    }
+    pdf.pages(page_tree_id)
+        .kids(page_ids.iter().copied())
+        .count(page_ids.len() as i32);
+    Ok(pdf.finish())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn pdf_add_page(
+    pdf: &mut Pdf,
+    alloc: &mut Ref,
+    page_tree_id: Ref,
+    page_ids: &mut Vec<Ref>,
+    tree: &svg2pdf::usvg::Tree,
+    dpi: f64,
+    size: (u32, u32),
+    (crop_x, crop_y, crop_w, crop_h): Bbox,
+    background: Option<RGBAColor>,
+) -> Result<(), String> {
+    let scale = (72.0 / dpi) as f32;
     let full_w = size.0 as f32 * scale;
     let full_h = size.1 as f32 * scale;
     let page_w = crop_w as f32 * scale;
     let page_h = crop_h as f32 * scale;
-
-    let mut alloc = Ref::new(1);
-    let catalog_id = alloc.bump();
-    let page_tree_id = alloc.bump();
     let page_id = alloc.bump();
     let content_id = alloc.bump();
     let svg_name = Name(b"S1");
 
-    let (svg_chunk, svg_id) = svg2pdf::to_chunk(&tree, svg2pdf::ConversionOptions::default())
+    let (svg_chunk, svg_id) = svg2pdf::to_chunk(tree, svg2pdf::ConversionOptions::default())
         .map_err(|e| e.to_string())?;
     let mut map = HashMap::new();
     let svg_chunk = svg_chunk.renumber(|old| *map.entry(old).or_insert_with(|| alloc.bump()));
     let svg_id = *map.get(&svg_id).ok_or("failed to remap embedded SVG")?;
-
-    let mut pdf = Pdf::new();
-    pdf.catalog(catalog_id).pages(page_tree_id);
-    pdf.pages(page_tree_id).kids([page_id]).count(1);
 
     let mut page = pdf.page(page_id);
     page.media_box(Rect::new(0.0, 0.0, page_w, page_h));
@@ -77,7 +141,7 @@ pub(crate) fn render_pdf(
     // The SVG is embedded as a 1x1 XObject, so scale it to the full figure and
     // then shift the requested crop to the page origin. PDF y grows upwards.
     let mut content = Content::new();
-    if let Some([r, g, b, _]) = background.and_then(|bg| background_pixel(Some(bg))) {
+    if let Some([r, g, b, _]) = background_pixel(background) {
         // PDF has no figure transparency; match the PNG path by pre-blending
         // the background colour over white.
         content.set_fill_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
@@ -96,7 +160,8 @@ pub(crate) fn render_pdf(
         .x_object(svg_name);
     pdf.stream(content_id, &content.finish());
     pdf.extend(&svg_chunk);
-    Ok(pdf.finish())
+    page_ids.push(page_id);
+    Ok(())
 }
 
 /// Geometric bounds for the PDF copy of `usvg`, rounded outwards to whole

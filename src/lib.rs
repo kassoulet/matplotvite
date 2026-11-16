@@ -16,6 +16,7 @@ pub mod bench;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 
+use crate::export::render_pdf_pages;
 use crate::model::{Panel, RenderOptions};
 use crate::render::render_figure;
 
@@ -53,11 +54,19 @@ fn colormaps<'py>(py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> 
     Ok(d)
 }
 
+#[pyfunction]
+#[pyo3(name = "render_pdf_pages")]
+fn render_pdf_pages_py(py: Python<'_>, svgs: Vec<Vec<u8>>, dpis: Vec<f64>) -> PyResult<Vec<u8>> {
+    py.detach(move || render_pdf_pages(&svgs, &dpis))
+        .map_err(PyRuntimeError::new_err)
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(colormaps, m)?)?;
-    m.add_function(wrap_pyfunction!(render_figure_py, m)?)
+    m.add_function(wrap_pyfunction!(render_figure_py, m)?)?;
+    m.add_function(wrap_pyfunction!(render_pdf_pages_py, m)?)
 }
 
 #[cfg(test)]
