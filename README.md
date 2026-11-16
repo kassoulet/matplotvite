@@ -250,7 +250,8 @@ plt.savefig("contours.png")
   at the midpoint of its longest segment (`manual=True` raises)
 - `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes
 - `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=)` — standalone
-  colorbar construction with divider geometry and `ColorbarBase` compatibility
+  colorbar construction with divider geometry and `ColorbarBase` compatibility;
+  `cbar.ax.set_yscale("log")` and `cbar.ax.set_ylim(...)` adjust its scale/range
 
 ### Axes and layout
 - `figure(figsize=, dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through,

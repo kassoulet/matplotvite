@@ -152,10 +152,11 @@ stay on the SVG path, where resvg applies the full vector rendering.
 matplotlib-style padding rule, and computes tick positions and labels. It also
 handles logarithmic scales and the figure/axes panel rectangles.
 
-Colorbar requests travel as panel metadata (`cmap`, `vmin`, `vmax`, `label`). The
-Python facade resolves both mappable-based `fig.colorbar(...)` calls and
-standalone `Colorbar(ax, ...)` construction into that record; Rust draws the
-strip and its ticks.
+Colorbar requests travel as panel metadata (`cmap`, `vmin`, `vmax`, `label`,
+axis scale and display limits). The Python facade resolves both mappable-based
+`fig.colorbar(...)` calls and standalone `Colorbar(ax, ...)` construction into
+that record; Rust maps the gradient and ticks through the requested axis scale
+and limits.
 
 `draw.rs` draws one panel into an SVG fragment using plotters' SVG backend.
 Each fragment uses absolute canvas coordinates, so `export.rs` can concatenate
