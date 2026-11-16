@@ -23,6 +23,10 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - uses: j178/prek-action@44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d # v3.1.0
+      # The prek action runs pre-commit hooks only; Rust tests moved to the
+      # pre-push stage, so CI runs them here to keep them covered.
+      - name: Rust tests
+        run: cargo test --all-targets
 
   lint:
     name: python lint
