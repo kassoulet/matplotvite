@@ -1118,13 +1118,16 @@ def main() -> int:
     parser.add_argument("--examples", type=pathlib.Path,
                         help="render the gallery scripts under this checkout instead")
     parser.add_argument("--out", type=pathlib.Path, default=None)
+    parser.add_argument("--no-reference", action="store_true",
+                        help="with --examples, skip rendering the Matplotlib reference images (CI speed-up)")
     parser.add_argument("--json", type=pathlib.Path, dest="json_out", default=None)
     args = parser.parse_args()
     default_out = "dist/mpl-examples" if args.examples else "dist/mpl-corpus"
     args.out = args.out or pathlib.Path(default_out)
     args.json_out = args.json_out or args.out / "manifest.json"
     if args.examples:
-        return harvest_examples_gallery(args.examples, args.out, args.json_out)
+        return harvest_examples_gallery(args.examples, args.out, args.json_out,
+                                        references=not args.no_reference)
 
     tests_root = find_tests_root(args.source)
     if tests_root is None:
@@ -1136,7 +1139,8 @@ def main() -> int:
 
 
 def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
-                             manifest_path: pathlib.Path) -> int:
+                             manifest_path: pathlib.Path,
+                             references: bool = True) -> int:
     """Render every gallery example and report the ones our API cannot express."""
     examples_root = find_examples_root(source)
     if examples_root is None:
@@ -1152,8 +1156,8 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     for stale in out.glob("*-matplotlib.png"):
         stale.unlink()
     mpl_available = importlib.util.find_spec("matplotlib") is not None
-    references: dict[str, tuple[str, str | None]] = {}
-    if mpl_available:
+    refs: dict[str, tuple[str, str | None]] = {}
+    if mpl_available and references:
         renderable = [
             case for case in cases
             if case["snippet"] is not None
@@ -1174,7 +1178,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
         workers = min(4, os.cpu_count() or 1)
         with ThreadPoolExecutor(max_workers=workers) as pool:
             for slug, path, error in pool.map(render_reference, renderable):
-                references[slug] = (path, error)
+                refs[slug] = (path, error)
     rows: list[str] = []
     statuses: dict[str, list[int]] = {}
     for case in cases:
@@ -1211,9 +1215,10 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
                     entry["status"] = "blank"
                     entry["reason"] = "bug"
         if case["snippet"] is not None and case["category"] not in OUT_OF_SCOPE_CATEGORIES:
-            reference = references.get(slug)
+            reference = refs.get(slug)
             if reference is None:
-                entry["matplotlib_error"] = "matplotlib is not installed"
+                entry["matplotlib_error"] = ("reference skipped" if mpl_available
+                                             else "matplotlib is not installed")
             elif reference[1] is None:
                 entry["matplotlib"] = reference[0]
             else:
