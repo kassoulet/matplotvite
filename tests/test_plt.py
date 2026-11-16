@@ -513,6 +513,37 @@ def test_contourf_fills(tmp_path):
     assert p.read_text(encoding="utf-8").count("<polygon") > 10
 
 
+def test_contourset_explicit_paths(tmp_path):
+    lines = [[[[0, 0], [0, 4]]], [[[2, 0], [1, 2], [1, 3]]]]
+    plt.figure()
+    cs = plt.ContourSet(plt.gca(), [0, 1, 2], lines, cmap="cool", linewidths=3)
+    assert cs.levels == [0.0, 1.0, 2.0]
+    assert cs.get_paths()[0].get_vertices().shape == (2, 2)
+
+    outer = [[0, 0], [3, 0], [3, 3], [0, 3]]
+    hole = [[1, 1], [1, 2], [2, 2], [2, 1]]
+    codes = [[plt.Path.MOVETO, plt.Path.LINETO, plt.Path.LINETO,
+              plt.Path.LINETO, plt.Path.MOVETO, plt.Path.LINETO,
+              plt.Path.LINETO, plt.Path.LINETO]]
+    plt.figure()
+    cs = plt.ContourSet(plt.gca(), [0, 1], [[outer + hole]], [[codes]], filled=True)
+    plt.colorbar(cs)
+    p = tmp_path / "manual_contour.svg"
+    plt.savefig(p)
+    assert p.read_text(encoding="utf-8").count("<polygon") >= 2
+
+
+def test_clabel_manual_positions(tmp_path):
+    x, y, z = _bump()
+    plt.figure()
+    cs = plt.contour(x, y, z, levels=[0.2, 0.6])
+    texts = cs.clabel(fontsize=8, manual=[(-0.5, -0.5), (0.5, 0.5)])
+    assert len(texts) == 2
+    p = tmp_path / "manual_clabel.svg"
+    plt.savefig(p)
+    assert "</svg>" in p.read_text(encoding="utf-8")
+
+
 def test_contour_linewidths_and_alpha(tmp_path):
     x, y, z = _bump()
     plt.figure((4, 3))
@@ -4442,8 +4473,8 @@ def test_clabel_labels_contours(tmp_path):
     p = tmp_path / "clabel.svg"
     figure.savefig(p)
     assert "0.75" in p.read_text(encoding="utf-8")
-    with pytest.raises(NotImplementedError):
-        contours.clabel(manual=True)
+    # Manual placement with no positions falls back to automatic labels.
+    assert len(contours.clabel(manual=True)) == len(handles)
 
 
 def test_text_rotation_applies_to_axes_and_figure_text(tmp_path):

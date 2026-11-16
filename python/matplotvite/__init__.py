@@ -7661,18 +7661,134 @@ def _contour_label_colour(entry, index, level):
     return "#%02x%02x%02x" % tuple(int(round(float(v) * 255)) for v in rgb)
 
 
+def _point_segment_distance(px, py, xa, ya, xb, yb):
+    """Shortest distance from a point to a line segment."""
+    dx, dy = xb - xa, yb - ya
+    length = dx * dx + dy * dy
+    if length == 0.0:
+        return _math.hypot(px - xa, py - ya)
+    t = max(0.0, min(1.0, ((px - xa) * dx + (py - ya) * dy) / length))
+    return _math.hypot(px - (xa + t * dx), py - (ya + t * dy))
+
+
+def _path_subpaths(vertices, codes):
+    """Split a compound path into rings, dropping CLOSEPOLY placeholders."""
+    verts = np.asarray(vertices, dtype=float).reshape(-1, 2)
+    if codes is None:
+        return [verts] if len(verts) else []
+    codes = np.asarray(codes).ravel()
+    if codes.size != len(verts):
+        return [verts] if len(verts) else []
+    starts = [i for i, code in enumerate(codes) if code == Path.MOVETO]
+    if not starts:
+        return [verts] if len(verts) else []
+    starts.append(len(verts))
+    out = []
+    for start, stop in zip(starts, starts[1:]):
+        ring, ring_codes = verts[start:stop], codes[start:stop]
+        if (ring_codes.size and ring_codes[-1] == Path.CLOSEPOLY
+                and len(ring) > 2):
+            ring = ring[:-1]
+        if len(ring) >= 2:
+            out.append(ring)
+    return out
+
+
+def _polygon_area_sign(points):
+    """Winding direction of a ring, used to spot holes in filled contours."""
+    pts = np.asarray(points, dtype=float).reshape(-1, 2)
+    if len(pts) < 3:
+        return 1.0
+    area = 0.5 * np.sum(pts[:, 0] * np.roll(pts[:, 1], -1)
+                        - np.roll(pts[:, 0], -1) * pts[:, 1])
+    return 1.0 if area >= 0.0 else -1.0
+
+
 class ContourSet:
     """Handle returned by `Axes.contour` / `Axes.contourf`."""
 
     def __init__(self, ax=None, levels=None, segments=None, *args, axes=None, **kwargs):
-        self.axes = axes
+        self.axes = ax if axes is None else axes
+        self._manual = None
+        self._manual_kinds = None
         if isinstance(ax, dict) and levels is None and segments is None:
             self._e = ax
             return
-        # Hand-built contours (`ContourSet(ax, levels, paths)`) carry explicit
-        # geometry that the renderer's level field cannot express.
-        raise NotImplementedError(
-            "user-specified contour paths are not supported yet")
+        if levels is None or segments is None:
+            raise TypeError("ContourSet needs levels and paths")
+        allkinds = args[0] if args else kwargs.pop("allkinds", None)
+        levels = [float(v) for v in np.asarray(levels, dtype=float).ravel()]
+        if len(levels) < 2:
+            raise ValueError("ContourSet needs at least two levels")
+        cmap = _cmap_name(kwargs.pop("cmap", None))
+        colors = kwargs.pop("colors", None)
+        if colors is None:
+            colors = None
+        elif isinstance(colors, str):
+            colors = [_norm_color(colors)]
+        else:
+            colors = [_norm_color(c) for c in colors]
+        linewidths = kwargs.pop("linewidths", None)
+        widths = ([] if linewidths is None else
+                  [float(v) for v in np.atleast_1d(
+                      np.asarray(linewidths, dtype=float)).ravel()])
+        self._e = dict(levels=levels, cmap=cmap, colors=colors,
+                       filled=bool(kwargs.pop("filled", False)),
+                       linewidths=widths, alpha=kwargs.pop("alpha", None),
+                       x=None, y=None, z=None)
+        self._draw_manual(list(segments), allkinds)
+
+    def _manual_colour(self, index):
+        colours = self._e.get("colors")
+        if colours:
+            return _norm_color(colours[index % len(colours)])
+        levels = self._e["levels"]
+        if self._e["filled"]:
+            value = 0.5 * (levels[index] + levels[min(index + 1, len(levels) - 1)])
+        else:
+            value = levels[min(index, len(levels) - 1)]
+        lo, hi = levels[0], levels[-1]
+        t = (value - lo) / (hi - lo) if hi > lo else 0.5
+        rgb = np.asarray(get_cmap(self._e["cmap"])(t), dtype=float).ravel()[:3]
+        return "#%02x%02x%02x" % tuple(int(round(float(v) * 255)) for v in rgb)
+
+    def _manual_linewidth(self, index):
+        widths = self._e["linewidths"]
+        if not widths:
+            return rcParams.get("lines.linewidth", 1.5)
+        return widths[index % len(widths)]
+
+    def _draw_manual(self, groups, allkinds):
+        """Draw user-supplied contour paths through the normal artist layer."""
+        kinds = (list(allkinds) if allkinds is not None
+                 else [None] * len(groups))
+        self._manual, self._manual_kinds = groups, kinds
+        for index, group in enumerate(groups):
+            colour = self._manual_colour(index)
+            width = self._manual_linewidth(index)
+            level_kinds = kinds[index] if index < len(kinds) else None
+            for path_index, vertices in enumerate(list(group)):
+                codes = (level_kinds[path_index] if level_kinds is not None
+                         and path_index < len(level_kinds) else None)
+                subpaths = _path_subpaths(vertices, codes)
+                base_sign = None
+                for subpath in subpaths:
+                    sign = _polygon_area_sign(subpath)
+                    if (self._e["filled"] and base_sign is not None
+                            and sign * base_sign < 0):
+                        # A subpath wound the other way is a hole; paint it in
+                        # the axes colour because the renderer fills one ring.
+                        self.axes.fill(subpath[:, 0], subpath[:, 1],
+                                       color=self.axes.get_facecolor())
+                        continue
+                    if base_sign is None:
+                        base_sign = sign
+                    if self._e["filled"]:
+                        self.axes.fill(subpath[:, 0], subpath[:, 1], color=colour,
+                                       alpha=self._e["alpha"])
+                    else:
+                        self.axes.plot(subpath[:, 0], subpath[:, 1], color=colour,
+                                       linewidth=width, alpha=self._e["alpha"])
 
     @property
     def levels(self): return list(self._e["levels"])
@@ -7724,14 +7840,14 @@ class ContourSet:
     def clabel(self, levels=None, *, fontsize=None, inline=True, inline_spacing=5,
                fmt=None, colors=None, use_clabeltext=False, manual=False,
                rightside_up=True, zorder=None, **kwargs):
-        """Label each contour level at the midpoint of its longest segment.
+        """Label each contour level at its longest segment or at given points.
 
         Labels are drawn horizontally or vertically, whichever is closer to the
         local line direction; Matplotlib's inline gap is not cut out of the line.
+        `manual` accepts a sequence of data-coordinate positions, as Matplotlib's
+        gallery does; `manual=True` falls back to automatic placement.
         """
-        if manual:
-            raise NotImplementedError("manual clabel placement is not supported")
-        if self.axes is None:
+        if self.axes is None or self._e.get("x") is None:
             return []
         all_levels = self.levels
         if levels is None:
@@ -7741,14 +7857,15 @@ class ContourSet:
             chosen = [i for i, value in enumerate(all_levels) if value in wanted]
         palette = (None if colors is None else
                    [_norm_color(c) for c in np.atleast_1d(colors).ravel()])
+        manual_positions = None
+        if (manual is not None and manual is not False
+                and not isinstance(manual, (bool, int))):
+            manual_positions = [(float(point[0]), float(point[1]))
+                                for point in manual]
         texts = []
-        for index in chosen:
+
+        def add_label(index, px, py, xa, ya, xb, yb):
             level = all_levels[index]
-            segments = _contour_segments(self._e["x"], self._e["y"], self._e["z"], level)
-            if not segments:
-                continue
-            (xa, ya), (xb, yb) = max(
-                segments, key=lambda s: (s[1][0] - s[0][0]) ** 2 + (s[1][1] - s[0][1]) ** 2)
             angle = _math.degrees(_math.atan2(yb - ya, xb - xa))
             if rightside_up:
                 if angle > 90.0:
@@ -7758,14 +7875,48 @@ class ContourSet:
             colour = (palette[index % len(palette)] if palette
                       else _contour_label_colour(self._e, index, level))
             texts.append(self.axes.text(
-                (xa + xb) / 2.0, (ya + yb) / 2.0,
-                _contour_label_text(level, fmt),
+                px, py, _contour_label_text(level, fmt),
                 fontsize=fontsize, color=colour, ha="center", va="center",
                 rotation=angle,
                 **{k: v for k, v in kwargs.items() if k in ("alpha", "clip_on")}))
+
+        if manual_positions is not None:
+            for px, py in manual_positions:
+                best = None
+                for index in chosen:
+                    for (xa, ya), (xb, yb) in _contour_segments(
+                            self._e["x"], self._e["y"], self._e["z"],
+                            all_levels[index]):
+                        distance = _point_segment_distance(px, py, xa, ya, xb, yb)
+                        if best is None or distance < best[0]:
+                            best = (distance, index, xa, ya, xb, yb)
+                if best is not None:
+                    add_label(best[1], px, py, best[2], best[3], best[4], best[5])
+            return texts
+
+        for index in chosen:
+            segments = _contour_segments(
+                self._e["x"], self._e["y"], self._e["z"], all_levels[index])
+            if not segments:
+                continue
+            (xa, ya), (xb, yb) = max(
+                segments, key=lambda s: (s[1][0] - s[0][0]) ** 2 + (s[1][1] - s[0][1]) ** 2)
+            add_label(index, (xa + xb) / 2.0, (ya + yb) / 2.0, xa, ya, xb, yb)
         return texts
 
-    def get_paths(self): return []
+    def get_paths(self):
+        if self._manual is None:
+            return []
+        out = []
+        for index, group in enumerate(self._manual):
+            level_kinds = (self._manual_kinds[index]
+                           if index < len(self._manual_kinds) else None)
+            for path_index, vertices in enumerate(group):
+                codes = (level_kinds[path_index] if level_kinds is not None
+                         and path_index < len(level_kinds) else None)
+                out.append(Path(vertices, codes))
+        return out
+
     def get_arrays(self): return ()
 
     def _colorbar_spec(self):
@@ -8088,8 +8239,15 @@ class _ColorbarAxis:
 class _ColorbarAxes:
     def __init__(self, entry=None):
         self._e = entry or {}
+        self._position = None
         self.yaxis = self.xaxis = _ColorbarAxis()
-    def get_position(self, original=False): return _Bbox(0.0, 0.0, 1.0, 1.0)
+    def get_position(self, original=False):
+        return self._position or _Bbox(0.0, 0.0, 1.0, 1.0)
+    def set_position(self, bounds):
+        """Remember a reposition request; the colorbar keeps its own strip."""
+        values = tuple(float(v) for v in bounds)
+        self._position = _Bbox(*values) if len(values) == 4 else None
+        return self._position
     def get_window_extent(self, renderer=None): return _Bbox(0.0, 0.0, 1.0, 1.0)
     def set_visible(self, value): return None
     def set_axis_off(self): return None
