@@ -96,7 +96,7 @@ sequenceDiagram
 
     U->>F: savefig(path or format)
     F->>F: validate DPI and canvas, then build panels and options
-    F->>C: SHA-1 key from dimensions, grid, panel keys, options
+    F->>C: BLAKE2b key from dimensions, grid, panel keys, options
     alt key matches last result
         C-->>F: cached encoded bytes
     else cache miss
@@ -169,10 +169,13 @@ There are two caches:
 
 | Cache | Scope | Key | Bound |
 |---|---|---|---|
-| `Figure._render_cache` | Python, per figure | SHA-1 of dimensions, grid, panel fingerprints, and output options | One encoded result |
-| `PANEL_CACHE` | Rust, process-wide | Panel fingerprint + canvas + grid + top padding + raster mode | 256 fragments or 64 MiB |
+| `Figure._render_cache` | Python, per figure | BLAKE2b of dimensions, grid, panel keys, and output options | One encoded result |
+| `PANEL_CACHE` | Rust, process-wide | SHA-1 panel fingerprint + canvas + grid + top padding + raster mode | 256 fragments or 64 MiB |
 
-The Rust cache stores SVG panel fragments and is used by the vector path. It is
+The panel fingerprints use SHA-1 because it is faster over large arrays; the
+figure-level cache hashes those fingerprints and the output options with a
+16-byte BLAKE2b digest. The Rust cache stores SVG panel fragments and is used by
+the vector path. It is
 safe to share across figures because the key includes every input that can
 change a fragment. The Python cache avoids even entering Rust when the same
 figure is saved twice unchanged.

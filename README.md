@@ -317,8 +317,6 @@ quiver of arrows. Shims that cannot affect the renderer emit a one-time
 ### Not supported
 
 - 3-D axes, tripcolor/tricontour, and other specialised matplotlib modules
-- SVG element gids used by post-processing examples (EPS is written as a
-  raster-backed PostScript page rather than a vector one)
 - a pandas `.plot()` backend (planned for 0.7)
 - interactive display (planned for a future GPUI-based version)
 
@@ -444,9 +442,10 @@ python tools/security_audit.py
 
 `cargo audit` currently reports two unmaintained-crate warnings, `rustybuzz` and
 `ttf-parser`, both pulled in indirectly by `svg2pdf 0.13`'s pinned `usvg 0.45`
-dependency. That is the latest `svg2pdf` release; there are no known
-vulnerabilities. Revisit when `svg2pdf`/`usvg` update. The tight-PDF tests gate
-those upgrades, so the hand-assembled PDF path is not changed independently.
+dependency; the renderer's direct resvg/usvg stack is 0.50. There are no known
+vulnerabilities. Revisit when `svg2pdf` updates its usvg dependency. The tight-PDF
+tests gate those upgrades, so the hand-assembled PDF path is not changed
+independently.
 
 ## License
 

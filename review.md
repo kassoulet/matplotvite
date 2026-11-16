@@ -33,7 +33,7 @@ saved figure.
 | # | Finding |
 |---|---------|
 | G3 | **No remaining examples API errors.** The fresh examples run has 0 `needs-api` and 0 `bug` cases. The 114 unsupported cases are interactive GUI/widgets/animation, 3-D, `axes_grid1`/`axisartist`, and missing third-party modules; the 4 blanks create no saved figure. |
-| G4 | **No known example failures.** EPS output and the previously failing `FT2Font`, custom-scale, custom-projection, polar-bar and boxplot-stat paths now render. SVG gallery post-processing cases are classified as unsupported rather than crashing. |
+| G4 | **No known example failures.** EPS output and the previously failing `FT2Font`, custom-scale, custom-projection, polar-bar and boxplot-stat paths now render. SVG gid post-processing cases (`svg_filter_line`, `svg_filter_pie`) now render as well. |
 | F5 | **Pillow is available in CI and is now installed locally.** `watermark_image` renders; no environment-only `needs-api` case remains. |
 | G5 | **Environment accounting is complete for this run.** Interactive forbears are classified up front, and unsupported counts no longer hide API failures. |
 | F7 / N7 | **"Rendered" is not proof of correctness.** It still includes ignored calls (see the per-case `ignored` count). Treat rendered counts as an upper bound and keep the visual checks above. |
