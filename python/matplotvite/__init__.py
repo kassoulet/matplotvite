@@ -1275,6 +1275,28 @@ def _format_ticklabels(formatter, ticks):
     return labels
 
 
+def _scale_transform_pair(scale):
+    """Forward and inverse callables from a Matplotlib-style scale object."""
+    transform = scale.get_transform()
+    forward = getattr(transform, "transform_non_affine", None)
+    if forward is None:
+        forward = getattr(transform, "transform", None)
+    inverted = transform.inverted()
+    inverse = getattr(inverted, "transform_non_affine", None)
+    if inverse is None:
+        inverse = getattr(inverted, "transform", None)
+    if forward is None or inverse is None:
+        raise TypeError("a scale transform must provide transform and inverted")
+    return forward, inverse
+
+
+def _scale_values(forward, values):
+    """Apply a scale transform, turning masked/non-finite results into gaps."""
+    array = np.asarray(values, dtype=np.float64)
+    result = np.ma.filled(np.ma.asarray(forward(array), dtype=np.float64), np.nan)
+    return np.ascontiguousarray(result, dtype=np.float64)
+
+
 def _add_months(value, months):
     total = value.year * 12 + (value.month - 1) + int(months)
     year, month = divmod(total, 12)
@@ -3653,6 +3675,8 @@ class Axes:
         self.asinh_linear_width_x = self.asinh_linear_width_y = 1.0
         self.logit_one_half = "1/2"
         self.logit_use_overline = False
+        self._xscale_obj = self._yscale_obj = None
+        self._xscale_forward = self._yscale_forward = None
         self.show_grid = False
         self.grid_color = self.grid_linewidth = self.grid_alpha = self.grid_linestyle = None
         self.grid_minor_show = False
@@ -4076,6 +4100,9 @@ class Axes:
             [e for im in self.images for e in (im._e["extent"][0], im._e["extent"][1])]
             + self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)],
         )
+        if self._xscale_obj is not None:
+            lo, hi = self._xscale_obj.limit_range_for_scale(bounds[0], bounds[1], 0.0)
+            bounds = (float(lo), float(hi))
         return (bounds[1], bounds[0]) if self._inverted[0] else bounds
 
     def get_ylim(self):
@@ -4089,6 +4116,9 @@ class Axes:
             [e for im in self.images for e in (im._e["extent"][2], im._e["extent"][3])]
             + self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)],
         )
+        if self._yscale_obj is not None:
+            lo, hi = self._yscale_obj.limit_range_for_scale(bounds[0], bounds[1], 0.0)
+            bounds = (float(lo), float(hi))
         return (bounds[1], bounds[0]) if self._inverted[1] else bounds
     def get_xbound(self): return self.get_xlim()
     def get_ybound(self): return self.get_ylim()
@@ -4667,6 +4697,8 @@ class Axes:
             labels = _logit_ticks(*self.get_xlim(), self.logit_one_half,
                                   self.logit_use_overline)[1]
         if labels is None:
+            labels = _format_ticklabels(self.xaxis._formatter, self.get_xticks())
+        if labels is None:
             labels = [f"{v:g}" for v in self.get_xticks()]
         return [_TextLabel(t) for t in labels]
 
@@ -4676,46 +4708,68 @@ class Axes:
             labels = _logit_ticks(*self.get_ylim(), self.logit_one_half,
                                   self.logit_use_overline)[1]
         if labels is None:
+            labels = _format_ticklabels(self.yaxis._formatter, self.get_yticks())
+        if labels is None:
             labels = [f"{v:g}" for v in self.get_yticks()]
         return [_TextLabel(t) for t in labels]
 
-    def set_xscale(self, value, base=10, **kwargs):
+    def _set_scale(self, axis, value, base=10, **kwargs):
+        """Install a built-in, function, or registered custom scale on `axis`."""
         name = str(value)
+        scale_attr = f"{axis}scale"
+        axis_obj = getattr(self, f"{axis}axis")
+        setattr(self, f"_{axis}scale_obj", None)
+        setattr(self, f"_{axis}scale_forward", None)
+        setattr(self, f"_{axis}scale_inverse", None)
+        scale_obj = None
         if name == "linear":
-            self.xscale = "linear"
+            setattr(self, scale_attr, "linear")
         elif name == "log":
-            self.xscale, self.log_base = "log", float(base)
+            setattr(self, scale_attr, "log")
+            self.log_base = float(base)
         elif name == "symlog":
-            self.xscale = "symlog"
-            self.symlog_linthresh_x = self._symlog_linthresh(kwargs)
+            setattr(self, scale_attr, "symlog")
+            setattr(self, f"symlog_linthresh_{axis}", self._symlog_linthresh(kwargs))
         elif name == "asinh":
-            self.xscale = "asinh"
-            self.asinh_linear_width_x = self._asinh_width(kwargs)
+            setattr(self, scale_attr, "asinh")
+            setattr(self, f"asinh_linear_width_{axis}", self._asinh_width(kwargs))
         elif name == "logit":
-            self.xscale = "logit"
+            setattr(self, scale_attr, "logit")
             self.logit_one_half = kwargs.get("one_half", self.logit_one_half)
             self.logit_use_overline = bool(kwargs.get("use_overline", self.logit_use_overline))
+        elif name in ("function", "functionlog"):
+            functions = kwargs.pop("functions", None)
+            if functions is None:
+                raise TypeError(f"{name} scale needs a (forward, inverse) 'functions' pair")
+            from .scale import FuncScale, FuncScaleLog
+            cls = FuncScaleLog if name == "functionlog" else FuncScale
+            extra = {"base": base} if name == "functionlog" else {}
+            scale_obj = cls(axis_obj, functions, **extra, **kwargs)
+            forward, inverse = _scale_transform_pair(scale_obj)
+            setattr(self, f"_{axis}scale_forward", forward)
+            setattr(self, f"_{axis}scale_inverse", inverse)
+            setattr(self, scale_attr, name)
+            setattr(self, f"_{axis}scale_obj", scale_obj)
+            scale_obj.set_default_locators_and_formatters(axis_obj)
         else:
-            raise NotImplementedError(f"unsupported x scale: {value!r}")
+            from .scale import _SCALES
+            cls = _SCALES.get(name)
+            if cls is None:
+                raise NotImplementedError(f"unsupported {axis} scale: {value!r}")
+            scale_obj = cls(axis_obj, **kwargs)
+            forward, inverse = _scale_transform_pair(scale_obj)
+            setattr(self, f"_{axis}scale_forward", forward)
+            setattr(self, f"_{axis}scale_inverse", inverse)
+            setattr(self, scale_attr, name)
+            setattr(self, f"_{axis}scale_obj", scale_obj)
+            scale_obj.set_default_locators_and_formatters(axis_obj)
+        return scale_obj
+
+    def set_xscale(self, value, base=10, **kwargs):
+        return self._set_scale("x", value, base, **kwargs)
 
     def set_yscale(self, value, base=10, **kwargs):
-        name = str(value)
-        if name == "linear":
-            self.yscale = "linear"
-        elif name == "log":
-            self.yscale, self.log_base = "log", float(base)
-        elif name == "symlog":
-            self.yscale = "symlog"
-            self.symlog_linthresh_y = self._symlog_linthresh(kwargs)
-        elif name == "asinh":
-            self.yscale = "asinh"
-            self.asinh_linear_width_y = self._asinh_width(kwargs)
-        elif name == "logit":
-            self.yscale = "logit"
-            self.logit_one_half = kwargs.get("one_half", self.logit_one_half)
-            self.logit_use_overline = bool(kwargs.get("use_overline", self.logit_use_overline))
-        else:
-            raise NotImplementedError(f"unsupported y scale: {value!r}")
+        return self._set_scale("y", value, base, **kwargs)
 
     @staticmethod
     def _symlog_linthresh(kwargs):
@@ -6815,7 +6869,13 @@ class Axes:
             yticks = _auto_ticks(y0, y1, self.yscale == "log",
                                  float(getattr(self, "log_base", 10.0)),
                                  self._auto_tick_target("y"))
-        return dict(pos=self.pos, series=series, texts=texts, title=self.title,
+        # Function/custom scales draw ticks at transformed positions but label
+        # them with the original data values.
+        if self._xscale_forward is not None and xticklabels is None and xticks is not None:
+            xticklabels = [f"{float(v):g}" for v in xticks]
+        if self._yscale_forward is not None and yticklabels is None and yticks is not None:
+            yticklabels = [f"{float(v):g}" for v in yticks]
+        panel = dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     font_family=_font_family(),
                     title_family=self.title_family,
                     xlabel_family=self.xlabel_family,
@@ -6881,6 +6941,220 @@ class Axes:
                              im._e["vmax"], im._e["extent"], True,
                              im._e["alpha"], im._e["interpolation"])
                             for im in self.images])
+        return self._apply_axis_scales(panel)
+
+    def _apply_axis_scales(self, panel):
+        """Map panel coordinates through function or registered custom scales."""
+        fx, fy = self._xscale_forward, self._yscale_forward
+        if fx is None and fy is None:
+            return panel
+
+        def scale(forward, values):
+            return (_scale_values(forward, values) if forward is not None
+                    else np.asarray(values, dtype=float))
+
+        def scalar(forward, value):
+            return float(scale(forward, [value])[0])
+
+        def points(flat):
+            pts = np.asarray(flat, dtype=float).reshape(-1, 2)
+            if fx is not None:
+                pts[:, 0] = _scale_values(fx, pts[:, 0])
+            if fy is not None:
+                pts[:, 1] = _scale_values(fy, pts[:, 1])
+            return pts.ravel().tolist()
+
+        ticks = panel["ticks"]
+        if fx is not None and ticks["xticks"] is not None:
+            ticks["xticks"] = [float(v) for v in scale(fx, ticks["xticks"])]
+        if fy is not None and ticks["yticks"] is not None:
+            ticks["yticks"] = [float(v) for v in scale(fy, ticks["yticks"])]
+        panel["series"] = [
+            dict(item,
+                 x=_scale_values(fx, item["x"]) if fx is not None else item["x"],
+                 y=_scale_values(fy, item["y"]) if fy is not None else item["y"])
+            for item in panel["series"]]
+        scaled_bars = []
+        for item in panel["bars"]:
+            bar = dict(item)
+            if fx is not None:
+                left = np.asarray(bar["left"], dtype=float)
+                new_left = _scale_values(fx, left)
+                bar["left"] = new_left
+                bar["width"] = (_scale_values(fx, left + np.asarray(bar["width"], dtype=float))
+                                - new_left)
+            if fy is not None:
+                bottom = np.asarray(bar["bottom"], dtype=float)
+                new_bottom = _scale_values(fy, bottom)
+                bar["bottom"] = new_bottom
+                bar["height"] = (_scale_values(fy, bottom + np.asarray(bar["height"], dtype=float))
+                                 - new_bottom)
+            scaled_bars.append(bar)
+        panel["bars"] = scaled_bars
+        panel["bands"] = [
+            dict(item,
+                 x=_scale_values(fx, item["x"]) if fx is not None else item["x"],
+                 y=_scale_values(fy, item["y"]) if fy is not None else item["y"])
+            for item in panel["bands"]]
+        panel["scatter"] = [
+            dict(item,
+                 x=_scale_values(fx, item["x"]) if fx is not None else item["x"],
+                 y=_scale_values(fy, item["y"]) if fy is not None else item["y"])
+            for item in panel["scatter"]]
+        scaled_arrows = []
+        for item in panel["arrows"]:
+            arrow = dict(item)
+            x = np.asarray(arrow["x"], dtype=float)
+            y = np.asarray(arrow["y"], dtype=float)
+            if fx is not None:
+                if arrow.get("angles") == "xy":
+                    u = np.asarray(arrow["u"], dtype=float)
+                    new_x = _scale_values(fx, x)
+                    arrow["u"] = _scale_values(fx, x + u) - new_x
+                    arrow["x"] = new_x
+                else:
+                    arrow["x"] = _scale_values(fx, x)
+            if fy is not None:
+                if arrow.get("angles") == "xy":
+                    v = np.asarray(arrow["v"], dtype=float)
+                    new_y = _scale_values(fy, y)
+                    arrow["v"] = _scale_values(fy, y + v) - new_y
+                    arrow["y"] = new_y
+                else:
+                    arrow["y"] = _scale_values(fy, y)
+            scaled_arrows.append(arrow)
+        panel["arrows"] = scaled_arrows
+        scaled_errors = []
+        for item in panel["errors"]:
+            x = np.asarray(item[0], dtype=float)
+            y = np.asarray(item[1], dtype=float)
+            nx, ny = x, y
+            ylo, yhi, xlo, xhi = item[2], item[3], item[4], item[5]
+            if fx is not None:
+                nx = _scale_values(fx, x)
+                xlo = nx - _scale_values(fx, x - np.asarray(item[4], dtype=float))
+                xhi = _scale_values(fx, x + np.asarray(item[5], dtype=float)) - nx
+            if fy is not None:
+                ny = _scale_values(fy, y)
+                ylo = ny - _scale_values(fy, y - np.asarray(item[2], dtype=float))
+                yhi = _scale_values(fy, y + np.asarray(item[3], dtype=float)) - ny
+            scaled_errors.append((nx, ny, ylo, yhi, xlo, xhi, *item[6:]))
+        panel["errors"] = scaled_errors
+        scaled_contours = []
+        for item in panel["contours"]:
+            contour = list(item)
+            if fx is not None:
+                contour[0] = scale(fx, contour[0])
+            if fy is not None:
+                contour[1] = scale(fy, contour[1])
+            scaled_contours.append(tuple(contour))
+        panel["contours"] = scaled_contours
+        scaled_images = []
+        for item in panel["images"]:
+            image = list(item)
+            if image[4] is not None:
+                extent = list(image[4])
+                if fx is not None:
+                    extent[0], extent[1] = (scalar(fx, extent[0]), scalar(fx, extent[1]))
+                if fy is not None:
+                    extent[2], extent[3] = (scalar(fy, extent[2]), scalar(fy, extent[3]))
+                image[4] = tuple(extent)
+            scaled_images.append(tuple(image))
+        panel["images"] = scaled_images
+        scaled_texts = []
+        for item in panel["texts"]:
+            text = list(item)
+            if fx is not None:
+                text[0] = scalar(fx, text[0])
+            if fy is not None:
+                text[1] = scalar(fy, text[1])
+            scaled_texts.append(tuple(text))
+        panel["texts"] = scaled_texts
+        scaled_annotations = []
+        for item in panel["annotations"]:
+            annotation = list(item)
+            xy, xytext = annotation[1], annotation[2]
+            annotation[1] = (scalar(fx, xy[0]) if fx is not None else xy[0],
+                             scalar(fy, xy[1]) if fy is not None else xy[1])
+            if xytext is not None:
+                annotation[2] = (scalar(fx, xytext[0]) if fx is not None else xytext[0],
+                                 scalar(fy, xytext[1]) if fy is not None else xytext[1])
+            scaled_annotations.append(tuple(annotation))
+        panel["annotations"] = scaled_annotations
+        scaled_patches = []
+        for item in panel["patches"]:
+            patch = dict(item)
+            kind = patch.get("kind")
+            if kind == "rect":
+                x, y = float(patch["x"]), float(patch["y"])
+                w, h = float(patch["width"]), float(patch["height"])
+                if fx is not None:
+                    left = scalar(fx, x)
+                    patch["x"], patch["width"] = left, scalar(fx, x + w) - left
+                if fy is not None:
+                    bottom = scalar(fy, y)
+                    patch["y"], patch["height"] = bottom, scalar(fy, y + h) - bottom
+            elif kind == "circle":
+                x, y, r = float(patch["x"]), float(patch["y"]), float(patch["width"])
+                if fx is not None:
+                    left, right = scalar(fx, x - r), scalar(fx, x + r)
+                    patch["x"], patch["width"] = (left + right) / 2.0, abs(right - left) / 2.0
+                if fy is not None:
+                    bottom, top = scalar(fy, y - r), scalar(fy, y + r)
+                    patch["y"], patch["width"] = (bottom + top) / 2.0, abs(top - bottom) / 2.0
+            else:
+                patch["points"] = points(patch["points"])
+            scaled_patches.append(patch)
+        panel["patches"] = scaled_patches
+        scaled_collections = []
+        for item in panel["collections"]:
+            collection = dict(item)
+            collection["points"] = points(collection["points"])
+            collection["segments"] = [points(seg) for seg in collection["segments"]]
+            scaled_collections.append(collection)
+        panel["collections"] = scaled_collections
+
+        def finite_bounds(key):
+            lo, hi = np.inf, -np.inf
+
+            def take(values):
+                nonlocal lo, hi
+                arr = np.asarray(values, dtype=float)
+                arr = arr[np.isfinite(arr)]
+                if arr.size:
+                    lo, hi = min(lo, float(arr.min())), max(hi, float(arr.max()))
+
+            for item in panel["series"]:
+                take(item[key])
+            for item in panel["bands"]:
+                take(item[key])
+            for item in panel["scatter"]:
+                take(item[key])
+            for item in panel["bars"]:
+                if key == "x":
+                    take(item["left"])
+                    take(np.asarray(item["left"], dtype=float)
+                         + np.asarray(item["width"], dtype=float))
+                else:
+                    take(item["bottom"])
+                    take(np.asarray(item["bottom"], dtype=float)
+                         + np.asarray(item["height"], dtype=float))
+            return lo, hi
+
+        def scaled_limits(forward, current, key):
+            values = scale(forward, current)
+            if np.isfinite(values).all():
+                return tuple(float(v) for v in values)
+            lo, hi = finite_bounds(key)
+            if np.isfinite(lo) and np.isfinite(hi):
+                return (lo, hi) if current[0] <= current[1] else (hi, lo)
+            return tuple(float(v) for v in values)
+
+        if fx is not None:
+            panel["xlim"] = scaled_limits(fx, panel["xlim"], "x")
+        if fy is not None:
+            panel["ylim"] = scaled_limits(fy, panel["ylim"], "y")
+        return panel
 
     def _resolve_text(self, t, x0, x1, y0, y1):
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
@@ -7089,7 +7363,9 @@ def _hash_value(hasher, value):
 def _panel_cache_key(panel):
     """Stable fingerprint used by the renderer's per-panel fragment cache."""
     try:
-        hasher = _hashlib.blake2b(digest_size=16)
+        # Change detection, not security: SHA-1 hashes large arrays ~2.7x faster
+        # than BLAKE2b (the hash was over half of a 1M-point scatter save).
+        hasher = _hashlib.sha1(usedforsecurity=False)
         _hash_value(hasher, panel)
         return hasher.hexdigest()
     except (TypeError, ValueError):
@@ -7375,6 +7651,42 @@ def _box_datasets(x):
             return [np.asarray(x, dtype=np.float64).ravel()]
         return [np.asarray(v, dtype=np.float64).ravel() for v in x]
     return [np.asarray(x, dtype=np.float64).ravel()]
+
+
+def _boxplot_stats(x, whis=1.5, bootstrap=None, labels=None, autorange=False):
+    """Matplotlib-compatible `cbook.boxplot_stats` for `Axes.bxp`."""
+    groups = _box_datasets(x)
+    if labels is None:
+        names = [""] * len(groups)
+    elif isinstance(labels, str):
+        names = [labels] + [""] * (len(groups) - 1)
+    else:
+        names = [str(v) for v in labels]
+    stats = []
+    for index, raw in enumerate(groups):
+        vals = np.asarray(raw, dtype=np.float64).ravel()
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            raise ValueError("boxplot datasets must not be empty")
+        q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
+        iqr = q3 - q1
+        if autorange:
+            lo, hi = float(vals.min()), float(vals.max())
+        elif isinstance(whis, (tuple, list)):
+            lo = float(np.percentile(vals, float(whis[0])))
+            hi = float(np.percentile(vals, float(whis[1])))
+        else:
+            bound = 1.5 if whis is None else float(whis)
+            low_bound, high_bound = q1 - bound * iqr, q3 + bound * iqr
+            inside = vals[(vals >= low_bound) & (vals <= high_bound)]
+            lo, hi = (float(inside.min()), float(inside.max())) if inside.size else (q1, q3)
+        fliers = vals[(vals < lo) | (vals > hi)]
+        stats.append(dict(
+            label=names[index] if index < len(names) else "",
+            mean=float(vals.mean()), iqr=float(iqr), q1=q1, med=med, q3=q3,
+            whislo=lo, whishi=hi, fliers=[float(v) for v in fliers],
+            cilo=None, cihi=None))
+    return stats
 
 
 def _kde(values, points=100, bw_method=None):
@@ -10918,6 +11230,7 @@ dates = _Namespace(
 mdates = dates
 
 cbook = _Namespace(get_sample_data=_get_sample_data, flatten=_flatten,
+                   boxplot_stats=_boxplot_stats,
                    silent_list=lambda *items: list(items[0]) if items else [],
                    to_rgba=lambda color, alpha=None: _rgba_tuple(color) if alpha is None
                    else (*_rgba_tuple(color)[:3], float(alpha)))

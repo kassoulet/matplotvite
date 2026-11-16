@@ -51,7 +51,8 @@ STRIPPED_IMPORTS = ("matplotlib", "mpl_toolkits", "numpy", "pytest")
 TOOLKITS_PACKAGE = "matplotvite.mpl_toolkits"
 
 # Aliases used by Matplotlib's tests after a stripped `from numpy... import`.
-NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn}
+NUMPY_ALIASES = {"ma": np.ma, "rand": np.random.rand, "randn": np.random.randn,
+                 "multivariate_normal": np.random.multivariate_normal}
 
 # Matplotvite namespaces that hold names the top-level `__all__` does not.
 COMPAT_NAMESPACES = ("ticker", "cm", "colors", "patches", "path", "transforms",

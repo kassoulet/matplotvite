@@ -1914,6 +1914,74 @@ def test_scale_module_exposes_matplotlib_classes():
     assert np.allclose(func.transform([1.0]), [np.e])
 
 
+def test_function_scale_transforms_coordinates_and_keeps_labels(tmp_path):
+    import numpy as np
+
+    fig, ax = plt.subplots()
+    ax.plot(np.arange(10), np.linspace(0.01, 1.0, 10))
+    ax.set_yscale("function", functions=(np.sqrt, np.square))
+    ax.set_yticks([0.0, 0.25, 1.0])
+
+    panel = ax._panel()
+    assert np.isfinite(panel["ylim"]).all()
+    assert panel["ylim"][0] > 0
+    assert panel["ylim"][1] == pytest.approx(1.0)
+    assert panel["ticks"]["yticks"] == pytest.approx([0.0, 0.5, 1.0])
+    assert panel["ticks"]["yticklabels"] == ["0", "0.25", "1"]
+
+    path = tmp_path / "function_scale.png"
+    fig.savefig(path)
+    assert path.stat().st_size > 0
+
+
+def test_registered_custom_scale_transforms_coordinates(tmp_path):
+    import numpy as np
+
+    import matplotvite.scale as mscales
+
+    class CubeScale(mscales.ScaleBase):
+        name = "test-cube"
+
+        def get_transform(self):
+            return mscales._ScaleTransform(
+                lambda values: np.asarray(values, dtype=float) ** 3,
+                lambda values: np.cbrt(np.asarray(values, dtype=float)))
+
+    mscales.register_scale(CubeScale)
+    fig, ax = plt.subplots()
+    ax.plot([0, 1, 2], [1, 2, 3])
+    ax.set_yscale("test-cube")
+    ax.set_yticks([1, 2, 3])
+
+    panel = ax._panel()
+    assert panel["ylim"] == pytest.approx(np.asarray(ax.get_ylim()) ** 3)
+    assert panel["ticks"]["yticks"] == pytest.approx([1, 8, 27])
+    assert panel["ticks"]["yticklabels"] == ["1", "2", "3"]
+
+    path = tmp_path / "custom_scale.png"
+    fig.savefig(path)
+    assert path.stat().st_size > 0
+
+
+def test_cbook_boxplot_stats_feed_bxp(tmp_path):
+    import numpy as np
+
+    from matplotvite import cbook
+
+    stats = cbook.boxplot_stats(np.array([[0, 10, 20], [1, 11, 21],
+                                          [2, 12, 22], [3, 13, 23],
+                                          [100, 14, 24]]), labels=["A", "B", "C"])
+    assert [item["label"] for item in stats] == ["A", "B", "C"]
+    assert stats[0]["med"] == pytest.approx(2.0)
+    assert stats[0]["fliers"] == [100.0]
+
+    fig, ax = plt.subplots()
+    ax.bxp(stats)
+    path = tmp_path / "bxp_stats.png"
+    fig.savefig(path)
+    assert path.stat().st_size > 0
+
+
 def test_pdfpages_writes_multiple_pages(tmp_path):
     from matplotvite.backends.backend_pdf import PdfPages
 
