@@ -8,7 +8,7 @@
 
 ## Release status
 
-- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle.
+- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
@@ -227,7 +227,7 @@
 
 ### Matplotlib test corpus
 - [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. On Matplotlib 3.11.2 that is 526 cases, 382 rendering today (113 failing and 26 unsupported), so the failures remain the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
-- [x] Harvest the gallery examples — `tools/harvest_matplotlib.py --examples <checkout>` rewrites every script under `galleries/examples`, strips the interactive tail, renders it and writes a per-category gallery whose failures are the gap list. On Matplotlib 3.11.2, 384 of 507 render; 12 need API, 106 are interactive or environment-specific, 2 are blank, and 3 hit known EPS/SVG-gid limitations. The remaining API groups are `matplotlib.scale`, hand-built contour paths, `PdfPages`, two `FT2Font` methods and a few styling helpers. `examples/` now lives at `galleries/examples` in the checkout, so a sparse checkout of that path is enough
+- [x] Harvest the gallery examples — `tools/harvest_matplotlib.py --examples <checkout>` rewrites every script under `galleries/examples`, strips the interactive tail, renders it and writes a per-category gallery whose failures are the gap list. On Matplotlib 3.11.2, 389 of 507 render; 0 need API, 114 are interactive, 3-D, GUI/toolkit or otherwise environment-specific, and 4 are blank because their scripts print text or create no saved figure. `examples/` now lives at `galleries/examples` in the checkout, so a sparse checkout of that path is enough
 - [x] Keep the galleries reproducible — `pytest -m gallery` regenerates all three from local checkouts and skips when they are absent (the default `pytest` run deselects the marker), and CI publishes the HTML plus relative baseline copies as a build artifact
 - [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
 

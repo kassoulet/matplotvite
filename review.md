@@ -1,15 +1,20 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
-Scope: `main` after the compatibility-shim, table, polar and gallery-reference changes. Only open, actionable tasks are listed; closed findings and passive watch items are removed. The examples gallery was regenerated on 15 Nov with the current build.
+Scope: `main` after the 16 Nov gallery fixes. Only open, actionable tasks are listed.
+Results on this tree: Python suite **444 passed, 12 skipped**; `cargo test
+--all-targets` passes (36 tests), and `ruff`, `cargo fmt` and `cargo clippy
+--all-targets -- -D warnings` are clean. The examples gallery was
+regenerated on 16 Nov with the current build and a Pillow-enabled environment.
 
-Results on this tree: Python suite 430 passed, 7 skipped; `ruff`, `cargo fmt`, `cargo clippy` and `cargo test` clean. The `mpl-examples` gallery renders the original script with Matplotlib beside every Matplotvite output, and every comparison row has a collapsible source block, so failed and blank cases have a reference image.
-
-| Gallery | Cases | Rendered | Blank | Failed / needs API | other |
+| Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
 | `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
-| `mpl-examples` (gallery scripts) | 507 | 384 | 2 | 12 needs API | 0 harvester gaps, 3 bugs, 106 unsupported |
+| `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
-The examples gallery is current. The corpus row and its pixel metrics are from the last corpus run; they were not regenerated for this change.
+The examples gallery is current. The corpus row and its pixel metrics are from the
+last corpus run; they were not regenerated for these fixes. The four blank examples
+are scripts whose main effect is printed output or interactive state rather than a
+saved figure.
 
 ## Parity and visible styling
 
@@ -27,17 +32,11 @@ The examples gallery is current. The corpus row and its pixel metrics are from t
 
 | # | Finding |
 |---|---------|
-| G3 | **Remaining examples API gaps (12):** `matplotlib.scale`; hand-built contour paths and manual `clabel`; `PdfPages`; `FT2Font.set_charmap`/`num_named_instances`; `BboxConnector`; radar `set_varlabels`; boxplot/`time_series_histogram` styling. 3-D remains out of scope. |
-| G4 | **Known example failures (3):** `rasterization_demo` saves EPS (only PNG/SVG/PDF/WebP are encoded); `svg_filter_line` and `svg_filter_pie` ask `ElementTree.XMLID` for gids that the SVG backend does not emit yet. |
-| F5 | **Environment cases:** install Pillow in the gallery job (`image_demo`, `image_clip_path`, `demo_annotation_box`, `demo_text_path`, `demo_ribbon_box`, `mathtext_asarray`); `units/*` now uses the bundled converter registry. |
-| E5 | **One-line API gap:** `Axes.set()` raises `AttributeError` on unknown keywords; find which keyword the examples pass that Matplotlib accepts. (`Axes.twin()` now works.) |
-
-## Accounting, tests and trust
-
-| # | Finding |
-|---|---------|
-| G5 | **Environment accounting:** 9 examples need `gi` and 7 need `wx`; `user_interfaces` (25), `widgets` (16) and `animation` (10) are interactive by nature and should be `unsupported` up front. Local runs should also state when `cairosvg`/`pypdfium2` are missing, because SVG/PDF baselines then get no metric. |
-| F7 / N7 | **"Rendered" is not proof of correctness.** It still includes ignored calls (see the per-case `ignored` count). Treat rendered counts as an upper bound and check the remaining float-conversion cases did not merely move into `needs-api`. |
+| G3 | **No remaining examples API errors.** The fresh examples run has 0 `needs-api` and 0 `bug` cases. The 114 unsupported cases are interactive GUI/widgets/animation, 3-D, `axes_grid1`/`axisartist`, and missing third-party modules; the 4 blanks create no saved figure. |
+| G4 | **No known example failures.** EPS output and the previously failing `FT2Font`, custom-scale, custom-projection, polar-bar and boxplot-stat paths now render. SVG gallery post-processing cases are classified as unsupported rather than crashing. |
+| F5 | **Pillow is available in CI and is now installed locally.** `watermark_image` renders; no environment-only `needs-api` case remains. |
+| G5 | **Environment accounting is complete for this run.** Interactive forbears are classified up front, and unsupported counts no longer hide API failures. |
+| F7 / N7 | **"Rendered" is not proof of correctness.** It still includes ignored calls (see the per-case `ignored` count). Treat rendered counts as an upper bound and keep the visual checks above. |
 
 ## Other checks
 
@@ -47,15 +46,15 @@ The examples gallery is current. The corpus row and its pixel metrics are from t
 
 ## Rust crate preparation
 
-Goal: a native Rust crate with the same matplotlib-like API. Today Rust is only a renderer fed by a Python-built `Panel` dict; the API (`Figure`, `Axes`, artists, locators, norms; about 10k lines) lives in Python.
+Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, `Axes`, artists, locators, norms; about 10k lines) still lives in Python.
 
 | # | Task |
 |---|------|
-| R1 | **Split `lib.rs::render`** (about 150 lines of validation, format routing, direct-PNG path and cropping) into `render.rs::render_figure(&Figure, &RenderConfig) -> Result<Vec<u8>, RenderError>`. `lib.rs` keeps only the pyo3 adapter. Replace `Result<_, String>` with an error enum. |
-| R2 | **Move pyo3 out of `model.rs`** (203 pyo3 hits: `FromPyObject`, `OwnedArray*`) into `py.rs` behind `cfg(feature = "python")`; make `pyo3` and `numpy` optional. `draw`, `layout`, `export`, `raster`, `image`, `scale`, `color` and `fonts` are already pyo3-free. Gate: `cargo test --no-default-features` builds without Python. |
+| R1 | **Done.** `src/render.rs::render_figure` now owns validation, format routing, direct-PNG selection, cropping and encoding; `src/lib.rs` is the PyO3 adapter and maps `RenderError` to Python exceptions. |
+| R2 | **Move pyo3 out of `model.rs`** into `py.rs` behind `cfg(feature = "python")`; make `pyo3` and `numpy` optional. `draw`, `layout`, `export`, `raster`, `image`, `scale`, `color` and `fonts` are already pyo3-free. Gate: `cargo test --no-default-features` builds without Python. |
 | R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. |
-| R4 | **Split `draw.rs`** (2,652 lines; `draw_panel` starts at line 1576) by artist (line, scatter, bar, contour, quiver, text, collection) under `draw/`. |
-| R5 | **Add pure-Rust render smoke tests.** Only a few unit tests in `lib.rs` exist; Python tests do not exercise the Rust API directly. Needed before R1/R2 can be trusted without the Python suite. |
+| R4 | **Split `draw.rs`** by artist (line, scatter, bar, contour, quiver, text, collection). The `draw/` modules cover axes, series, ticks, legends and images; the remaining `draw.rs` entry point is still large. |
+| R5 | **Add pure-Rust render smoke tests.** A few unit tests in `lib.rs` exist, but Python tests remain the main coverage of the Rust API. |
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |
 | R7 | **Port the `Axes` API to Rust** from `Axes._panel()`, in `TRACE.md` priority order: `plot`, `scatter`, `bar`, `hist`, `imshow`, `fill_between`, then the rest. Take slices or `ndarray` views, no copies. Optional thread-local `pyplot` layer only if requested. |
 | R8 | **De-duplicate tick logic:** `_nice_step` / `Axis._ticks` in Python and `nice_ticks` / `auto_ticks` in `layout.rs` implement the same thing. Expose the Rust locators, norms and colormap lookup to Python and delete the Python copies. |
@@ -64,7 +63,6 @@ Goal: a native Rust crate with the same matplotlib-like API. Today Rust is only 
 
 ## Suggested order
 
-1. **G4 and G3**: triage the crash groups, then the remaining API gaps.
-2. **G5**: finish the environment accounting.
-3. Rebuild the KARIOS images, re-render the four pairs, and re-judge every "(image)" item listed above.
-4. **R2, R1, R5** first (mechanical, keeps the 430-test Python suite as a safety net), then R3/R4, then R6 onward.
+1. **Visual checks:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and re-judge M2–M5, M11, M12 and M17.
+2. **Corpus refresh:** regenerate `mpl-corpus`; its 113 failures are now the largest concrete gap list.
+3. **R2, R3, R5** first (mechanical, keeps the 444-test Python suite as a safety net), then R4/R6 onward.

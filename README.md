@@ -188,9 +188,10 @@ plt.savefig("contours.png")
 - `step(x, y, where="pre"|"post"|"mid")` and `stairs(values, edges=, baseline=, fill=)` —
   staircase lines, with optional fill to a baseline
   (`where="mid"` places corners at interval midpoints)
-- `boxplot(x, notch=, vert=, patch_artist=, labels=)` — boxes, whiskers, caps,
-  medians and fliers from the 1.5-IQR rule, with notched outlines, horizontal
-  orientation and optional filled boxes
+- `boxplot(x, notch=, vert=, patch_artist=, labels=)` / `bxp(stats, ...)` — boxes,
+  whiskers, caps, medians and fliers from the 1.5-IQR rule, with notched outlines,
+  horizontal orientation and optional filled boxes; `cbook.boxplot_stats` exposes
+  the same calculations for separate plotting
 - `violinplot(dataset, positions=, vert=, widths=)` — Gaussian-KDE violins with
   optional mean, median, extrema and quantile lines
 - `stem(x, y, linefmt=, markerfmt=, basefmt=)` — segments plus markers and a baseline (`orientation="horizontal"` works)
@@ -218,9 +219,10 @@ plt.savefig("contours.png")
 - `axhline`/`axvline`/`axhspan`/`axvspan` — reference lines and bands over axes-fraction
   ranges, resolved against the final limits
 - `hlines(y, xmin, xmax, colors=, linestyles=)` / `vlines(...)` — segment collections with optional `linewidths`
-- `set_xscale("log")`/`set_yscale("log")`, `semilogx`, `semilogy`, `loglog` and the
-  `xscale`/`yscale` pyplot shims — artists and limits map through log10, with base-aware
-  tick labels (`base=` honoured, `symlog` raises)
+- `set_xscale`/`set_yscale`, `semilogx`, `semilogy`, `loglog` and the `xscale`/`yscale`
+  pyplot shims — linear, log (any positive base), `symlog`, `logit`, `asinh`, and
+  `function`/`functionlog` scales, plus classes registered through `register_scale`;
+  positions and limits transform while tick labels stay in data space
 
 ### Gridded data
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=, interpolation=, alpha=)` —
@@ -280,6 +282,9 @@ plt.savefig("contours.png")
   `zoomed_inset_axes` for the common inset-locator calls
 - `subplot_mosaic(...)` with named panels and empty cells
 - `twinx()` / `twiny()` for independent scales on a shared panel
+- `subplot(projection="polar")` and the geographic `aitoff`, `hammer`, `lambert` and
+  `mollweide` projections; custom projection classes registered with
+  `register_projection` receive the base `_set_lim_and_transforms` hook
 - `fig.suptitle(...)` and `fig.subplots(..., sharex=, sharey=, squeeze=)`
 - `style.use`, `style.context`, `style.available`, and `rcParams` style presets
 - `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
@@ -296,7 +301,8 @@ when using matplotvite without Matplotlib installed.
 `get_xlim`/`get_ylim`, `get_position`, `get_window_extent`, `get_visible`/`set_visible`,
 `remove`, `clear`, `add_artist`/`add_patch`, `get_children`, `get_transform`,
 `get_figure`, `get_facecolor`, and `get_alpha`. Visibility, removal, and custom tick
-positions/labels are honoured by the renderer.
+positions/labels are honoured by the renderer. `FT2Font` exposes glyph names,
+`load_char`, and `get_kerning`/`Kerning` for font-inspection scripts.
 
 ### Compatibility no-ops
 
@@ -310,8 +316,7 @@ quiver of arrows. Shims that cannot affect the renderer emit a one-time
 
 ### Not supported
 
-- 3-D axes, tripcolor/tricontour, custom `matplotlib.scale` classes, and other
-  specialised matplotlib modules
+- 3-D axes, tripcolor/tricontour, and other specialised matplotlib modules
 - SVG element gids used by post-processing examples (EPS is written as a
   raster-backed PostScript page rather than a vector one)
 - a pandas `.plot()` backend (planned for 0.7)
@@ -366,9 +371,10 @@ python tools/harvest_seaborn.py --out dist/seaborn-gallery
 
 Each writes an `index.html` and a `manifest.json`; the baseline gallery copies its
 reference images alongside the page so it stays browsable when moved. On the
-Matplotlib 3.11.2 checkout used here, the examples gallery renders **384 of 507**
-scripts: 12 still need API, 106 are interactive or environment-specific, 2 are
-blank, and 3 hit the known EPS/SVG-gid limitations above. The pixel
+Matplotlib 3.11.2 checkout used here, the examples gallery renders **389 of 507**
+scripts: no remaining API errors, 114 are interactive, 3-D, GUI/toolkit or otherwise
+environment-specific, and 4 are blank because their scripts print text or create no
+saved figure. The pixel
 metrics read PNGs through Matplotlib, so without it the corpus gallery still
 renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are
 rasterised at the rendered PNG's size when `pypdfium2`, `cairosvg`, and Ghostscript

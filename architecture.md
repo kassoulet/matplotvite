@@ -33,7 +33,7 @@ flowchart TB
 
     subgraph RS["Rust renderer"]
         MODEL["model.rs<br/>typed Panel / RenderOptions"]
-        CHECK["lib.rs<br/>limits and format checks"]
+        CHECK["render.rs<br/>validation and format routing"]
         LAYOUT["layout.rs<br/>ranges, scales, ticks"]
         DRAW["draw.rs<br/>plotters drawing"]
         SVG["export.rs<br/>SVG fragments and assembly"]
@@ -53,10 +53,11 @@ flowchart TB
     ENCODE --> BYTES
 ```
 
-The important boundary is `src/lib.rs::render`: Python owns path inference and
-input validation conventions; Rust owns rendering and returns encoded bytes.
-Once the NumPy arrays have been copied into `model::Panel`, the GIL is released
-and the native work is independent of Python.
+The important boundary is `src/render.rs::render_figure`: Python owns path
+inference and input validation conventions; `src/lib.rs` only wraps the renderer
+for PyO3 and maps its `RenderError` to Python exceptions. Once the NumPy arrays
+have been copied into `model::Panel`, the GIL is released and the native work is
+independent of Python.
 
 ## Repository map
 
@@ -64,11 +65,12 @@ and the native work is independent of Python.
 |---|---|
 | `python/matplotvite/__init__.py` | Public matplotlib-style API, artist state, GridSpec/SubFigure layout, panel serialisation, output-path handling, and the last-result byte cache. |
 | `python/matplotvite/__init__.pyi` | PEP 561 type surface shipped with the wheel. |
-| `src/lib.rs` | PyO3 entry point, canvas/format validation, output routing, GIL release. |
+| `src/lib.rs` | PyO3 adapter: GIL release, error mapping, and module exports. |
+| `src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
 | `src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
 | `src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |
-| `src/draw.rs` | Plotters drawing of series, axes, text, legends, images, contours, and collections. |
-| `src/fonts.rs` | Registration of the embedded Geist font faces used by the drawing stack. |
+| `src/draw.rs`, `src/draw/*` | Plotters drawing of series, axes, text, legends, images, contours, and collections. |
+| `src/fonts.rs` | Registration of the embedded DejaVu Sans and Geist faces used by the drawing stack. |
 | `src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
 | `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP/EPS encoding. |
 | `src/image.rs` | Image scaling, background compositing, and image-to-PNG helpers. |
@@ -94,7 +96,7 @@ sequenceDiagram
 
     U->>F: savefig(path or format)
     F->>F: validate DPI and canvas, then build panels and options
-    F->>C: BLAKE2b key from dimensions, grid, panel keys, options
+    F->>C: SHA-1 key from dimensions, grid, panel keys, options
     alt key matches last result
         C-->>F: cached encoded bytes
     else cache miss
@@ -167,7 +169,7 @@ There are two caches:
 
 | Cache | Scope | Key | Bound |
 |---|---|---|---|
-| `Figure._render_cache` | Python, per figure | BLAKE2b of dimensions, grid, panel fingerprints, and output options | One encoded result |
+| `Figure._render_cache` | Python, per figure | SHA-1 of dimensions, grid, panel fingerprints, and output options | One encoded result |
 | `PANEL_CACHE` | Rust, process-wide | Panel fingerprint + canvas + grid + top padding + raster mode | 256 fragments or 64 MiB |
 
 The Rust cache stores SVG panel fragments and is used by the vector path. It is
@@ -190,6 +192,8 @@ than a full transform stack:
   collections, and images into the typed records in `src/model.rs`.
 - `RenderOptions` carries format, DPI, transparency, tight-cropping,
   compression, figure title, and figure-level text.
+- Axis transforms cover linear, log, symlog, logit, asinh, function, and registered
+  custom scales; custom projections can override `_set_lim_and_transforms`.
 - The Rust side never imports Python modules or calls back into user code; after
   extraction it works only with copied numeric arrays and strings.
 
@@ -214,6 +218,8 @@ documented in the README.
   suite.
 - The comparison galleries exercise pinned matplotlib and seaborn material;
   their rendered counts are an upper bound because pinned helper code can do
-  part of the work.
+  part of the work. The current Matplotlib examples run renders 389 of 507
+  scripts, with the remaining cases interactive, 3-D, environment-specific, or
+  blank because they create no saved figure.
 - `prek` and CI run formatting, Clippy, Rust tests, Bandit, and the security
   audit. `prek checks` is a required status check for `main`.
