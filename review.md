@@ -7,11 +7,10 @@ tasks are listed. Results on this tree: Python suite **445 passed, 12 skipped**;
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 382 | 5 | 113 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 394 | 5 | 101 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
-The examples gallery is current. The corpus row is from the last corpus run and
-was not regenerated for these fixes.
+Both gallery rows are current. The corpus was regenerated with the same tree.
 
 Closed this cycle: the remaining example API/failure groups (G3/G4), Pillow
 environment handling (F5), default title/label/tick sizes and tick-label handles
@@ -29,7 +28,7 @@ The 3×3 tick-density check is covered by the eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The Matplotlib test corpus is stale.** Its last run was 526 cases: 382 rendered, 113 failed and 26 unsupported. Regenerate it before using the failure list as current work, then work down the highest-frequency failure groups. |
+| V2 | **The refreshed corpus still has 101 failures.** The top groups are categorical string-to-float paths (10), missing `matplotlib.testing` (8), and `_gen_multi_font_text` (6), followed by Colorbar constructor kwargs, colour parsing and Path helpers. Work down these groups before the next corpus refresh. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
