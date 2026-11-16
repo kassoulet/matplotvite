@@ -4362,6 +4362,16 @@ def test_polar_bars_and_theta_limits_clip_to_the_wedge():
     assert blue < 5
 
 
+def test_geographic_projections_render_their_frames(tmp_path):
+    for projection in ("aitoff", "hammer", "lambert", "mollweide"):
+        fig, ax = plt.subplots(subplot_kw={"projection": projection})
+        ax.grid(True)
+        ax.set_title(projection.title())
+        out = tmp_path / f"{projection}.png"
+        fig.savefig(out)
+        assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_polar_bar_linewidths_accept_one_value_per_wedge(tmp_path):
     fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
     bars = ax.bar([0.0, np.pi / 2], [1.0, 1.0], width=np.pi / 4,

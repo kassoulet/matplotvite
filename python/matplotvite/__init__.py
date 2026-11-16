@@ -11174,6 +11174,55 @@ class PolarAxes(Axes):
         return lines, texts
 
 
+class GeoAxes(PolarAxes):
+    """Geographic projection frame drawn with the polar renderer."""
+
+    name = "geo"
+    _geo_height = 0.5
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._polar_thetagrids = []
+        self._polar_rgrids = []
+        self._polar_rmax = 1.0
+        self.xlim = (-1.05, 1.05)
+        self.ylim = (-0.55, 0.55)
+
+    def _limits(self):
+        return self.xlim, self.ylim
+
+    def _polar_grid(self):
+        edge = rcParams.get("axes.edgecolor", "black")
+        grid = rcParams.get("grid.color", "#b0b0b0")
+        lines = []
+        angles = np.linspace(0.0, 2.0 * np.pi, 181)
+        lines.append(_series(np.cos(angles), self._geo_height * np.sin(angles),
+                             "", edge, linewidth=0.8))
+        if self.show_grid:
+            latitude = np.linspace(-np.pi / 2.0, np.pi / 2.0, 91)
+            for longitude in np.linspace(-2.0 * np.pi / 3.0, 2.0 * np.pi / 3.0, 5):
+                lines.append(_series(
+                    np.sin(longitude) * np.cos(latitude),
+                    self._geo_height * np.sin(latitude),
+                    "", grid, linewidth=0.5))
+            longitude = np.linspace(-np.pi, np.pi, 181)
+            for lat in np.deg2rad([-60.0, -30.0, 0.0, 30.0, 60.0]):
+                lines.append(_series(
+                    np.sin(longitude) * np.cos(lat),
+                    np.full(longitude.size, self._geo_height * np.sin(lat)),
+                    "", grid, linewidth=0.5))
+        return lines, []
+
+
+class AitoffAxes(GeoAxes): name = "aitoff"
+class HammerAxes(GeoAxes): name = "hammer"
+class LambertAxes(GeoAxes): name = "lambert"
+class MollweideAxes(GeoAxes): name = "mollweide"
+
+for _geo_axes in (AitoffAxes, HammerAxes, LambertAxes, MollweideAxes):
+    _register_projection(_geo_axes)
+
+
 projections = _Namespace(
     register_projection=_register_projection,
     get_projection_class=_get_projection_class,
