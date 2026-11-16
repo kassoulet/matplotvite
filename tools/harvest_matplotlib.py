@@ -704,6 +704,12 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     except Exception:  # noqa: BLE001
         mpl_units = None
     try:
+        # `import PIL` alone does not expose the Image submodule on all
+        # Pillow versions; load it so gallery snippets can use PIL.Image.
+        from PIL import Image as _pil_image  # noqa: F401
+    except Exception:  # noqa: BLE001
+        pass
+    try:
         from matplotlib.projections.polar import PolarAxes as mpl_polar_axes
     except Exception:  # noqa: BLE001
         mpl_polar_axes = None
