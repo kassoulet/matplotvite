@@ -1,22 +1,26 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
-tasks are listed. Results on this tree: Python suite **449 passed, 12 skipped**;
+tasks are listed. Results on this tree: Python suite **451 passed, 12 skipped**;
 `cargo test --all-targets` passes 36 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 422 | 5 | 73 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 429 | 5 | 66 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
-Both gallery rows are current. The corpus was regenerated with the same tree.
+The example gallery is current. The corpus total is derived from the last full
+run plus the fixed cases re-rendered individually; the whole 526-case corpus has
+not been rerun since every shim.
 
 Closed this cycle: the remaining example API/failure groups (G3/G4), Pillow
 environment handling (F5), default title/label/tick sizes and tick-label handles
-(M12), and the code-level probes for colorbar mappables/text, shared-axis labels,
-twin-axis sides, multiline text and `imshow` antialiasing (M2–M5, M11, M17).
-The 3×3 tick-density check is covered by the eight-tick locator test.
+(M12), standalone `Colorbar(ax, cmap=, norm=, drawedges=)` construction, RGB
+tuple facecolours, and the code-level probes for colorbar mappables/text,
+shared-axis labels, twin-axis sides, multiline text and `imshow` antialiasing
+(M2–M5, M11, M17). The KARIOS legend-order, twin-side and layout fixes are also
+in this tree. The 3×3 tick-density check is covered by the eight-tick locator test.
 
 ## External visual sign-off
 
@@ -28,7 +32,7 @@ The 3×3 tick-density check is covered by the eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The refreshed corpus still has 83 failures.** The multi-font helper group now renders. The largest remaining group is categorical string-to-float paths (10), followed by Colorbar constructor kwargs (3), colour parsing and Path helpers. |
+| V2 | **The refreshed corpus still has 66 failures.** The multi-font helper, categorical `data=`, Colorbar constructor and RGB facecolour groups now render. The remaining failures are spread across Path helpers, EventCollection methods, and projection/text shims. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation

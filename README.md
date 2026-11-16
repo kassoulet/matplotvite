@@ -249,6 +249,8 @@ plt.savefig("contours.png")
 - `contours.clabel(levels=, fmt=, colors=, fontsize=)` — label each contour level
   at the midpoint of its longest segment (`manual=True` raises)
 - `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes
+- `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=)` — standalone
+  colorbar construction with divider geometry and `ColorbarBase` compatibility
 
 ### Axes and layout
 - `figure(figsize=, dpi=, facecolor=, edgecolor=)` / `subplots(...)` pass-through,
