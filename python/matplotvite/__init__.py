@@ -4219,7 +4219,7 @@ class Axes:
     def get_facecolor(self):
         return self.facecolor or rcParams.get("axes.facecolor", "white")
 
-    def set_facecolor(self, color): self.facecolor = str(color)
+    def set_facecolor(self, color): self.facecolor = color
     def get_alpha(self): return self.alpha
     def set_alpha(self, alpha): self.alpha = None if alpha is None else float(alpha)
 

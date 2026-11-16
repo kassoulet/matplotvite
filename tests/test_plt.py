@@ -924,6 +924,17 @@ def test_colorbar_exposes_formatted_tick_labels():
     assert cbar.ax.get_yticks() == [-1, 0, 1]
 
 
+def test_axes_facecolor_accepts_rgb_tuples(tmp_path):
+    fig, ax = plt.subplots()
+    ax.set_facecolor((0, 0, 0))
+    assert ax.get_facecolor() == (0, 0, 0)
+    ax.set_facecolor((0, 0.5, 0, 1))
+    assert ax.get_facecolor() == (0, 0.5, 0, 1)
+    ax.set_facecolor((1, 0, 0, 0.5))
+    assert ax.get_facecolor() == (1, 0, 0, 0.5)
+    fig.savefig(tmp_path / "facecolor.png")
+
+
 def test_standalone_colorbar_constructor_and_dividers(tmp_path):
     fig, ax = plt.subplots(figsize=(4, 2))
     cmap = plt.get_cmap("viridis")
