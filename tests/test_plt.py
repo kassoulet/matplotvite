@@ -948,6 +948,34 @@ def test_colorbar_axes_accept_scale_and_limits(tmp_path):
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_projection_compatibility(tmp_path):
+    from matplotvite.mpl_toolkits.mplot3d import Axes3D
+
+    fig = plt.figure()
+    ax3 = fig.add_subplot(projection="3d")
+    assert isinstance(ax3, plt.Axes3D) and Axes3D is plt.Axes3D
+    ax3.set_box_aspect((2, 1, 1))
+    ax3.set_zlim3d(0, 3)
+    assert ax3.get_zlim3d() == (0.0, 3.0)
+    collection = plt.mcollections.PolyCollection([[[0, 0], [0, 1], [1, 1]]])
+    ax3.add_collection3d(collection, zs=[0], zdir="y")
+
+    skew = fig.add_subplot(projection="skewx")
+    skew.axvline(0)
+
+    polar = fig.add_axes([0.1, 0.1, 0.5, 0.5], polar=True)
+    assert isinstance(polar, plt.PolarAxes)
+    polar.set_theta_direction("clockwise")
+    polar.set_rscale("log")
+    polar.set_rlim(1, 1000)
+    assert polar.get_rscale() == "log"
+    polar.xaxis.get_major_locator().base.set_params(steps=[1, 2, 5])
+
+    out = tmp_path / "projections.png"
+    fig.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_path_helpers_and_event_collection_roundtrip(tmp_path):
     path = plt.Path.unit_rectangle().deepcopy()
     path.vertices *= 2.0

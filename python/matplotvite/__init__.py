@@ -17,7 +17,7 @@ from ._core import __version__, colormaps as _colormaps, render as _render
 _CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
 __all__ = (
-    "Axes", "PolarAxes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
+    "Axes", "Axes3D", "PolarAxes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
     "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "OffsetFrom", "AnchoredOffsetbox", "AnnotationBbox",
     "HandlerTuple", "HandlerLineCollection", "StepPatch", "NonUniformImage",
     "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
@@ -3558,6 +3558,8 @@ class _Axis:
 class _LocatorHandle:
     """Placeholder locator returned before an explicit locator is installed."""
 
+    @property
+    def base(self): return self
     def set_params(self, *args, **kwargs): return None
     def set_nbins(self, *args, **kwargs): return None
     def numticks(self, *args, **kwargs): return 8
@@ -9084,8 +9086,11 @@ class Figure:
         may be passed instead to place the axes on an irregular grid."""
         axes_class = kwargs.pop("axes_class", None)
         projection = kwargs.pop("projection", None)
+        polar = bool(kwargs.pop("polar", False))
         if projection is not None:
             axes_class = _get_projection_class(projection)
+        elif polar:
+            axes_class = PolarAxes
         elif axes_class is None:
             axes_class = Axes
         grid_helper = kwargs.pop("grid_helper", None)
@@ -9202,8 +9207,11 @@ class Figure:
         locator = kwargs.pop("axes_locator", None)
         axes_class = kwargs.pop("axes_class", None)
         projection = kwargs.pop("projection", None)
+        polar = bool(kwargs.pop("polar", False))
         if projection is not None:
             axes_class = _get_projection_class(projection)
+        elif polar:
+            axes_class = PolarAxes
         elif axes_class is None:
             axes_class = Axes
         grid_helper = kwargs.pop("grid_helper", None)
@@ -11495,6 +11503,10 @@ class PolarAxes(Axes):
     def get_rmin(self): return self._polar_rmin
     def get_rlim(self): return (self._polar_rmin, self.get_rmax())
 
+    def set_rscale(self, value, base=10, **kwargs):
+        self.set_yscale(value, base=base, **kwargs)
+    def get_rscale(self): return self.yscale
+
     def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kwargs):
         radii = [float(v) for v in np.asarray(radii, dtype=float).ravel()]
         if labels is None and fmt is not None:
@@ -11586,6 +11598,50 @@ class PolarAxes(Axes):
         return lines, texts
 
 
+class Axes3D(Axes):
+    """Compatibility axes for the Axes3D imports used by gallery tests.
+
+    The renderer is two-dimensional, so collections and limits are accepted
+    and drawn on the flat panel instead of raising a projection error.
+    """
+    name = "3d"
+
+    def __init__(self, *args, **kwargs):
+        if args and not isinstance(args[0], (int, np.integer)):
+            fig = args[0]
+            super().__init__(0)
+            self._fig = fig
+            if len(args) > 1:
+                self.set_position(args[1])
+        else:
+            super().__init__(*args, **kwargs)
+        self._zlim = None
+        self.zaxis = _ProjectionAxis(self)
+
+    def add_collection3d(self, collection, zs=None, zdir="z", **kwargs):
+        self.add_collection(collection)
+        return collection
+
+    def set_xlim3d(self, *args, **kwargs): return self.set_xlim(*args, **kwargs)
+    def set_ylim3d(self, *args, **kwargs): return self.set_ylim(*args, **kwargs)
+    def set_zlim3d(self, bottom=None, top=None, **kwargs):
+        if top is None and bottom is not None:
+            values = np.asarray(bottom, dtype=float).ravel()
+            if values.size == 2:
+                bottom, top = values
+        self._zlim = (0.0 if bottom is None else float(bottom),
+                      1.0 if top is None else float(top))
+        return self._zlim
+    def get_zlim3d(self): return self._zlim or (0.0, 1.0)
+    set_zlim = set_zlim3d
+    get_zlim = get_zlim3d
+
+
+class SkewXAxes(Axes):
+    """Skew projection shim; the common line primitives draw unchanged."""
+    name = "skewx"
+
+
 class GeoAxes(PolarAxes):
     """Geographic projection frame drawn with the polar renderer."""
 
@@ -11643,6 +11699,8 @@ projections = _Namespace(
 )
 register_projection = projections.register_projection
 _register_projection(PolarAxes)
+_register_projection(Axes3D)
+_register_projection(SkewXAxes)
 
 mticker = _Namespace(
     Locator=_NoopLocator, MultipleLocator=_MultipleLocator, FixedLocator=_FixedLocator,
