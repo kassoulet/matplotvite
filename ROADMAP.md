@@ -1,7 +1,7 @@
 # Matplotvite — Roadmap
 
 > Tracking progress toward a NumPy-only, Rust-rendered subset of Matplotlib's static API.
-> TRACE.md baseline: **9 602 / 10 098 call sites covered (95%)** across 91 real-world matplotlib test files.
+> TRACE.md baseline: **9 758 / 10 098 call sites covered (96%)** across 91 real-world matplotlib test files.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `matplotvite` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
