@@ -4264,6 +4264,24 @@ def test_polar_projection_projects_data_and_draws_labels(tmp_path):
     assert "0.5" in svg
 
 
+def test_polar_bars_and_theta_limits_clip_to_the_wedge():
+    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw={"projection": "polar"})
+    ax.set_thetalim(0.0, np.pi / 2)
+    bars = ax.bar([0.0, np.pi], [0.8, 0.8], width=np.pi / 2,
+                  color=["red", "blue"], linewidth=0)
+    assert len(bars) == 1
+    assert isinstance(bars.patches[0], plt.Polygon)
+    ax.plot([0.0, np.pi, 2 * np.pi], [1.0, 1.0, 1.0], color="red", linewidth=5)
+    width, height, rows = decode_png_rgba(fig.savefig(format="png"))
+    red = sum(rows[y][x * 4] > 150 and rows[y][x * 4 + 1] < 100
+              and rows[y][x * 4 + 2] < 100
+              for y in range(height) for x in range(width))
+    blue = sum(rows[y][x * 4 + 2] > 120 and rows[y][x * 4] < 100
+               for y in range(height) for x in range(width))
+    assert red > 50
+    assert blue < 5
+
+
 def test_explicit_legend_labels_replace_internal_labels(tmp_path):
     fig, ax = plt.subplots()
     ax.fill([0, 1, 0], [0, 0, 1], color="red", label="_nolegend_")

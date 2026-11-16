@@ -6721,11 +6721,18 @@ class Axes:
             polar_lines, polar_texts = self._polar_grid()
             projected = []
             for s in series:
-                x, y = self._polar_xy(s["x"], s["y"])
-                projected.append(dict(s, x=x, y=y))
+                for t, r in self._polar_segments(s["x"], s["y"]):
+                    if t.size:
+                        x, y = self._polar_xy(t, r)
+                        projected.append(dict(s, x=x, y=y))
             series = polar_lines + projected
-            bands = [dict(b, x=self._polar_xy(b["x"], b["y"])[0],
-                          y=self._polar_xy(b["x"], b["y"])[1]) for b in bands]
+            clipped_bands = []
+            for b in bands:
+                for t, r in self._polar_segments(b["x"], b["y"]):
+                    if t.size:
+                        x, y = self._polar_xy(t, r)
+                        clipped_bands.append(dict(b, x=x, y=y))
+            bands = clipped_bands
         patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
         collections = [c for c in (_collection_entry(a) for a in self.artists) if c is not None]
         texts = polar_texts + [self._resolve_text(t, x0, x1, y0, y1)
@@ -10485,6 +10492,8 @@ class PolarAxes(Axes):
         self._polar_rgrid_labels = []
         self._polar_thetagrids = []
         self._polar_thetagrid_labels = None
+        self._polar_thetamin = None
+        self._polar_thetamax = None
         self._polar_rlabel_position = 22.5
         self._polar_frame = "circle"
         self._polar_num_vertices = 0
@@ -10575,9 +10584,141 @@ class PolarAxes(Axes):
 
     def set_rlabel_position(self, value): self._polar_rlabel_position = float(value)
     def set_rorigin(self, value): self._polar_rorigin = float(value)
-    def set_thetalim(self, *args, **kwargs): return None
-    def set_thetamin(self, value): return None
-    def set_thetamax(self, value): return None
+
+    def _polar_theta_limits(self):
+        if self._polar_thetamin is None or self._polar_thetamax is None:
+            return None
+        lo, hi = sorted((float(self._polar_thetamin), float(self._polar_thetamax)))
+        return None if hi - lo >= 2.0 * np.pi - 1e-12 else (lo, hi)
+
+    def set_thetalim(self, *args, **kwargs):
+        left = kwargs.pop("left", kwargs.pop("thetamin", None))
+        right = kwargs.pop("right", kwargs.pop("thetamax", None))
+        if args:
+            if len(args) == 1 and np.ndim(args[0]) == 1:
+                left, right = args[0]
+            else:
+                left = args[0] if left is None else left
+                if len(args) > 1 and right is None:
+                    right = args[1]
+        if left is not None:
+            self._polar_thetamin = float(left)
+        if right is not None:
+            self._polar_thetamax = float(right)
+        return self.get_thetalim()
+
+    def set_thetamin(self, value):
+        self._polar_thetamin = np.deg2rad(float(value))
+        return self.get_thetamin()
+
+    def set_thetamax(self, value):
+        self._polar_thetamax = np.deg2rad(float(value))
+        return self.get_thetamax()
+
+    def get_thetamin(self):
+        return np.rad2deg(self._polar_theta_limits()[0]
+                          if self._polar_theta_limits() else 0.0)
+
+    def get_thetamax(self):
+        return np.rad2deg(self._polar_theta_limits()[1]
+                          if self._polar_theta_limits() else 360.0)
+
+    def get_thetalim(self):
+        limits = self._polar_theta_limits()
+        return limits if limits is not None else (0.0, 2.0 * np.pi)
+
+    def _polar_arc(self, radius, start=None, stop=None, count=181):
+        limits = self._polar_theta_limits()
+        if start is None or stop is None:
+            start, stop = limits if limits is not None else (0.0, 2.0 * np.pi)
+        angles = (self._polar_theta_offset
+                  + self._polar_theta_direction * np.linspace(start, stop, count))
+        return radius * np.cos(angles), radius * np.sin(angles)
+
+    def _polar_segments(self, theta, radius):
+        """Split a theta/r path into the pieces inside the theta limits."""
+        theta = np.asarray(theta, dtype=float).ravel()
+        radius = np.asarray(radius, dtype=float).ravel()
+        if theta.size != radius.size:
+            theta, radius = np.broadcast_arrays(theta, radius)
+            theta, radius = theta.ravel(), radius.ravel()
+        limits = self._polar_theta_limits()
+        if limits is None:
+            return [(theta, radius)]
+        lo, hi = limits
+        inside = (theta >= lo - 1e-12) & (theta <= hi + 1e-12)
+        segments, current_t, current_r = [], [], []
+
+        def crossing(i, j, boundary):
+            span = theta[j] - theta[i]
+            if abs(span) < 1e-15:
+                return float(boundary), float(radius[j])
+            fraction = np.clip((boundary - theta[i]) / span, 0.0, 1.0)
+            return float(boundary), float(radius[i] + fraction * (radius[j] - radius[i]))
+
+        for i in range(theta.size):
+            if inside[i]:
+                if not current_t and i > 0:
+                    edge = lo if theta[i] >= lo else hi
+                    t, r = crossing(i - 1, i, edge)
+                    current_t.append(t)
+                    current_r.append(r)
+                current_t.append(float(theta[i]))
+                current_r.append(float(radius[i]))
+            elif current_t:
+                edge = lo if theta[i] < lo else hi
+                t, r = crossing(i - 1, i, edge)
+                current_t.append(t)
+                current_r.append(r)
+                segments.append((np.asarray(current_t), np.asarray(current_r)))
+                current_t, current_r = [], []
+        if current_t:
+            segments.append((np.asarray(current_t), np.asarray(current_r)))
+        return segments
+
+    def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None,
+            label="", align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
+        """Polar bars as filled annular wedges."""
+        theta = _as_f64(x)
+        n = theta.size
+        heights, widths, bases = _fill(height, n), _fill(width, n), _fill(bottom, n)
+        if align not in ("center", "edge"):
+            raise ValueError(f"unsupported align: {align!r}")
+        starts = theta - widths / 2.0 if align == "center" else theta
+        ends = starts + widths
+        colors = _bar_colors(color if color is not None else self._next_color(), n)
+        edges = _bar_colors(edgecolor, n) if edgecolor is not None else None
+        limits = self._polar_theta_limits()
+        wedges = []
+        for i in range(n):
+            start, end = float(starts[i]), float(ends[i])
+            if limits is not None:
+                start, end = max(start, limits[0]), min(end, limits[1])
+            if not (np.isfinite(start) and np.isfinite(end)) or end <= start:
+                continue
+            r0, r1 = float(bases[i]), float(bases[i]) + float(heights[i])
+            if not (np.isfinite(r0) and np.isfinite(r1)):
+                continue
+            if r1 < r0:
+                r0, r1 = r1, r0
+            self._polar_data_max = max(self._polar_data_max, abs(r0), abs(r1))
+            ox, oy = self._polar_arc(r1, start, end, 65)
+            if r0 > 0.0:
+                ix, iy = self._polar_arc(r0, start, end, 65)
+                points = np.column_stack((np.concatenate((ox, ix[::-1])),
+                                          np.concatenate((oy, iy[::-1]))))
+            else:
+                points = np.column_stack((np.concatenate((ox, [0.0])),
+                                          np.concatenate((oy, [0.0]))))
+            face = colors[i % len(colors)] if colors else "#1f77b4"
+            edge = edges[i % len(edges)] if edges else None
+            patch = Polygon(points, closed=True, facecolor=face, edgecolor=edge,
+                            linewidth=0.0 if linewidth is None else float(linewidth),
+                            alpha=alpha, label=label if not wedges else "")
+            self.add_patch(patch)
+            wedges.append(patch)
+        self._update_polar_limits()
+        return _BarContainer(wedges, str(label))
 
     def set_rlim(self, bottom=None, top=None, **kwargs):
         if top is None and bottom is not None:
@@ -10630,32 +10771,38 @@ class PolarAxes(Axes):
 
     def _polar_grid(self):
         rmax = self._polar_rmax_value()
+        limits = self._polar_theta_limits()
         offset, direction = self._polar_theta_offset, self._polar_theta_direction
         edge = rcParams.get("axes.edgecolor", "black")
         grid = rcParams.get("grid.color", "#b0b0b0")
         lines, texts = [], []
 
-        def circle(radius):
-            angles = offset + direction * np.linspace(0.0, 2.0 * np.pi, 181)
-            return radius * np.cos(angles), radius * np.sin(angles)
-
-        if self._polar_frame == "polygon" and self._polar_num_vertices >= 3:
+        if limits is None and self._polar_frame == "polygon" and self._polar_num_vertices >= 3:
             angles = (offset + direction * np.arange(self._polar_num_vertices + 1)
                       * 2.0 * np.pi / self._polar_num_vertices)
             lines.append(_series(rmax * np.cos(angles), rmax * np.sin(angles),
                                  "", edge, linewidth=0.8))
         else:
-            x, y = circle(rmax)
+            x, y = self._polar_arc(rmax)
             lines.append(_series(x, y, "", edge, linewidth=0.8))
+            if limits is not None:
+                for boundary in limits:
+                    angle = offset + direction * boundary
+                    lines.append(_series([0.0, rmax * np.cos(angle)],
+                                         [0.0, rmax * np.sin(angle)],
+                                         "", edge, linewidth=0.8))
 
         for radius in self._polar_rgrids:
             if 0.0 < radius <= rmax:
-                x, y = circle(radius)
+                x, y = self._polar_arc(radius)
                 lines.append(_series(x, y, "", grid, linewidth=0.8))
 
         angles = self._polar_thetagrids or list(np.arange(0.0, 360.0, 45.0))
         for degrees in angles:
-            angle = offset + direction * np.deg2rad(float(degrees))
+            radians = np.deg2rad(float(degrees))
+            if limits is not None and not (limits[0] - 1e-12 <= radians <= limits[1] + 1e-12):
+                continue
+            angle = offset + direction * radians
             lines.append(_series([0.0, rmax * np.cos(angle)],
                                  [0.0, rmax * np.sin(angle)],
                                  "", grid, linewidth=0.8))
@@ -10664,7 +10811,10 @@ class PolarAxes(Axes):
         if labels is None:
             labels = [f"{float(a):g}°" for a in angles]
         for degrees, label in zip(angles, labels):
-            angle = offset + direction * np.deg2rad(float(degrees))
+            radians = np.deg2rad(float(degrees))
+            if limits is not None and not (limits[0] - 1e-12 <= radians <= limits[1] + 1e-12):
+                continue
+            angle = offset + direction * radians
             x, y = rmax * 1.06 * np.cos(angle), rmax * 1.06 * np.sin(angle)
             c, s = np.cos(angle), np.sin(angle)
             ha = "center" if abs(c) < 0.35 else ("left" if c > 0 else "right")
@@ -10674,11 +10824,15 @@ class PolarAxes(Axes):
         if self._polar_rgrids:
             radial_labels = self._polar_rgrid_labels or [
                 f"{float(r):g}" for r in self._polar_rgrids]
-            angle = offset + direction * np.deg2rad(self._polar_rlabel_position)
-            for radius, label in zip(self._polar_rgrids, radial_labels):
-                if 0.0 < radius <= rmax:
-                    _polar_text(texts, radius * np.cos(angle),
-                                radius * np.sin(angle), label, "center", "center")
+            radians = np.deg2rad(self._polar_rlabel_position)
+            if limits is not None and not (limits[0] <= radians <= limits[1]):
+                radians = None
+            if radians is not None:
+                angle = offset + direction * radians
+                for radius, label in zip(self._polar_rgrids, radial_labels):
+                    if 0.0 < radius <= rmax:
+                        _polar_text(texts, radius * np.cos(angle),
+                                    radius * np.sin(angle), label, "center", "center")
         return lines, texts
 
 
