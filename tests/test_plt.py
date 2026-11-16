@@ -1842,6 +1842,29 @@ def test_bbox_connector_shims():
     assert fig is not None
 
 
+def test_axes_set_accepts_artist_properties():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.set(label="main", zorder=2, gid="axes", path_effects=[], rasterized=True)
+    assert fig is not None
+
+
+def test_ft2font_reports_face_properties():
+    from matplotvite import FaceFlags, FT2Font, StyleFlags, ft2font
+
+    font = ft2font.FT2Font("DejaVuSans-Oblique.ttf")
+    assert font.num_named_instances == 0
+    assert font.num_faces == 1
+    assert font.scalable and font.family_name == "DejaVu Sans"
+    assert font.set_charmap(0) is None
+    assert isinstance(font.get_charmap(), dict)
+    assert StyleFlags.ITALIC in font.style_flags
+    assert StyleFlags.BOLD not in font.style_flags
+    assert FaceFlags.SCALABLE in font.face_flags
+    assert FT2Font is ft2font.FT2Font
+    assert [flag.name for flag in StyleFlags] == ["ITALIC", "BOLD"]
+
+
 def test_inset_axes_png_keeps_parent_and_child_content():
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1], color="blue", linewidth=3)

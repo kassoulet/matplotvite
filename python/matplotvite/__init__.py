@@ -30,6 +30,7 @@ __all__ = (
     "projections", "register_projection", "units",
     "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
     "path", "dates", "cbook", "mlab", "font_manager", "ft2font", "FT2Font", "FontProperties", "CapStyle", "JoinStyle",
+    "StyleFlags", "FaceFlags",
     "same_color", "FixedFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
     "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
     "MonthLocator", "DayLocator", "HourLocator", "MinuteLocator", "SecondLocator",
@@ -3522,6 +3523,15 @@ def _spectral_estimates(x, y=None, NFFT=256, Fs=2.0, Fc=0.0, window=None,
     return pxx, np.mean(np.abs(fy) ** 2, axis=0) / norm, pxy, freqs
 
 
+# Matplotlib's `Axes.set` is `Artist.set` plus the Axes-specific aliases below,
+# so an Artist property without a dedicated setter is still accepted (and, for
+# the ones the renderer has no model for, recorded as an ignored shim).
+_AXES_ARTIST_PROPS = frozenset(
+    "agg_filter alpha animated clip_box clip_on clip_path gid in_layout label "
+    "path_effects picker rasterized sketch_params snap url visible zorder".split()
+)
+
+
 class Axes:
     def __init__(self, pos=0, *args, **kwargs):
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
@@ -4651,13 +4661,16 @@ class Axes:
                 self.set_aspect(value)
             else:
                 setter = getattr(self, f"set_{key}", None)
-                if setter is None:
-                    if key in {"frame_on", "xmargin", "ymargin", "axisbelow",
-                               "autoscale_on", "autoscalex_on", "autoscaley_on",
-                               "xbound", "ybound"}:
-                        continue
+                if setter is not None:
+                    setter(value)
+                elif key in _AXES_ARTIST_PROPS:
+                    _ignored(f"Axes.set({key}=...)")
+                elif key in {"frame_on", "xmargin", "ymargin", "axisbelow",
+                             "autoscale_on", "autoscalex_on", "autoscaley_on",
+                             "xbound", "ybound"}:
+                    continue
+                else:
                     raise AttributeError(f"Axes.set() does not support {key!r}")
-                setter(value)
 
     def text(self, x, y, s, fontdict=None, offset=(0.0, 0.0), **kwargs):
         """Place text at (x, y); `transform` may be `ax.transAxes` or
@@ -10166,14 +10179,115 @@ def _findfont(prop=None, **kwargs):
     return "DejaVuSans.ttf"
 
 
+class _FontFlag:
+    """One named FreeType style or face flag."""
+
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self): return f"<FontFlag {self.name}>"
+
+
+class _FontFlagSet:
+    """The flags present on a font face, testable with `flag in font.flags`."""
+
+    def __init__(self, names):
+        self._names = set(names)
+
+    def __contains__(self, flag):
+        return getattr(flag, "name", flag) in self._names
+
+    def __iter__(self): return iter(self._names)
+
+
+class _FontFlagsMeta(type):
+    def __iter__(cls): return iter(cls._members())
+    def __len__(cls): return len(cls._members())
+
+
+class StyleFlags(metaclass=_FontFlagsMeta):
+    """`ft2font.StyleFlags`: the font's style bits."""
+
+    ITALIC = _FontFlag("ITALIC")
+    BOLD = _FontFlag("BOLD")
+
+    @classmethod
+    def _members(cls): return (cls.ITALIC, cls.BOLD)
+
+
+class FaceFlags(metaclass=_FontFlagsMeta):
+    """`ft2font.FaceFlags`: the capabilities of a font face."""
+
+    SCALABLE = _FontFlag("SCALABLE")
+    FIXED_SIZES = _FontFlag("FIXED_SIZES")
+    FIXED_WIDTH = _FontFlag("FIXED_WIDTH")
+    SFNT = _FontFlag("SFNT")
+    HORIZONTAL = _FontFlag("HORIZONTAL")
+    VERTICAL = _FontFlag("VERTICAL")
+    KERNING = _FontFlag("KERNING")
+    FAST_GLYPHS = _FontFlag("FAST_GLYPHS")
+    MULTIPLE_MASTERS = _FontFlag("MULTIPLE_MASTERS")
+    GLYPH_NAMES = _FontFlag("GLYPH_NAMES")
+    EXTERNAL_STREAM = _FontFlag("EXTERNAL_STREAM")
+    HINTER = _FontFlag("HINTER")
+
+    @classmethod
+    def _members(cls):
+        return tuple(getattr(cls, name) for name in (
+            "SCALABLE", "FIXED_SIZES", "FIXED_WIDTH", "SFNT", "HORIZONTAL",
+            "VERTICAL", "KERNING", "FAST_GLYPHS", "MULTIPLE_MASTERS",
+            "GLYPH_NAMES", "EXTERNAL_STREAM", "HINTER"))
+
+
 class FT2Font:
-    """Small font-inspection stand-in backed by the bundled character map."""
+    """Small font-inspection stand-in backed by the bundled DejaVu metrics."""
 
     def __init__(self, filename):
         self.fname = str(filename)
+        name = self.fname.lower()
+        self.num_faces = 1
+        self.num_named_instances = 0
+        self.num_glyphs = 0x2400
+        self.num_fixed_sizes = 0
+        self.family_name = "DejaVu Sans"
+        self.style_name = ("Bold" if "bold" in name else
+                           "Oblique" if "oblique" in name or "italic" in name
+                           else "Book")
+        self.postscript_name = "DejaVuSans"
+        self.scalable = True
+        self.bbox = (-1021, -463, 1793, 1233)
+        self.units_per_EM = 2048
+        self.ascender = 1901
+        self.descender = -483
+        self.height = 2384
+        self.max_advance_width = 3838
+        self.max_advance_height = 2384
+        self.underline_position = -175
+        self.underline_thickness = 90
+        styles = []
+        if "oblique" in name or "italic" in name:
+            styles.append("ITALIC")
+        if "bold" in name:
+            styles.append("BOLD")
+        self.style_flags = _FontFlagSet(styles)
+        self.face_flags = _FontFlagSet((
+            "SCALABLE", "SFNT", "HORIZONTAL", "KERNING", "GLYPH_NAMES"))
+        self._charmap = 0
+        self._size = (12.0, 72.0)
+
+    def set_charmap(self, charmap):
+        """Select a character map; the bundled font only has one."""
+        self._charmap = int(charmap)
+
+    def set_size(self, size, dpi=72):
+        self._size = (float(size), float(dpi))
 
     def get_charmap(self):
         return {code: code for code in range(0x20, 0x100)}
+
+    def get_name_index(self, name):
+        """Index of a named font table entry; the stand-in has none."""
+        return 0
 
     def get_glyph_name(self, glyph_index):
         return f"glyph{glyph_index}"
@@ -10181,7 +10295,7 @@ class FT2Font:
 
 font_manager = _Namespace(FontProperties=FontProperties, findfont=_findfont,
                           fontManager=_Namespace(addfont=lambda path: None))
-ft2font = _Namespace(FT2Font=FT2Font)
+ft2font = _Namespace(FT2Font=FT2Font, StyleFlags=StyleFlags, FaceFlags=FaceFlags)
 gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
                       GridSpecFromSubplotSpec=GridSpecFromSubplotSpec)
 lines = _Namespace(Line2D=Line2D)
