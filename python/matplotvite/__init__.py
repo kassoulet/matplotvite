@@ -6790,6 +6790,18 @@ class Axes:
     def set_in_layout(self, b): self.in_layout = bool(b)
     def get_in_layout(self): return getattr(self, "in_layout", True)
 
+    def _colorbar_tuple(self):
+        entry = self._colorbar
+        if entry is None:
+            return None
+        orientation = entry.get("orientation", "vertical")
+        axis = "x" if orientation == "horizontal" else "y"
+        return (entry["cmap"], entry["vmin"], entry["vmax"], entry["label"],
+                entry.get(f"{axis}scale", "linear") == "log",
+                entry.get(f"{axis}lim"), float(entry.get("log_base", 10.0)),
+                orientation, entry.get("extend", "neither"),
+                bool(entry.get("extendrect", False)))
+
     def _panel(self, dpi=None):
         (x0, x1), (y0, y1) = self._limits()
         dx, dy = x1 - x0, y1 - y0
@@ -6992,14 +7004,7 @@ class Axes:
                                   marker=e["marker"], alpha=e["alpha"], label=e["label"])
                              for e in scatter],
                     arrows=arrows,
-                    colorbar=(
-                        (self._colorbar["cmap"], self._colorbar["vmin"],
-                         self._colorbar["vmax"], self._colorbar["label"],
-                         self._colorbar.get("yscale", "linear") == "log",
-                         self._colorbar.get("ylim"),
-                         float(self._colorbar.get("log_base", 10.0)))
-                        if self._colorbar is not None else None
-                    ),
+                    colorbar=self._colorbar_tuple(),
                     axis_off=self._axis_off,
                     facecolor=_norm_color(self.facecolor or rcParams.get("axes.facecolor")),
                     foreground=_norm_color(rcParams.get("text.color")),
@@ -8704,28 +8709,47 @@ class _ColorbarAxes:
     def get_yticks(self): return self._e.get("ticks") or []
     def get_xticks(self): return self._e.get("ticks") or []
 
-    def set_yscale(self, value, base=10, **kwargs):
+    def _set_scale(self, axis, value, base):
         name = str(value).lower()
         if name not in ("linear", "log"):
             raise NotImplementedError(f"unsupported colorbar scale: {value!r}")
-        self._e["yscale"] = name
+        self._e[f"{axis}scale"] = name
         self._e["log_base"] = float(base)
         return None
 
+    def set_xscale(self, value, base=10, **kwargs):
+        return self._set_scale("x", value, base)
+
+    def set_yscale(self, value, base=10, **kwargs):
+        return self._set_scale("y", value, base)
+
+    def get_xscale(self): return self._e.get("xscale", "linear")
     def get_yscale(self): return self._e.get("yscale", "linear")
 
-    def set_ylim(self, bottom=None, top=None, **kwargs):
-        bottom = kwargs.pop("ymin", bottom)
-        top = kwargs.pop("ymax", top)
-        if top is None and bottom is not None:
-            candidate = np.asarray(bottom, dtype=float).ravel()
+    def _set_lim(self, axis, low, high, kwargs):
+        low = kwargs.pop(f"{axis}min", low)
+        high = kwargs.pop(f"{axis}max", high)
+        if high is None and low is not None:
+            candidate = np.asarray(low, dtype=float).ravel()
             if candidate.size == 2:
-                bottom, top = candidate
-        current = self.get_ylim()
-        bottom = current[0] if bottom is None else float(bottom)
-        top = current[1] if top is None else float(top)
-        self._e["ylim"] = (bottom, top)
-        return self.get_ylim()
+                low, high = candidate
+        current = self.get_xlim() if axis == "x" else self.get_ylim()
+        low = current[0] if low is None else float(low)
+        high = current[1] if high is None else float(high)
+        self._e[f"{axis}lim"] = (low, high)
+        return self.get_xlim() if axis == "x" else self.get_ylim()
+
+    def set_xlim(self, left=None, right=None, **kwargs):
+        return self._set_lim("x", left, right, kwargs)
+
+    def set_ylim(self, bottom=None, top=None, **kwargs):
+        return self._set_lim("y", bottom, top, kwargs)
+
+    def get_xlim(self):
+        limits = self._e.get("xlim")
+        if limits is not None:
+            return tuple(float(v) for v in limits)
+        return (float(self._e.get("vmin", 0.0)), float(self._e.get("vmax", 1.0)))
 
     def get_ylim(self):
         limits = self._e.get("ylim")
@@ -8783,8 +8807,11 @@ class Colorbar:
         if isinstance(ax, dict):
             self._e = ax
             self.ax = _ColorbarAxes(ax)
-            self.dividers = _ColorbarDividers(self.ax, boundaries, orientation, drawedges,
-                                              extend)
+            self.dividers = _ColorbarDividers(
+                self.ax, boundaries,
+                orientation or ax.get("orientation", "vertical"),
+                drawedges or ax.get("drawedges", False),
+                extend or ax.get("extend"))
             return
         if ax is None:
             raise TypeError("Colorbar needs an axes")
@@ -8816,8 +8843,13 @@ class Colorbar:
             hi = 1.0
         if not float(hi) > float(lo):
             lo, hi = float(lo) - 0.5, float(lo) + 0.5
+        orientation = ("horizontal" if str(orientation or "vertical").lower() == "horizontal"
+                       else "vertical")
+        extend = str(extend or "neither").lower()
         entry = dict(cmap=_cmap_name(cmap), vmin=float(lo), vmax=float(hi),
-                     label=str(label), ticks=ticks, format=format)
+                     label=str(label), ticks=ticks, format=format,
+                     orientation=orientation, extend=extend,
+                     extendrect=bool(extendrect))
         ax._colorbar = entry
         fig = getattr(ax, "_fig", None)
         if fig is not None:
@@ -9220,9 +9252,15 @@ class Figure:
             if collection is None:
                 raise ValueError("colorbar needs an image or contour to describe")
             spec = collection._colorbar_spec()
+        orientation = str(kwargs.get("orientation", "vertical")).lower()
+        if orientation not in ("horizontal", "vertical"):
+            raise ValueError(f"unsupported colorbar orientation: {orientation!r}")
         entry = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
                      vmax=float(spec["vmax"]), label=str(label),
-                     ticks=kwargs.get("ticks"), format=kwargs.get("format"))
+                     ticks=kwargs.get("ticks"), format=kwargs.get("format"),
+                     orientation=orientation,
+                     extend=str(kwargs.get("extend", "neither")).lower(),
+                     extendrect=bool(kwargs.get("extendrect", False)))
         axes._colorbar = entry
         self._colorbar = entry
         return Colorbar(entry)

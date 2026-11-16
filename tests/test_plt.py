@@ -948,6 +948,30 @@ def test_colorbar_axes_accept_scale_and_limits(tmp_path):
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_horizontal_colorbar_scale_limits_and_extensions(tmp_path):
+    fig, ax = plt.subplots(figsize=(5, 2))
+    image = ax.imshow(np.arange(100.0).reshape(10, 10) + 1)
+    cbar = fig.colorbar(image, orientation="horizontal", extend="both")
+    cbar.ax.set_xscale("log")
+    cbar.ax.set_xlim(20, 90)
+    assert cbar.ax.get_xscale() == "log"
+    assert cbar.ax.get_xlim() == (20.0, 90.0)
+    panel = ax._panel()
+    assert panel["colorbar"][4] is True
+    assert panel["colorbar"][5] == (20.0, 90.0)
+    assert panel["colorbar"][7:] == ("horizontal", "both", False)
+
+    fig2, ax2 = plt.subplots(figsize=(5, 2))
+    image2 = ax2.imshow(np.arange(100.0).reshape(10, 10) + 1)
+    cbar2 = fig2.colorbar(image2, orientation="horizontal", extend="both",
+                          extendrect=True)
+    assert ax2._panel()["colorbar"][7:] == ("horizontal", "both", True)
+    out = tmp_path / "horizontal-colorbar.png"
+    fig2.savefig(out)
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    assert cbar2.ax.get_xlim() == (1.0, 100.0)
+
+
 def test_axes_facecolor_accepts_rgb_tuples(tmp_path):
     fig, ax = plt.subplots()
     ax.set_facecolor((0, 0, 0))
