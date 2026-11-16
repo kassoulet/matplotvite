@@ -2590,6 +2590,23 @@ def _patch_entry(artist):
     points = []
     if not getattr(artist, "get_visible", lambda: True)():
         return None
+    # `Shadow` wraps an artist and offsets it; for pie wedges the wrapped
+    # wedge's band already holds the polygon geometry.
+    wrapped = getattr(artist, "patch", None)
+    band = getattr(wrapped, "_band", None) if wrapped is not None else None
+    if band is not None:
+        shift = (float(getattr(artist, "ox", 0.0)),
+                 float(getattr(artist, "oy", 0.0)))
+        points = np.column_stack((np.asarray(band["x"], dtype=float) + shift[0],
+                                  np.asarray(band["y"], dtype=float) + shift[1]))
+        return dict(kind="polygon", x=0.0, y=0.0, width=0.0, height=0.0,
+                    points=points.ravel().tolist(),
+                    facecolor=_single_color(_call(wrapped, "get_facecolor")),
+                    edgecolor=_single_color(_call(wrapped, "get_edgecolor")),
+                    linewidth=_number(_call(artist, "get_linewidth"), 1.0),
+                    alpha=_number(_call(artist, "get_alpha"), 1.0),
+                    gid=str(_call(artist, "get_gid") or ""),
+                    label=str(_call(artist, "get_label") or ""))
     vals = [_call(artist, name) for name in
             ("get_x", "get_y", "get_width", "get_height")]
     if all(v is not None for v in vals):

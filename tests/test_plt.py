@@ -1897,14 +1897,20 @@ def test_svg_emits_gids_for_lines_and_patches():
 def test_svg_gid_after_creation_and_pie_wedges():
     import xml.etree.ElementTree as ET
 
+    from matplotvite.offsetbox import Shadow
+
     fig, ax = plt.subplots()
     line, = ax.plot([0, 1], [0, 1])
     line.set_gid("moved-line")
     pie = ax.pie([1, 2, 3])
     pie.wedges[1].set_gid("wedge")
+    shadow = Shadow(pie.wedges[1], -0.01, -0.01)
+    shadow.set_gid("wedge-shadow")
+    ax.add_patch(shadow)
     _, ids = ET.XMLID(fig.savefig(None, format="svg"))
     assert ids["moved-line"].tag.endswith("g")
     assert ids["wedge"].tag.endswith("g")
+    assert ids["wedge-shadow"].tag.endswith("g")
 
 
 def test_savefig_eps_writes_postscript(tmp_path):
