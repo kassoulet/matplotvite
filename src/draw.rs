@@ -7,7 +7,9 @@ use plotters::style::IntoFont;
 
 use crate::color::{color, colormap};
 use crate::image::{base64, image_png, image_rgb};
-use crate::layout::{aspect_datalim, auto_ticks, axis_bounds, panel_ranges, range};
+use crate::layout::{
+    aspect_datalim, auto_ticks, auto_ticks_for, axis_bounds, panel_ranges, range, tick_target,
+};
 use crate::model::{
     Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
 };

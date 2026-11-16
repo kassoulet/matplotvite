@@ -58,13 +58,15 @@ where
             v
         }
     };
+    let x_labels = tick_target((right - left).abs() as f64, 55.0);
+    let y_labels = tick_target((bottom - top).abs() as f64, 45.0);
     let xs: Vec<f64> = match &p.ticks.xticks {
         Some(v) => v.iter().map(|&v| to_chart_x(v)).collect(),
-        None => auto_ticks(x0, x1, p.x_log),
+        None => auto_ticks_for(x0, x1, p.x_log, x_labels),
     };
     let ys: Vec<f64> = match &p.ticks.yticks {
         Some(v) => v.iter().map(|&v| to_chart_y(v)).collect(),
-        None => auto_ticks(y0, y1, p.y_log),
+        None => auto_ticks_for(y0, y1, p.y_log, y_labels),
     };
     let xformat = tick_format(&xs);
     let yformat = tick_format(&ys);

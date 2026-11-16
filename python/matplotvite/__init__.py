@@ -1366,7 +1366,7 @@ def _round_ticks(lo, hi, target=8):
     return out
 
 
-def _auto_ticks(lo, hi, log=False, base=10.0):
+def _auto_ticks(lo, hi, log=False, base=10.0, target=8):
     """Ticks for an axis with none set: decades on a log axis, else round values.
 
     This is `auto_ticks` in `src/layout.rs`; the panel hands the result to the
@@ -1381,7 +1381,7 @@ def _auto_ticks(lo, hi, log=False, base=10.0):
         start, end = _math.ceil(llo), _math.floor(lhi)
         if end >= start and end - start <= 12:
             return [float(base ** k) for k in range(int(start), int(end) + 1)]
-    ticks = _round_ticks(lo, hi)
+    ticks = _round_ticks(lo, hi, target)
     if ticks:
         return ticks
     return [float(v) for v in np.linspace(lo, hi, 6)]
@@ -4587,6 +4587,21 @@ class Axes:
         ticks = ticks[np.isfinite(ticks)]
         return [float(v) for v in ticks] or None
 
+    def _auto_tick_target(self, axis):
+        """Label budget for an auto axis, scaled to its drawn pixel extent."""
+        try:
+            position = self.get_position()
+            figure = self._fig
+            if figure is None:
+                return 8
+            dpi = float(figure.dpi)
+            pixels = (position.width * figure.figsize[0] * dpi if axis == "x"
+                      else position.height * figure.figsize[1] * dpi)
+        except (AttributeError, TypeError, ValueError):
+            return 8
+        per_label = 55.0 if axis == "x" else 45.0
+        return max(3, min(8, int(round(pixels / per_label))))
+
     def _drawn_ticks(self, axis):
         """The positions `_panel` hands the renderer when no ticks were set."""
         base = float(getattr(self, "log_base", 10.0))
@@ -4604,7 +4619,8 @@ class Axes:
             if scale == "logit":
                 return _logit_ticks(lo, hi, self.logit_one_half,
                                     self.logit_use_overline)[0]
-            return _auto_ticks(lo, hi, scale == "log", base)
+            return _auto_ticks(lo, hi, scale == "log", base,
+                               self._auto_tick_target("x"))
         lo, hi = self.get_ylim()
         scale = self.yscale
         if scale == "symlog":
@@ -4612,7 +4628,8 @@ class Axes:
         if scale == "logit":
             return _logit_ticks(lo, hi, self.logit_one_half,
                                 self.logit_use_overline)[0]
-        return _auto_ticks(lo, hi, scale == "log", base)
+        return _auto_ticks(lo, hi, scale == "log", base,
+                           self._auto_tick_target("y"))
 
     def get_xticks(self, minor=False):
         if self._xticks is not None:
@@ -6762,10 +6779,12 @@ class Axes:
         # axis, its gridlines and get_xticks()/get_yticks() hold one list.
         if xticks is None:
             xticks = _auto_ticks(x0, x1, self.xscale == "log",
-                                 float(getattr(self, "log_base", 10.0)))
+                                 float(getattr(self, "log_base", 10.0)),
+                                 self._auto_tick_target("x"))
         if yticks is None:
             yticks = _auto_ticks(y0, y1, self.yscale == "log",
-                                 float(getattr(self, "log_base", 10.0)))
+                                 float(getattr(self, "log_base", 10.0)),
+                                 self._auto_tick_target("y"))
         return dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     font_family=_font_family(),
                     title_family=self.title_family,

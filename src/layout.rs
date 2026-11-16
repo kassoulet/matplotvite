@@ -231,6 +231,12 @@ pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
 
 /// Tick positions in chart space (log axes already transformed).
 pub(crate) fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
+    auto_ticks_for(lo, hi, log, 8)
+}
+
+/// Tick positions with an explicit label budget, used to keep small subplots
+/// from crowding their axis labels.
+pub(crate) fn auto_ticks_for(lo: f64, hi: f64, log: bool, target: usize) -> Vec<f64> {
     if log {
         let (start, end) = (lo.ceil(), hi.floor());
         if end >= start && end - start <= 12.0 {
@@ -245,7 +251,16 @@ pub(crate) fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
             }
         }
     }
-    nice_ticks(lo, hi, 8)
+    nice_ticks(lo, hi, target.clamp(3, 8))
+}
+
+/// Matplotlib's `MaxNLocator` adapts its tick budget to the axis length; keep
+/// roughly one label per `pixels_per_label` pixels, never below three.
+pub(crate) fn tick_target(pixels: f64, pixels_per_label: f64) -> usize {
+    if !pixels.is_finite() || pixels <= 0.0 {
+        return 8;
+    }
+    ((pixels / pixels_per_label.max(1.0)).round() as usize).clamp(3, 8)
 }
 
 #[cfg(test)]
@@ -279,6 +294,21 @@ mod tests {
             nice_ticks(-0.1, 2.1, 8),
             vec![0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
         );
+    }
+
+    #[test]
+    fn tick_target_shrinks_the_budget_for_small_panels() {
+        assert_eq!(tick_target(640.0, 55.0), 8);
+        assert_eq!(tick_target(213.0, 55.0), 4);
+        assert_eq!(tick_target(80.0, 55.0), 3);
+        assert_eq!(tick_target(f64::NAN, 55.0), 8);
+    }
+
+    #[test]
+    fn auto_ticks_honours_an_explicit_small_budget() {
+        let ticks = auto_ticks_for(0.0, 3500.0, false, 4);
+        assert!(ticks.len() <= 5, "too many ticks: {ticks:?}");
+        assert_eq!(ticks.first(), Some(&0.0));
     }
 
     #[test]

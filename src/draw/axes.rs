@@ -38,8 +38,15 @@ where
     if !p.axis_off {
         // Plotters asks the formatter for one value at a time, so fix the
         // axis-wide precision up front from the ticks it will use.
-        let xformat = tick_format(&auto_ticks(x0, x1, p.x_log));
-        let yformat = tick_format(&auto_ticks(y0, y1, p.y_log));
+        // `area` spans the whole figure; the tick budget follows the mapped
+        // plotting rectangle, which is what actually constrains label spacing.
+        let plot_area = chart.plotting_area();
+        let (px0, py0) = plot_area.map_coordinate(&(x0, y1));
+        let (px1, py1) = plot_area.map_coordinate(&(x1, y0));
+        let x_labels = tick_target((px1 - px0).abs() as f64, 55.0);
+        let y_labels = tick_target((py1 - py0).abs() as f64, 45.0);
+        let xformat = tick_format(&auto_ticks_for(x0, x1, p.x_log, x_labels));
+        let yformat = tick_format(&auto_ticks_for(y0, y1, p.y_log, y_labels));
         let x_fmt = move |v: &f64| {
             if manual || p.ticks.hide_xlabels {
                 String::new()
@@ -104,8 +111,8 @@ where
         mesh.label_style((p.font_family.as_str(), label_size).into_font().color(&fg))
             .axis_desc_style((p.font_family.as_str(), desc_size).into_font().color(&fg))
             .axis_style(fg.stroke_width(spine_width))
-            .x_labels(8)
-            .y_labels(8)
+            .x_labels(x_labels)
+            .y_labels(y_labels)
             .x_desc(x_desc)
             .y_desc(y_desc)
             .x_label_formatter(&x_fmt)
