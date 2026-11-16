@@ -948,6 +948,32 @@ def test_colorbar_axes_accept_scale_and_limits(tmp_path):
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_path_helpers_and_event_collection_roundtrip(tmp_path):
+    path = plt.Path.unit_rectangle().deepcopy()
+    path.vertices *= 2.0
+    compound = plt.Path.make_compound_path(path, plt.Path.unit_circle())
+    assert len(compound.vertices) == len(path.vertices) + 65
+    assert len(compound.codes) == len(compound.vertices)
+    transformed = plt.mpath.TransformedPath(compound, plt.mtransforms.Affine2D())
+    assert transformed.get_path() is compound
+
+    coll = plt.mcollections.EventCollection(
+        [0.0, 1.0], orientation="horizontal", color=[1, 0, 0, 1], linewidth=2)
+    assert np.array_equal(coll.get_color(), [1, 0, 0, 1])
+    assert all(np.array_equal(c, [1, 0, 0, 1]) for c in coll.get_colors())
+    coll.add_positions([2.0])
+    assert np.array_equal(coll.get_positions(), [0.0, 1.0, 2.0])
+    coll.set(linestyle="dashed", linewidth=5)
+    assert coll.get_linewidth() == 5.0
+    coll.set_color([0, 1, 1, 1])
+    assert np.array_equal(coll.get_color(), [0, 1, 1, 1])
+
+    fig, ax = plt.subplots()
+    ax.add_collection(coll)
+    fig.add_artist(plt.Rectangle((0, 0), 1, 1), clip=True)
+    fig.savefig(tmp_path / "path-event.png")
+
+
 def test_horizontal_colorbar_scale_limits_and_extensions(tmp_path):
     fig, ax = plt.subplots(figsize=(5, 2))
     image = ax.imshow(np.arange(100.0).reshape(10, 10) + 1)

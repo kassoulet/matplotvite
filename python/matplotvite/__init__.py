@@ -645,6 +645,9 @@ class Path:
     def get_vertices(self): return self.vertices
     def get_codes(self): return self.codes
     def transformed(self, transform): _ignored("Path.transformed"); return self
+    def deepcopy(self): return copy.deepcopy(self)
+    def cleaned(self, transform=None, simplify=False, **kwargs): return self
+    def clip_to_bbox(self, bbox, inside=True): return self
     def __iter__(self): return iter((self.vertices, self.codes))
 
     def get_extents(self, transform=None, **kwargs):
@@ -670,6 +673,30 @@ class Path:
             if _segment_intersects_bbox(start, end, bbox):
                 return True
         return False
+
+    @classmethod
+    def unit_rectangle(cls):
+        vertices = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0],
+                             [0.0, 1.0], [0.0, 0.0]], dtype=float)
+        codes = np.array([cls.MOVETO, cls.LINETO, cls.LINETO, cls.LINETO,
+                          cls.CLOSEPOLY], dtype=np.uint8)
+        return cls(vertices, codes)
+
+    @classmethod
+    def make_compound_path(cls, *paths):
+        if not paths:
+            return cls(np.empty((0, 2)), np.empty(0, dtype=np.uint8))
+        vertices, codes = [], []
+        for path in paths:
+            points = np.asarray(getattr(path, "vertices", path), dtype=float).reshape(-1, 2)
+            vertices.append(points)
+            path_codes = getattr(path, "codes", None)
+            if path_codes is None:
+                path_codes = np.full(len(points), cls.LINETO, dtype=np.uint8)
+                if len(path_codes):
+                    path_codes[0] = cls.MOVETO
+            codes.append(np.asarray(path_codes, dtype=np.uint8))
+        return cls(np.vstack(vertices), np.concatenate(codes))
 
     @classmethod
     def make_compound_path_from_polys(cls, XY):
@@ -729,6 +756,17 @@ class Path:
         codes[0] = cls.MOVETO
         codes[-1] = cls.CLOSEPOLY
         return cls(vertices, codes)
+
+
+class TransformedPath:
+    """Path plus the transform that produced it."""
+
+    def __init__(self, path, transform):
+        self._path = path
+        self._transform = transform
+
+    def get_path(self): return self._path
+    def get_fully_transformed_path(self): return self._path
 
 
 class TextPath(Path):
@@ -852,6 +890,7 @@ class _Transform:
     linscale = 1.0
 
     def transform(self, points): return np.asarray(points, dtype=np.float64)
+    def transform_path(self, path): return path
 
     def __add__(self, other): return self
     def __radd__(self, other): return self
@@ -934,6 +973,10 @@ class _TextArt:
 
     def set_path_effects(self, effects):
         _ignored("Text.set_path_effects")
+        return self
+
+    def set_bbox(self, bbox):
+        self._bbox = bbox
         return self
 
     def set_color(self, color): self._color = color; return self
@@ -2866,8 +2909,10 @@ class PolyCollection(LineCollection):
 
 
 class PathCollection(LineCollection):
-    def __init__(self, paths, **kwargs):
+    def __init__(self, paths, sizes=None, offsets=None, **kwargs):
         self._paths = list(paths)
+        self._sizes = sizes
+        self._offsets = offsets
         segments = []
         for path in self._paths:
             points = np.asarray(getattr(path, "vertices", path), dtype=float).reshape(-1, 2)
@@ -2986,6 +3031,11 @@ class EventCollection(LineCollection):
         self._orientation = orientation
         self._lineoffset = float(lineoffset)
         self._linelength = float(linelength)
+        color = kwargs.pop("color", None)
+        if color is not None and "colors" not in kwargs:
+            kwargs["colors"] = color
+        if "linewidth" in kwargs and "linewidths" not in kwargs:
+            kwargs["linewidths"] = kwargs.pop("linewidth")
         super().__init__(self._event_segments(), **kwargs)
 
     def _event_segments(self):
@@ -3002,6 +3052,36 @@ class EventCollection(LineCollection):
         return self
 
     def get_positions(self): return self._positions.copy()
+    def get_orientation(self): return self._orientation
+    def get_lineoffset(self): return self._lineoffset
+    def get_linelength(self): return self._linelength
+    def get_colors(self):
+        colors = self._colors
+        if colors is None:
+            return []
+        values = np.asarray(colors)
+        if values.ndim == 1:
+            return [values]
+        return [np.asarray(row) for row in values]
+    def get_color(self):
+        colors = self.get_colors()
+        return colors[0] if colors else None
+    def set_linestyle(self, linestyle):
+        self._linestyle = linestyle
+        return self
+    def get_linestyle(self):
+        return getattr(self, "_linestyle", "solid")
+    def set(self, **kwargs):
+        setters = {"linestyle": self.set_linestyle, "ls": self.set_linestyle,
+                   "linewidth": self.set_linewidth, "lw": self.set_linewidth,
+                   "color": self.set_color, "c": self.set_color,
+                   "alpha": self.set_alpha}
+        for key, value in kwargs.items():
+            setter = setters.get(key)
+            if setter is not None:
+                setter(value)
+        return self
+    def add_positions(self, positions): return self.append_positions(positions)
     def set_positions(self, positions):
         self._positions = np.asarray(positions, dtype=float).ravel().copy()
         return self._refresh()
@@ -3103,6 +3183,10 @@ class Line2D:
         return self
 
     def get_transform(self): return getattr(self, "_transform", _Transform())
+    def get_path(self):
+        return Path(np.column_stack([
+            np.asarray(self._series["x"], dtype=float).ravel(),
+            np.asarray(self._series["y"], dtype=float).ravel()]))
     def set_transform(self, transform): self._transform = transform; return self
     def set_agg_filter(self, value): return self
     def set_rasterized(self, value): return self
@@ -4463,7 +4547,7 @@ class Axes:
     def get_aux_axes(self, *args, **kwargs): return self
     def barbs(self, *args, **kwargs): return self.quiver(*args, **kwargs)
 
-    def add_artist(self, artist):
+    def add_artist(self, artist, **kwargs):
         if isinstance(artist, Text):
             self.text(artist._x, artist._y, artist._text)
         elif isinstance(artist, Line2D):
@@ -8350,17 +8434,26 @@ class ContourSet:
         return texts
 
     def get_paths(self):
-        if self._manual is None:
+        if self._manual is not None:
+            out = []
+            for index, group in enumerate(self._manual):
+                level_kinds = (self._manual_kinds[index]
+                               if index < len(self._manual_kinds) else None)
+                for path_index, vertices in enumerate(group):
+                    codes = (level_kinds[path_index] if level_kinds is not None
+                             and path_index < len(level_kinds) else None)
+                    out.append(Path(vertices, codes))
+            return out
+        x, y, z = self._e.get("x"), self._e.get("y"), self._e.get("z")
+        if x is None or y is None or z is None:
             return []
-        out = []
-        for index, group in enumerate(self._manual):
-            level_kinds = (self._manual_kinds[index]
-                           if index < len(self._manual_kinds) else None)
-            for path_index, vertices in enumerate(group):
-                codes = (level_kinds[path_index] if level_kinds is not None
-                         and path_index < len(level_kinds) else None)
-                out.append(Path(vertices, codes))
-        return out
+        paths = []
+        for level in self._e["levels"]:
+            for start, end in _contour_segments(x, y, z, float(level)):
+                paths.append(Path(np.asarray([start, end], dtype=float)))
+        return paths
+
+    def get_transform(self): return _Transform()
 
     def get_arrays(self): return ()
 
@@ -9089,7 +9182,7 @@ class Figure:
             ax.set_axes_locator(locator)
         return ax
 
-    def add_artist(self, artist):
+    def add_artist(self, artist, **kwargs):
         self.artists.append(artist)
         if isinstance(artist, Patch):
             self.patches.append(artist)
@@ -10991,7 +11084,7 @@ colorbar.ColorbarBase = Colorbar
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches
-mpath = _Namespace(Path=Path)
+mpath = _Namespace(Path=Path, TransformedPath=TransformedPath)
 path = mpath
 mcollections = _Namespace(Collection=Collection, LineCollection=LineCollection,
                           PolyCollection=PolyCollection, PatchCollection=PatchCollection,
@@ -11004,6 +11097,7 @@ mmarkers = markers
 image = _Namespace(imread=_imread, NonUniformImage=NonUniformImage)
 colorizer = _Namespace(Colorizer=Colorizer)
 mtransforms = _Namespace(Transform=_Transform, Affine2D=Affine2D, Bbox=_Bbox,
+                         TransformedPath=TransformedPath,
                          BboxTransformTo=_Transform, IdentityTransform=_IdentityTransform,
                          ScaledTranslation=_Transform, TransformedBbox=_TransformedBbox,
                          blended_transform_factory=_blended_transform_factory,
