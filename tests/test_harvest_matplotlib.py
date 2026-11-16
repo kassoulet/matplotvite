@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotvite
 import pytest
+from png_utils import decode_png_rgba
 
 import tools.harvest_matplotlib as harvester
 
@@ -16,6 +17,9 @@ from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
                                       harvest_gallery, prepare_body,
                                       prepare_example, render,
                                       render_matplotlib, source_details)
+
+RADAR_EXAMPLE = (Path(__file__).resolve().parents[1]
+                 / "dist/mpl-src/galleries/examples/specialty_plots/radar_chart.py")
 
 MODULE = '''import matplotlib.pyplot as plt
 import numpy as np
@@ -346,6 +350,32 @@ def test_examples_gallery_marks_out_of_scope_categories(tmp_path):
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "2 out of scope" in index
     assert "1 needs API" in index
+
+
+def test_radar_gallery_example_renders(tmp_path):
+    if not RADAR_EXAMPLE.exists():
+        pytest.skip("Matplotlib gallery checkout is not available")
+    examples = tmp_path / "examples"
+    source = examples / "specialty_plots" / "radar_chart.py"
+    source.parent.mkdir(parents=True)
+    source.write_text(RADAR_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+
+    out = tmp_path / "gallery"
+    assert harvest_examples_gallery(examples, out, out / "manifest.json") == 0
+    cases = {case["id"]: case for case in json.loads(
+        (out / "manifest.json").read_text(encoding="utf-8"))}
+    case = cases["specialty_plots/radar_chart"]
+    assert case["status"] == "rendered", case.get("error")
+
+    image = out / "specialty_plots_radar_chart.png"
+    assert image.exists()
+    width, height, rows = decode_png_rgba(image.read_bytes())
+    assert width >= 800 and height >= 800
+    nonwhite = sum(
+        min(row[i], row[i + 1], row[i + 2]) < 250
+        for y, row in enumerate(rows) if y % 2 == 0
+        for i in range(0, len(row), 8))
+    assert nonwhite > 500
 
 
 def test_requires_gui_skips_toolkit_examples_up_front():
