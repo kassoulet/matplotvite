@@ -48,7 +48,7 @@ jobs:
           python-version: "3.13"
       - name: Run dependency and static security checks
         run: |
-          python -m pip install -c .github/requirements-ci.txt "pip-audit>=2.9"
+          python -m pip install -c .github/requirements-ci.txt "pip-audit>=2.9" bandit
           python tools/security_audit.py
 
   wheels:
