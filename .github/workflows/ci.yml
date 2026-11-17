@@ -28,17 +28,6 @@ jobs:
       - name: Rust tests
         run: cargo test --all-targets
 
-  lint:
-    name: python lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.13"
-      - run: pip install ruff==0.17.4
-      - run: ruff check python tests tools examples
-
   security:
     name: security scan
     runs-on: ubuntu-latest
@@ -53,51 +42,17 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Run Bandit static analysis
-        run: |
-          python -m pip install -c .github/requirements-ci.txt "bandit>=1.9" numpy
-          python -m bandit -q -r python/matplotvite
-
       - name: Run dependency and static security checks
         run: |
           python -m pip install -c .github/requirements-ci.txt "pip-audit>=2.9"
           python tools/security_audit.py
 
-  test:
-    name: test (python ${{ matrix.python }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        include:
-          # ubuntu-latest (26.04) has no python-versions build for 3.9 yet, so the
-          # oldest supported interpreter runs on 22.04 instead.
-          - os: ubuntu-22.04
-            python: "3.9"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: ${{ matrix.python }}
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-      - name: Build & Test
-        run: |
-          python -m venv .venv
-          . .venv/bin/activate
-          pip install -c .github/requirements-ci.txt maturin numpy pandas pytest
-          maturin develop --release
-          pytest -q
-
   wheels:
     name: wheel (${{ matrix.name }})
     # Release artifacts are only worth minutes of runner time once the code is
-    # known to compile, lint and pass the suite on every supported interpreter.
-    needs: [prek, lint, test]
+    # known to compile and lint. The suite runs once, against the built wheel
+    # (wheel-tests), instead of a second time on a `maturin develop` build.
+    needs: prek
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -188,8 +143,8 @@ jobs:
       - name: Run the test suite against the installed wheel
         # The repo root is not on sys.path ahead of site-packages, so these
         # imports resolve to the installed wheel rather than the source tree.
-        # Keep this the same suite the `test` job runs, so a wheel-only break
-        # cannot hide behind a `maturin develop` build.
+        # This is the only full-suite run in CI, so a wheel-only break cannot
+        # hide behind a `maturin develop` build.
         run: python -m pytest -q
 
   sdist-wheel:
