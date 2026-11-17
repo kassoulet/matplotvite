@@ -1,4 +1,4 @@
-use numpy::ndarray::ArrayViewD;
+use ndarray::ArrayViewD;
 use rayon::prelude::*;
 
 use crate::color::colormap;

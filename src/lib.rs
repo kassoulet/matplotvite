@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "python"), allow(dead_code))]
+
 mod cmap_data;
 mod color;
 mod draw;
@@ -13,70 +15,16 @@ mod scale;
 #[doc(hidden)]
 pub mod bench;
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
-use pyo3::prelude::*;
-
-use crate::export::render_pdf_pages;
-use crate::model::{Panel, RenderOptions};
-use crate::render::render_figure;
-
-/// Render a figure and return its encoded bytes. All drawing and validation
-/// happen off the GIL; only the Python exception mapping runs with it held.
-#[pyfunction]
-#[pyo3(name = "render", signature = (size, grid, panels, options))]
-fn render_figure_py(
-    py: Python<'_>,
-    size: (u32, u32),
-    grid: (usize, usize),
-    panels: Vec<Panel>,
-    options: RenderOptions,
-) -> PyResult<Vec<u8>> {
-    py.detach(move || render_figure(size, grid, panels, options))
-        .map_err(|err| {
-            if err.is_value_error() {
-                PyValueError::new_err(err.into_message())
-            } else {
-                PyRuntimeError::new_err(err.into_message())
-            }
-        })
-}
-
-/// Colormap tables as `{name: bytes}` (packed RGB triples).
-#[pyfunction]
-fn colormaps<'py>(py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
-    let d = pyo3::types::PyDict::new(py);
-    for c in cmap_data::cmaps() {
-        d.set_item(
-            c.name,
-            pyo3::types::PyBytes::new(py, c.colors.as_flattened()),
-        )?;
-    }
-    Ok(d)
-}
-
-#[pyfunction]
-#[pyo3(name = "render_pdf_pages")]
-fn render_pdf_pages_py(py: Python<'_>, svgs: Vec<Vec<u8>>, dpis: Vec<f64>) -> PyResult<Vec<u8>> {
-    py.detach(move || render_pdf_pages(&svgs, &dpis))
-        .map_err(PyRuntimeError::new_err)
-}
-
-#[pymodule]
-fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
-    m.add_function(wrap_pyfunction!(colormaps, m)?)?;
-    m.add_function(wrap_pyfunction!(render_figure_py, m)?)?;
-    m.add_function(wrap_pyfunction!(render_pdf_pages_py, m)?)
-}
+#[cfg(feature = "python")]
+mod py;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use plotters::prelude::RGBAColor;
 
     use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
-    use crate::model::PngCompression;
+    use crate::model::{Panel, PngCompression};
 
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));

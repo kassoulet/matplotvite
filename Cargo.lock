@@ -652,6 +652,7 @@ version = "0.6.1-dev"
 dependencies = [
  "ab_glyph",
  "criterion",
+ "ndarray",
  "numpy",
  "pdf-writer",
  "plotters",

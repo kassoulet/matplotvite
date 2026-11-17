@@ -51,7 +51,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 | # | Task |
 |---|------|
 | R1 | **Done.** `src/render.rs::render_figure` owns validation, format routing, direct-PNG selection, cropping and encoding; `src/lib.rs` is the PyO3 adapter and maps `RenderError` to Python exceptions. |
-| R2 | **Move pyo3 out of `model.rs`** into `py.rs` behind `cfg(feature = "python")`; make `pyo3` and `numpy` optional. `draw`, `layout`, `export`, `raster`, `image`, `scale`, `color` and `fonts` are already pyo3-free. Gate: `cargo test --no-default-features` builds without Python. |
+| R2 | **Done.** The PyO3 adapter and NumPy extraction live in `src/py.rs` behind the default `python` feature; `pyo3` and `numpy` are optional dependencies and the model uses plain `ndarray`. Gate: `cargo test --no-default-features` and `cargo clippy --no-default-features -- -D warnings` pass without Python. |
 | R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. |
 | R4 | **Split `draw.rs`** by artist (line, scatter, bar, contour, quiver, text, collection). The `draw/` modules cover axes, series, ticks, legends and images; the remaining `draw.rs` entry point is still large. |
 | R5 | **Done.** `src/render.rs` renders a minimal line panel to PNG and SVG through the pure-Rust path, so high-level drawing is no longer covered only through Python. |
@@ -81,4 +81,4 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
 2. **V2:** no corpus render failures remain; keep the 26 interactive/GUI cases out of scope.
-3. **R2 and R3** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward; R5 is done.
+3. **R3** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward; R2 and R5 are done.

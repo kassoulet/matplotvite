@@ -13,9 +13,14 @@ categories = ["visualization", "api-bindings"]
 name = "_core"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["python"]
+python = ["dep:pyo3", "dep:numpy"]
+
 [dependencies]
-pyo3 = { version = "0.30", features = ["extension-module", "abi3-py39"] }
-numpy = "0.30"
+pyo3 = { version = "0.30", features = ["extension-module", "abi3-py39"], optional = true }
+numpy = { version = "0.30", optional = true }
+ndarray = "0.16"
 png = "0.18"
 plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "svg_backend", "line_series", "ab_glyph"] }
 plotters-backend = "0.3"
