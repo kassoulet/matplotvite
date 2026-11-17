@@ -1,5 +1,6 @@
 //! Manual tick marks, tick labels and colored axis labels.
 
+use super::polyline::draw_dashed;
 use super::*;
 
 /// One label style for every tick on an axis. Using the widest precision in

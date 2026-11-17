@@ -1,6 +1,10 @@
 //! Line series, error bars and scatter markers.
 
 use super::markers::{draw_marker, draw_marker_raster, marker_radius, MAX_MARKER_RADIUS};
+use super::polyline::{
+    clip_polyline, draw_dashed, draw_projected_caps, draw_solid_polyline, has_sharp_join,
+    simplify_polyline,
+};
 use super::*;
 
 /// Draw line series, their raster marker layer, error bars and scatter points.
