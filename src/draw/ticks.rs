@@ -30,7 +30,7 @@ where
     let grid_alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
     let grid_w = p.grid.linewidth.unwrap_or(1.0).max(1.0).round() as u32;
     let grid_style = grid_col.mix(grid_alpha).stroke_width(grid_w);
-    let grid_dash = p.grid.linestyle.as_deref().and_then(dash_pattern);
+    let grid_dash = p.grid.linestyle.and_then(|style| style.dash_pattern());
 
     let to_chart_x = |v: f64| {
         if p.x_log {

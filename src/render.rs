@@ -218,7 +218,7 @@ pub(crate) fn render_figure(
 mod tests {
     use super::*;
     use crate::fonts::SANS_FAMILY;
-    use crate::model::{DrawStyle, Panel, RenderOptions, Series};
+    use crate::model::{DrawStyle, LineStyle, Panel, RenderOptions, Series};
 
     fn smoke_panel() -> Panel {
         Panel {
@@ -235,7 +235,7 @@ mod tests {
                 y: vec![0.0, 1.0, 0.0].into(),
                 label: "line".to_string(),
                 color: "#1f77b4".to_string(),
-                linestyle: "-".to_string(),
+                linestyle: LineStyle::Solid,
                 linewidth: 1.5,
                 markersize: 6.0,
                 mew: 1.0,

@@ -633,15 +633,6 @@ where
 }
 
 /// Map a matplotlib linestyle name onto a dash/gap length in pixels.
-fn dash_pattern(linestyle: &str) -> Option<(f64, f64)> {
-    match linestyle {
-        "--" | "dashed" => Some((3.7, 1.6)),
-        ":" | "dotted" => Some((1.0, 1.65)),
-        "-." | "dashdot" => Some((6.4, 1.6)),
-        _ => None,
-    }
-}
-
 /// Stroke a polyline as dashes, in panel-local pixels.
 /// A corner where matplotlib's round join is visibly different from the
 /// backend's union of butt-ended segments. Pixel-quantised dense data has many

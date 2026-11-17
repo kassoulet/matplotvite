@@ -183,6 +183,48 @@ impl DrawStyle {
     }
 }
 
+/// The stroke pattern used by a line or gridline.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum LineStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+    DashDot,
+    Hidden,
+}
+
+impl LineStyle {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "-" | "solid" => Some(Self::Solid),
+            "--" | "dashed" => Some(Self::Dashed),
+            ":" | "dotted" => Some(Self::Dotted),
+            "-." | "dashdot" => Some(Self::DashDot),
+            "none" => Some(Self::Hidden),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn is_hidden(self) -> bool {
+        matches!(self, Self::Hidden)
+    }
+
+    pub(crate) fn is_dashed(self) -> bool {
+        matches!(self, Self::Dashed | Self::Dotted | Self::DashDot)
+    }
+
+    /// Dash and gap lengths in multiples of the line width.
+    pub(crate) fn dash_pattern(self) -> Option<(f64, f64)> {
+        match self {
+            Self::Dashed => Some((3.7, 1.6)),
+            Self::Dotted => Some((1.0, 1.65)),
+            Self::DashDot => Some((6.4, 1.6)),
+            Self::Solid | Self::Hidden => None,
+        }
+    }
+}
+
 /// One `plot` call, including its styling keywords.
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
@@ -196,7 +238,7 @@ pub(crate) struct Series {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) color: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linestyle: String,
+    pub(crate) linestyle: LineStyle,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) linewidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -501,7 +543,7 @@ pub(crate) struct Grid {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linestyle: Option<String>,
+    pub(crate) linestyle: Option<LineStyle>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) axis: String,
     #[cfg_attr(feature = "python", pyo3(item))]

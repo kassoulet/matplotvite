@@ -79,21 +79,21 @@ where
             Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),
             None => color(&s.color).mix(1.0),
         };
-        if s.linestyle == "None" {
+        if s.linestyle.is_hidden() {
             if !s.label.is_empty() && !s.marker.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
                     swatch: LegendSwatch::Marker(col, s.marker.clone()),
                 });
             }
-        } else if matches!(s.linestyle.as_str(), ":" | "--" | "-.") {
+        } else if s.linestyle.is_dashed() {
             let lw = s.linewidth.max(1.0);
             // Matplotlib scales its dash sequences by line width.
-            let (dash, gap) = match s.linestyle.as_str() {
-                ":" => (lw, lw * 1.65),
-                "--" => (lw * 3.7, lw * 1.6),
-                _ => (lw * 6.4, lw * 1.6),
-            };
+            let (dash, gap) = s
+                .linestyle
+                .dash_pattern()
+                .map(|(dash, gap)| (lw * dash, lw * gap))
+                .unwrap_or((lw * 3.7, lw * 1.6));
             let (px, clip) = {
                 let chart_area = chart.plotting_area();
                 let (xr, yr) = chart_area.get_pixel_range();

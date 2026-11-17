@@ -24,7 +24,7 @@ mod tests {
 
     use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
-    use crate::model::{DrawStyle, Panel, PngCompression};
+    use crate::model::{DrawStyle, LineStyle, Panel, PngCompression};
 
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
@@ -48,6 +48,17 @@ mod tests {
         assert_eq!(DrawStyle::parse("steps-mid"), Some(DrawStyle::StepsMid));
         assert_eq!(DrawStyle::parse("steps-post"), Some(DrawStyle::StepsPost));
         assert_eq!(DrawStyle::parse("steps-middle"), None);
+    }
+
+    #[test]
+    fn linestyle_parses_names_and_aliases() {
+        assert_eq!(LineStyle::parse("-"), Some(LineStyle::Solid));
+        assert_eq!(LineStyle::parse("dashed"), Some(LineStyle::Dashed));
+        assert_eq!(LineStyle::parse("."), None);
+        assert_eq!(LineStyle::parse(":"), Some(LineStyle::Dotted));
+        assert_eq!(LineStyle::parse("-."), Some(LineStyle::DashDot));
+        assert_eq!(LineStyle::parse("None"), Some(LineStyle::Hidden));
+        assert_eq!(LineStyle::parse("bogus"), None);
     }
 
     #[test]
