@@ -1,5 +1,6 @@
 //! Line series, error bars and scatter markers.
 
+use super::markers::{draw_marker, draw_marker_raster, marker_radius, MAX_MARKER_RADIUS};
 use super::*;
 
 /// Draw line series, their raster marker layer, error bars and scatter points.

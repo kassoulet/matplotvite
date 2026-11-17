@@ -1,5 +1,6 @@
 //! Legend obstacle collection and placement.
 
+use super::markers::draw_marker;
 use super::*;
 
 use crate::model::Legend;
