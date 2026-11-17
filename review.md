@@ -59,7 +59,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 | R7 | **Port the `Axes` API to Rust** from `Axes._panel()`, in `TRACE.md` priority order: `plot`, `scatter`, `bar`, `hist`, `imshow`, `fill_between`, then the rest. Take slices or `ndarray` views, no copies. Optional thread-local `pyplot` layer only if requested. |
 | R8 | **De-duplicate tick logic:** `_nice_step` / `Axis._ticks` in Python and `nice_ticks` / `auto_ticks` in `layout.rs` implement the same thing. Expose the Rust locators, norms and colormap lookup to Python and delete the Python copies. |
 | R9 | **Shared golden-image test set** rendering the same scenes through the Python wrapper and the Rust crate, so the two front ends cannot drift. |
-| R10 | **Decide the output paths:** the direct-PNG and SVG paths produce slightly different output; choose whether the crate exposes one or both before the API is public. |
+| R10 | **Done — expose both paths.** Keep the direct raster path for PNG/WebP/EPS and the vector SVG/PDF path; PNG uses the direct path when eligible and falls back to rasterized SVG. R5 pins both paths; R9 will add the shared golden comparison. |
 
 ## KARIOS lacraux comparison (16 Nov)
 
