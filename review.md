@@ -11,7 +11,8 @@ tasks are listed. Results on this tree: Python suite **475 passed, 9 skipped**;
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
 Both totals are from full runs on this tree. The 526-case corpus was rerun after
-the projection, `imread`, and corpus compatibility fixes.
+the projection, `imread`, and corpus compatibility fixes; the final sample-data
+case was confirmed separately when its harness path was wired through.
 
 Closed this cycle: the remaining example API/failure groups (G3/G4), Pillow
 environment handling (F5), default title/label/tick sizes and tick-label handles
