@@ -6429,15 +6429,17 @@ class Axes:
             self.scatter(x, y, s=36, c=c, marker=marker)
 
     def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
-                alpha=None, **kwargs):
+                alpha=None, locator=None, **kwargs):
         """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
         followed by `levels`. Matplotlib contour kwargs are accepted."""
-        return self._add_contour(args, levels, colors, cmap, False, linewidths, alpha)
+        return self._add_contour(args, levels, colors, cmap, False, linewidths,
+                                 alpha, locator)
 
     def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
-                 alpha=None, **kwargs):
+                 alpha=None, locator=None, **kwargs):
         """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
-        return self._add_contour(args, levels, colors, cmap, True, linewidths, alpha)
+        return self._add_contour(args, levels, colors, cmap, True, linewidths,
+                                 alpha, locator)
 
     def triplot(self, *args, **kwargs):
         """Draw the edges of an unstructured triangular grid.
@@ -6501,9 +6503,10 @@ class Axes:
             self.triplot(triangulation, color=edgecolors)
         return image
 
-    def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None, alpha=None):
+    def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None,
+                     alpha=None, locator=None):
         x, y, z, levels = _contour_args(args, levels)
-        levels = _levels(z, levels, allow_single=not filled)
+        levels = _levels(z, levels, allow_single=not filled, locator=locator)
         if linewidths is None:
             widths = []
         elif np.isscalar(linewidths):
@@ -8184,10 +8187,19 @@ def _err_pair(err, n, name):
     raise ValueError(f"{name} must be a scalar, a length-{n} array, or shape (2, {n})")
 
 
-def _levels(z, levels, allow_single=False):
+def _levels(z, levels, allow_single=False, locator=None):
     lo, hi = float(np.nanmin(z)), float(np.nanmax(z))
     if not hi > lo:
         hi = lo + 1.0
+    if locator is not None and levels is None:
+        values = np.asarray(locator.tick_values(lo, hi), dtype=float).ravel()
+        values = values[np.isfinite(values)]
+        if isinstance(locator, _LogLocator) and values.size:
+            base = locator.base if locator.base > 1.0 else 10.0
+            values = np.concatenate(([values[0] / base], values,
+                                     [values[-1] * base]))
+        if values.size >= (1 if allow_single else 2):
+            return [float(v) for v in np.unique(values)]
     if levels is None:
         return [float(v) for v in np.linspace(lo, hi, 7)]
     if isinstance(levels, (int, np.integer)):
@@ -8631,7 +8643,7 @@ class ContourSet:
 
     def _colorbar_spec(self):
         lv = self._e["levels"]
-        return dict(cmap=self._e["cmap"], vmin=lv[0], vmax=lv[-1])
+        return dict(cmap=self._e["cmap"], vmin=lv[0], vmax=lv[-1], ticks=lv)
 
 
 class BboxImage:
@@ -9567,7 +9579,9 @@ class Figure:
             raise ValueError(f"unsupported colorbar orientation: {orientation!r}")
         entry = dict(cmap=str(spec["cmap"]), vmin=float(spec["vmin"]),
                      vmax=float(spec["vmax"]), label=str(label),
-                     ticks=kwargs.get("ticks"), format=kwargs.get("format"),
+                     ticks=(kwargs["ticks"] if "ticks" in kwargs
+                            else spec.get("ticks")),
+                     format=kwargs.get("format"),
                      orientation=orientation,
                      extend=str(kwargs.get("extend", "neither")).lower(),
                      extendrect=bool(kwargs.get("extendrect", False)),
