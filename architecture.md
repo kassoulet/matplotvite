@@ -236,7 +236,7 @@ documented in the README.
   part of the work. The current Matplotlib examples run renders 389 of 507
   scripts, with the remaining cases interactive, 3-D, environment-specific, or
   blank because they create no saved figure. The full `@image_comparison`
-  corpus renders 450 of 526 cases (45 failed, 26 unsupported, 5 blank); backend
+  corpus renders 488 of 526 cases (7 failed, 26 unsupported, 5 blank); backend
   and projection cases render, including PngSuite through the standard-library
   PNG reader.
 - `prek` and CI run formatting, Clippy, Rust tests, Bandit, and the security

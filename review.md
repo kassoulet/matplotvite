@@ -1,17 +1,17 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
-tasks are listed. Results on this tree: Python suite **456 passed, 12 skipped**;
+tasks are listed. Results on this tree: Python suite **475 passed, 9 skipped**;
 `cargo test --all-targets` passes 36 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 450 | 5 | 45 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 488 | 5 | 7 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
 Both totals are from full runs on this tree. The 526-case corpus was rerun after
-the projection and `imread` fixes.
+the projection, `imread`, and corpus compatibility fixes.
 
 Closed this cycle: the remaining example API/failure groups (G3/G4), Pillow
 environment handling (F5), default title/label/tick sizes and tick-label handles
@@ -19,11 +19,14 @@ environment handling (F5), default title/label/tick sizes and tick-label handles
 colorbars with axis scale/limits and extension geometry, RGB tuple facecolours,
 Path/EventCollection compatibility helpers, colorbar `extendfrac`, 3-D/skew
 projection compatibility, `polar=True` axes construction, standard-library PNG
-`imread`, and the code-level probes for colorbar mappables/text, shared-axis
+`imread` (with generated tests for every PNG colour type and 1/2/4/8/16-bit
+depth), and the code-level probes for colorbar mappables/text, shared-axis
 labels, twin-axis sides, multiline text and `imshow` antialiasing (M2–M5, M11,
-M17). The KARIOS legend-order, twin-side and
-layout fixes are also in this tree. The 3×3 tick-density check is covered by the
-eight-tick locator test.
+M17). The corpus pass also fixed normalization subclassing, gridspec figure
+wiring, masked units, contour label placement, and pandas `data=` label and
+date-index handling. The KARIOS legend-order, twin-side and layout fixes are
+also in this tree. The 3×3 tick-density check is covered by the eight-tick
+locator test.
 
 ## External visual sign-off
 
@@ -35,7 +38,7 @@ eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The refreshed corpus still has 45 failures.** Backend PDF/PS/SVG and projection cases now render, including `test_png/test_pngsuite` through the standard-library PNG `imread`; the two PS transparency cases are blank because every artist is intentionally `alpha=0`. The remaining failures are scattered API gaps plus harness limitations such as parametrised snippets. |
+| V2 | **The refreshed corpus has 7 failures.** Backend PDF/PS/SVG and projection cases now render, including `test_png/test_pngsuite` through the standard-library PNG `imread`; the two PS transparency cases are blank because every artist is intentionally `alpha=0`. The remaining failures are one missing Matplotlib sample-data file, three advanced contour cases (non-rectilinear grid, log-level locator, single-level manual contour), bivariate colormaps, and two widget cases. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
@@ -74,5 +77,5 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
-2. **V2:** work down the 45-case corpus gap list; the backend and projection groups now render.
-3. **R2, R3, R5** first (mechanical, with the 456-test Python suite as a safety net), then R4/R6 onward.
+2. **V2:** work down the 7-case corpus gap list; the backend and projection groups now render.
+3. **R2, R3, R5** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward.

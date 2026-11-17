@@ -44,7 +44,7 @@ SKIP_RE = re.compile(r"pytest\.|check_figures_equal\(|\binput\(|themes\.|savefig
 
 # Imports the renderer supplies itself or never needs: pytest is a test-only
 # dependency, and bodies that use it are skipped by SKIP_RE.
-STRIPPED_IMPORTS = ("matplotlib", "mpl_toolkits", "numpy", "pytest")
+STRIPPED_IMPORTS = ("matplotlib", "mpl_toolkits", "numpy", "pytest", "cycler")
 
 # The toolkit shims ship inside matplotvite so the wheel never shadows
 # Matplotlib's own top-level `mpl_toolkits` namespace.
@@ -761,9 +761,20 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     namespace.update({name: getattr(matplotvite, name)
                       for name in sorted(getattr(matplotvite, "__all__", ()), key=str)
                       if hasattr(matplotvite, name)})
+    def remove_ticks_and_titles(fig):
+        """Test helper used by colourizer snippets."""
+        for ax in fig.axes:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_title("")
+            ax.set_xlabel("")
+            ax.set_ylabel("")
+
     namespace.update({
         "assert_array_almost_equal": np.testing.assert_array_almost_equal,
+        "assert_array_almost_equal_nulp": np.testing.assert_array_almost_equal_nulp,
         "assert_array_equal": np.testing.assert_array_equal,
+        "remove_ticks_and_titles": remove_ticks_and_titles,
         "matplotvite": matplotvite,
     })
     # Imports are stripped from the snippets, so resolve the names they would

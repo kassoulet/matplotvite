@@ -1,6 +1,8 @@
 import datetime
 import os
 import re
+import struct
+import zlib
 
 import numpy as np
 import pytest
@@ -4611,11 +4613,11 @@ def test_signal_processing_axes_methods(tmp_path):
     assert psd.shape == freqs.shape
     csd, freqs = axs[0, 2].csd(x, y, NFFT=64, Fs=100)
     assert csd.shape == freqs.shape
-    magnitude, freqs = axs[1, 0].magnitude_spectrum(x, Fs=100)
+    magnitude, freqs, _ = axs[1, 0].magnitude_spectrum(x, Fs=100)
     assert magnitude.shape == freqs.shape
-    phase, freqs = axs[1, 1].phase_spectrum(x, Fs=100)
+    phase, freqs, _ = axs[1, 1].phase_spectrum(x, Fs=100)
     assert phase.shape == freqs.shape
-    angle, freqs = axs[1, 2].angle_spectrum(x, Fs=100)
+    angle, freqs, _ = axs[1, 2].angle_spectrum(x, Fs=100)
     assert angle.shape == freqs.shape
     lags, corr, _, _ = axs[2, 0].xcorr(x, y, maxlags=20, normed=True)
     assert lags.shape == corr.shape == (41,)
@@ -5119,6 +5121,122 @@ def test_asinh_scale_renders_with_linear_width(tmp_path):
     ax.set_yscale("asinh", linear_width=0.5)
     assert ax.get_yscale() == "asinh"
     fig.savefig(tmp_path / "asinh.png")
+
+
+def _png_chunk(kind, payload):
+    return (struct.pack(">I", len(payload)) + kind + payload
+            + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF))
+
+
+def _pack_png_samples(samples, depth):
+    """Pack one scanline at a PNG bit depth, including sub-byte depths."""
+    if depth == 8:
+        return bytes(samples)
+    if depth == 16:
+        return b"".join(struct.pack(">H", int(value)) for value in samples)
+    packed = bytearray()
+    per_byte = 8 // depth
+    for start in range(0, len(samples), per_byte):
+        byte = 0
+        for offset, value in enumerate(samples[start:start + per_byte]):
+            byte |= (int(value) & ((1 << depth) - 1)) << (8 - depth * (offset + 1))
+        packed.append(byte)
+    return bytes(packed)
+
+
+def _write_png(path, width, height, depth, color, rows, palette=None,
+               transparency=None):
+    chunks = [_png_chunk(
+        b"IHDR", struct.pack(">IIBBBBB", width, height, depth, color, 0, 0, 0))]
+    if palette is not None:
+        chunks.append(_png_chunk(b"PLTE", palette))
+    if transparency is not None:
+        chunks.append(_png_chunk(b"tRNS", transparency))
+    raw = b"".join(b"\x00" + _pack_png_samples(row, depth) for row in rows)
+    chunks.append(_png_chunk(b"IDAT", zlib.compress(raw)))
+    chunks.append(_png_chunk(b"IEND", b""))
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"".join(chunks))
+
+
+@pytest.mark.parametrize(
+    "name,depth,color,rows,palette,transparency,expected",
+    [
+        pytest.param("gray-1", 1, 0, [[0, 1], [1, 0]], None, None,
+                     [[0, 1], [1, 0]], id="gray-1"),
+        pytest.param("gray-2", 2, 0, [[0, 1], [2, 3]], None, None,
+                     [[0, 1 / 3], [2 / 3, 1]], id="gray-2"),
+        pytest.param("gray-4", 4, 0, [[0, 5], [10, 15]], None, None,
+                     [[0, 5 / 15], [10 / 15, 1]], id="gray-4"),
+        pytest.param("gray-8", 8, 0, [[0, 64], [128, 255]], None, None,
+                     [[0, 64 / 255], [128 / 255, 1]], id="gray-8"),
+        pytest.param("gray-16", 16, 0, [[0, 16384], [32768, 65535]], None, None,
+                     [[0, 16384 / 65535], [32768 / 65535, 1]], id="gray-16"),
+        pytest.param(
+            "rgb-8", 8, 2,
+            [[255, 0, 0, 0, 255, 0], [0, 0, 255, 255, 255, 0]], None, None,
+            [[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [1, 1, 0]]], id="rgb-8"),
+        pytest.param(
+            "rgb-16", 16, 2,
+            [[65535, 0, 0, 0, 65535, 0], [0, 0, 65535, 65535, 65535, 0]],
+            None, None,
+            [[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [1, 1, 0]]], id="rgb-16"),
+        pytest.param(
+            "palette-1", 1, 3, [[0, 1], [1, 0]],
+            bytes([255, 0, 0, 0, 255, 0]), None,
+            [[[1, 0, 0], [0, 1, 0]], [[0, 1, 0], [1, 0, 0]]], id="palette-1"),
+        pytest.param(
+            "palette-2", 2, 3, [[0, 1], [2, 0]],
+            bytes([255, 0, 0, 0, 255, 0, 0, 0, 255]), None,
+            [[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [1, 0, 0]]], id="palette-2"),
+        pytest.param(
+            "palette-4", 4, 3, [[0, 1], [2, 0]],
+            bytes([255, 0, 0, 0, 255, 0, 0, 0, 255]), None,
+            [[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [1, 0, 0]]], id="palette-4"),
+        pytest.param(
+            "palette-8", 8, 3, [[0, 1], [2, 0]],
+            bytes([255, 0, 0, 0, 255, 0, 0, 0, 255]), None,
+            [[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [1, 0, 0]]], id="palette-8"),
+        pytest.param(
+            "palette-trns", 8, 3, [[0, 1], [1, 0]],
+            bytes([255, 0, 0, 0, 255, 0]), bytes([255, 128]),
+            [[[1, 0, 0, 1], [0, 1, 0, 128 / 255]],
+             [[0, 1, 0, 128 / 255], [1, 0, 0, 1]]], id="palette-trns"),
+        pytest.param(
+            "gray-alpha-8", 8, 4, [[0, 255, 128, 64], [128, 255, 0, 64]],
+            None, None,
+            [[[0, 0, 0, 1], [128 / 255, 128 / 255, 128 / 255, 64 / 255]],
+             [[128 / 255, 128 / 255, 128 / 255, 1],
+              [0, 0, 0, 64 / 255]]], id="gray-alpha-8"),
+        pytest.param(
+            "gray-alpha-16", 16, 4,
+            [[0, 65535, 16384, 32768], [32768, 65535, 0, 16384]], None, None,
+            [[[0, 0, 0, 1],
+              [16384 / 65535, 16384 / 65535, 16384 / 65535, 32768 / 65535]],
+             [[32768 / 65535, 32768 / 65535, 32768 / 65535, 1],
+              [0, 0, 0, 16384 / 65535]]], id="gray-alpha-16"),
+        pytest.param(
+            "rgba-8", 8, 6,
+            [[255, 0, 0, 255, 0, 255, 0, 128], [0, 0, 255, 0, 255, 255, 0, 255]],
+            None, None,
+            [[[1, 0, 0, 1], [0, 1, 0, 128 / 255]],
+             [[0, 0, 1, 0], [1, 1, 0, 1]]], id="rgba-8"),
+        pytest.param(
+            "rgba-16", 16, 6,
+            [[65535, 0, 0, 65535, 0, 65535, 0, 32768],
+             [0, 0, 65535, 0, 65535, 65535, 0, 65535]],
+            None, None,
+            [[[1, 0, 0, 1], [0, 1, 0, 32768 / 65535]],
+             [[0, 0, 1, 0], [1, 1, 0, 1]]], id="rgba-16"),
+    ],
+)
+def test_imread_decodes_png_formats(tmp_path, name, depth, color, rows, palette,
+                                    transparency, expected):
+    """`imread` covers PNG colour types and every standard bit depth."""
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color]
+    path = tmp_path / f"{name}.png"
+    _write_png(path, len(rows[0]) // channels, len(rows), depth, color, rows,
+               palette=palette, transparency=transparency)
+    np.testing.assert_allclose(plt.imread(path), np.asarray(expected, dtype=float))
 
 
 def test_imread_decodes_png_without_pillow(tmp_path):

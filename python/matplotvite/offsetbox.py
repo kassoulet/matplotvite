@@ -209,6 +209,27 @@ class TextArea:
         return self
 
 
+class PaddedBox:
+    """A child offset box with padding; the renderer has no frame model."""
+
+    def __init__(self, child, pad=0.0, draw_frame=False, patch_attrs=None, **kwargs):
+        self.child = child
+        self.pad = float(pad)
+        self.draw_frame = bool(draw_frame)
+        self.patch_attrs = dict(patch_attrs or {})
+        self.kwargs = kwargs
+
+    def get_children(self): return [self.child] if self.child is not None else []
+
+    def _add_to_axes(self, ax):
+        if self.child is not None:
+            if hasattr(self.child, "_add_to_axes"):
+                self.child._add_to_axes(ax)
+            else:
+                ax.add_artist(self.child)
+        return self
+
+
 class DrawingArea:
     """A fixed-size box of arbitrary artists."""
 
@@ -376,5 +397,5 @@ class Shadow:
 
 __all__ = ("AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
            "AnchoredText", "AnchoredOffsetbox", "AnnotationBbox",
-           "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "Shadow",
-           "TextArea", "VPacker")
+           "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "PaddedBox",
+           "Shadow", "TextArea", "VPacker")
