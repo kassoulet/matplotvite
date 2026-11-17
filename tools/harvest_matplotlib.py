@@ -770,11 +770,23 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
             ax.set_xlabel("")
             ax.set_ylabel("")
 
+    def get_ax():
+        """The headless `matplotlib.testing.widgets.get_ax` helper."""
+        fig, ax = matplotvite.subplots(1, 1)
+        ax.plot([0, 200], [0, 200])
+        ax.set_aspect(1.0)
+        return ax
+
+    def noop(*args, **kwargs):
+        return None
+
     namespace.update({
         "assert_array_almost_equal": np.testing.assert_array_almost_equal,
         "assert_array_almost_equal_nulp": np.testing.assert_array_almost_equal_nulp,
         "assert_array_equal": np.testing.assert_array_equal,
         "remove_ticks_and_titles": remove_ticks_and_titles,
+        "get_ax": get_ax,
+        "noop": noop,
         "matplotvite": matplotvite,
     })
     # Imports are stripped from the snippets, so resolve the names they would
