@@ -637,6 +637,7 @@ def harvest(tests_root: pathlib.Path) -> list[dict[str, object]]:
                 "images": [str(p) for p in images],
                 "comparison": options,
                 "source": source,
+                "file": str(module_path.resolve()),
                 "snippet": prepare_body(source, options),
             })
     return cases
@@ -691,7 +692,8 @@ def _fallback_multi_font_text():
 def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
            ignored: list[str] | None = None,
-           sample_data: pathlib.Path | None = None) -> str | None:
+           sample_data: pathlib.Path | None = None,
+           filename: pathlib.Path | None = None) -> str | None:
     """Render a snippet with matplotvite; return an error string or None.
 
     When `ignored` is provided, append the names of compatibility shims that
@@ -749,6 +751,10 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
         mpl_namespace.get_data_path = lambda: str(sample_data.parent)
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
+    if filename is not None:
+        # Some tests locate fixtures relative to their own module; point
+        # `__file__` at the harvested source rather than the scratch script.
+        namespace["__file__"] = str(filename.resolve())
     namespace.update(mpl_helpers)
     # Imports such as `from matplotlib.patches import Circle` are stripped from
     # gallery snippets, so expose the compatibility classes as bare names.
@@ -842,7 +848,7 @@ import sys
 
 from tools.harvest_matplotlib import _render_snippet_in_process
 
-snippet_path, out_path, extra, sample_data, result_path = sys.argv[1:6]
+snippet_path, out_path, extra, sample_data, filename, result_path = sys.argv[1:7]
 ignored = []
 error = _render_snippet_in_process(
     pathlib.Path(snippet_path).read_text(encoding="utf-8"),
@@ -850,6 +856,7 @@ error = _render_snippet_in_process(
     pathlib.Path(extra) if extra else None,
     ignored,
     pathlib.Path(sample_data) if sample_data else None,
+    pathlib.Path(filename) if filename else None,
 )
 pathlib.Path(result_path).write_text(
     json.dumps({"error": error, "ignored": ignored}), encoding="utf-8"
@@ -860,7 +867,8 @@ pathlib.Path(result_path).write_text(
 def render(snippet: str, out_path: pathlib.Path,
            extra_path: pathlib.Path | None = None,
            ignored: list[str] | None = None,
-           sample_data: pathlib.Path | None = None) -> str | None:
+           sample_data: pathlib.Path | None = None,
+           filename: pathlib.Path | None = None) -> str | None:
     """Render a snippet in an isolated interpreter; return an error or None."""
     out_path = out_path.resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -875,6 +883,7 @@ def render(snippet: str, out_path: pathlib.Path,
             str(snippet_path), str(out_path),
             str(extra_path.resolve()) if extra_path is not None else "",
             str(sample_data.resolve()) if sample_data is not None else "",
+            str(filename.resolve()) if filename is not None else "",
             str(result_path),
         ]
         env = dict(os.environ, MPLBACKEND="Agg")
@@ -1062,7 +1071,9 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
         else:
             ours = out / f"{slug}.png"
             ignored: list[str] = []
-            error = render(str(case["snippet"]), ours, ignored=ignored)
+            filename = pathlib.Path(str(case["file"])) if case.get("file") else None
+            error = render(str(case["snippet"]), ours, ignored=ignored,
+                           filename=filename)
             entry["ignored"] = len(ignored)
             if error is None:
                 entry["ours"] = str(ours)

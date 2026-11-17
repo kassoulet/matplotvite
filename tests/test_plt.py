@@ -5119,3 +5119,20 @@ def test_asinh_scale_renders_with_linear_width(tmp_path):
     ax.set_yscale("asinh", linear_width=0.5)
     assert ax.get_yscale() == "asinh"
     fig.savefig(tmp_path / "asinh.png")
+
+
+def test_imread_decodes_png_without_pillow(tmp_path):
+    """`imread` reads the PNGs the renderer writes without an image library."""
+    path = tmp_path / "readback.png"
+    fig, ax = plt.subplots(figsize=(2, 2))
+    ax.imshow(np.array([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+                        [[0.0, 0.0, 1.0], [1.0, 1.0, 0.0]]]))
+    fig.savefig(path)
+
+    data = plt.imread(path)
+    assert data.shape == (200, 200, 4)
+    assert data.dtype == np.float64
+    assert 0.0 <= data.min() <= data.max() <= 1.0
+    assert np.allclose(data[..., 3], 1.0)
+    with path.open("rb") as stream:
+        assert plt.imread(stream).shape == data.shape

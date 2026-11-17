@@ -5,7 +5,9 @@ import hashlib as _hashlib
 import math as _math
 import os
 import re as _re
+import struct as _struct
 import warnings
+import zlib as _zlib
 from contextlib import contextmanager
 
 import numpy as np
@@ -53,7 +55,7 @@ __all__ = (
     "matshow", "spy", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "clabel", "close", "colorbar", "contour", "contourf",
     "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
-    "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow",
+    "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow", "imread",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "polar", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
     "table",
@@ -11066,16 +11068,158 @@ class _FixedFormatter:
     def set_axis(self, axis): return None
 
 
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def _png_samples(row, count, channels, depth):
+    """Unpack one unfiltered PNG scanline into integer samples."""
+    total = count * channels
+    if depth == 8:
+        return list(row[:total])
+    if depth == 16:
+        return [_struct.unpack(">H", row[i:i + 2])[0]
+                for i in range(0, total * 2, 2)]
+    mask, values = (1 << depth) - 1, []
+    for byte in row:
+        for shift in range(8 - depth, -1, -depth):
+            values.append((byte >> shift) & mask)
+            if len(values) == total:
+                return values
+    return values
+
+
+def _decode_png(data):
+    """Decode a non-interlaced PNG into a float array in the range 0-1.
+
+    Matplotlib's image tests use every PNG colour type and bit depth, while
+    matplotvite deliberately has no Pillow dependency. This decoder covers the
+    standard non-interlaced grayscale, palette, RGB and alpha variants.
+    """
+    if data[:8] != _PNG_SIGNATURE:
+        raise ValueError("not a PNG file")
+    width = height = depth = color = interlace = None
+    palette = transparency = None
+    compressed = bytearray()
+    pos = 8
+    while pos + 12 <= len(data):
+        length = int.from_bytes(data[pos:pos + 4], "big")
+        kind = data[pos + 4:pos + 8]
+        body = data[pos + 8:pos + 8 + length]
+        pos += 12 + length
+        if kind == b"IHDR":
+            width, height, depth, color, compression, filter_method, interlace = \
+                _struct.unpack(">IIBBBBB", body[:13])
+            if compression != 0 or filter_method != 0:
+                raise ValueError("unsupported PNG compression or filter method")
+        elif kind == b"PLTE":
+            palette = body
+        elif kind == b"tRNS":
+            transparency = body
+        elif kind == b"IDAT":
+            compressed.extend(body)
+        elif kind == b"IEND":
+            break
+    if width is None:
+        raise ValueError("PNG has no IHDR chunk")
+    if interlace:
+        raise NotImplementedError("interlaced PNG files are not supported")
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)
+    if channels is None:
+        raise ValueError(f"unsupported PNG colour type {color}")
+    if depth not in (1, 2, 4, 8, 16) or (depth < 8 and color not in (0, 3)):
+        raise ValueError(f"unsupported PNG bit depth {depth}")
+    if color == 3 and palette is None:
+        raise ValueError("palette PNG has no PLTE chunk")
+    raw = _zlib.decompress(bytes(compressed))
+    bits_per_pixel = channels * depth
+    stride = (width * bits_per_pixel + 7) // 8
+    bpp = max(1, (bits_per_pixel + 7) // 8)
+    if len(raw) < height * (stride + 1):
+        raise ValueError("truncated PNG image data")
+    rows, previous, offset = [], bytearray(stride), 0
+    for _ in range(height):
+        filter_type = raw[offset]
+        offset += 1
+        row = bytearray(raw[offset:offset + stride])
+        offset += stride
+        for i in range(stride):
+            left = row[i - bpp] if i >= bpp else 0
+            above = previous[i]
+            upper_left = previous[i - bpp] if i >= bpp else 0
+            if filter_type == 1:
+                predictor = left
+            elif filter_type == 2:
+                predictor = above
+            elif filter_type == 3:
+                predictor = (left + above) // 2
+            elif filter_type == 4:
+                p = left + above - upper_left
+                pa, pb, pc = abs(p - left), abs(p - above), abs(p - upper_left)
+                predictor = left if pa <= pb and pa <= pc else above if pb <= pc else upper_left
+            elif filter_type == 0:
+                predictor = 0
+            else:
+                raise ValueError(f"unsupported PNG filter type {filter_type}")
+            row[i] = (row[i] + predictor) & 255
+        rows.append(row)
+        previous = row
+
+    samples = [_png_samples(row, width, channels, depth) for row in rows]
+    scale = 255.0 if depth <= 8 else 65535.0
+    if color == 3:
+        entries = [tuple(palette[i:i + 3]) for i in range(0, len(palette), 3)]
+        alpha = (list(transparency) if transparency else [])
+        has_alpha = any(value != 255 for value in alpha)
+        out = np.empty((height, width, 4 if has_alpha else 3), dtype=np.float64)
+        for y, row in enumerate(samples):
+            for x, index in enumerate(row):
+                if index >= len(entries):
+                    raise ValueError("PNG palette index out of range")
+                rgb = entries[index]
+                out[y, x, :3] = np.asarray(rgb, dtype=np.float64) / 255.0
+                if has_alpha:
+                    out[y, x, 3] = (alpha[index] if index < len(alpha) else 255) / 255.0
+        return out
+
+    array = np.asarray(samples, dtype=np.float64) / scale
+    if color == 0:
+        return array.reshape(height, width)
+    image = array.reshape(height, width, channels)
+    if color == 4:
+        gray = image[..., 0:1]
+        return np.concatenate([np.repeat(gray, 3, axis=2), image[..., 1:2]], axis=2)
+    if color == 2 and transparency and len(transparency) == 6:
+        key = np.asarray(_struct.unpack(">HHH", transparency), dtype=np.float64) / scale
+        mask = np.all(image == key, axis=2)
+        return np.concatenate([image, (~mask)[..., None].astype(np.float64)], axis=2)
+    return image
+
+
 def _imread(fname, format=None):
-    """Read an image through Pillow when it is installed."""
+    """Read a PNG natively, or another image format through Pillow."""
+    if hasattr(fname, "read"):
+        data = fname.read()
+    else:
+        with open(os.fspath(fname), "rb") as stream:
+            data = stream.read()
+    if isinstance(data, str):
+        data = data.encode("latin-1")
+    if (format is None or str(format).lower() == "png") and data.startswith(_PNG_SIGNATURE):
+        return _decode_png(data)
     try:
+        import io
         from PIL import Image
     except ImportError as exc:
-        raise ImportError("matplotvite.image.imread needs Pillow") from exc
-    with Image.open(fname, formats=None if format is None else [format]) as image:
+        raise ImportError(
+            "matplotvite.imread supports PNG without Pillow; other formats need Pillow"
+        ) from exc
+    with Image.open(io.BytesIO(data), formats=None if format is None else [format]) as image:
         if image.mode in ("RGBA", "LA") or "transparency" in image.info:
             return np.asarray(image.convert("RGBA"), dtype=np.float64) / 255.0
         return np.asarray(image.convert("RGB"), dtype=np.float64) / 255.0
+
+
+imread = _imread
 
 
 def _get_sample_data(name, asfileobj=True):
