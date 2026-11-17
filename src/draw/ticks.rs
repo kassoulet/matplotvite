@@ -2,6 +2,7 @@
 
 use super::polyline::draw_dashed;
 use super::*;
+use crate::scale::{asinh_inverse, asinh_scale, logit, symlog};
 
 /// One label style for every tick on an axis. Using the widest precision in
 /// the tick set keeps whole numbers aligned with fractional neighbours

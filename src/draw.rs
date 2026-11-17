@@ -13,6 +13,8 @@ use crate::model::{
     TextBBox,
 };
 
+use crate::scale::{asinh_scale, logit, symlog};
+
 mod axes;
 mod colorbar;
 mod contour;
@@ -239,39 +241,6 @@ where
         col.filled(),
     ))?;
     Ok(())
-}
-
-/// Symmetric-log transform used by `symlog` axes: linear near zero, then
-/// logarithmic on both sides of `±linthresh`.
-fn symlog(value: f64, linthresh: f64) -> f64 {
-    let l = if linthresh > 0.0 { linthresh } else { 1.0 };
-    value.signum() * l * (1.0 + value.abs() / l).ln()
-}
-
-/// Logit transform for probability axes; values are clamped away from the
-/// singular endpoints so zero and one remain drawable.
-fn logit(value: f64) -> f64 {
-    let p = value.clamp(1e-10, 1.0 - 1e-10);
-    (p / (1.0 - p)).ln()
-}
-
-/// Asinh transform: linear near zero and logarithmic for large magnitudes.
-fn asinh_scale(value: f64, linear_width: f64) -> f64 {
-    let w = if linear_width > 0.0 {
-        linear_width
-    } else {
-        1.0
-    };
-    w * (value / w).asinh()
-}
-
-fn asinh_inverse(value: f64, linear_width: f64) -> f64 {
-    let w = if linear_width > 0.0 {
-        linear_width
-    } else {
-        1.0
-    };
-    w * (value / w).sinh()
 }
 
 fn rotated_style<'a>(
@@ -1338,24 +1307,4 @@ where
         )?;
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod scale_tests {
-    use super::{asinh_inverse, asinh_scale, logit};
-
-    #[test]
-    fn asinh_is_linear_near_zero_and_inverts() {
-        assert!((asinh_scale(0.0, 2.0)).abs() < 1e-12);
-        assert!((asinh_scale(1.0, 1.0) - (1.0_f64).asinh()).abs() < 1e-12);
-        assert!((asinh_inverse(asinh_scale(12.0, 0.5), 0.5) - 12.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn logit_maps_probabilities_and_clamps_endpoints() {
-        assert!((logit(0.5) - 0.0).abs() < 1e-12);
-        assert!((logit(0.75) - 3.0_f64.ln()).abs() < 1e-12);
-        assert!(logit(0.0).is_finite());
-        assert!(logit(1.0).is_finite());
-    }
 }

@@ -1,12 +1,46 @@
-//! A drawing backend that renders logical pixels at an integer oversampling
-//! factor. Plotters' layout code keeps working in logical coordinates while
-//! every primitive is forwarded to the inner backend at `scale` times the size.
+//! Axis scale transforms plus a drawing backend that renders logical pixels at
+//! an integer oversampling factor. Plotters' layout code keeps working in
+//! logical coordinates while every primitive is forwarded to the inner backend
+//! at `scale` times the size.
 
 use plotters::backend::DrawingBackend;
 use plotters::style::{FontDesc, TextStyle};
 use plotters_backend::{
     BackendColor, BackendCoord, BackendStyle, BackendTextStyle, DrawingErrorKind,
 };
+
+/// Symmetric-log transform used by `symlog` axes: linear near zero, then
+/// logarithmic on both sides of `±linthresh`.
+pub(crate) fn symlog(value: f64, linthresh: f64) -> f64 {
+    let l = if linthresh > 0.0 { linthresh } else { 1.0 };
+    value.signum() * l * (1.0 + value.abs() / l).ln()
+}
+
+/// Logit transform for probability axes; values are clamped away from the
+/// singular endpoints so zero and one remain drawable.
+pub(crate) fn logit(value: f64) -> f64 {
+    let p = value.clamp(1e-10, 1.0 - 1e-10);
+    (p / (1.0 - p)).ln()
+}
+
+/// Asinh transform: linear near zero and logarithmic for large magnitudes.
+pub(crate) fn asinh_scale(value: f64, linear_width: f64) -> f64 {
+    let w = if linear_width > 0.0 {
+        linear_width
+    } else {
+        1.0
+    };
+    w * (value / w).asinh()
+}
+
+pub(crate) fn asinh_inverse(value: f64, linear_width: f64) -> f64 {
+    let w = if linear_width > 0.0 {
+        linear_width
+    } else {
+        1.0
+    };
+    w * (value / w).sinh()
+}
 
 pub(crate) struct ScaleBackend<DB: DrawingBackend> {
     inner: DB,
@@ -207,5 +241,25 @@ impl<DB: DrawingBackend> DrawingBackend for ScaleBackend<DB> {
             }
         }
         self.inner.blit_bitmap(self.coord(pos), (dw, dh), &scaled)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{asinh_inverse, asinh_scale, logit};
+
+    #[test]
+    fn asinh_is_linear_near_zero_and_inverts() {
+        assert!((asinh_scale(0.0, 2.0)).abs() < 1e-12);
+        assert!((asinh_scale(1.0, 1.0) - (1.0_f64).asinh()).abs() < 1e-12);
+        assert!((asinh_inverse(asinh_scale(12.0, 0.5), 0.5) - 12.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn logit_maps_probabilities_and_clamps_endpoints() {
+        assert!((logit(0.5) - 0.0).abs() < 1e-12);
+        assert!((logit(0.75) - 3.0_f64.ln()).abs() < 1e-12);
+        assert!(logit(0.0).is_finite());
+        assert!(logit(1.0).is_finite());
     }
 }
