@@ -218,7 +218,7 @@ pub(crate) fn render_figure(
 mod tests {
     use super::*;
     use crate::fonts::SANS_FAMILY;
-    use crate::model::{Panel, RenderOptions, Series};
+    use crate::model::{DrawStyle, Panel, RenderOptions, Series};
 
     fn smoke_panel() -> Panel {
         Panel {
@@ -239,7 +239,7 @@ mod tests {
                 linewidth: 1.5,
                 markersize: 6.0,
                 mew: 1.0,
-                drawstyle: "default".to_string(),
+                drawstyle: DrawStyle::default(),
                 ..Default::default()
             }],
             ..Default::default()

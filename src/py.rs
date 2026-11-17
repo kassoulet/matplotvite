@@ -7,7 +7,7 @@ use pyo3::{Borrowed, FromPyObject};
 
 use crate::cmap_data;
 use crate::export::render_pdf_pages;
-use crate::model::{OwnedArray1, OwnedArray2, OwnedArrayD, Panel, RenderOptions};
+use crate::model::{DrawStyle, OwnedArray1, OwnedArray2, OwnedArrayD, Panel, RenderOptions};
 use crate::render::render_figure;
 
 impl<'a, 'py> FromPyObject<'a, 'py> for OwnedArray1 {
@@ -34,6 +34,19 @@ impl<'a, 'py> FromPyObject<'a, 'py> for OwnedArrayD {
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
         let array: PyReadonlyArrayDyn<'py, f64> = obj.extract()?;
         Ok(OwnedArrayD::from_array(array.as_array().to_owned()))
+    }
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for DrawStyle {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let value: String = obj.extract()?;
+        DrawStyle::parse(&value).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unsupported drawstyle: {value:?} (use 'default', 'steps-pre', 'steps-mid', or 'steps-post')"
+            ))
+        })
     }
 }
 

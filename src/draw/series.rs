@@ -41,7 +41,7 @@ where
         let xs = s.x.as_array();
         let ys = s.y.as_array();
         let n = xs.len().min(ys.len());
-        let step = matches!(s.drawstyle.as_str(), "steps-pre" | "steps-post");
+        let step = s.drawstyle.is_step();
         let pts: Vec<(f64, f64)> = if n > 2000 && !step {
             // Pixel-column decimation straight from the arrays: no 1M-point
             // intermediate, and the drawn path is visually unchanged.
@@ -60,10 +60,15 @@ where
             for i in 0..n {
                 pts.push((tx(xs[i]), ty(ys[i])));
                 if i + 1 < n {
-                    match s.drawstyle.as_str() {
-                        "steps-post" => pts.push((tx(xs[i + 1]), ty(ys[i]))),
-                        "steps-pre" => pts.push((tx(xs[i]), ty(ys[i + 1]))),
-                        _ => {}
+                    match s.drawstyle {
+                        DrawStyle::StepsPost => pts.push((tx(xs[i + 1]), ty(ys[i]))),
+                        DrawStyle::StepsPre => pts.push((tx(xs[i]), ty(ys[i + 1]))),
+                        DrawStyle::StepsMid => {
+                            let mid = tx((xs[i] + xs[i + 1]) / 2.0);
+                            pts.push((mid, ty(ys[i])));
+                            pts.push((mid, ty(ys[i + 1])));
+                        }
+                        DrawStyle::Normal => {}
                     }
                 }
             }

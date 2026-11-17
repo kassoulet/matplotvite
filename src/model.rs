@@ -157,6 +157,32 @@ impl PngCompression {
     }
 }
 
+/// How a line connects consecutive data points.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum DrawStyle {
+    #[default]
+    Normal,
+    StepsPre,
+    StepsMid,
+    StepsPost,
+}
+
+impl DrawStyle {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        match value {
+            "default" => Some(Self::Normal),
+            "steps-pre" => Some(Self::StepsPre),
+            "steps-mid" => Some(Self::StepsMid),
+            "steps-post" => Some(Self::StepsPost),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn is_step(self) -> bool {
+        !matches!(self, Self::Normal)
+    }
+}
+
 /// One `plot` call, including its styling keywords.
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
@@ -186,7 +212,7 @@ pub(crate) struct Series {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) drawstyle: String,
+    pub(crate) drawstyle: DrawStyle,
     /// SVG element id, emitted as a group around this artist's output.
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) gid: String,

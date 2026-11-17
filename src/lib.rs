@@ -24,7 +24,7 @@ mod tests {
 
     use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
-    use crate::model::{Panel, PngCompression};
+    use crate::model::{DrawStyle, Panel, PngCompression};
 
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
@@ -39,6 +39,15 @@ mod tests {
     fn panels_can_be_shared_between_render_threads() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<Panel>();
+    }
+
+    #[test]
+    fn drawstyle_parses_supported_names() {
+        assert_eq!(DrawStyle::parse("default"), Some(DrawStyle::Normal));
+        assert_eq!(DrawStyle::parse("steps-pre"), Some(DrawStyle::StepsPre));
+        assert_eq!(DrawStyle::parse("steps-mid"), Some(DrawStyle::StepsMid));
+        assert_eq!(DrawStyle::parse("steps-post"), Some(DrawStyle::StepsPost));
+        assert_eq!(DrawStyle::parse("steps-middle"), None);
     }
 
     #[test]

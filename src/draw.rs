@@ -11,7 +11,7 @@ use crate::layout::{
     aspect_datalim, auto_ticks, auto_ticks_for, axis_bounds, panel_ranges, range, tick_target,
 };
 use crate::model::{
-    Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
+    DrawStyle, Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
 };
 
 mod axes;
