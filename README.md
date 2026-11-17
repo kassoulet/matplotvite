@@ -389,7 +389,7 @@ reference images alongside the page so it stays browsable when moved. On the
 Matplotlib 3.11.2 checkout used here, the examples gallery renders **389 of 507**
 scripts: no remaining API errors, 114 are interactive, 3-D, GUI/toolkit or otherwise
 environment-specific, and 4 are blank because their scripts print text or create no
-saved figure. The Matplotlib corpus currently renders **488 of 526** cases (7 failed, 26
+saved figure. The Matplotlib corpus currently renders **495 of 526** cases (0 failed, 26
 unsupported, 5 blank), with no remaining backend or projection render failures.
 The pixel metrics read PNGs through Matplotlib, so without it the corpus gallery
 still renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are

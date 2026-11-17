@@ -7,7 +7,7 @@ tasks are listed. Results on this tree: Python suite **475 passed, 9 skipped**;
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 488 | 5 | 7 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 495 | 5 | 0 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
 Both totals are from full runs on this tree. The 526-case corpus was rerun after
@@ -23,10 +23,12 @@ projection compatibility, `polar=True` axes construction, standard-library PNG
 depth), and the code-level probes for colorbar mappables/text, shared-axis
 labels, twin-axis sides, multiline text and `imshow` antialiasing (M2–M5, M11,
 M17). The corpus pass also fixed normalization subclassing, gridspec figure
-wiring, masked units, contour label placement, and pandas `data=` label and
-date-index handling. The KARIOS legend-order, twin-side and layout fixes are
-also in this tree. The 3×3 tick-density check is covered by the eight-tick
-locator test.
+wiring, masked units, contour label placement and level locators, `mgrid`
+grids, pandas `data=` label and date-index handling, bivariate colormaps, and
+sample-data resolution. Headless `widgets.RadioButtons` and
+`widgets.CheckButtons` now cover Matplotlib's widget images. The KARIOS
+legend-order, twin-side and layout fixes are also in this tree. The 3×3
+tick-density check is covered by the eight-tick locator test.
 
 ## External visual sign-off
 
@@ -38,7 +40,7 @@ locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The refreshed corpus has 7 failures.** Backend PDF/PS/SVG and projection cases now render, including `test_png/test_pngsuite` through the standard-library PNG `imread`; the two PS transparency cases are blank because every artist is intentionally `alpha=0`. The remaining failures are one missing Matplotlib sample-data file, three advanced contour cases (non-rectilinear grid, log-level locator, single-level manual contour), bivariate colormaps, and two widget cases. |
+| V2 | **No corpus render failures remain.** Backend PDF/PS/SVG and projection cases now render, including `test_png/test_pngsuite` through the standard-library PNG `imread`; the two PS transparency cases are blank because every artist is intentionally `alpha=0`. The remaining 26 unsupported cases are interactive, GUI, or otherwise out of scope. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
@@ -77,5 +79,5 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
-2. **V2:** work down the 7-case corpus gap list; the backend and projection groups now render.
+2. **V2:** no corpus render failures remain; keep the 26 interactive/GUI cases out of scope.
 3. **R2, R3, R5** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward.
