@@ -236,7 +236,7 @@ fn has_dense_markers(p: &Panel) -> bool {
     let series = p
         .series
         .iter()
-        .filter(|s| !s.marker.is_empty() && s.markersize > 0.0)
+        .filter(|s| !s.marker.is_none() && s.markersize > 0.0)
         .map(|s| s.x.as_array().len().min(s.y.as_array().len()))
         .sum::<usize>();
     let collections = p

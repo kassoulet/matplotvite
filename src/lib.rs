@@ -24,7 +24,7 @@ mod tests {
 
     use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
-    use crate::model::{DrawStyle, LineStyle, Panel, PngCompression};
+    use crate::model::{DrawStyle, LineStyle, Marker, Panel, PngCompression};
 
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
@@ -59,6 +59,15 @@ mod tests {
         assert_eq!(LineStyle::parse("-."), Some(LineStyle::DashDot));
         assert_eq!(LineStyle::parse("None"), Some(LineStyle::Hidden));
         assert_eq!(LineStyle::parse("bogus"), None);
+    }
+
+    #[test]
+    fn marker_parses_supported_symbols() {
+        assert_eq!(Marker::parse("o"), Some(Marker::Circle));
+        assert_eq!(Marker::parse("s"), Some(Marker::Square));
+        assert_eq!(Marker::parse("+"), Some(Marker::Plus));
+        assert_eq!(Marker::parse(""), Some(Marker::None));
+        assert_eq!(Marker::parse("bogus"), None);
     }
 
     #[test]

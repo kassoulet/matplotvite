@@ -225,6 +225,78 @@ impl LineStyle {
     }
 }
 
+/// Marker symbols understood by the raster and vector renderers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum Marker {
+    #[default]
+    None,
+    Circle,
+    Square,
+    TriangleUp,
+    TriangleDown,
+    TriangleLeft,
+    TriangleRight,
+    Diamond,
+    ThinDiamond,
+    Cross,
+    Plus,
+    Point,
+    Star,
+    Hexagon1,
+    Hexagon2,
+    Pentagon,
+    PlusFilled,
+    X,
+    Vline,
+    Hline,
+    Tick1,
+    Tick2,
+    Tick3,
+    Tick4,
+    Octagon,
+}
+
+impl Marker {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        match value.trim() {
+            "" | "none" | "None" => Some(Self::None),
+            "o" => Some(Self::Circle),
+            "s" => Some(Self::Square),
+            "^" => Some(Self::TriangleUp),
+            "v" => Some(Self::TriangleDown),
+            "<" => Some(Self::TriangleLeft),
+            ">" => Some(Self::TriangleRight),
+            "D" => Some(Self::Diamond),
+            "d" => Some(Self::ThinDiamond),
+            "x" => Some(Self::Cross),
+            "+" => Some(Self::Plus),
+            "." => Some(Self::Point),
+            "*" => Some(Self::Star),
+            "h" => Some(Self::Hexagon1),
+            "H" => Some(Self::Hexagon2),
+            "p" => Some(Self::Pentagon),
+            "P" => Some(Self::PlusFilled),
+            "X" => Some(Self::X),
+            "|" => Some(Self::Vline),
+            "_" => Some(Self::Hline),
+            "1" => Some(Self::Tick1),
+            "2" => Some(Self::Tick2),
+            "3" => Some(Self::Tick3),
+            "4" => Some(Self::Tick4),
+            "8" => Some(Self::Octagon),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    pub(crate) fn is_stroked(self) -> bool {
+        matches!(self, Self::Cross | Self::Plus)
+    }
+}
+
 /// One `plot` call, including its styling keywords.
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
@@ -242,7 +314,7 @@ pub(crate) struct Series {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) linewidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) marker: String,
+    pub(crate) marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) markersize: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -367,7 +439,7 @@ pub(crate) struct Scatter {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) colors: Vec<String>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) marker: String,
+    pub(crate) marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -477,8 +549,8 @@ pub(crate) struct Ticks {
 #[derive(Clone)]
 pub(crate) enum LegendSwatch {
     Line(RGBAColor, u32),
-    LineMarker(RGBAColor, u32, String),
-    Marker(RGBAColor, String),
+    LineMarker(RGBAColor, u32, Marker),
+    Marker(RGBAColor, Marker),
     Rect(RGBAColor),
     Collection(RGBAColor),
     Circle(RGBAColor),
@@ -738,7 +810,7 @@ pub(crate) struct ArtistCollection {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) colors: Vec<String>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) marker: String,
+    pub(crate) marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]

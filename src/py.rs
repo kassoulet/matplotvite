@@ -8,7 +8,7 @@ use pyo3::{Borrowed, FromPyObject};
 use crate::cmap_data;
 use crate::export::render_pdf_pages;
 use crate::model::{
-    DrawStyle, LineStyle, OwnedArray1, OwnedArray2, OwnedArrayD, Panel, RenderOptions,
+    DrawStyle, LineStyle, Marker, OwnedArray1, OwnedArray2, OwnedArrayD, Panel, RenderOptions,
 };
 use crate::render::render_figure;
 
@@ -47,6 +47,20 @@ impl<'a, 'py> FromPyObject<'a, 'py> for LineStyle {
         // Custom dash tuples become their string repr in Python and have always
         // rendered solid; keep that fallback while typing the common styles.
         Ok(LineStyle::parse(&value).unwrap_or(LineStyle::Solid))
+    }
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for Marker {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let value: Option<String> = obj.extract()?;
+        // Unknown markers have always rendered as circles; keep that fallback
+        // while validating the supported symbols at the boundary.
+        Ok(value
+            .as_deref()
+            .and_then(Marker::parse)
+            .unwrap_or(Marker::Circle))
     }
 }
 

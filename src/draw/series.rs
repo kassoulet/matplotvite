@@ -23,7 +23,7 @@ where
     let marker_total = p
         .series
         .iter()
-        .filter(|s| !s.marker.is_empty() && s.markersize > 0.0)
+        .filter(|s| !s.marker.is_none() && s.markersize > 0.0)
         .map(|s| s.x.as_array().len().min(s.y.as_array().len()))
         .sum::<usize>();
     let series_base = area.get_base_pixel();
@@ -80,10 +80,10 @@ where
             None => color(&s.color).mix(1.0),
         };
         if s.linestyle.is_hidden() {
-            if !s.label.is_empty() && !s.marker.is_empty() {
+            if !s.label.is_empty() && !s.marker.is_none() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
-                    swatch: LegendSwatch::Marker(col, s.marker.clone()),
+                    swatch: LegendSwatch::Marker(col, s.marker),
                 });
             }
         } else if s.linestyle.is_dashed() {
@@ -120,10 +120,10 @@ where
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
-                    swatch: if s.marker.is_empty() {
+                    swatch: if s.marker.is_none() {
                         LegendSwatch::Line(col, width)
                     } else {
-                        LegendSwatch::LineMarker(col, width, s.marker.clone())
+                        LegendSwatch::LineMarker(col, width, s.marker)
                     },
                 });
             }
@@ -165,16 +165,16 @@ where
             if !s.label.is_empty() {
                 entries.push(LegendEntry {
                     label: s.label.clone(),
-                    swatch: if s.marker.is_empty() {
+                    swatch: if s.marker.is_none() {
                         LegendSwatch::Line(col, width)
                     } else {
-                        LegendSwatch::LineMarker(col, width, s.marker.clone())
+                        LegendSwatch::LineMarker(col, width, s.marker)
                     },
                 });
             }
         }
-        if !s.marker.is_empty() && s.markersize > 0.0 {
-            let stroked = matches!(s.marker.as_str(), "x" | "+");
+        if !s.marker.is_none() && s.markersize > 0.0 {
+            let stroked = s.marker.is_stroked();
             let (fill_name, edge_name) = if stroked {
                 (
                     s.mec.as_deref().unwrap_or(&s.color),
@@ -210,10 +210,10 @@ where
                         fill,
                         edge,
                         stroke,
-                        &s.marker,
+                        s.marker,
                     );
                 } else {
-                    draw_marker(area, base, (px, py), r, fill, edge, stroke, &s.marker)?;
+                    draw_marker(area, base, (px, py), r, fill, edge, stroke, s.marker)?;
                 }
             }
         }
@@ -335,9 +335,9 @@ where
                 };
                 let col = col.mix(alpha);
                 if let Some(layer) = marker_layer.as_mut() {
-                    draw_marker_raster(layer, base, (cx, cy), r, col, col, 1, &sc.marker);
+                    draw_marker_raster(layer, base, (cx, cy), r, col, col, 1, sc.marker);
                 } else {
-                    draw_marker(area, base, (cx, cy), r, col, col, 1, &sc.marker)?;
+                    draw_marker(area, base, (cx, cy), r, col, col, 1, sc.marker)?;
                 }
             }
             if !sc.label.is_empty() {

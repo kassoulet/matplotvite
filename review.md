@@ -1,8 +1,8 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
-tasks are listed. Results on this tree: Python suite **475 passed, 9 skipped**;
-`cargo test --all-targets` passes 38 tests; `ruff`, `cargo fmt`, and
+tasks are listed. Results on this tree: Python suite **478 passed, 9 skipped**;
+`cargo test --all-targets` passes 41 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
@@ -52,7 +52,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 |---|------|
 | R1 | **Done.** `src/render.rs::render_figure` owns validation, format routing, direct-PNG selection, cropping and encoding; `src/lib.rs` is the PyO3 adapter and maps `RenderError` to Python exceptions. |
 | R2 | **Done.** The PyO3 adapter and NumPy extraction live in `src/py.rs` behind the default `python` feature; `pyo3` and `numpy` are optional dependencies and the model uses plain `ndarray`. Gate: `cargo test --no-default-features` and `cargo clippy --no-default-features -- -D warnings` pass without Python. |
-| R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. **Partly done: `Series.drawstyle` is a `DrawStyle`, and `Series.linestyle`/`Grid.linestyle` use `LineStyle`, all parsed by the Python adapter; the colour, marker, cmap and units fields remain strings.** |
+| R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. **Partly done: `Series.drawstyle` is a `DrawStyle`, `Series.linestyle`/`Grid.linestyle` use `LineStyle`, and `Marker` is used by series, scatter and collections, all parsed by the Python adapter; the colour, cmap and units fields remain strings.** |
 | R4 | **Split `draw.rs`** by artist (line, scatter, bar, contour, quiver, text, collection). The `draw/` modules cover axes, series, ticks, legends and images; the remaining `draw.rs` entry point is still large. |
 | R5 | **Done.** `src/render.rs` renders a minimal line panel to PNG and SVG through the pure-Rust path, so high-level drawing is no longer covered only through Python. |
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |
@@ -77,8 +77,25 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 | K7 | **Colorbar tick text (confirms M3):** `8e+03`-style labels instead of `8000`. **Status: not a matplotvite bug: KARIOS formats labels with `.3g`.** |
 | K8 | **Colorbar and axes geometry:** colorbar is narrower than expected and the top `dx` axes is shorter and shifted; re-check after K0. |
 
+## Refactoring analysis (17 Nov)
+
+Measured: `python/matplotvite/__init__.py` is 12.6k lines (1489 methods; `class Axes` alone spans ~3.6k lines, `Figure` ~3k); `src/draw.rs` is 2.9k lines. Tasks complement R3/R4/R8 and do not repeat them.
+
+| # | Task |
+|---|------|
+| Q1 | **Split `__init__.py` into modules, re-exported from the package.** Pure moves in this order: colours/colormaps (`_norm_color`, `Colormap`, registry; lines 89-505), transforms/bbox/path (`Affine2D`, `Path`, `_Bbox`, 619-975), patches (`Patch` … `Annulus`, 2262-2770), collections (2899-3220), legend/container handles (1672-2130), `Axis`/spines/`_Axis*` (3375-3663), then `Axes` and `Figure`. Gate: the Python suite plus `__init__.pyi` unchanged. Makes the file reviewable and unblocks R7. |
+| Q2 | **Break up `Axes`** (3849-7498): mixins per concern (`_plotting` for plot/scatter/bar/hist, `_stats` for boxplot/violin, `_fields` for contour/quiver/streamplot, `_decor` for legend/annotate/text). Biggest single methods to split first: `_panel` (217 lines), `_apply_axis_scales` (213), `set_axis` (179), `streamplot` (170), `boxplot` (159). |
+| Q3 | **Finish moving `draw.rs` into `draw/`** (R4): `draw_legend`, `best_legend_pos`, `anchored_legend_pos`, `draw_rounded_frame` (draw.rs 391-640) duplicate the role of `draw/legend.rs`; colorbar (1095-1320), contour (1321-1530), markers (891-1660), polyline clipping/dashing (642-890) and tick formatting (1662-1740, next to `draw/ticks.rs`) each become one module. Target: `draw.rs` under 600 lines of orchestration. |
+| Q4 | **Move scale maths to `scale.rs`:** `symlog`, `logit`, `asinh_scale`, `asinh_inverse` live in `draw.rs` while `src/scale.rs` and `python/matplotvite/scale.py` hold the same transforms. One Rust implementation, exposed to Python (part of R8). |
+| Q5 | **Remove the Python/Rust panel contract duplication:** `_panel()` builds a dict whose keys are re-declared in `src/model.rs` (866 lines) and read by hand in `py.rs`. Generate one from the other (a `serde` model with `pythonize`, or a schema test that fails when the key sets differ) so adding a field is a one-place change, as with the recent `yside`/`legend.order` additions. |
+| Q6 | **Unify the two tick paths in `draw/ticks.rs`/`draw/axes.rs`.** The plotters mesh path and `draw_manual_ticks` produce different results (K1, K2, K5 were all path-dependent). Route every axis through the manual path once it matches the mesh output on the golden images, then delete the mesh-label code and the `manual` heuristic in `axes.rs`. |
+| Q7 | **Typed legend/label ordering in Python:** `_Stamped` plus `_label_order`/`_container_order` is a side channel. Give each artist a creation sequence number (`Artist._seq`) and sort at `legend()` time; delete `_Stamped`. |
+| Q8 | **Tools:** `tools/harvest_matplotlib.py` (1.3k) and `tools/build_pages.py` (1.3k) mix harvesting, rendering, metrics and HTML. Split rendering/metrics from HTML templates so CI can run the render step alone (see CI note below). |
+| Q9 | **CI galleries (716 s, the long pole):** the examples gallery already skips Matplotlib references; the remaining time is our own renders and comparison metrics. Profile per step, then (a) shard the corpus/examples/seaborn steps into parallel jobs, (b) cache `dist/sdist`, `dist/mpl-src` and `dist/sns-src` keyed on the version pins instead of re-downloading, (c) run the full gallery only on `main` and a sampled subset on pull requests. |
+
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
 2. **V2:** no corpus render failures remain; keep the 26 interactive/GUI cases out of scope.
 3. **R3** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward; R2 and R5 are done.
+4. **Q4, Q3** next (mechanical Rust moves), then **Q1** before **Q2**; **Q5** before adding more model fields; **Q9** whenever CI time matters.

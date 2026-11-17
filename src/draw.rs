@@ -11,7 +11,8 @@ use crate::layout::{
     aspect_datalim, auto_ticks, auto_ticks_for, axis_bounds, panel_ranges, range, tick_target,
 };
 use crate::model::{
-    DrawStyle, Legend, LegendEntry, LegendSwatch, OwnedArray1, Panel, PngCompression, TextBBox,
+    DrawStyle, Legend, LegendEntry, LegendSwatch, Marker, OwnedArray1, Panel, PngCompression,
+    TextBBox,
 };
 
 mod axes;
@@ -596,7 +597,7 @@ where
                     *c,
                     *c,
                     1,
-                    marker,
+                    *marker,
                 )?;
             }
             LegendSwatch::Marker(c, marker) => draw_marker(
@@ -607,7 +608,7 @@ where
                 *c,
                 *c,
                 1,
-                marker,
+                *marker,
             )?,
             LegendSwatch::Rect(c) | LegendSwatch::Collection(c) => area.draw(&Rectangle::new(
                 [
@@ -900,20 +901,20 @@ enum MarkerShape {
 }
 
 /// matplotlib's marker paths, so markers we draw match its shapes exactly.
-fn marker_shape(marker: &str) -> MarkerShape {
+fn marker_shape(marker: Marker) -> MarkerShape {
     let poly = |pts: &[(f64, f64)]| MarkerShape::Polygon(pts.to_vec());
     match marker {
-        "s" => poly(&[(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
-        "D" => poly(&[(0.0, -0.5), (0.5, 0.0), (0.0, 0.5), (-0.5, 0.0)]),
-        "d" => poly(&[(0.0, -0.707), (0.424, 0.0), (0.0, 0.707), (-0.424, 0.0)]),
-        "p" => poly(&[
+        Marker::Square => poly(&[(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
+        Marker::Diamond => poly(&[(0.0, -0.5), (0.5, 0.0), (0.0, 0.5), (-0.5, 0.0)]),
+        Marker::ThinDiamond => poly(&[(0.0, -0.707), (0.424, 0.0), (0.0, 0.707), (-0.424, 0.0)]),
+        Marker::Pentagon => poly(&[
             (0.0, 0.5),
             (-0.476, 0.155),
             (-0.294, -0.405),
             (0.294, -0.405),
             (0.476, 0.155),
         ]),
-        "P" => poly(&[
+        Marker::PlusFilled => poly(&[
             (-0.167, -0.5),
             (0.167, -0.5),
             (0.167, -0.167),
@@ -927,7 +928,7 @@ fn marker_shape(marker: &str) -> MarkerShape {
             (-0.5, -0.167),
             (-0.167, -0.167),
         ]),
-        "h" => poly(&[
+        Marker::Hexagon1 => poly(&[
             (0.0, 0.5),
             (-0.433, 0.25),
             (-0.433, -0.25),
@@ -935,7 +936,7 @@ fn marker_shape(marker: &str) -> MarkerShape {
             (0.433, -0.25),
             (0.433, 0.25),
         ]),
-        "H" => poly(&[
+        Marker::Hexagon2 => poly(&[
             (-0.25, 0.433),
             (-0.5, 0.0),
             (-0.25, -0.433),
@@ -943,7 +944,7 @@ fn marker_shape(marker: &str) -> MarkerShape {
             (0.5, 0.0),
             (0.25, 0.433),
         ]),
-        "8" => poly(&[
+        Marker::Octagon => poly(&[
             (-0.191, 0.462),
             (-0.462, 0.191),
             (-0.462, -0.191),
@@ -953,7 +954,7 @@ fn marker_shape(marker: &str) -> MarkerShape {
             (0.462, 0.191),
             (0.191, 0.462),
         ]),
-        "*" => poly(&[
+        Marker::Star => poly(&[
             (0.0, 0.5),
             (-0.112, 0.155),
             (-0.476, 0.155),
@@ -965,7 +966,7 @@ fn marker_shape(marker: &str) -> MarkerShape {
             (0.476, 0.155),
             (0.112, 0.155),
         ]),
-        "X" => poly(&[
+        Marker::X => poly(&[
             (-0.25, -0.5),
             (0.0, -0.25),
             (0.25, -0.5),
@@ -979,15 +980,15 @@ fn marker_shape(marker: &str) -> MarkerShape {
             (-0.25, 0.0),
             (-0.5, -0.25),
         ]),
-        "^" => poly(&[(0.0, 0.5), (-0.5, -0.5), (0.5, -0.5)]),
-        "v" => poly(&[(0.0, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
-        "<" => poly(&[(-0.5, 0.0), (0.5, -0.5), (0.5, 0.5)]),
-        ">" => poly(&[(0.5, 0.0), (-0.5, 0.5), (-0.5, -0.5)]),
-        "1" | "2" | "3" | "4" => {
+        Marker::TriangleUp => poly(&[(0.0, 0.5), (-0.5, -0.5), (0.5, -0.5)]),
+        Marker::TriangleDown => poly(&[(0.0, -0.5), (0.5, 0.5), (-0.5, 0.5)]),
+        Marker::TriangleLeft => poly(&[(-0.5, 0.0), (0.5, -0.5), (0.5, 0.5)]),
+        Marker::TriangleRight => poly(&[(0.5, 0.0), (-0.5, 0.5), (-0.5, -0.5)]),
+        Marker::Tick1 | Marker::Tick2 | Marker::Tick3 | Marker::Tick4 => {
             let (stem, arm_a, arm_b) = match marker {
-                "1" => ((0.0, -0.5), (0.4, 0.25), (-0.4, 0.25)),
-                "2" => ((0.0, 0.5), (-0.4, -0.25), (0.4, -0.25)),
-                "3" => ((-0.5, 0.0), (0.25, -0.4), (0.25, 0.4)),
+                Marker::Tick1 => ((0.0, -0.5), (0.4, 0.25), (-0.4, 0.25)),
+                Marker::Tick2 => ((0.0, 0.5), (-0.4, -0.25), (0.4, -0.25)),
+                Marker::Tick3 => ((-0.5, 0.0), (0.25, -0.4), (0.25, 0.4)),
                 _ => ((0.5, 0.0), (-0.25, 0.4), (-0.25, -0.4)),
             };
             MarkerShape::Strokes(vec![
@@ -996,12 +997,16 @@ fn marker_shape(marker: &str) -> MarkerShape {
                 ((0.0, 0.0), arm_b),
             ])
         }
-        "x" => MarkerShape::Strokes(vec![((-0.5, -0.5), (0.5, 0.5)), ((-0.5, 0.5), (0.5, -0.5))]),
-        "+" => MarkerShape::Strokes(vec![((-0.5, 0.0), (0.5, 0.0)), ((0.0, -0.5), (0.0, 0.5))]),
-        "|" => MarkerShape::Strokes(vec![((0.0, -0.5), (0.0, 0.5))]),
-        "_" => MarkerShape::Strokes(vec![((-0.5, 0.0), (0.5, 0.0))]),
-        "." => MarkerShape::Circle(0.5),
-        _ => MarkerShape::Circle(1.0),
+        Marker::Cross => {
+            MarkerShape::Strokes(vec![((-0.5, -0.5), (0.5, 0.5)), ((-0.5, 0.5), (0.5, -0.5))])
+        }
+        Marker::Plus => {
+            MarkerShape::Strokes(vec![((-0.5, 0.0), (0.5, 0.0)), ((0.0, -0.5), (0.0, 0.5))])
+        }
+        Marker::Vline => MarkerShape::Strokes(vec![((0.0, -0.5), (0.0, 0.5))]),
+        Marker::Hline => MarkerShape::Strokes(vec![((-0.5, 0.0), (0.5, 0.0))]),
+        Marker::Point => MarkerShape::Circle(0.5),
+        Marker::None | Marker::Circle => MarkerShape::Circle(1.0),
     }
 }
 
@@ -1017,7 +1022,7 @@ fn draw_marker<DB: DrawingBackend, C: Color>(
     fill: C,
     edge: C,
     stroke: u32,
-    marker: &str,
+    marker: Marker,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
     DB::ErrorType: 'static,
@@ -1034,7 +1039,7 @@ where
     };
     match marker_shape(marker) {
         MarkerShape::Polygon(verts) => {
-            if marker == "s" {
+            if marker == Marker::Square {
                 let corners = [
                     (x - ri as i32, y - ri as i32),
                     (x + ri as i32, y + ri as i32),
@@ -1532,7 +1537,7 @@ fn draw_marker_raster(
     fill: RGBAColor,
     edge: RGBAColor,
     stroke: u32,
-    marker: &str,
+    marker: Marker,
 ) {
     let (x, y) = ((pos.0 - base.0) as f64, (pos.1 - base.1) as f64);
     // Keep the fractional radius on the dense raster path: rounding it down
@@ -2421,10 +2426,10 @@ where
         }
         for coll in &p.collections {
             let alpha = coll.alpha.clamp(0.0, 1.0);
-            let marker = if coll.marker.is_empty() {
-                "o"
+            let marker = if coll.marker.is_none() {
+                Marker::Circle
             } else {
-                coll.marker.as_str()
+                coll.marker
             };
             if !coll.label.is_empty() {
                 let icon = coll
