@@ -8400,8 +8400,9 @@ class ContourSet:
             raise TypeError("ContourSet needs levels and paths")
         allkinds = args[0] if args else kwargs.pop("allkinds", None)
         levels = [float(v) for v in np.asarray(levels, dtype=float).ravel()]
-        if len(levels) < 2:
-            raise ValueError("ContourSet needs at least two levels")
+        filled = bool(kwargs.get("filled", False))
+        if not levels or (len(levels) < 2 and filled):
+            raise ValueError("ContourSet needs at least two levels when filled")
         cmap = _cmap_name(kwargs.pop("cmap", None))
         colors = kwargs.pop("colors", None)
         if colors is None:
@@ -8415,7 +8416,7 @@ class ContourSet:
                   [float(v) for v in np.atleast_1d(
                       np.asarray(linewidths, dtype=float)).ravel()])
         self._e = dict(levels=levels, cmap=cmap, colors=colors,
-                       filled=bool(kwargs.pop("filled", False)),
+                       filled=filled,
                        linewidths=widths, alpha=kwargs.pop("alpha", None),
                        x=None, y=None, z=None)
         self._draw_manual(list(segments), allkinds)
