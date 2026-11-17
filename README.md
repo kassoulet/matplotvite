@@ -12,6 +12,7 @@ Rust extension (PyO3 + plotters). It writes PNG, SVG, PDF, WebP, and EPS, and Nu
 only Python runtime dependency.
 
 - [Example gallery](https://kassoulet.github.io/matplotvite/)
+- [KARIOS report figures](https://kassoulet.github.io/matplotvite/karios.html)
 - [Performance measurements](https://kassoulet.github.io/matplotvite/benchmarks.html)
 - [Architecture](architecture.md)
 - [Supported API](#whats-supported)
@@ -345,11 +346,11 @@ matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --che
 
 ## Examples and benchmarks
 
-The gallery and performance pages are generated from the repository:
+The gallery, KARIOS report, and performance pages are generated from the repository:
 
 ```bash
 python tools/build_pages.py --out dist
-# open dist/index.html or dist/benchmarks.html in your browser
+# open dist/index.html, dist/karios.html, or dist/benchmarks.html
 ```
 
 The gallery source lives in `examples/samples.py`. Every entry is executed both by

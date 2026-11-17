@@ -45,6 +45,7 @@ def prism_scripts() -> str:
 def shared_navbar(current_page: str) -> str:
     """Generate the shared top navigation bar."""
     gallery_active = " active" if current_page == "gallery" else ""
+    karios_active = " active" if current_page == "karios" else ""
     comparison_active = " active" if current_page == "comparison" else ""
     benchmarks_active = " active" if current_page == "benchmarks" else ""
     galleries_active = " active" if current_page == "galleries" else ""
@@ -55,6 +56,7 @@ def shared_navbar(current_page: str) -> str:
       <div class="nav-links">
         <a href="index.html" class="nav-link{gallery_active}">Examples</a>
         <a href="galleries.html" class="nav-link{galleries_active}">Galleries</a>
+        <a href="karios.html" class="nav-link{karios_active}">KARIOS</a>
         <a href="comparison.html" class="nav-link{comparison_active}">Comparison</a>
         <a href="benchmarks.html" class="nav-link{benchmarks_active}">Performance</a>
         <a href="https://github.com/kassoulet/matplotvite" class="nav-link nav-external" target="_blank" rel="noopener">Source</a>

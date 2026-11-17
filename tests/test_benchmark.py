@@ -113,12 +113,23 @@ def test_build_pages_generation(tmp_path):
     assert (tmp_path / "index.html").exists()
     assert (tmp_path / "benchmarks.html").exists()
     assert (tmp_path / "benchmark_scaling.png").exists()
+    assert (tmp_path / "karios.html").exists()
+    for name in ("01_overview.png", "02_dx.png", "03_dy.png"):
+        image = tmp_path / "karios" / name
+        assert image.exists() and image.stat().st_size > 50_000
     assert (tmp_path / ".nojekyll").exists()
 
     gallery_html = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert "Examples" in gallery_html
     assert "Matplotlib-compatible" in gallery_html
     assert "histogram_density.png" in gallery_html
+    assert 'href="karios.html"' in gallery_html
+
+    karios_html = (tmp_path / "karios.html").read_text(encoding="utf-8")
+    assert "KARIOS error reports" in karios_html
+    assert 'src="karios/01_overview.png"' in karios_html
+    assert 'src="karios/02_dx.png"' in karios_html
+    assert 'src="karios/03_dy.png"' in karios_html
 
     # Deployed pages name the commit they were built from.
     assert "Built from commit" in gallery_html
