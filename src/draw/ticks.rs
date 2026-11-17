@@ -2,6 +2,97 @@
 
 use super::*;
 
+/// One label style for every tick on an axis. Using the widest precision in
+/// the tick set keeps whole numbers aligned with fractional neighbours
+/// (`0.5, 1.0, 1.5`) instead of mixing `0.5` with `1`.
+#[derive(Clone, Copy)]
+pub(super) struct TickFormat {
+    pub(super) decimals: usize,
+    pub(super) scientific: bool,
+}
+
+/// Minor tick positions: four intervals per major tick, excluding majors.
+pub(super) fn minor_grid_values(major: &[f64], lo: f64, hi: f64) -> Vec<f64> {
+    if major.len() < 2 {
+        return Vec::new();
+    }
+    let step = (major[1] - major[0]).abs() / 4.0;
+    if !step.is_finite() || step <= 0.0 || !lo.is_finite() || !hi.is_finite() {
+        return Vec::new();
+    }
+    let mut values = Vec::new();
+    let mut value = (lo / step).ceil() * step;
+    while value <= hi && values.len() < 256 {
+        if !major
+            .iter()
+            .any(|major| (major - value).abs() <= step * 1.0e-6)
+        {
+            values.push(value);
+        }
+        value += step;
+    }
+    values
+}
+
+/// Decimal places needed to write every value in `values` without float noise.
+fn tick_decimals(values: &[f64]) -> usize {
+    values
+        .iter()
+        .map(|&v| {
+            let mut a = v.abs();
+            if !a.is_finite() {
+                return 0;
+            }
+            let mut decimals = 0;
+            while decimals < 4 && (a - a.round()).abs() > 1e-9 {
+                a *= 10.0;
+                decimals += 1;
+            }
+            decimals
+        })
+        .max()
+        .unwrap_or(0)
+}
+
+pub(super) fn tick_format(values: &[f64]) -> TickFormat {
+    // A single out-of-range magnitude makes the whole axis scientific; mixing
+    // plain and scientific labels on one axis is the same inconsistency.
+    let scientific = values
+        .iter()
+        .any(|&v| v != 0.0 && !(1e-3..1e5).contains(&v.abs()));
+    TickFormat {
+        decimals: tick_decimals(values),
+        scientific,
+    }
+}
+
+/// Tick label for a linear axis: short, without float noise.
+pub(super) fn tick_label(v: f64, format: TickFormat) -> String {
+    let v = if v == 0.0 { 0.0 } else { v };
+    let label = if format.scientific {
+        format!("{v:.2e}")
+    } else {
+        format!("{v:.prec$}", prec = format.decimals)
+    };
+    label
+        .strip_prefix('-')
+        .map(|rest| format!("−{rest}"))
+        .unwrap_or(label)
+}
+
+/// Tick label for a log coordinate: base^v written as a plain number.
+pub(super) fn log_label(v: f64, base: f64) -> String {
+    let value = base.powf(v);
+    if !(1e-4..1e5).contains(&value) {
+        format!("{value:.0e}")
+    } else {
+        format!("{value:.4}")
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
+    }
+}
+
 /// Draw ticks, tick labels and styled gridlines for panels whose tick layout is
 /// controlled from Python. The plotters mesh still provides the axis frame and
 /// descriptions; this only replaces its ticks and grid.
@@ -315,4 +406,60 @@ where
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{tick_format, tick_label};
+
+    #[test]
+    fn whole_ticks_keep_the_precision_of_their_fractional_neighbours() {
+        let format = tick_format(&[0.5, 1.0, 1.5]);
+        assert_eq!(
+            [0.5, 1.0, 1.5].map(|v| tick_label(v, format)),
+            ["0.5", "1.0", "1.5"]
+        );
+    }
+
+    #[test]
+    fn quarter_ticks_pad_to_two_decimals() {
+        let format = tick_format(&[0.0, 0.25, 0.5, 0.75, 1.0]);
+        assert_eq!(
+            [0.0, 0.25, 0.5, 1.0].map(|v| tick_label(v, format)),
+            ["0.00", "0.25", "0.50", "1.00"]
+        );
+    }
+
+    #[test]
+    fn integer_axes_gain_no_decimal_point() {
+        let format = tick_format(&[0.0, 500.0, 1000.0, 3500.0]);
+        assert_eq!(tick_label(3500.0, format), "3500");
+    }
+
+    #[test]
+    fn float_noise_does_not_inflate_the_precision() {
+        let format = tick_format(&[0.0, 0.1, 0.2, 0.30000000000000004]);
+        assert_eq!(tick_label(0.30000000000000004, format), "0.3");
+    }
+
+    #[test]
+    fn an_axis_uses_scientific_notation_for_every_tick_or_none() {
+        let format = tick_format(&[0.0, 200000.0]);
+        assert!(format.scientific);
+        assert_eq!(tick_label(0.0, format), "0.00e0");
+        assert_eq!(tick_label(200000.0, format), "2.00e5");
+    }
+
+    #[test]
+    fn colorbar_scale_labels_stay_plain_thousands() {
+        let format = tick_format(&[0.0, 4000.0, 8000.0]);
+        assert!(!format.scientific);
+        assert_eq!(tick_label(8000.0, format), "8000");
+    }
+
+    #[test]
+    fn negative_labels_keep_the_unicode_minus() {
+        let format = tick_format(&[-1.0, -0.5, 0.0]);
+        assert_eq!(tick_label(-1.0, format), "−1.0");
+    }
 }

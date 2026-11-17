@@ -53,7 +53,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 | R1 | **Done.** `src/render.rs::render_figure` owns validation, format routing, direct-PNG selection, cropping and encoding; `src/lib.rs` is the PyO3 adapter and maps `RenderError` to Python exceptions. |
 | R2 | **Done.** The PyO3 adapter and NumPy extraction live in `src/py.rs` behind the default `python` feature; `pyo3` and `numpy` are optional dependencies and the model uses plain `ndarray`. Gate: `cargo test --no-default-features` and `cargo clippy --no-default-features -- -D warnings` pass without Python. |
 | R3 | **Done.** Replaced the stringly-typed model fields with `Color`, `LineStyle`, `Marker`, `DrawStyle`, `Cmap` and `QuiverUnits` values parsed once by the Python adapter in `py.rs`. Colours now cover figure, artist, text, tick, grid, scatter, contour, collection, bar and quiver fields; `Cmap` covers images, contours, scatter and colorbars. The parsers live in `color.rs` and `model.rs`. |
-| R4 | **Partly done.** `draw/colorbar.rs` owns the gradient strip, extensions, ticks and labels; `draw/legend.rs` owns legend obstacle scoring, placement, frames and drawing. The `draw/` modules also cover axes, series, ticks and images; `draw.rs` is 2,335 lines and still owns line, scatter, bar, contour, quiver, text, collection and the panel entry point. |
+| R4 | **Partly done.** `draw/colorbar.rs` owns the gradient strip, extensions, ticks and labels; `draw/legend.rs` owns legend obstacle scoring, placement, frames and drawing; `draw/ticks.rs` owns tick formatting, minor grid values and their precision tests. The `draw/` modules also cover axes, series and images; `draw.rs` is 2,193 lines and still owns line, scatter, bar, contour, quiver, text, collection and the panel entry point. |
 | R5 | **Done.** `src/render.rs` renders a minimal line panel to PNG and SVG through the pure-Rust path, so high-level drawing is no longer covered only through Python. |
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |
 | R7 | **Port the `Axes` API to Rust** from `Axes._panel()`, in `TRACE.md` priority order: `plot`, `scatter`, `bar`, `hist`, `imshow`, `fill_between`, then the rest. Take slices or `ndarray` views, no copies. Optional thread-local `pyplot` layer only if requested. |
@@ -79,13 +79,13 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 
 ## Refactoring analysis (17 Nov)
 
-Measured: `python/matplotvite/__init__.py` is 12.6k lines (1489 methods; `class Axes` alone spans ~3.6k lines, `Figure` ~3k); `src/draw.rs` is 2.9k lines. Tasks complement R3/R4/R8 and do not repeat them.
+Measured: `python/matplotvite/__init__.py` is 12.6k lines (1489 methods; `class Axes` alone spans ~3.6k lines, `Figure` ~3k); `src/draw.rs` was 2.9k lines when measured (about 2.3k now). Tasks complement R3/R4/R8 and do not repeat them.
 
 | # | Task |
 |---|------|
 | Q1 | **Split `__init__.py` into modules, re-exported from the package.** Pure moves in this order: colours/colormaps (`_norm_color`, `Colormap`, registry; lines 89-505), transforms/bbox/path (`Affine2D`, `Path`, `_Bbox`, 619-975), patches (`Patch` … `Annulus`, 2262-2770), collections (2899-3220), legend/container handles (1672-2130), `Axis`/spines/`_Axis*` (3375-3663), then `Axes` and `Figure`. Gate: the Python suite plus `__init__.pyi` unchanged. Makes the file reviewable and unblocks R7. |
 | Q2 | **Break up `Axes`** (3849-7498): mixins per concern (`_plotting` for plot/scatter/bar/hist, `_stats` for boxplot/violin, `_fields` for contour/quiver/streamplot, `_decor` for legend/annotate/text). Biggest single methods to split first: `_panel` (217 lines), `_apply_axis_scales` (213), `set_axis` (179), `streamplot` (170), `boxplot` (159). |
-| Q3 | **Partly done — continue moving `draw.rs` into `draw/`** (R4): colorbar and legend are now separate modules. Remaining: contour, markers, polyline clipping/dashing and tick formatting each become one module. Target: `draw.rs` under 600 lines of orchestration. |
+| Q3 | **Partly done — continue moving `draw.rs` into `draw/`** (R4): colorbar, legend and tick formatting are now separate modules. Remaining: contour, markers and polyline clipping/dashing each become one module. Target: `draw.rs` under 600 lines of orchestration. |
 | Q4 | **Move scale maths to `scale.rs`:** `symlog`, `logit`, `asinh_scale`, `asinh_inverse` live in `draw.rs` while `src/scale.rs` and `python/matplotvite/scale.py` hold the same transforms. One Rust implementation, exposed to Python (part of R8). |
 | Q5 | **Remove the Python/Rust panel contract duplication:** `_panel()` builds a dict whose keys are re-declared in `src/model.rs` (866 lines) and read by hand in `py.rs`. Generate one from the other (a `serde` model with `pythonize`, or a schema test that fails when the key sets differ) so adding a field is a one-place change, as with the recent `yside`/`legend.order` additions. |
 | Q6 | **Unify the two tick paths in `draw/ticks.rs`/`draw/axes.rs`.** The plotters mesh path and `draw_manual_ticks` produce different results (K1, K2, K5 were all path-dependent). Route every axis through the manual path once it matches the mesh output on the golden images, then delete the mesh-label code and the `manual` heuristic in `axes.rs`. |
@@ -93,9 +93,33 @@ Measured: `python/matplotvite/__init__.py` is 12.6k lines (1489 methods; `class 
 | Q8 | **Tools:** `tools/harvest_matplotlib.py` (1.3k) and `tools/build_pages.py` (1.3k) mix harvesting, rendering, metrics and HTML. Split rendering/metrics from HTML templates so CI can run the render step alone (see CI note below). |
 | Q9 | **CI galleries (716 s, the long pole):** the examples gallery already skips Matplotlib references; the remaining time is our own renders and comparison metrics. Profile per step, then (a) shard the corpus/examples/seaborn steps into parallel jobs, (b) cache `dist/sdist`, `dist/mpl-src` and `dist/sns-src` keyed on the version pins instead of re-downloading, (c) run the full gallery only on `main` and a sampled subset on pull requests. |
 
+## Conformance and OSS practice audit (17 Nov)
+
+Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI, dual licence, audit tooling, baselined benchmarks, no `unsafe`). Gaps are in the honesty of the coverage numbers, typing, release safety and project governance.
+
+| # | Task |
+|---|------|
+| C1 | **Unknown kwargs are silently accepted** on `plot`, `scatter`, `bar`, `hist`, `imshow`, `legend`, `subplots` (561 `**kwargs` signatures; `_ignored` is called from only 65 shims). Raise `TypeError`/warn like Matplotlib. Make `tools/trace_unsupported.py::accepted_kwargs` treat `**kwargs` as unknown, so TRACE.md stops overstating (96% is an upper bound). |
+| C2 | **"Supported" counts no-op shims** (`set_axisbelow`, `set_xmargin`, `set_frame_on`, `label_outer`, `secondary_xaxis` returning `self`). Split TRACE.md into implemented / accepted-and-ignored / missing. |
+| C3 | **Stale trace baseline:** `tools/trace_baseline.json` records 9602/10098 while README/TRACE/ROADMAP say 9758. Refresh it so `--check` really guards regressions. |
+| C4 | **`__init__.pyi` covers 94 of 239 public names** and drifts (`set_xlim(lo, hi)` vs `left/right`; missing `norm`, `pad_inches`, `handles/labels`, `**kwargs`). Extend or generate the stubs and add `mypy.stubtest` to CI; today only a test that the file exists. |
+| C5 | **Parity of signatures and validation:** `savefig` first parameter `filepath` (Matplotlib: `fname`), `transparent` default, `metadata`/`pil_kwargs` rejected; `plot` length mismatch, bad `linestyle` and bad `legend(loc=)` accepted; `hist(histtype=)` raises `NotImplementedError` not `ValueError`; `subplots` keyword-only rules and message text. |
+| C6 | **README truth fixes:** the dependency table names crates that are not direct dependencies (`libc`, `memmap2`, `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter`); "no C/C++ compiled" conflicts with `webp` (libwebp-sys), verify in `Cargo.lock` and reword. |
+| C7 | **Gate `publish.yml`** on the test matrix (reusable workflow or `needs`), add `concurrency`, attestations/SBOM, `twine check` and a wheel smoke test; confirm OIDC trusted publishing is the upload path. |
+| C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
+| C9 | **Governance files:** CHANGELOG.md (Keep a Changelog), SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates, CITATION.cff, `[project.urls]` (Issues, Changelog, Documentation). |
+| C10 | **One version source:** `dynamic = ["version"]` in `pyproject.toml` (maturin reads `Cargo.toml`); keep the tag check as backstop. |
+| C11 | **Rust hygiene:** `[lints]` table, `rust-version` (MSRV) tested in CI, `rust-toolchain.toml`, `deny.toml` + cargo-deny (licences incl. bundled font licences, duplicates, bans), `publish = false`. |
+| C12 | **Packaging:** `[tool.maturin]` sdist include/exclude (drop `assets/`, `benches/`, `tools/`) with a sdist content test; untrack `.jules/`, ignore `.freebuff/`; add `.editorconfig`. |
+| C13 | **Lint/type rules:** ruff beyond `F,E9` (`I,B,UP,RUF`); mypy or pyright on the package. |
+| C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
+| C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |
+| C16 | **Python support policy:** state the 3.9 EOL decision, run every supported minor in CI (3.11/3.12/3.14 gaps), align classifiers. |
+
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
 2. **V2:** no corpus render failures remain; keep the 26 interactive/GUI cases out of scope.
 3. **R3** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward; R2 and R5 are done.
 4. **Q4, Q3** next (mechanical Rust moves), then **Q1** before **Q2**; **Q5** before adding more model fields; **Q9** whenever CI time matters.
+5. **C3, C6** (quick truth fixes) → **C1/C2/C4** → **C7/C9/C11** → the rest of C.

@@ -1,5 +1,6 @@
 //! Axis, grid and spine drawing for one panel.
 
+use super::ticks::{log_label, minor_grid_values, tick_format, tick_label};
 use super::*;
 
 /// Draw the mesh, tick labels, gridlines, spines and manual ticks.

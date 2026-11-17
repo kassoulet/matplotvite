@@ -1,3 +1,4 @@
+use super::ticks::{log_label, tick_format, tick_label, TickFormat};
 use super::*;
 use crate::color::Cmap;
 
