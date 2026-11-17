@@ -48,34 +48,54 @@ pub(crate) fn color(s: &str) -> RGBAColor {
     }
 }
 
-/// One matplotlib colormap lookup; `_r` names reverse the sampled LUT.
-/// Unknown names fall back to viridis, matching the previous behaviour.
-pub(crate) fn colormap(name: &str, t: f64) -> [u8; 4] {
-    let (base, reversed) = match name.strip_suffix("_r") {
-        Some(base) => (base, true),
-        None => (name, false),
-    };
-    // Unknown names fall back to viridis; if the registry itself is empty,
-    // return opaque black rather than panicking on user input.
-    let Some(def) = lookup(base).or_else(|| lookup("viridis")) else {
-        return [0, 0, 0, 255];
-    };
-    let n = def.colors.len();
-    if n == 0 {
-        return [0, 0, 0, 255];
+/// A parsed colormap name, including its optional `_r` reversal.
+///
+/// Unknown names fall back to viridis, matching the renderer's previous
+/// behaviour for custom Python colormaps the Rust registry does not contain.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Cmap {
+    name: &'static str,
+    reversed: bool,
+}
+
+impl Cmap {
+    pub(crate) fn parse(value: &str) -> Self {
+        let text = value.trim();
+        let (base, reversed) = match text.strip_suffix("_r") {
+            Some(base) => (base, true),
+            None => (text, false),
+        };
+        let name = lookup(base)
+            .or_else(|| lookup("viridis"))
+            .map(|def| def.name)
+            .unwrap_or("");
+        Self { name, reversed }
     }
-    let t = if t.is_finite() {
-        t.clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let mut index = (t * n as f64) as usize;
-    if index >= n {
-        index = n - 1;
+
+    /// One matplotlib colormap lookup, clamped to the sampled LUT.
+    pub(crate) fn sample(self, t: f64) -> [u8; 4] {
+        // If the registry itself is empty, return opaque black rather than
+        // panicking on user input.
+        let Some(def) = lookup(self.name) else {
+            return [0, 0, 0, 255];
+        };
+        let n = def.colors.len();
+        if n == 0 {
+            return [0, 0, 0, 255];
+        }
+        let t = if t.is_finite() {
+            t.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let mut index = (t * n as f64) as usize;
+        if index >= n {
+            index = n - 1;
+        }
+        if self.reversed {
+            index = n - 1 - index;
+        }
+        let color = def.colors[index];
+        [color[0], color[1], color[2], 255]
     }
-    if reversed {
-        index = n - 1 - index;
-    }
-    let color = def.colors[index];
-    [color[0], color[1], color[2], 255]
 }

@@ -328,7 +328,7 @@ where
                     } else {
                         0.5
                     };
-                    let c = colormap(&sc.cmap, t);
+                    let c = sc.cmap.sample(t);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     RGBAColor(31, 119, 180, 1.0)

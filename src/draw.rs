@@ -5,7 +5,7 @@ use plotters::prelude::*;
 use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
 
-use crate::color::{color, colormap};
+use crate::color::{color, Cmap};
 use crate::image::{base64, image_png_for_size, image_rgb};
 use crate::layout::{
     aspect_datalim, auto_ticks, auto_ticks_for, axis_bounds, panel_ranges, range, tick_target,
@@ -1095,7 +1095,7 @@ where
 fn draw_colorbar<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     plot: (i32, i32, i32, i32),
-    cmap: &str,
+    cmap: Cmap,
     vmin: f64,
     vmax: f64,
     label: &str,
@@ -1157,7 +1157,7 @@ where
         } else {
             f
         };
-        let c = colormap(cmap, t);
+        let c = cmap.sample(t);
         let rect = if horizontal {
             [(x0 + i, y0), (x0 + i + 1, y1)]
         } else {
@@ -1171,8 +1171,8 @@ where
     let frame = RGBColor(90, 90, 90);
     let span = if horizontal { x1 - x0 } else { y1 - y0 };
     let tri = (span as f64 * extendfrac.max(0.0)).round() as i32;
-    let low_color = colormap(cmap, 0.0);
-    let high_color = colormap(cmap, 1.0);
+    let low_color = cmap.sample(0.0);
+    let high_color = cmap.sample(1.0);
     if extend == "min" || extend == "both" {
         let fill = RGBAColor(low_color[0], low_color[1], low_color[2], 1.0).filled();
         if extendrect {
@@ -2094,7 +2094,7 @@ where
             for band in 0..bands {
                 let (lo, hi) = (levels[band], levels[band + 1]);
                 let col = (if colors.is_empty() {
-                    let c = colormap(cmap, (band as f64 + 0.5) / bands as f64);
+                    let c = cmap.sample((band as f64 + 0.5) / bands as f64);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     color(&colors[band % colors.len()])
@@ -2555,7 +2555,7 @@ where
             for (li, level) in levels.iter().enumerate() {
                 let col = (if colors.is_empty() {
                     let t = if n > 1.0 { li as f64 / (n - 1.0) } else { 0.5 };
-                    let c = colormap(cmap, t);
+                    let c = cmap.sample(t);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
                     color(&colors[li % colors.len()])
@@ -2771,7 +2771,7 @@ where
                 br.0 - origin.0,
                 br.1 - origin.1,
             ),
-            cmap,
+            *cmap,
             *vmin,
             *vmax,
             label,

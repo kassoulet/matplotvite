@@ -1,5 +1,7 @@
 use ndarray::{Array1, Array2, ArrayD, ArrayView1, ArrayView2, ArrayViewD};
 use plotters::prelude::RGBAColor;
+
+use crate::color::Cmap;
 #[cfg(feature = "python")]
 use pyo3::FromPyObject;
 
@@ -366,7 +368,7 @@ pub(crate) type TextItem = (
 /// opacity, interpolation).
 pub(crate) type ImageItem = (
     OwnedArrayD,
-    String,
+    Cmap,
     Option<f64>,
     Option<f64>,
     (f64, f64, f64, f64),
@@ -379,7 +381,7 @@ pub(crate) type ImageItem = (
 /// offsets from the lower-left corner of the figure.
 pub(crate) type FigureImage = (
     OwnedArrayD,
-    String,
+    Cmap,
     Option<f64>,
     Option<f64>,
     f64,
@@ -407,7 +409,7 @@ pub(crate) type ErrorItem = (
 /// orientation, extend, rectangular extensions, extension fraction): a
 /// gradient strip panel.
 pub(crate) type ColorbarItem = (
-    String,
+    Cmap,
     f64,
     f64,
     String,
@@ -433,7 +435,7 @@ pub(crate) struct Scatter {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) values: Option<OwnedArray1>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) cmap: String,
+    pub(crate) cmap: Cmap,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) clim: Option<(f64, f64)>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -515,7 +517,7 @@ pub(crate) type ContourItem = (
     Vec<f64>,
     Vec<f64>,
     Vec<String>,
-    String,
+    Cmap,
     bool,
     f64,
 );

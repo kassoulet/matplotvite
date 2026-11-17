@@ -22,6 +22,7 @@ mod py;
 mod tests {
     use plotters::prelude::RGBAColor;
 
+    use crate::color::Cmap;
     use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
     use crate::model::{DrawStyle, LineStyle, Marker, Panel, PngCompression, QuiverUnits};
@@ -68,6 +69,13 @@ mod tests {
         assert_eq!(Marker::parse("+"), Some(Marker::Plus));
         assert_eq!(Marker::parse(""), Some(Marker::None));
         assert_eq!(Marker::parse("bogus"), None);
+    }
+
+    #[test]
+    fn cmap_parses_names_and_reversals() {
+        assert_eq!(Cmap::parse("viridis"), Cmap::parse("Viridis"));
+        assert_eq!(Cmap::parse("bogus"), Cmap::parse("viridis"));
+        assert_ne!(Cmap::parse("viridis_r"), Cmap::parse("viridis"));
     }
 
     #[test]

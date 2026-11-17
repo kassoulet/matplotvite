@@ -669,7 +669,7 @@ fn figure_images_fragment(size: (u32, u32), images: &[FigureImage]) -> Result<St
                  ({MAX_FIGURE_IMAGE_PIXELS}px)"
             ));
         }
-        let png = image_png_parts(arr, cmap, *vmin, *vmax, *opacity)?;
+        let png = image_png_parts(arr, *cmap, *vmin, *vmax, *opacity)?;
         embedded_bytes = embedded_bytes
             .checked_add(base64_len(png.len()))
             .ok_or("figimage embedded payload size overflow")?;

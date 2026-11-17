@@ -1,7 +1,7 @@
 use ndarray::ArrayViewD;
 use rayon::prelude::*;
 
-use crate::color::colormap;
+use crate::color::Cmap;
 use crate::model::{ImageItem, PngCompression};
 
 /// Upper bound on `imshow` pixels, matching the figure-canvas budget. Without
@@ -103,13 +103,13 @@ fn resample_area(
 /// Convert an `imshow` array into premultiplied RGBA pixels.
 pub(crate) fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String> {
     let (arr, cmap, vmin, vmax, _, _, opacity, _interpolation) = item;
-    image_pixmap_parts(arr.as_array(), cmap, *vmin, *vmax, *opacity)
+    image_pixmap_parts(arr.as_array(), *cmap, *vmin, *vmax, *opacity)
 }
 
 /// Shared implementation for axes images and `Figure.figimage`.
 pub(crate) fn image_pixmap_parts(
     a: ArrayViewD<'_, f64>,
-    cmap: &str,
+    cmap: Cmap,
     vmin: Option<f64>,
     vmax: Option<f64>,
     opacity: f64,
@@ -186,7 +186,7 @@ pub(crate) fn image_pixmap_parts(
         } else {
             let write_row = |dst: &mut [tiny_skia::PremultipliedColorU8], row: &[f64]| {
                 for (dst, &v) in dst.iter_mut().zip(row) {
-                    let c = colormap(cmap, (v - lo) / span);
+                    let c = cmap.sample((v - lo) / span);
                     let alpha = scaled_alpha(c[3] as f64, opacity);
                     *dst = tiny_skia::ColorU8::from_rgba(c[0], c[1], c[2], alpha).premultiply();
                 }
@@ -215,7 +215,7 @@ pub(crate) fn image_pixmap_parts(
                     };
                     [ch(0), ch(1), ch(2), alpha]
                 } else {
-                    let mut c = colormap(cmap, (a[[y, x]] - lo) / span);
+                    let mut c = cmap.sample((a[[y, x]] - lo) / span);
                     c[3] = scaled_alpha(c[3] as f64, opacity);
                     c
                 };
@@ -251,7 +251,7 @@ pub(crate) fn image_png_for_size(
 /// Encode an image array for a `figimage` overlay.
 pub(crate) fn image_png_parts(
     array: ArrayViewD<'_, f64>,
-    cmap: &str,
+    cmap: Cmap,
     vmin: Option<f64>,
     vmax: Option<f64>,
     opacity: f64,
