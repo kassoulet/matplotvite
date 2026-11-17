@@ -46,7 +46,7 @@ __all__ = (
     "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
     "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
     "MarkerStyle", "markers", "mmarkers",
-    "mcollections", "collections", "ConnectionPatch",
+    "mcollections", "collections", "ConnectionPatch", "bivar_colormaps",
     "patheffects", "path_effects", "color_sequences", "cm", "colormaps", "tri",
     "scale", "PdfPages",
     "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
@@ -10159,6 +10159,53 @@ _RC_DEFAULTS = dict(rcParams)
 
 class _Namespace:
     def __init__(self, **values): self.__dict__.update(values)
+
+
+class _BivarColormap:
+    """A small bivariate two-input colormap used by the Matplotlib corpus."""
+
+    def __init__(self, name, shape="square"):
+        self.name = str(name)
+        self.shape = str(shape)
+
+    def __call__(self, values):
+        if isinstance(values, tuple) and len(values) == 2:
+            x0, x1 = values
+        else:
+            array = np.asarray(values, dtype=float)
+            if array.shape[-1] != 2:
+                raise ValueError("a bivariate colormap needs two input channels")
+            x0, x1 = array[..., 0], array[..., 1]
+        x0 = np.asarray(x0, dtype=float)
+        x1 = np.asarray(x1, dtype=float)
+        u = np.clip((x0 + 0.1) / 1.2, 0.0, 1.0)
+        v = np.clip((x1 + 0.1) / 1.2, 0.0, 1.0)
+        if self.shape.startswith("circle"):
+            radius = np.hypot(u - 0.5, v - 0.5)
+            angle = np.arctan2(v - 0.5, u - 0.5)
+            red = 0.5 + 0.5 * np.cos(angle)
+            green = 0.5 + 0.5 * np.cos(angle - 2.0 * np.pi / 3.0)
+            blue = 0.5 + 0.5 * np.cos(angle + 2.0 * np.pi / 3.0)
+            shade = np.clip(1.0 - radius / 0.72, 0.0, 1.0)
+            rgb = np.stack([red * shade, green * shade, blue * shade], axis=-1)
+            if self.shape.endswith("ignore"):
+                rgb = np.where((radius <= 0.72)[..., None], rgb, 1.0)
+        else:
+            red = np.clip(1.0 - np.abs(u - v), 0.0, 1.0)
+            green = np.clip(1.0 - np.abs(u - 0.35), 0.0, 1.0)
+            blue = np.clip(1.0 - np.abs(v - 0.65), 0.0, 1.0)
+            rgb = np.stack([red, green, blue], axis=-1)
+        return np.clip(rgb, 0.0, 1.0)
+
+    def with_extremes(self, **kwargs):
+        shape = kwargs.get("shape", self.shape)
+        return _BivarColormap(self.name, shape)
+
+
+bivar_colormaps = {
+    "BiPeak": _BivarColormap("BiPeak", "square"),
+    "BiCone": _BivarColormap("BiCone", "circle"),
+}
 
 
 class _AxisModule(_Namespace):
