@@ -1068,6 +1068,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
     """Render every baseline case and write the side-by-side gallery."""
     report_missing_metrics_converters()
     cases = harvest(tests_root)
+    sample_data = find_sample_data(tests_root.parent)
     out.mkdir(parents=True, exist_ok=True)
 
     rows: list[str] = []
@@ -1096,7 +1097,7 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
             ignored: list[str] = []
             filename = pathlib.Path(str(case["file"])) if case.get("file") else None
             error = render(str(case["snippet"]), ours, ignored=ignored,
-                           filename=filename)
+                           sample_data=sample_data, filename=filename)
             entry["ignored"] = len(ignored)
             if error is None:
                 entry["ours"] = str(ours)
