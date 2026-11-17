@@ -233,6 +233,9 @@ plt.savefig("contours.png")
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=, interpolation=, alpha=)` —
   2-D arrays mapped through a colormap, or `(H, W, 3|4)` RGB(A) arrays; supports
   nearest/antialiased/bilinear interpolation hints and constant opacity
+- `imread(path | file-like)` — reads PNGs with a standard-library decoder covering
+  grayscale, palette, RGB and alpha images at 1/2/4/8/16-bit depth; other formats
+  use Pillow when it is installed
 - `contour(..., linewidths=, alpha=)` / `contourf(..., alpha=)` — style iso-lines and
   filled bands without changing the geometry
 - `colormaps`, `get_cmap(name)`, `cm` and `set_cmap` — all 182 matplotlib colormap
@@ -251,9 +254,10 @@ plt.savefig("contours.png")
 - `contours.clabel(levels=, fmt=, colors=, fontsize=)` — label each contour level
   at the midpoint of its longest segment (`manual=True` raises)
 - `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes
-- `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=)` — standalone
-  vertical or horizontal colorbar construction with divider geometry,
-  `extend=` triangle/rectangle ends, and `ColorbarBase` compatibility;
+- `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=, extend=, extendfrac=)`
+  — standalone vertical or horizontal colorbar construction with divider geometry,
+  `extend=` triangle/rectangle ends with explicit or automatic `extendfrac`
+  lengths, and `ColorbarBase` compatibility;
   `cbar.ax.set_yscale("log")` / `set_ylim(...)` and their x-axis equivalents
   adjust the scale/range
 
@@ -292,9 +296,11 @@ plt.savefig("contours.png")
   `zoomed_inset_axes` for the common inset-locator calls
 - `subplot_mosaic(...)` with named panels and empty cells
 - `twinx()` / `twiny()` for independent scales on a shared panel
-- `subplot(projection="polar")` and the geographic `aitoff`, `hammer`, `lambert` and
-  `mollweide` projections; custom projection classes registered with
-  `register_projection` receive the base `_set_lim_and_transforms` hook
+- `subplot(projection="polar")` / `polar=True` and the geographic `aitoff`,
+  `hammer`, `lambert` and `mollweide` projections; `Axes3D` and `SkewXAxes` are
+  registered compatibility projections that accept the API and draw flat, and
+  custom projection classes registered with `register_projection` receive the
+  base `_set_lim_and_transforms` hook
 - `fig.suptitle(...)` and `fig.subplots(..., sharex=, sharey=, squeeze=)`
 - `style.use`, `style.context`, `style.available`, and `rcParams` style presets
 - `set(**kwargs)` shorthand, `axis("off" | "on" | "equal" | "scaled" | [limits])`,
@@ -326,7 +332,8 @@ quiver of arrows. Shims that cannot affect the renderer emit a one-time
 
 ### Not supported
 
-- 3-D axes, tripcolor/tricontour, and other specialised matplotlib modules
+- true 3-D projection geometry (the `Axes3D` shim accepts the API and draws flat),
+  tripcolor/tricontour, and other specialised matplotlib modules
 - a pandas `.plot()` backend (planned for 0.7)
 - interactive display (planned for a future GPUI-based version)
 
@@ -382,9 +389,10 @@ reference images alongside the page so it stays browsable when moved. On the
 Matplotlib 3.11.2 checkout used here, the examples gallery renders **389 of 507**
 scripts: no remaining API errors, 114 are interactive, 3-D, GUI/toolkit or otherwise
 environment-specific, and 4 are blank because their scripts print text or create no
-saved figure. The pixel
-metrics read PNGs through Matplotlib, so without it the corpus gallery still
-renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are
+saved figure. The Matplotlib corpus currently renders **450 of 526** cases (45 failed, 26
+unsupported, 5 blank), with no remaining backend or projection render failures.
+The pixel metrics read PNGs through Matplotlib, so without it the corpus gallery
+still renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are
 rasterised at the rendered PNG's size when `pypdfium2`, `cairosvg`, and Ghostscript
 respectively are available. These are gitignored build artifacts under `dist/`.
 To regenerate all three as a check:

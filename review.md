@@ -1,26 +1,27 @@
 # Review: performance, security and Matplotlib parity (open issues)
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
-tasks are listed. Results on this tree: Python suite **454 passed, 12 skipped**;
+tasks are listed. Results on this tree: Python suite **456 passed, 12 skipped**;
 `cargo test --all-targets` passes 36 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
-| `mpl-corpus` (`@image_comparison`) | 526 | 442 | 5 | 53 failed | 26 unsupported |
+| `mpl-corpus` (`@image_comparison`) | 526 | 450 | 5 | 45 failed | 26 unsupported |
 | `mpl-examples` (gallery scripts) | 507 | 389 | 4 | 0 failed, 0 needs API | 114 unsupported |
 
-The example gallery is current. The corpus total is derived from the last full
-run plus the fixed cases re-rendered individually; the whole 526-case corpus has
-not been rerun since every shim.
+Both totals are from full runs on this tree. The 526-case corpus was rerun after
+the projection and `imread` fixes.
 
 Closed this cycle: the remaining example API/failure groups (G3/G4), Pillow
 environment handling (F5), default title/label/tick sizes and tick-label handles
 (M12), standalone `Colorbar(ax, cmap=, norm=, drawedges=)` construction, horizontal
 colorbars with axis scale/limits and extension geometry, RGB tuple facecolours,
-Path/EventCollection compatibility helpers, and the code-level probes for
-colorbar mappables/text, shared-axis labels, twin-axis sides, multiline text and
-`imshow` antialiasing (M2–M5, M11, M17). The KARIOS legend-order, twin-side and
+Path/EventCollection compatibility helpers, colorbar `extendfrac`, 3-D/skew
+projection compatibility, `polar=True` axes construction, standard-library PNG
+`imread`, and the code-level probes for colorbar mappables/text, shared-axis
+labels, twin-axis sides, multiline text and `imshow` antialiasing (M2–M5, M11,
+M17). The KARIOS legend-order, twin-side and
 layout fixes are also in this tree. The 3×3 tick-density check is covered by the
 eight-tick locator test.
 
@@ -34,7 +35,7 @@ eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **The refreshed corpus still has 53 failures.** The multi-font helper, categorical `data=`, Colorbar constructor/orientation, RGB facecolour, Path helper and EventCollection groups now render. The remaining failures are backend- and projection-specific cases plus harness limitations such as parametrised snippets. |
+| V2 | **The refreshed corpus still has 45 failures.** Backend PDF/PS/SVG and projection cases now render, including `test_png/test_pngsuite` through the standard-library PNG `imread`; the two PS transparency cases are blank because every artist is intentionally `alpha=0`. The remaining failures are scattered API gaps plus harness limitations such as parametrised snippets. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
@@ -73,5 +74,5 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
-2. **V2:** regenerate `mpl-corpus`; its failures are now the largest concrete gap list.
-3. **R2, R3, R5** first (mechanical, with the 445-test Python suite as a safety net), then R4/R6 onward.
+2. **V2:** work down the 45-case corpus gap list; the backend and projection groups now render.
+3. **R2, R3, R5** first (mechanical, with the 456-test Python suite as a safety net), then R4/R6 onward.

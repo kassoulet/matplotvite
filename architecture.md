@@ -153,11 +153,11 @@ matplotlib-style padding rule, and computes tick positions and labels. It also
 handles logarithmic scales and the figure/axes panel rectangles.
 
 Colorbar requests travel as panel metadata (`cmap`, `vmin`, `vmax`, `label`,
-orientation, axis scale, display limits and `extend` geometry). The Python
-facade resolves both mappable-based `fig.colorbar(...)` calls and standalone
-`Colorbar(ax, ...)` construction into that record; Rust maps the gradient and
-ticks through the requested axis scale and limits, then draws any extension
-triangles or rectangles.
+orientation, axis scale, display limits, `extend` geometry and `extendfrac`
+length). The Python facade resolves both mappable-based `fig.colorbar(...)` calls
+and standalone `Colorbar(ax, ...)` construction into that record; Rust maps the
+gradient and ticks through the requested axis scale and limits, then draws any
+extension triangles or rectangles at the requested length.
 
 `draw.rs` draws one panel into an SVG fragment using plotters' SVG backend.
 Each fragment uses absolute canvas coordinates, so `export.rs` can concatenate
@@ -203,7 +203,10 @@ than a full transform stack:
 - `RenderOptions` carries format, DPI, transparency, tight-cropping,
   compression, figure title, and figure-level text.
 - Axis transforms cover linear, log, symlog, logit, asinh, function, and registered
-  custom scales; custom projections can override `_set_lim_and_transforms`.
+  custom scales. Custom projections can override `_set_lim_and_transforms`;
+  `polar=True` constructs `PolarAxes`, while the `Axes3D` and `SkewXAxes`
+  projections are compatibility shims that accept their API and draw on the 2-D
+  panel.
 - `data=` dictionaries are resolved to their array values before numeric
   conversion in the main plotting and fill helpers.
 - The Rust side never imports Python modules or calls back into user code; after
@@ -232,6 +235,9 @@ documented in the README.
   their rendered counts are an upper bound because pinned helper code can do
   part of the work. The current Matplotlib examples run renders 389 of 507
   scripts, with the remaining cases interactive, 3-D, environment-specific, or
-  blank because they create no saved figure.
+  blank because they create no saved figure. The full `@image_comparison`
+  corpus renders 450 of 526 cases (45 failed, 26 unsupported, 5 blank); backend
+  and projection cases render, including PngSuite through the standard-library
+  PNG reader.
 - `prek` and CI run formatting, Clippy, Rust tests, Bandit, and the security
   audit. `prek checks` is a required status check for `main`.

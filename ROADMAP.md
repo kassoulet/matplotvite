@@ -8,7 +8,7 @@
 
 ## Release status
 
-- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`.
+- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, 3-D/skew compatibility shims, `polar=True` axes construction, standard-library PNG `imread`, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
@@ -143,12 +143,13 @@
 - [x] `boxplot(x, notch=, vert=, patch_artist=, labels=)` — boxes, whiskers, caps, medians and fliers from 1.5-IQR statistics; notched outlines, horizontal orientation, optional filled boxes and per-dataset labels
 - [x] `violinplot(dataset, positions=, vert=, widths=)` — Gaussian KDE per dataset drawn as a filled violin, with optional mean/median/extrema lines, one-sided bodies and quantile markers
 - [x] `imshow(X, cmap=, vmin=, vmax=, origin=, extent=, aspect=)` — 2-D arrays via colormap and RGB(A) arrays, embedded as fast PNG data URIs; `interpolation`, scalar or per-pixel `alpha`, and shared `Colorizer` norms honoured
+- [x] `imread(path | file-like)` — top-level PNG reader with a standard-library decoder for grayscale, palette, RGB and alpha images at 1/2/4/8/16-bit depth; other formats fall back to Pillow when installed
 - [x] `set_aspect('equal' | 'auto' | <number>)` — shrinks the plotting box to fix the data scale (matplotlib's `adjustable="box"`)
 - [x] `contour(X, Y, Z, levels=, colors=, cmap=)` — marching-squares iso-lines (`linewidths`/`alpha` accepted but ignored)
 - [x] `contourf(X, Y, Z, levels=, colors=, cmap=)` — filled iso-bands by clipping each grid triangle against the level pair (`alpha` accepted but ignored)
 - [x] `contour(X, Y, Z, levels=)` / `contourf(...)` with colorbar
 - [x] `colorbar(mappable, ax=, label=)` — gradient strip with min/mid/max ticks, one per axes (including multi-panel figures)
-- [x] `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=)` — standalone colorbar construction, including divider geometry for `drawedges`, `ColorbarBase` compatibility, horizontal/vertical orientation, `extend=` triangles or rectangles, and `cbar.ax.set_yscale("log")` / `set_ylim(...)` / x-axis equivalents
+- [x] `Colorbar(ax, cmap=, norm=, boundaries=, orientation=, drawedges=, extend=, extendfrac=)` — standalone colorbar construction, including divider geometry for `drawedges`, `ColorbarBase` compatibility, horizontal/vertical orientation, `extend=` triangles or rectangles with explicit or automatic `extendfrac` lengths, and `cbar.ax.set_yscale("log")` / `set_ylim(...)` / x-axis equivalents
 - [x] `pcolormesh(X, Y, Z, cmap=, vmin=, vmax=)` / `pcolor` / `pcolorfast` — cells rasterised through the image path, edges or centres accepted (`shading`/`norm` accepted but ignored)
 - [x] `hist2d(x, y, bins=, cmap=)` / `hexbin(x, y, gridsize=, cmap=)` — 2-D histograms through the image path and hexagonal binning with colormap-mapped cells, including `C=`, `mincnt=` and per-axis `bins`
 - [x] `stackplot(x, *ys, colors=, alpha=)` — cumulative layers over `fill_between` with zero, symmetric and streamgraph (`baseline="wiggle"`) baselines
@@ -227,7 +228,7 @@
 > `tools/visual_compare.py` uses against Matplotlib Agg.
 
 ### Matplotlib test corpus
-- [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. The current Matplotlib 3.11.2 corpus run has 526 cases: 442 rendering, 53 failing, 26 unsupported and 5 blank, so the failures remain the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
+- [x] Harvest `lib/matplotlib/tests/baseline_images` — `tools/harvest_matplotlib.py` pulls every `@image_comparison` case out of a checkout, rewrites the standalone ones into snippets, renders them with matplotvite and writes a baseline-vs-ours gallery plus a JSON manifest. The current Matplotlib 3.11.2 corpus run has 526 cases: 450 rendering, 45 failing, 26 unsupported and 5 blank. Backend PDF/PS/SVG and projection cases now render; the two blank PS transparency cases are intentionally transparent. The failures remain the concrete gap list. The wheel ships `test_*.py` but not the images, so the tool needs an sdist or git clone (its default search is `dist/mpl-sdist/`)
 - [x] Harvest the gallery examples — `tools/harvest_matplotlib.py --examples <checkout>` rewrites every script under `galleries/examples`, strips the interactive tail, renders it and writes a per-category gallery whose failures are the gap list. On Matplotlib 3.11.2, 389 of 507 render; 0 need API, 114 are interactive, 3-D, GUI/toolkit or otherwise environment-specific, and 4 are blank because their scripts print text or create no saved figure. `examples/` now lives at `galleries/examples` in the checkout, so a sparse checkout of that path is enough
 - [x] Keep the galleries reproducible — `pytest -m gallery` regenerates all three from local checkouts and skips when they are absent (the default `pytest` run deselects the marker), and CI publishes the HTML plus relative baseline copies as a build artifact
 - [ ] Check in the corpus as generated metadata (snippet source + expected-image hash), refreshed by a tool rather than hand-copied, and diff only the snippets a change actually touches
