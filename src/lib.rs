@@ -24,7 +24,7 @@ mod tests {
 
     use crate::export::{background_pixel, content_bbox, encode_eps, encode_png};
     use crate::layout::range;
-    use crate::model::{DrawStyle, LineStyle, Marker, Panel, PngCompression};
+    use crate::model::{DrawStyle, LineStyle, Marker, Panel, PngCompression, QuiverUnits};
 
     fn decode_png(bytes: &[u8]) -> (u32, u32, Vec<u8>) {
         let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
@@ -68,6 +68,18 @@ mod tests {
         assert_eq!(Marker::parse("+"), Some(Marker::Plus));
         assert_eq!(Marker::parse(""), Some(Marker::None));
         assert_eq!(Marker::parse("bogus"), None);
+    }
+
+    #[test]
+    fn quiver_units_parse_supported_measurements() {
+        assert_eq!(QuiverUnits::parse("width"), Some(QuiverUnits::Width));
+        assert_eq!(QuiverUnits::parse("height"), Some(QuiverUnits::Height));
+        assert_eq!(QuiverUnits::parse("dots"), Some(QuiverUnits::Dots));
+        assert_eq!(QuiverUnits::parse("inches"), Some(QuiverUnits::Inches));
+        assert_eq!(QuiverUnits::parse("x"), Some(QuiverUnits::X));
+        assert_eq!(QuiverUnits::parse("y"), Some(QuiverUnits::Y));
+        assert_eq!(QuiverUnits::parse("xy"), Some(QuiverUnits::Xy));
+        assert_eq!(QuiverUnits::parse("furlongs"), None);
     }
 
     #[test]

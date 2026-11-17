@@ -2,7 +2,7 @@
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
 tasks are listed. Results on this tree: Python suite **478 passed, 9 skipped**;
-`cargo test --all-targets` passes 41 tests; `ruff`, `cargo fmt`, and
+`cargo test --all-targets` passes 42 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
@@ -52,7 +52,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 |---|------|
 | R1 | **Done.** `src/render.rs::render_figure` owns validation, format routing, direct-PNG selection, cropping and encoding; `src/lib.rs` is the PyO3 adapter and maps `RenderError` to Python exceptions. |
 | R2 | **Done.** The PyO3 adapter and NumPy extraction live in `src/py.rs` behind the default `python` feature; `pyo3` and `numpy` are optional dependencies and the model uses plain `ndarray`. Gate: `cargo test --no-default-features` and `cargo clippy --no-default-features -- -D warnings` pass without Python. |
-| R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. **Partly done: `Series.drawstyle` is a `DrawStyle`, `Series.linestyle`/`Grid.linestyle` use `LineStyle`, and `Marker` is used by series, scatter and collections, all parsed by the Python adapter; the colour, cmap and units fields remain strings.** |
+| R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. **Partly done: `Series.drawstyle` is a `DrawStyle`, `Series.linestyle`/`Grid.linestyle` use `LineStyle`, `Marker` is used by series, scatter and collections, and quiver `units`/`scale_units` use `QuiverUnits`; all are parsed by the Python adapter. The colour and cmap fields remain strings.** |
 | R4 | **Split `draw.rs`** by artist (line, scatter, bar, contour, quiver, text, collection). The `draw/` modules cover axes, series, ticks, legends and images; the remaining `draw.rs` entry point is still large. |
 | R5 | **Done.** `src/render.rs` renders a minimal line panel to PNG and SVG through the pure-Rust path, so high-level drawing is no longer covered only through Python. |
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |

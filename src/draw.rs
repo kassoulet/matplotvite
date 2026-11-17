@@ -12,7 +12,7 @@ use crate::layout::{
 };
 use crate::model::{
     DrawStyle, Legend, LegendEntry, LegendSwatch, Marker, OwnedArray1, Panel, PngCompression,
-    TextBBox,
+    QuiverUnits, TextBBox,
 };
 
 mod axes;
@@ -2603,21 +2603,21 @@ where
                 (0..n).map(|i| aus[i].hypot(avs[i])).sum::<f64>() / n as f64
             };
             let sn = (n as f64).sqrt().clamp(8.0, 25.0);
-            let dots_per_unit = |unit: &str| -> f64 {
+            let dots_per_unit = |unit: QuiverUnits| -> f64 {
                 match unit {
-                    "height" => ph,
-                    "dots" => 1.0,
-                    "inches" => dpi,
-                    "x" => pw / x_span,
-                    "y" => ph / y_span,
-                    "xy" => pw.hypot(ph) / x_span.hypot(y_span),
-                    _ => pw,
+                    QuiverUnits::Height => ph,
+                    QuiverUnits::Dots => 1.0,
+                    QuiverUnits::Inches => dpi,
+                    QuiverUnits::X => pw / x_span,
+                    QuiverUnits::Y => ph / y_span,
+                    QuiverUnits::Xy => pw.hypot(ph) / x_span.hypot(y_span),
+                    QuiverUnits::Width => pw,
                 }
             };
-            let dx_trans = dots_per_unit(&arrow.units).max(f64::MIN_POSITIVE);
+            let dx_trans = dots_per_unit(arrow.units).max(f64::MIN_POSITIVE);
             let span = pw / dx_trans;
             let width_units = arrow.width.unwrap_or(0.06 * span / sn);
-            let widthu_per_lenu = match arrow.scale_units.as_deref() {
+            let widthu_per_lenu = match arrow.scale_units {
                 Some(unit) => dots_per_unit(unit) / dx_trans,
                 None => 1.0,
             };

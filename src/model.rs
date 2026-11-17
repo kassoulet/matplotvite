@@ -446,6 +446,34 @@ pub(crate) struct Scatter {
     pub(crate) label: String,
 }
 
+/// The axes measurement used to turn quiver vector lengths into pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum QuiverUnits {
+    #[default]
+    Width,
+    Height,
+    Dots,
+    Inches,
+    X,
+    Y,
+    Xy,
+}
+
+impl QuiverUnits {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        match value {
+            "width" => Some(Self::Width),
+            "height" => Some(Self::Height),
+            "dots" => Some(Self::Dots),
+            "inches" => Some(Self::Inches),
+            "x" => Some(Self::X),
+            "y" => Some(Self::Y),
+            "xy" => Some(Self::Xy),
+            _ => None,
+        }
+    }
+}
+
 /// One `quiver` call: arrow tails, vector components and styling.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
 pub(crate) struct Arrow {
@@ -462,9 +490,9 @@ pub(crate) struct Arrow {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) scale: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) units: String,
+    pub(crate) units: QuiverUnits,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) scale_units: Option<String>,
+    pub(crate) scale_units: Option<QuiverUnits>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) angles: String,
     #[cfg_attr(feature = "python", pyo3(item))]

@@ -8,7 +8,8 @@ use pyo3::{Borrowed, FromPyObject};
 use crate::cmap_data;
 use crate::export::render_pdf_pages;
 use crate::model::{
-    DrawStyle, LineStyle, Marker, OwnedArray1, OwnedArray2, OwnedArrayD, Panel, RenderOptions,
+    DrawStyle, LineStyle, Marker, OwnedArray1, OwnedArray2, OwnedArrayD, Panel, QuiverUnits,
+    RenderOptions,
 };
 use crate::render::render_figure;
 
@@ -61,6 +62,19 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Marker {
             .as_deref()
             .and_then(Marker::parse)
             .unwrap_or(Marker::Circle))
+    }
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for QuiverUnits {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let value: String = obj.extract()?;
+        QuiverUnits::parse(&value).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unsupported quiver units: {value:?} (use 'width', 'height', 'dots', 'inches', 'x', 'y', or 'xy')"
+            ))
+        })
     }
 }
 
