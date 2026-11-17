@@ -1,7 +1,7 @@
 use ndarray::{Array1, Array2, ArrayD, ArrayView1, ArrayView2, ArrayViewD};
 use plotters::prelude::RGBAColor;
 
-use crate::color::Cmap;
+use crate::color::{Cmap, Color};
 #[cfg(feature = "python")]
 use pyo3::FromPyObject;
 
@@ -100,9 +100,9 @@ pub(crate) struct RenderOptions {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) dpi: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<String>,
+    pub(crate) facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<String>,
+    pub(crate) edgecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) compression: Option<String>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -310,7 +310,7 @@ pub(crate) struct Series {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) label: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: String,
+    pub(crate) color: Color,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) linestyle: LineStyle,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -320,9 +320,9 @@ pub(crate) struct Series {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) markersize: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) mfc: Option<String>,
+    pub(crate) mfc: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) mec: Option<String>,
+    pub(crate) mec: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) mew: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -337,9 +337,9 @@ pub(crate) struct Series {
 #[cfg_attr(feature = "python", derive(FromPyObject))]
 pub(crate) struct TextBBox {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<String>,
+    pub(crate) facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<String>,
+    pub(crate) edgecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -354,7 +354,7 @@ pub(crate) type TextItem = (
     f64,
     f64,
     String,
-    String,
+    Color,
     f64,
     String,
     String,
@@ -391,7 +391,7 @@ pub(crate) type FigureImage = (
 );
 
 /// (text, xy, xytext, color, font size, font family).
-pub(crate) type Annotation = (String, (f64, f64), Option<(f64, f64)>, String, f64, String);
+pub(crate) type Annotation = (String, (f64, f64), Option<(f64, f64)>, Color, f64, String);
 
 /// (x, y, yerr-lo, yerr-hi, xerr-lo, xerr-hi, color, cap half-width in px).
 pub(crate) type ErrorItem = (
@@ -401,7 +401,7 @@ pub(crate) type ErrorItem = (
     OwnedArray1,
     OwnedArray1,
     OwnedArray1,
-    String,
+    Color,
     f64,
 );
 
@@ -439,7 +439,7 @@ pub(crate) struct Scatter {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) clim: Option<(f64, f64)>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<String>,
+    pub(crate) colors: Vec<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -488,7 +488,7 @@ pub(crate) struct Arrow {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) v: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<String>,
+    pub(crate) colors: Vec<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) scale: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -516,7 +516,7 @@ pub(crate) type ContourItem = (
     OwnedArray2,
     Vec<f64>,
     Vec<f64>,
-    Vec<String>,
+    Vec<Color>,
     Cmap,
     bool,
     f64,
@@ -532,9 +532,9 @@ pub(crate) struct TickStyle {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) width: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: Option<String>,
+    pub(crate) color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) labelcolor: Option<String>,
+    pub(crate) labelcolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) rotation: f64,
 }
@@ -639,7 +639,7 @@ pub(crate) struct Grid {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) show: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: Option<String>,
+    pub(crate) color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) linewidth: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -651,7 +651,7 @@ pub(crate) struct Grid {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) minor_show: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) minor_color: Option<String>,
+    pub(crate) minor_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) minor_linewidth: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -765,9 +765,9 @@ pub(crate) struct Panel {
     pub(crate) axis_off: bool,
     /// Axes background and the colour used for titles, labels and ticks.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<String>,
+    pub(crate) facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) foreground: Option<String>,
+    pub(crate) foreground: Option<Color>,
     /// Figure-fraction `(x, y, width, height)`; `None` uses the grid cell.
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) bounds: Option<(f64, f64, f64, f64)>,
@@ -786,9 +786,9 @@ pub(crate) struct Panel {
     pub(crate) twin_reserve: String,
     /// Explicit axis-label colours; `None` follows the axes foreground.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xlabel_color: Option<String>,
+    pub(crate) xlabel_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ylabel_color: Option<String>,
+    pub(crate) ylabel_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) patches: Vec<ArtistPatch>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -815,9 +815,9 @@ pub(crate) struct ArtistPatch {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) points: Vec<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<String>,
+    pub(crate) facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<String>,
+    pub(crate) edgecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) linewidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -838,7 +838,7 @@ pub(crate) struct ArtistCollection {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) sizes: Vec<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<String>,
+    pub(crate) colors: Vec<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -861,10 +861,10 @@ pub(crate) struct Bar {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) height: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<String>,
+    pub(crate) colors: Vec<Color>,
     /// One edge colour per bar; a shorter list cycles.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<Vec<String>>,
+    pub(crate) edgecolor: Option<Vec<Color>>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -879,7 +879,7 @@ pub(crate) struct Band {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) y: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: String,
+    pub(crate) color: Color,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub(crate) alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]

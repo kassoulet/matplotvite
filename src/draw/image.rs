@@ -33,9 +33,10 @@ where
         if draw_images {
             let bg = p
                 .facecolor
-                .as_deref()
-                .map(color)
-                .map(|c| [c.0, c.1, c.2])
+                .map(|c| {
+                    let c = c.rgba();
+                    [c.0, c.1, c.2]
+                })
                 .unwrap_or([255, 255, 255]);
             let (x, y) = (ax.min(zx) - base.0, ay.min(zy) - base.1);
             let rgb = image_rgb(item, iw as u32, ih as u32, bg)?;

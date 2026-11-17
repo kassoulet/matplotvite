@@ -114,7 +114,7 @@ pub(crate) fn render_figure(
         return Err(RenderError::CompressionWithoutPng);
     }
 
-    let background = figure_background(transparent, facecolor.as_deref());
+    let background = figure_background(transparent, facecolor.map(|c| c.rgba()));
     let title = (!suptitle.is_empty()).then_some(Suptitle {
         text: &suptitle,
         family: &suptitle_family,
@@ -125,7 +125,7 @@ pub(crate) fn render_figure(
     let decorations = FigureDecorations {
         suptitle: title,
         texts: &figure_texts,
-        edgecolor: edgecolor.as_deref(),
+        edgecolor: edgecolor.map(|c| c.rgba()),
     };
     let output = RenderOutput {
         dpi,
@@ -217,6 +217,7 @@ pub(crate) fn render_figure(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::Color;
     use crate::fonts::SANS_FAMILY;
     use crate::model::{DrawStyle, LineStyle, Panel, RenderOptions, Series};
 
@@ -234,7 +235,7 @@ mod tests {
                 x: vec![0.0, 1.0, 2.0].into(),
                 y: vec![0.0, 1.0, 0.0].into(),
                 label: "line".to_string(),
-                color: "#1f77b4".to_string(),
+                color: Color::parse("#1f77b4"),
                 linestyle: LineStyle::Solid,
                 linewidth: 1.5,
                 markersize: 6.0,

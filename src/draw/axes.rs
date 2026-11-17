@@ -71,7 +71,11 @@ where
         if !p.grid.show {
             mesh.disable_mesh();
         } else if p.grid.color.is_some() || p.grid.linewidth.is_some() || p.grid.alpha.is_some() {
-            let gc = color(p.grid.color.as_deref().unwrap_or("#b0b0b0"));
+            let gc = p
+                .grid
+                .color
+                .map(|c| c.rgba())
+                .unwrap_or_else(|| color("#b0b0b0"));
             let alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
             // `grid.linewidth` is in points; a 0.8 pt default is 1 px at
             // 100 dpi and 2 px at 200 dpi.
@@ -132,7 +136,11 @@ where
             let br = pa.map_coordinate(&(x1, y0));
             let (left, top) = (tl.0 - base.0, tl.1 - base.1);
             let (right, bottom) = (br.0 - base.0, br.1 - base.1);
-            let gc = color(p.grid.minor_color.as_deref().unwrap_or("#b0b0b0"));
+            let gc = p
+                .grid
+                .minor_color
+                .map(|c| c.rgba())
+                .unwrap_or_else(|| color("#b0b0b0"));
             let alpha = p.grid.minor_alpha.unwrap_or(1.0).clamp(0.0, 1.0);
             let width = (p.grid.minor_linewidth.unwrap_or(0.8) * dpi / 72.0)
                 .round()

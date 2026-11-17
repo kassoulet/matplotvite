@@ -102,13 +102,11 @@ where
             + pad;
         let face = bb
             .facecolor
-            .as_deref()
-            .map(color)
+            .map(|c| c.rgba())
             .unwrap_or(RGBAColor(0, 0, 0, 0.0));
         let edge = bb
             .edgecolor
-            .as_deref()
-            .map(color)
+            .map(|c| c.rgba())
             .unwrap_or(RGBAColor(0, 0, 0, 0.0));
         let alpha = bb.alpha.clamp(0.0, 1.0);
         let fill = RGBAColor(face.0, face.1, face.2, face.3 * alpha);
@@ -1795,7 +1793,10 @@ where
 {
     let colorbar = p.colorbar.as_ref();
     let colorbar_horizontal = colorbar.map(|item| item.7 == "horizontal").unwrap_or(false);
-    let fg = color(p.foreground.as_deref().unwrap_or("#000000"));
+    let fg = p
+        .foreground
+        .map(|c| c.rgba())
+        .unwrap_or_else(|| color("#000000"));
     let twin_reserve = p.twin_reserve.as_str();
     let (mut x0, mut x1, mut y0, mut y1) = panel_ranges(p);
     // Log axes are laid out in log10 space: the ranges and every mapped point are
@@ -2035,8 +2036,8 @@ where
             .y_label_area_size(y_label_area)
             .build_cartesian_2d(x0..x1, y0..y1)?;
     }
-    if let Some(fc) = &p.facecolor {
-        chart.plotting_area().fill(&color(fc))?;
+    if let Some(fc) = p.facecolor {
+        chart.plotting_area().fill(&fc.rgba())?;
     }
     axes::draw_axes(
         area,
@@ -2097,7 +2098,7 @@ where
                     let c = cmap.sample((band as f64 + 0.5) / bands as f64);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
-                    color(&colors[band % colors.len()])
+                    colors[band % colors.len()].rgba()
                 })
                 .mix(opacity);
                 let map = |px: f64, py: f64| {
@@ -2243,7 +2244,7 @@ where
                 }
                 let pts: Vec<(i32, i32)> =
                     xs.iter().zip(ys.iter()).map(|(x, y)| map(*x, *y)).collect();
-                let col = color(&band.color).mix(alpha);
+                let col = band.color.rgba().mix(alpha);
                 area.draw(&Polygon::new(pts, col.filled()))?;
                 if !band.label.is_empty() {
                     legend_bands.push((band.label.clone(), col));
@@ -2273,7 +2274,7 @@ where
                 let col = if bars.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
-                    color(&bars.colors[i % bars.colors.len()])
+                    bars.colors[i % bars.colors.len()].rgba()
                 };
                 let col = match bars.alpha {
                     Some(a) => col.mix(a.clamp(0.0, 1.0)),
@@ -2292,7 +2293,7 @@ where
                 area.draw(&Rectangle::new([(xl, yt), (xr, yb)], col.filled()))?;
                 if let Some(edges) = &bars.edgecolor {
                     if let Some(ec) = edges.get(i % edges.len().max(1)) {
-                        let ecol = color(ec).stroke_width(1);
+                        let ecol = ec.rgba().stroke_width(1);
                         area.draw(&Rectangle::new([(xl, yt), (xr, yb)], ecol))?;
                     }
                 }
@@ -2327,12 +2328,11 @@ where
         };
         for patch in &p.patches {
             let alpha = patch.alpha.clamp(0.0, 1.0);
-            let face = patch.facecolor.as_deref().map(color).filter(|c| c.3 > 0.0);
+            let face = patch.facecolor.map(|c| c.rgba()).filter(|c| c.3 > 0.0);
             let fill = face.map(|c| c.mix(alpha));
             let stroke = patch
                 .edgecolor
-                .as_deref()
-                .map(color)
+                .map(|c| c.rgba())
                 .filter(|c| c.3 > 0.0)
                 .map(|c| {
                     c.mix(alpha)
@@ -2435,7 +2435,7 @@ where
                 let icon = coll
                     .colors
                     .first()
-                    .map(|c| color(c))
+                    .map(|c| c.rgba())
                     .unwrap_or(RGBAColor(31, 119, 180, 1.0));
                 entries.push(LegendEntry {
                     label: coll.label.clone(),
@@ -2459,7 +2459,7 @@ where
                 let col = if coll.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
-                    color(&coll.colors[i % coll.colors.len()])
+                    coll.colors[i % coll.colors.len()].rgba()
                 };
                 if let Some(layer) = collection_layer.as_mut() {
                     draw_marker_raster(
@@ -2501,7 +2501,7 @@ where
                 let col = if coll.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
-                    color(&coll.colors[i % coll.colors.len()])
+                    coll.colors[i % coll.colors.len()].rgba()
                 };
                 area.draw(&PathElement::new(
                     pts,
@@ -2558,7 +2558,7 @@ where
                     let c = cmap.sample(t);
                     RGBAColor(c[0], c[1], c[2], 1.0)
                 } else {
-                    color(&colors[li % colors.len()])
+                    colors[li % colors.len()].rgba()
                 })
                 .mix(opacity);
                 let width = linewidths
@@ -2652,7 +2652,7 @@ where
                 let col = if arrow.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
-                    color(&arrow.colors[i % arrow.colors.len()])
+                    arrow.colors[i % arrow.colors.len()].rgba()
                 };
                 draw_quiver_arrow(
                     area,
@@ -2690,7 +2690,7 @@ where
                 base,
                 pos,
                 s,
-                color(c),
+                c.rgba(),
                 text_px(*size, dpi),
                 ha,
                 va,
@@ -2707,14 +2707,14 @@ where
                 None => target,
             };
             if xytext.is_some() {
-                draw_arrow(area, base, anchor, target, color(c))?;
+                draw_arrow(area, base, anchor, target, c.rgba())?;
             }
             draw_label(
                 area,
                 base,
                 anchor,
                 text,
-                color(c),
+                c.rgba(),
                 text_px(*size, dpi),
                 "left",
                 "baseline",

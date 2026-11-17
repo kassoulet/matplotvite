@@ -7,7 +7,6 @@ use plotters::style::text_anchor::{HPos, Pos, VPos};
 use plotters::style::IntoFont;
 use rayon::prelude::*;
 
-use crate::color::color;
 use crate::draw::{draw_label, draw_panel, text_px};
 use crate::fonts::{fontdb, pdf_options};
 use crate::image::{base64, image_png_parts};
@@ -17,7 +16,7 @@ use crate::model::{FigureImage, Panel, PngCompression, Suptitle, TextItem};
 pub(crate) struct FigureDecorations<'a> {
     pub(crate) suptitle: Option<Suptitle<'a>>,
     pub(crate) texts: &'a [TextItem],
-    pub(crate) edgecolor: Option<&'a str>,
+    pub(crate) edgecolor: Option<RGBAColor>,
 }
 
 impl FigureDecorations<'_> {
@@ -217,15 +216,14 @@ fn pdf_group_bounds(group: &svg2pdf::usvg::Group) -> Option<(f32, f32, f32, f32)
 
 /// The fill used by the rasterised and vector figure background. `None` keeps
 /// the figure transparent.
-pub(crate) fn figure_background(transparent: bool, facecolor: Option<&str>) -> Option<RGBAColor> {
+pub(crate) fn figure_background(
+    transparent: bool,
+    facecolor: Option<RGBAColor>,
+) -> Option<RGBAColor> {
     if transparent {
         None
     } else {
-        Some(
-            facecolor
-                .map(color)
-                .unwrap_or(RGBAColor(255, 255, 255, 1.0)),
-        )
+        Some(facecolor.unwrap_or(RGBAColor(255, 255, 255, 1.0)))
     }
 }
 
@@ -494,7 +492,7 @@ fn decoration_fragment(
                     ((1.0 - y) * h as f64) as i32 - (offset.1 * dpi / 72.0).round() as i32,
                 ),
                 text,
-                color(colour),
+                colour.rgba(),
                 text_px(*size, dpi).max(1.0),
                 ha,
                 va,
@@ -508,7 +506,7 @@ fn decoration_fragment(
         if let Some(ec) = decorations.edgecolor {
             root.draw(&Rectangle::new(
                 [(0, 0), (w as i32 - 1, h as i32 - 1)],
-                color(ec).stroke_width(1),
+                ec.stroke_width(1),
             ))
             .map_err(|e| e.to_string())?;
         }

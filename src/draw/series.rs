@@ -76,8 +76,8 @@ where
         };
         let width = s.linewidth.max(1.0).round() as u32;
         let col = match s.alpha {
-            Some(a) => color(&s.color).mix(a.clamp(0.0, 1.0)),
-            None => color(&s.color).mix(1.0),
+            Some(a) => s.color.rgba().mix(a.clamp(0.0, 1.0)),
+            None => s.color.rgba().mix(1.0),
         };
         if s.linestyle.is_hidden() {
             if !s.label.is_empty() && !s.marker.is_none() {
@@ -175,22 +175,17 @@ where
         }
         if !s.marker.is_none() && s.markersize > 0.0 {
             let stroked = s.marker.is_stroked();
-            let (fill_name, edge_name) = if stroked {
-                (
-                    s.mec.as_deref().unwrap_or(&s.color),
-                    s.mec.as_deref().unwrap_or(&s.color),
-                )
+            let (fill_color, edge_color) = if stroked {
+                let c = s.mec.unwrap_or(s.color);
+                (c, c)
             } else {
-                (
-                    s.mfc.as_deref().unwrap_or(&s.color),
-                    s.mec.as_deref().unwrap_or(&s.color),
-                )
+                (s.mfc.unwrap_or(s.color), s.mec.unwrap_or(s.color))
             };
-            let shade = |name: &str| match s.alpha {
-                Some(a) => color(name).mix(a.clamp(0.0, 1.0)),
-                None => color(name).mix(1.0),
+            let shade = |c: crate::color::Color| match s.alpha {
+                Some(a) => c.rgba().mix(a.clamp(0.0, 1.0)),
+                None => c.rgba().mix(1.0),
             };
-            let (fill, edge) = (shade(fill_name), shade(edge_name));
+            let (fill, edge) = (shade(fill_color), shade(edge_color));
             let r = marker_radius(s.markersize * s.markersize);
             let stroke = s.mew.max(1.0).round() as u32;
             let chart_area = chart.plotting_area();
@@ -240,7 +235,7 @@ where
         let chart_area = chart.plotting_area();
         let base = area.get_base_pixel();
         for (x, y, ylo, yhi, xlo, xhi, c, cap) in &p.errors {
-            let col = color(c);
+            let col = c.rgba();
             let cap = cap.round().max(0.0) as i32;
             let (ya, yb) = (ylo.as_array(), yhi.as_array());
             let (xa, xb) = (xlo.as_array(), xhi.as_array());
@@ -321,7 +316,7 @@ where
                 // 1.39 * (sqrt(s) + 1) px.
                 let r = (sz.sqrt() * 0.695 + 0.35).clamp(0.5, MAX_MARKER_RADIUS);
                 let col = if !sc.colors.is_empty() {
-                    color(&sc.colors[i % sc.colors.len()])
+                    sc.colors[i % sc.colors.len()].rgba()
                 } else if let Some(v) = &values {
                     let t = if cmax > cmin {
                         ((v[i] - cmin) / (cmax - cmin)).clamp(0.0, 1.0)
@@ -344,7 +339,7 @@ where
                 let icon = if sc.colors.is_empty() {
                     RGBAColor(31, 119, 180, 1.0)
                 } else {
-                    color(&sc.colors[0])
+                    sc.colors[0].rgba()
                 };
                 legend_scatter.push((sc.label.clone(), icon.mix(alpha)));
             }

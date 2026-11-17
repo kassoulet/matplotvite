@@ -2,6 +2,26 @@ use plotters::prelude::RGBAColor;
 
 use crate::cmap_data::lookup;
 
+/// A parsed colour. Unknown names use the historical matplotlib-blue fallback.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Color(pub(crate) RGBAColor);
+
+impl Color {
+    pub(crate) fn parse(value: &str) -> Self {
+        Self(color(value))
+    }
+
+    pub(crate) fn rgba(self) -> RGBAColor {
+        self.0
+    }
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self(RGBAColor(31, 119, 180, 1.0))
+    }
+}
+
 /// Parse a normalised colour (`#rgb`, `#rrggbb`, `#rrggbbaa`) or a legacy name.
 /// "none"/"transparent" become fully transparent so callers can draw them
 /// without special-casing.

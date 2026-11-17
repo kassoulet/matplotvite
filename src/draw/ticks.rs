@@ -26,7 +26,11 @@ where
     let br = pa.map_coordinate(&(x1, y0));
     let (left, top) = (tl.0 - origin.0, tl.1 - origin.1);
     let (right, bottom) = (br.0 - origin.0, br.1 - origin.1);
-    let grid_col = color(p.grid.color.as_deref().unwrap_or("#b0b0b0"));
+    let grid_col = p
+        .grid
+        .color
+        .map(|c| c.rgba())
+        .unwrap_or_else(|| color("#b0b0b0"));
     let grid_alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
     let grid_w = p.grid.linewidth.unwrap_or(1.0).max(1.0).round() as u32;
     let grid_style = grid_col.mix(grid_alpha).stroke_width(grid_w);
@@ -142,10 +146,13 @@ where
         }
     }
 
-    let default_tick = p.foreground.as_deref().unwrap_or("#000000");
+    let default_tick = p
+        .foreground
+        .map(|c| c.rgba())
+        .unwrap_or_else(|| color("#000000"));
     let xstyle = &p.ticks.xstyle;
-    let xtick_col = color(xstyle.color.as_deref().unwrap_or(default_tick));
-    let xlabel_col = color(xstyle.labelcolor.as_deref().unwrap_or(default_tick));
+    let xtick_col = xstyle.color.map(|c| c.rgba()).unwrap_or(default_tick);
+    let xlabel_col = xstyle.labelcolor.map(|c| c.rgba()).unwrap_or(default_tick);
     let xtick_w = xstyle.width.max(1.0).round() as u32;
     let xtick_len = xstyle.length.max(0.0);
     if side != "right" {
@@ -185,8 +192,8 @@ where
         }
     }
     let ystyle = &p.ticks.ystyle;
-    let ytick_col = color(ystyle.color.as_deref().unwrap_or(default_tick));
-    let ylabel_col = color(ystyle.labelcolor.as_deref().unwrap_or(default_tick));
+    let ytick_col = ystyle.color.map(|c| c.rgba()).unwrap_or(default_tick);
+    let ylabel_col = ystyle.labelcolor.map(|c| c.rgba()).unwrap_or(default_tick);
     let ytick_w = ystyle.width.max(1.0).round() as u32;
     let ytick_len = ystyle.length.max(0.0);
     if side != "top" {
@@ -230,9 +237,9 @@ where
             }
         }
     }
-    let fg = color(default_tick);
-    let ylabel_col = p.ylabel_color.as_deref().map(color).unwrap_or(fg);
-    let xlabel_col = p.xlabel_color.as_deref().map(color).unwrap_or(fg);
+    let fg = default_tick;
+    let ylabel_col = p.ylabel_color.map(|c| c.rgba()).unwrap_or(fg);
+    let xlabel_col = p.xlabel_color.map(|c| c.rgba()).unwrap_or(fg);
     if side == "right" && !p.ylabel.is_empty() {
         let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
         let family = p.ylabel_family.as_deref().unwrap_or(&p.font_family);
