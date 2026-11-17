@@ -8281,10 +8281,14 @@ def _contour_args(args, levels):
     if x.ndim == 2 or y.ndim == 2:
         if x.shape != z.shape or y.shape != z.shape:
             raise ValueError("2-D X and Y must match Z's shape")
-        # meshgrid output: keep the 1-D coordinates when the grid is rectilinear.
-        if not (np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1])):
+        # Keep the 1-D coordinates when the grid is rectilinear. `meshgrid`
+        # puts x along columns, while `mgrid` puts it along rows.
+        if np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1]):
+            x, y = x[0, :], y[:, 0]
+        elif np.allclose(x, x[:, 0:1]) and np.allclose(y, y[0:1, :]):
+            x, y, z = y[0, :], x[:, 0], z.T
+        else:
             raise NotImplementedError("only rectilinear X/Y grids are supported")
-        x, y = x[0, :], y[:, 0]
     x, y = x.ravel(), y.ravel()
     if x.size != cols or y.size != rows:
         raise ValueError("expected len(X) == Z.shape[1] and len(Y) == Z.shape[0]")
