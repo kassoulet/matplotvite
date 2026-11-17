@@ -10,6 +10,7 @@ use crate::model::{Panel, PngCompression, RenderOptions, Suptitle};
 use crate::raster::{direct_eligible, render_png};
 
 /// Why a figure could not be rendered.
+#[derive(Debug)]
 pub(crate) enum RenderError {
     /// A caller-supplied dimension, format or compression was invalid.
     InvalidSize(String),
@@ -216,6 +217,68 @@ pub(crate) fn render_figure(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fonts::SANS_FAMILY;
+    use crate::model::{Panel, RenderOptions, Series};
+
+    fn smoke_panel() -> Panel {
+        Panel {
+            dpi: 100.0,
+            font_family: SANS_FAMILY.to_string(),
+            title: "Smoke".to_string(),
+            xlabel: "x".to_string(),
+            ylabel: "y".to_string(),
+            title_size: Some(12.0),
+            xlabel_size: Some(10.0),
+            ylabel_size: Some(10.0),
+            series: vec![Series {
+                x: vec![0.0, 1.0, 2.0].into(),
+                y: vec![0.0, 1.0, 0.0].into(),
+                label: "line".to_string(),
+                color: "#1f77b4".to_string(),
+                linestyle: "-".to_string(),
+                linewidth: 1.5,
+                markersize: 6.0,
+                mew: 1.0,
+                drawstyle: "default".to_string(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn smoke_options(format: &str) -> RenderOptions {
+        RenderOptions {
+            format: format.to_string(),
+            dpi: 100.0,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn renders_a_line_to_png_without_python() {
+        let png = render_figure(
+            (320, 240),
+            (1, 1),
+            vec![smoke_panel()],
+            smoke_options("png"),
+        )
+        .expect("minimal line figure renders");
+        assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
+    }
+
+    #[test]
+    fn renders_a_line_to_svg_without_python() {
+        let svg = render_figure(
+            (320, 240),
+            (1, 1),
+            vec![smoke_panel()],
+            smoke_options("svg"),
+        )
+        .expect("minimal line figure renders");
+        let text = String::from_utf8(svg).expect("SVG is UTF-8");
+        assert!(text.starts_with("<svg"));
+        assert!(text.contains("Smoke"));
+    }
 
     #[test]
     fn only_render_failures_are_not_value_errors() {

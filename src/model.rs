@@ -31,6 +31,18 @@ impl<'a, 'py> FromPyObject<'a, 'py> for OwnedArray1 {
     }
 }
 
+impl Default for OwnedArray1 {
+    fn default() -> Self {
+        Self(Array1::from_vec(Vec::new()))
+    }
+}
+
+impl From<Vec<f64>> for OwnedArray1 {
+    fn from(values: Vec<f64>) -> Self {
+        Self(Array1::from_vec(values))
+    }
+}
+
 pub(crate) struct OwnedArray2(Array2<f64>);
 
 impl OwnedArray2 {
@@ -83,7 +95,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for OwnedArrayD {
 
 /// How the figure should be rendered. Passed as one object so the PyO3
 /// boundary keeps a short signature.
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct RenderOptions {
     #[pyo3(item)]
     pub(crate) format: String,
@@ -154,7 +166,7 @@ impl PngCompression {
 }
 
 /// One `plot` call, including its styling keywords.
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct Series {
     #[pyo3(item)]
     pub(crate) x: OwnedArray1,
@@ -347,7 +359,7 @@ pub(crate) type ContourItem = (
     f64,
 );
 
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct TickStyle {
     #[pyo3(item)]
     pub(crate) labelsize: f64,
@@ -374,7 +386,7 @@ impl TickStyle {
     }
 }
 
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct Ticks {
     #[pyo3(item)]
     pub(crate) xticks: Option<Vec<f64>>,
@@ -414,7 +426,7 @@ pub(crate) struct LegendEntry {
     pub(crate) swatch: LegendSwatch,
 }
 
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct Legend {
     #[pyo3(item)]
     pub(crate) family: String,
@@ -455,7 +467,7 @@ impl Legend {
     }
 }
 
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct Grid {
     #[pyo3(item)]
     pub(crate) show: bool,
@@ -479,7 +491,7 @@ pub(crate) struct Grid {
     pub(crate) minor_alpha: Option<f64>,
 }
 
-#[derive(FromPyObject)]
+#[derive(FromPyObject, Default)]
 pub(crate) struct Panel {
     /// Fingerprint from the Python layer; empty disables the fragment cache.
     #[pyo3(item)]

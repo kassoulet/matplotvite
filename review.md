@@ -2,7 +2,7 @@
 
 Scope: `main` after the 16 Nov gallery and font-size fixes. Only open, actionable
 tasks are listed. Results on this tree: Python suite **475 passed, 9 skipped**;
-`cargo test --all-targets` passes 36 tests; `ruff`, `cargo fmt`, and
+`cargo test --all-targets` passes 38 tests; `ruff`, `cargo fmt`, and
 `cargo clippy --all-targets -- -D warnings` are clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
@@ -54,7 +54,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 | R2 | **Move pyo3 out of `model.rs`** into `py.rs` behind `cfg(feature = "python")`; make `pyo3` and `numpy` optional. `draw`, `layout`, `export`, `raster`, `image`, `scale`, `color` and `fonts` are already pyo3-free. Gate: `cargo test --no-default-features` builds without Python. |
 | R3 | **Replace stringly-typed model fields** (`color`, `linestyle`, `marker`, `drawstyle`, `cmap`, `units`: `String`) with `Color`, `LineStyle`, `Marker`, `DrawStyle` and `Cmap` enums parsed once at the boundary; extend `color.rs` rather than add a module. |
 | R4 | **Split `draw.rs`** by artist (line, scatter, bar, contour, quiver, text, collection). The `draw/` modules cover axes, series, ticks, legends and images; the remaining `draw.rs` entry point is still large. |
-| R5 | **Add pure-Rust render smoke tests.** The 36 unit tests cover layout, raster, encoding and GID assembly, but most high-level drawing is still exercised only through Python. |
+| R5 | **Done.** `src/render.rs` renders a minimal line panel to PNG and SVG through the pure-Rust path, so high-level drawing is no longer covered only through Python. |
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |
 | R7 | **Port the `Axes` API to Rust** from `Axes._panel()`, in `TRACE.md` priority order: `plot`, `scatter`, `bar`, `hist`, `imshow`, `fill_between`, then the rest. Take slices or `ndarray` views, no copies. Optional thread-local `pyplot` layer only if requested. |
 | R8 | **De-duplicate tick logic:** `_nice_step` / `Axis._ticks` in Python and `nice_ticks` / `auto_ticks` in `layout.rs` implement the same thing. Expose the Rust locators, norms and colormap lookup to Python and delete the Python copies. |
@@ -81,4 +81,4 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
 2. **V2:** no corpus render failures remain; keep the 26 interactive/GUI cases out of scope.
-3. **R2, R3, R5** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward.
+3. **R2 and R3** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward; R5 is done.
