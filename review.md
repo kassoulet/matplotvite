@@ -14,23 +14,6 @@ Both totals are from full runs on this tree. The 526-case corpus was rerun after
 the projection, `imread`, and corpus compatibility fixes; the final sample-data
 case was confirmed separately when its harness path was wired through.
 
-Closed this cycle: the remaining example API/failure groups (G3/G4), Pillow
-environment handling (F5), default title/label/tick sizes and tick-label handles
-(M12), standalone `Colorbar(ax, cmap=, norm=, drawedges=)` construction, horizontal
-colorbars with axis scale/limits and extension geometry, RGB tuple facecolours,
-Path/EventCollection compatibility helpers, colorbar `extendfrac`, 3-D/skew
-projection compatibility, `polar=True` axes construction, standard-library PNG
-`imread` (with generated tests for every PNG colour type and 1/2/4/8/16-bit
-depth), and the code-level probes for colorbar mappables/text, shared-axis
-labels, twin-axis sides, multiline text and `imshow` antialiasing (M2–M5, M11,
-M17). The corpus pass also fixed normalization subclassing, gridspec figure
-wiring, masked units, contour label placement and level locators, `mgrid`
-grids, pandas `data=` label and date-index handling, bivariate colormaps, and
-sample-data resolution. Headless `widgets.RadioButtons` and
-`widgets.CheckButtons` now cover Matplotlib's widget images. The KARIOS
-legend-order, twin-side and layout fixes are also in this tree. The 3×3
-tick-density check is covered by the eight-tick locator test.
-
 ## External visual sign-off
 
 | # | Finding |
@@ -41,7 +24,6 @@ tick-density check is covered by the eight-tick locator test.
 
 | # | Finding |
 |---|---------|
-| V2 | **No corpus render failures remain.** Backend PDF/PS/SVG and projection cases now render, including `test_png/test_pngsuite` through the standard-library PNG `imread`; the two PS transparency cases are blank because every artist is intentionally `alpha=0`. The remaining 26 unsupported cases are interactive, GUI, or otherwise out of scope. |
 | V3 | **“Rendered” is not proof of correctness.** The example count includes ignored calls; use the per-case `ignored` count and the visual checks above as the upper-bound caveat. |
 
 ## Rust crate preparation
@@ -50,16 +32,11 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 
 | # | Task |
 |---|------|
-| R1 | **Done.** `src/render.rs::render_figure` owns validation, format routing, direct-PNG selection, cropping and encoding; `src/lib.rs` is the PyO3 adapter and maps `RenderError` to Python exceptions. |
-| R2 | **Done.** The PyO3 adapter and NumPy extraction live in `src/py.rs` behind the default `python` feature; `pyo3` and `numpy` are optional dependencies and the model uses plain `ndarray`. Gate: `cargo test --no-default-features` and `cargo clippy --no-default-features -- -D warnings` pass without Python. |
-| R3 | **Done.** Replaced the stringly-typed model fields with `Color`, `LineStyle`, `Marker`, `DrawStyle`, `Cmap` and `QuiverUnits` values parsed once by the Python adapter in `py.rs`. Colours now cover figure, artist, text, tick, grid, scatter, contour, collection, bar and quiver fields; `Cmap` covers images, contours, scatter and colorbars. The parsers live in `color.rs` and `model.rs`. |
-| R4 | **Partly done.** `draw/colorbar.rs` owns the gradient strip, extensions, ticks and labels; `draw/contour.rs` owns marching-squares lines, filled-band clipping and their interpolation; `draw/legend.rs` owns legend obstacle scoring, placement, frames and drawing; `draw/markers.rs` owns marker geometry, vector markers and the dense raster path; `draw/polyline.rs` owns clipping, joins, caps, dashes and simplification; `draw/ticks.rs` owns tick formatting, minor grid values and their precision tests. The `draw/` modules also cover axes, series and images; `draw.rs` is 1,310 lines and still owns bar, quiver, text, collection and the panel entry point. |
-| R5 | **Done.** `src/render.rs` renders a minimal line panel to PNG and SVG through the pure-Rust path, so high-level drawing is no longer covered only through Python. |
+| R4 | **Partly done.** `draw/bars.rs` owns bar rectangles and their legend swatches; `draw/colorbar.rs` owns the gradient strip, extensions, ticks and labels; `draw/contour.rs` owns marching-squares lines, filled-band clipping and their interpolation; `draw/legend.rs` owns legend obstacle scoring, placement, frames and drawing; `draw/markers.rs` owns marker geometry, vector markers and the dense raster path; `draw/polyline.rs` owns clipping, joins, caps, dashes and simplification; `draw/ticks.rs` owns tick formatting, minor grid values and their precision tests. The `draw/` modules also cover axes, series and images; `draw.rs` is 1,263 lines and still owns quiver, text, collection and the panel entry point. |
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |
 | R7 | **Port the `Axes` API to Rust** from `Axes._panel()`, in `TRACE.md` priority order: `plot`, `scatter`, `bar`, `hist`, `imshow`, `fill_between`, then the rest. Take slices or `ndarray` views, no copies. Optional thread-local `pyplot` layer only if requested. |
 | R8 | **De-duplicate tick logic:** `_nice_step` / `Axis._ticks` in Python and `nice_ticks` / `auto_ticks` in `layout.rs` implement the same thing. Expose the Rust locators, norms and colormap lookup to Python and delete the Python copies. |
 | R9 | **Shared golden-image test set** rendering the same scenes through the Python wrapper and the Rust crate, so the two front ends cannot drift. |
-| R10 | **Done — expose both paths.** Keep the direct raster path for PNG/WebP/EPS and the vector SVG/PDF path; PNG uses the direct path when eligible and falls back to rasterized SVG. R5 pins both paths; R9 will add the shared golden comparison. |
 
 ## KARIOS lacraux comparison (16 Nov)
 
@@ -69,12 +46,6 @@ Expected: `data/karios-out/lacraux-overlay/...` (Matplotlib). Ours: `.../matplot
 |---|---------|
 | K0 | **KARIOS workarounds are stale** (not a matplotvite bug): drop `_AXES_MARGIN_PX`, `text_block`/`figure_text` line splitting, the manual colorbar and `grid_rects` where matplotvite now has the real feature (`\n` text, `fig.text`, `GridSpec` ratios, `colorbar`). Re-run the four images afterwards. |
 | K1 | **`ylabel` overlaps wide tick labels** (`04_ce` Radial Error, Northing displacement, row histogram): label offset is not derived from the measured tick-label width. **Status: partly fixed: `ylabel` of `add_axes` axes now sits beside the measured tick labels; the 40 px margin still limits very wide labels.** |
-| K2 | **`imshow` leaves the y axis uninverted:** overview image axes read 0 at the bottom, Matplotlib reads 0 at the top (origin `upper`). **Status: fixed.** |
-| K3 | **Scatter markers draw larger than Matplotlib** for the same `s` (overview, dx, dy). **Status: fixed.** |
-| K4 | **`twinx` sides and styling (confirms M5):** in `02_dx` the left axis shows the KP-per-col counts (0..100) and the right shows the mean (-1..1), the reverse of expected; the `Mean dx by col` legend entry is missing and the `std` `fill_between` is peach (cycle colour) instead of light blue. **Status: fixed.** |
-| K5 | **Tick density on narrow axes:** the row panel shows `-2.50.02.5` where Matplotlib picks 3-5 non-overlapping ticks; `MaxNLocator` should use the axis size. **Status: fixed (colorbar strip now counted).** |
-| K6 | **Legend order:** expected lists `Count` (histogram) before `Normal` (line); ours lists lines first. Matplotlib uses artist creation order. **Status: fixed (creation order, bar containers last).** |
-| K7 | **Colorbar tick text (confirms M3):** `8e+03`-style labels instead of `8000`. **Status: not a matplotvite bug: KARIOS formats labels with `.3g`.** |
 | K8 | **Colorbar and axes geometry:** colorbar is narrower than expected and the top `dx` axes is shorter and shifted; re-check after K0. |
 
 ## Refactoring analysis (17 Nov)
@@ -85,7 +56,7 @@ Measured: `python/matplotvite/__init__.py` is 12.6k lines (1489 methods; `class 
 |---|------|
 | Q1 | **Split `__init__.py` into modules, re-exported from the package.** Pure moves in this order: colours/colormaps (`_norm_color`, `Colormap`, registry; lines 89-505), transforms/bbox/path (`Affine2D`, `Path`, `_Bbox`, 619-975), patches (`Patch` … `Annulus`, 2262-2770), collections (2899-3220), legend/container handles (1672-2130), `Axis`/spines/`_Axis*` (3375-3663), then `Axes` and `Figure`. Gate: the Python suite plus `__init__.pyi` unchanged. Makes the file reviewable and unblocks R7. |
 | Q2 | **Break up `Axes`** (3849-7498): mixins per concern (`_plotting` for plot/scatter/bar/hist, `_stats` for boxplot/violin, `_fields` for contour/quiver/streamplot, `_decor` for legend/annotate/text). Biggest single methods to split first: `_panel` (217 lines), `_apply_axis_scales` (213), `set_axis` (179), `streamplot` (170), `boxplot` (159). |
-| Q3 | **Partly done — named `draw.rs` slices are extracted**: colorbar, contour, legend, markers, polyline and ticks now own their sections. `draw.rs` is 1,310 lines of panel/orchestration code; the under-600 target remains open. |
+| Q3 | **Partly done — named `draw.rs` slices are extracted**: bars, colorbar, contour, legend, markers, polyline and ticks now own their sections. `draw.rs` is 1,263 lines of panel/orchestration code; the under-600 target remains open. |
 | Q4 | **Partly done — Rust side.** `symlog`, `logit`, `asinh_scale` and `asinh_inverse` now live in `scale.rs` with their tests; `draw.rs` and `draw/ticks.rs` import them. `python/matplotvite/scale.py` still duplicates the formulas; exposing the Rust transforms and deleting those copies remains part of R8. |
 | Q5 | **Remove the Python/Rust panel contract duplication:** `_panel()` builds a dict whose keys are re-declared in `src/model.rs` (866 lines) and read by hand in `py.rs`. Generate one from the other (a `serde` model with `pythonize`, or a schema test that fails when the key sets differ) so adding a field is a one-place change, as with the recent `yside`/`legend.order` additions. |
 | Q6 | **Unify the two tick paths in `draw/ticks.rs`/`draw/axes.rs`.** The plotters mesh path and `draw_manual_ticks` produce different results (K1, K2, K5 were all path-dependent). Route every axis through the manual path once it matches the mesh output on the golden images, then delete the mesh-label code and the `manual` heuristic in `axes.rs`. |
@@ -115,11 +86,13 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
 | C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |
 | C16 | **Python support policy:** state the 3.9 EOL decision, run every supported minor in CI (3.11/3.12/3.14 gaps), align classifiers. |
+| C17 | **pyplot state is one global `_fig`** (`figure`, `gcf`, `close(*_)` in `__init__.py`): the figure number is ignored, `close("all")`/`close(fig)`, `get_fignums`, `fignum_exists` and a figure registry (Matplotlib's `Gcf`) are missing, and the state is not thread-safe. Add a small registry with a lock; document that the object-oriented API is the thread-safe path. |
+| C18 | **No API stability or deprecation policy:** no `FutureWarning`/`DeprecationWarning` helper, `__all__` unchecked against the stubs, no semver statement for a `0.x` crate/package. Add `_deprecated()` plus a policy paragraph in CONTRIBUTING/README (breaking changes only in minor versions before 1.0, one release of warning). |
+| C19 | **`architecture.md` drift:** it says `scale.rs` is only the "integer-oversampling drawing backend" but the file now also holds the axis transforms (`symlog`, `logit`, `asinh`), and the `draw/` list omits `contour`, `markers`, `polyline`. Update it with each Q3/Q4 step, or generate the module table from `//!` headers and test it. |
 
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
-2. **V2:** no corpus render failures remain; keep the 26 interactive/GUI cases out of scope.
-3. **R3** first (mechanical, with the 475-test Python suite as a safety net), then R4/R6 onward; R2 and R5 are done.
-4. **Q4, Q3** next (mechanical Rust moves), then **Q1** before **Q2**; **Q5** before adding more model fields; **Q9** whenever CI time matters.
-5. **C3, C6** (quick truth fixes) → **C1/C2/C4** → **C7/C9/C11** → the rest of C.
+2. **R4**, then R6 onward (R7 after Q1).
+3. **Q4, Q3** next (mechanical Rust moves), then **Q1** before **Q2**; **Q5** before adding more model fields; **Q9** whenever CI time matters.
+4. **C3, C6** (quick truth fixes) → **C1/C2/C4** → **C7/C9/C11** → **C19** with each move → the rest of C.
