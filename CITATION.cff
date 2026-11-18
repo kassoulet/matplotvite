@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use matplotvite in academic work, please cite it using this metadata."
+type: software
+title: "Matplotvite"
+abstract: "Matplotlib-style static plots rendered in Rust, with NumPy as the only Python runtime dependency. The software is dual-licensed under MIT or Apache-2.0."
+authors:
+  - family-names: Portet
+    given-names: Gautier
+repository-code: "https://github.com/kassoulet/matplotvite"
+url: "https://kassoulet.github.io/matplotvite/"
+license: "MIT"
+version: "0.6.0"
+date-released: "2026-11-13"
+keywords:
+  - plotting
+  - visualization
+  - matplotlib
+  - rust
+  - python

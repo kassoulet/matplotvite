@@ -36,7 +36,10 @@ dev = ["pytest>=8", "ruff==0.17.5", "mypy==1.19.1", "pandas"]
 
 [project.urls]
 Homepage = "https://kassoulet.github.io/matplotvite/"
+Documentation = "https://kassoulet.github.io/matplotvite/"
 Repository = "https://github.com/kassoulet/matplotvite"
+Issues = "https://github.com/kassoulet/matplotvite/issues"
+Changelog = "https://github.com/kassoulet/matplotvite/blob/main/CHANGELOG.md"
 
 [tool.ruff]
 target-version = "py39"

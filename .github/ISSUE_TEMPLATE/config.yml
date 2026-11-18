@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation and example gallery
+    url: https://kassoulet.github.io/matplotvite/
+    about: Check the API coverage and rendered examples before opening an issue.
+  - name: Security vulnerability
+    url: https://github.com/kassoulet/matplotvite/security/advisories/new
+    about: Report vulnerabilities privately; do not open a public issue.

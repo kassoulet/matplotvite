@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a Matplotlib API addition or a rendering improvement.
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is missing or difficult?
+      description: Describe the use case rather than only the proposed API.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include the Matplotlib equivalent when one exists.
+      render: python
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing helpers, workarounds, or other libraries you tried.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and TRACE.md for this feature.
+          required: true

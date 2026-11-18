@@ -73,7 +73,6 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C4 | **`__init__.pyi` covers 94 of 239 public names** and drifts (`set_xlim(lo, hi)` vs `left/right`; missing `norm`, `pad_inches`, `handles/labels`, `**kwargs`). Extend or generate the stubs and add `mypy.stubtest` to CI; today only a test that the file exists. |
 | C5 | **Parity of signatures and validation:** `savefig` first parameter `filepath` (Matplotlib: `fname`), `transparent` default, `metadata`/`pil_kwargs` rejected; `plot` length mismatch, bad `linestyle` and bad `legend(loc=)` accepted; `hist(histtype=)` raises `NotImplementedError` not `ValueError`; `subplots` keyword-only rules and message text. |
 | C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
-| C9 | **Governance files:** CHANGELOG.md (Keep a Changelog), SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates, CITATION.cff, `[project.urls]` (Issues, Changelog, Documentation). |
 | C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
 | C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |
 | C16 | **Python support policy:** state the 3.9 EOL decision, run every supported minor in CI (3.11/3.12/3.14 gaps), align classifiers. |

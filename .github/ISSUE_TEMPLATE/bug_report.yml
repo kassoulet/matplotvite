@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a rendering, API, packaging, or performance problem.
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. For a security issue, use the private advisory
+        link in SECURITY.md instead of this form.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the actual result and how it differs from Matplotlib.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include a runnable script and, if useful, the input data.
+      render: python
+      placeholder: |
+        import matplotvite as plt
+        plt.figure((4, 3))
+        plt.plot([0, 1], [1, 0])
+        plt.savefig("out.png")
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: A description, Matplotlib reference, or screenshot is fine.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Matplotvite version
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Python, OS, and output format
+      placeholder: "Python 3.13, Ubuntu 24.04, PNG"
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Traceback or logs
+      description: Paste the complete traceback if there is one.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I am using the latest release or a recent main build.
+          required: false

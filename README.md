@@ -478,6 +478,14 @@ CI also runs `cargo deny check` for licence, duplicate-version, banned-crate and
 registry-source policy. The `svg2pdf 0.13` tree is the one documented duplicate
 exception; the MSRV check compiles with Rust 1.88.
 
+## Contributing
+
+Development setup, checks, and the compatibility policy are in
+[CONTRIBUTING.md](CONTRIBUTING.md). Participation is covered by the
+[Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately using
+[SECURITY.md](SECURITY.md), and see [CHANGELOG.md](CHANGELOG.md) for released
+changes.
+
 ## License
 
 Dual-licensed under either of [MIT](LICENSE-MIT) or
