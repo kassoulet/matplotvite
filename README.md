@@ -23,9 +23,10 @@ only Python runtime dependency.
 pip install matplotvite
 ```
 
-Wheels are published to PyPI from each `v*` version tag: Linux glibc and musl
-(x86_64, aarch64), macOS (arm64, x86_64) and Windows (x64, arm64). They use the stable ABI, so a single
-wheel serves CPython 3.9 and newer; other platforms install from the sdist.
+Wheels are published to PyPI from each `v*` version tag: Linux glibc and musl 1.2
+(x86_64, aarch64), macOS (arm64, x86_64) and Windows (x64, arm64). They use the
+stable ABI, so a single wheel serves CPython 3.9 and newer; other platforms
+install from the sdist.
 
 The latest release is 0.6.0; version tags after it publish automatically.
 
@@ -148,7 +149,8 @@ sources. Nothing on the drawing path shells out or links a system graphics libra
 
 Type stubs (`.pyi`) and the PEP 561 `py.typed` marker ship in the wheel, so editors
 and type checkers see the public API. Wheels use CPython's stable ABI
-(`cp39-abi3`), so one build per platform supports Python 3.9 and newer.
+(`cp39-abi3`), so one build per platform and Linux libc supports Python 3.9 and
+newer.
 
 ## Usage
 ```python
@@ -296,7 +298,9 @@ plt.savefig("contours.png")
   `subplot`, `gca`, `gcf`, `axes`
 - `xlabel` / `ylabel` / `title` (all with `fontsize=`), `legend(...)`, `xlim` / `ylim`
 - `legend(loc=, ncol=, frameon=, fontsize=, title=, title_fontsize=, bbox_to_anchor=)` —
-  cardinal/2-tuple locations, multi-column layouts, titles and axes-fraction anchors
+  cardinal/2-tuple locations, multi-column layouts, titles and axes-fraction anchors.
+  Entries follow artist creation order; bar containers are placed last, while
+  histogram bars keep their creation position
 - `xticks(ticks, labels=, rotation=, fontsize=)` / `yticks(...)` — manual ticks whose
   labels, rotation and size are rendered
 - Tick locators and formatters through `ax.xaxis` / `ax.yaxis`: `MultipleLocator`,

@@ -1,14 +1,14 @@
 # Matplotvite — Roadmap
 
 > Tracking progress toward a NumPy-only, Rust-rendered subset of Matplotlib's static API.
-> TRACE.md baseline: **9 850 / 10 156 call sites covered (96%)** across 94 real-world matplotlib test files.
+> TRACE.md baseline: **9 178 / 10 098 call sites implemented (90%)** across 91 real-world matplotlib test files; 632 are accepted-and-ignored and 288 are missing.
 > CI runs `tools/trace_unsupported.py --check` against `tools/trace_baseline.json` and fails on any drop.
 > Regenerate with `python tools/trace_unsupported.py <matplotlib/tests> TRACE.md` — it introspects the live
 > `matplotvite` module/`Axes`/`Figure` API and each callable's accepted kwargs, so counts can't go stale again.
 
 ## Release status
 
-- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, 3-D/skew compatibility shims, `polar=True` axes construction, standard-library PNG `imread`, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`.
+- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, 3-D/skew compatibility shims, `polar=True` axes construction, standard-library PNG `imread`, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`. It also adds musllinux wheels and creation-order legend entries.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
@@ -69,6 +69,7 @@
 - [x] `loc` — `"best"`, cardinal strings, 2-tuple
 - [x] `ncol` / `ncols`, `frameon`, `fontsize`, `title`, `title_fontsize`
 - [x] `bbox_to_anchor` — axes-fraction or data coordinates
+- [x] Creation-order entries, with bar containers listed last and histogram bars kept in creation order
 
 ### 0.2.7 savefig / figure kwargs
 - [x] `savefig(format=, dpi=)` — `format` overrides the file extension
@@ -181,7 +182,7 @@
 
 ### 0.5.4 Packaging & distribution
 - [x] Type stubs (`.pyi`) and `py.typed` for IDE autocomplete and mypy
-- [x] Wheel CI: `cp39-abi3` wheels for manylinux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64, arm64); the full test suite runs against the installed wheel, and the sdist is built and rebuilt into a wheel to prove the source distribution is complete
+- [x] Wheel CI: `cp39-abi3` wheels for manylinux and musllinux (x86_64, aarch64), macOS (arm64, x86_64) and Windows (x86_64, arm64); the full test suite runs against the installed wheel, and the sdist is built and rebuilt into a wheel to prove the source distribution is complete
 - [x] `maturin publish` GitHub Action on tag push
 
 ### 0.5.5 Performance

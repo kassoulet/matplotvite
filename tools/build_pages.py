@@ -333,7 +333,7 @@ def generate_gallery_html(samples_info: list[dict[str, object]],
     </p>
     <ul class="hero-meta">
       <li>NumPy is the only runtime dependency</li>
-      <li>Python 3.9+ stable-ABI wheels</li>
+      <li>Python 3.9+ stable-ABI wheels (glibc/musl, macOS, Windows)</li>
       <li>Figures can be written to a path, a file object, or returned as bytes</li>
     </ul>
     <div class="hero-actions">

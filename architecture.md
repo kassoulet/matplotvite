@@ -170,6 +170,16 @@ Dense scatter, collection, and marker layers can be composited into bitmap
 overlays inside the SVG path. That keeps the vector document small while
 preserving the vector output for the rest of the figure.
 
+## Artist ordering and legends
+
+Python assigns each drawable artist a monotonically increasing creation sequence
+number when it is added, and marks bar containers separately. `Axes._panel()`
+sorts the labelled artists from those stamps and writes only the resulting labels
+to `legend.order`; the sequence bookkeeping is removed before the panel reaches
+Rust. Ordinary bar containers sort after other artists, while histogram bars are
+marked as non-containers so they stay in creation order. The renderer therefore
+sees a small, typed ordering contract instead of a parallel Python label list.
+
 ## Caching and concurrency
 
 There are two caches:
@@ -245,3 +255,5 @@ documented in the README.
   PNG reader.
 - `prek` and CI run formatting, Clippy, Rust tests, Bandit, and the security
   audit. `prek checks` is a required status check for `main`.
+- Wheel CI builds stable-ABI (`cp39-abi3`) wheels for manylinux and musllinux
+  (x86_64, aarch64), macOS (arm64, x86_64), and Windows (x64, arm64).
