@@ -1,6 +1,6 @@
 //! Python bindings. Compiled only with the `python` feature.
 
-use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn};
+use numpy::{PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArrayDyn};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::{Borrowed, FromPyObject};
@@ -13,6 +13,7 @@ use crate::model::{
     RenderOptions,
 };
 use crate::render::render_figure;
+use crate::scale as scales;
 
 impl<'a, 'py> FromPyObject<'a, 'py> for OwnedArray1 {
     type Error = PyErr;
@@ -151,10 +152,105 @@ fn render_pdf_pages_py(py: Python<'_>, svgs: Vec<Vec<u8>>, dpis: Vec<f64>) -> Py
         .map_err(PyRuntimeError::new_err)
 }
 
+#[pyfunction]
+#[pyo3(name = "symlog")]
+fn symlog_py<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
+    linthresh: f64,
+    base: f64,
+    linscale: f64,
+) -> Bound<'py, PyArray1<f64>> {
+    let out: Vec<f64> = values
+        .as_array()
+        .iter()
+        .map(|&value| scales::symlog(value, linthresh, base, linscale))
+        .collect();
+    PyArray1::from_vec(py, out)
+}
+
+#[pyfunction]
+#[pyo3(name = "symlog_inverse")]
+fn symlog_inverse_py<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
+    linthresh: f64,
+    base: f64,
+    linscale: f64,
+) -> Bound<'py, PyArray1<f64>> {
+    let out: Vec<f64> = values
+        .as_array()
+        .iter()
+        .map(|&value| scales::symlog_inverse(value, linthresh, base, linscale))
+        .collect();
+    PyArray1::from_vec(py, out)
+}
+
+#[pyfunction]
+#[pyo3(name = "logit")]
+fn logit_py<'py>(py: Python<'py>, values: PyReadonlyArray1<'py, f64>) -> Bound<'py, PyArray1<f64>> {
+    let out: Vec<f64> = values
+        .as_array()
+        .iter()
+        .map(|&value| scales::logit(value))
+        .collect();
+    PyArray1::from_vec(py, out)
+}
+
+#[pyfunction]
+#[pyo3(name = "logit_inverse")]
+fn logit_inverse_py<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
+) -> Bound<'py, PyArray1<f64>> {
+    let out: Vec<f64> = values
+        .as_array()
+        .iter()
+        .map(|&value| scales::logit_inverse(value))
+        .collect();
+    PyArray1::from_vec(py, out)
+}
+
+#[pyfunction]
+#[pyo3(name = "asinh")]
+fn asinh_py<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
+    linear_width: f64,
+) -> Bound<'py, PyArray1<f64>> {
+    let out: Vec<f64> = values
+        .as_array()
+        .iter()
+        .map(|&value| scales::asinh_scale(value, linear_width))
+        .collect();
+    PyArray1::from_vec(py, out)
+}
+
+#[pyfunction]
+#[pyo3(name = "asinh_inverse")]
+fn asinh_inverse_py<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
+    linear_width: f64,
+) -> Bound<'py, PyArray1<f64>> {
+    let out: Vec<f64> = values
+        .as_array()
+        .iter()
+        .map(|&value| scales::asinh_inverse(value, linear_width))
+        .collect();
+    PyArray1::from_vec(py, out)
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(colormaps, m)?)?;
     m.add_function(wrap_pyfunction!(render_figure_py, m)?)?;
-    m.add_function(wrap_pyfunction!(render_pdf_pages_py, m)?)
+    m.add_function(wrap_pyfunction!(render_pdf_pages_py, m)?)?;
+    m.add_function(wrap_pyfunction!(symlog_py, m)?)?;
+    m.add_function(wrap_pyfunction!(symlog_inverse_py, m)?)?;
+    m.add_function(wrap_pyfunction!(logit_py, m)?)?;
+    m.add_function(wrap_pyfunction!(logit_inverse_py, m)?)?;
+    m.add_function(wrap_pyfunction!(asinh_py, m)?)?;
+    m.add_function(wrap_pyfunction!(asinh_inverse_py, m)?)
 }

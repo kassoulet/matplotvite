@@ -134,7 +134,7 @@ where
         if p.x_log {
             v.max(f64::MIN_POSITIVE).log(log_base)
         } else if p.x_symlog {
-            symlog(v, p.x_symlog_linthresh)
+            symlog(v, p.x_symlog_linthresh, 10.0, 1.0)
         } else if p.x_logit {
             logit(v)
         } else if p.x_asinh {
@@ -147,7 +147,7 @@ where
         if p.y_log {
             v.max(f64::MIN_POSITIVE).log(log_base)
         } else if p.y_symlog {
-            symlog(v, p.y_symlog_linthresh)
+            symlog(v, p.y_symlog_linthresh, 10.0, 1.0)
         } else if p.y_logit {
             logit(v)
         } else if p.y_asinh {

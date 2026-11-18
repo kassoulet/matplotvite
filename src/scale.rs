@@ -9,18 +9,48 @@ use plotters_backend::{
     BackendColor, BackendCoord, BackendStyle, BackendTextStyle, DrawingErrorKind,
 };
 
-/// Symmetric-log transform used by `symlog` axes: linear near zero, then
-/// logarithmic on both sides of `±linthresh`.
-pub(crate) fn symlog(value: f64, linthresh: f64) -> f64 {
+/// Symmetric-log transform used by `symlog` axes.
+///
+/// Matplotlib's transform is linear inside `±linthresh` (scaled by
+/// `linscale / (1 - 1/base)`) and logarithmic outside it.
+pub(crate) fn symlog(value: f64, linthresh: f64, base: f64, linscale: f64) -> f64 {
     let l = if linthresh > 0.0 { linthresh } else { 1.0 };
-    value.signum() * l * (1.0 + value.abs() / l).ln()
+    let base = if base > 1.0 { base } else { 10.0 };
+    let linscale = if linscale > 0.0 { linscale } else { 1.0 };
+    let adjust = linscale / (1.0 - 1.0 / base);
+    if value.abs() <= l {
+        value * adjust
+    } else {
+        value.signum() * l * (adjust + (value.abs() / l).ln() / base.ln())
+    }
 }
 
-/// Logit transform for probability axes; values are clamped away from the
-/// singular endpoints so zero and one remain drawable.
+pub(crate) fn symlog_inverse(value: f64, linthresh: f64, base: f64, linscale: f64) -> f64 {
+    let l = if linthresh > 0.0 { linthresh } else { 1.0 };
+    let base = if base > 1.0 { base } else { 10.0 };
+    let linscale = if linscale > 0.0 { linscale } else { 1.0 };
+    let adjust = linscale / (1.0 - 1.0 / base);
+    if value.abs() <= l * adjust {
+        value / adjust
+    } else {
+        value.signum() * l * base.powf(value.abs() / l - adjust)
+    }
+}
+
+/// Base-10 logit transform for probability axes, with Matplotlib's clipping.
 pub(crate) fn logit(value: f64) -> f64 {
-    let p = value.clamp(1e-10, 1.0 - 1e-10);
-    (p / (1.0 - p)).ln()
+    if value <= 0.0 {
+        -1000.0
+    } else if value >= 1.0 {
+        1000.0
+    } else {
+        (value / (1.0 - value)).log10()
+    }
+}
+
+pub(crate) fn logit_inverse(value: f64) -> f64 {
+    let exp = 10f64.powf(-value);
+    1.0 / (1.0 + exp)
 }
 
 /// Asinh transform: linear near zero and logarithmic for large magnitudes.
@@ -246,20 +276,33 @@ impl<DB: DrawingBackend> DrawingBackend for ScaleBackend<DB> {
 
 #[cfg(test)]
 mod tests {
-    use super::{asinh_inverse, asinh_scale, logit};
+    use super::{asinh_inverse, asinh_scale, logit, logit_inverse, symlog, symlog_inverse};
 
     #[test]
     fn asinh_is_linear_near_zero_and_inverts() {
         assert!((asinh_scale(0.0, 2.0)).abs() < 1e-12);
         assert!((asinh_scale(1.0, 1.0) - (1.0_f64).asinh()).abs() < 1e-12);
+        assert!((asinh_scale(2.0, 2.0) - 2.0 * (1.0_f64).asinh()).abs() < 1e-12);
         assert!((asinh_inverse(asinh_scale(12.0, 0.5), 0.5) - 12.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn symlog_is_linear_inside_and_logarithmic_outside() {
+        let adjust = 1.0 / (1.0 - 1.0 / 10.0);
+        assert!((symlog(0.5, 1.0, 10.0, 1.0) - 0.5 * adjust).abs() < 1e-12);
+        assert!((symlog(1000.0, 1.0, 10.0, 1.0) - (adjust + 3.0)).abs() < 1e-12);
+        for value in [-1000.0, -1.0, -0.5, 0.0, 0.5, 1.0, 1000.0] {
+            let round_trip = symlog_inverse(symlog(value, 1.0, 10.0, 1.0), 1.0, 10.0, 1.0);
+            assert!((round_trip - value).abs() < 1e-9, "{value} -> {round_trip}");
+        }
     }
 
     #[test]
     fn logit_maps_probabilities_and_clamps_endpoints() {
         assert!((logit(0.5) - 0.0).abs() < 1e-12);
-        assert!((logit(0.75) - 3.0_f64.ln()).abs() < 1e-12);
-        assert!(logit(0.0).is_finite());
-        assert!(logit(1.0).is_finite());
+        assert!((logit(0.75) - 3.0_f64.log10()).abs() < 1e-12);
+        assert_eq!(logit(0.0), -1000.0);
+        assert_eq!(logit(1.0), 1000.0);
+        assert!((logit_inverse(logit(0.75)) - 0.75).abs() < 1e-12);
     }
 }

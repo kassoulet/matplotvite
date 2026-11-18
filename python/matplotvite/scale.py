@@ -9,6 +9,8 @@ import math
 
 import numpy as np
 
+from . import _core
+
 __all__ = (
     "AsinhScale", "FuncScale", "FuncScaleLog", "LinearScale", "LogScale",
     "LogitScale", "ScaleBase", "SymmetricalLogScale", "get_scale_names",
@@ -91,40 +93,20 @@ class SymmetricalLogScale(ScaleBase):
         self.linscale = float(kwargs.get("linscale", 1.0))
 
     def get_transform(self):
-        base, linthresh = self.base, self.linthresh
-        log_base = math.log(base)
-        # The linear region spans `linscale` decades of the log region.
-        adjust = self.linscale / (1.0 - 1.0 / base)
-
-        def forward(values):
-            values = np.asarray(values, dtype=float)
-            return np.sign(values) * linthresh * (
-                adjust + np.log(np.maximum(np.abs(values), linthresh) / linthresh) / log_base
-            )
-
-        def inverse(values):
-            values = np.asarray(values, dtype=float)
-            return np.sign(values) * linthresh * np.power(
-                base, np.abs(values) / linthresh - adjust
-            )
-
-        return _ScaleTransform(forward, inverse)
+        base, linthresh, linscale = self.base, self.linthresh, self.linscale
+        return _ScaleTransform(
+            lambda values: _core.symlog(
+                np.asarray(values, dtype=float), linthresh, base, linscale),
+            lambda values: _core.symlog_inverse(
+                np.asarray(values, dtype=float), linthresh, base, linscale),
+        )
 
 
 class LogitScale(ScaleBase):
     name = "logit"
 
     def get_transform(self):
-        def forward(values):
-            values = np.asarray(values, dtype=float)
-            values = np.clip(values, np.finfo(float).tiny, 1.0 - np.finfo(float).eps)
-            return np.log(values / (1.0 - values))
-
-        def inverse(values):
-            values = np.asarray(values, dtype=float)
-            return 1.0 / (1.0 + np.exp(-values))
-
-        return _ScaleTransform(forward, inverse)
+        return _ScaleTransform(_core.logit, _core.logit_inverse)
 
 
 class AsinhScale(ScaleBase):
@@ -137,8 +119,8 @@ class AsinhScale(ScaleBase):
     def get_transform(self):
         width = self.linear_width
         return _ScaleTransform(
-            lambda values: np.arcsinh(np.asarray(values, dtype=float) / width),
-            lambda values: np.sinh(np.asarray(values, dtype=float)) * width,
+            lambda values: _core.asinh(np.asarray(values, dtype=float), width),
+            lambda values: _core.asinh_inverse(np.asarray(values, dtype=float), width),
         )
 
 

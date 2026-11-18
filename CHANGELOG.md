@@ -38,6 +38,9 @@ Before 1.0, a minor release may contain a breaking change; see
   `**kwargs` as accepting every keyword.
 - Legend ordering now derives from each artist's creation sequence number instead
   of a separate label-order list, preserving the bar-container-last rule.
+- The Python scale shims now delegate symlog, logit, and asinh transforms to
+  Rust. Symlog uses Matplotlib's linear-inside/logarithmic-outside formula,
+  asinh includes its linear width, and logit uses base-10 odds.
 - The coverage trace now separates implemented, accepted-and-ignored, and missing
   call sites, and its baseline fails if an implemented API becomes a no-op shim.
 - A contract test keeps the Python panel payload and the Rust `Panel`, `Legend`,
