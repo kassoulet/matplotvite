@@ -81,6 +81,11 @@ markers = [
     "gallery: regenerate a full comparison gallery from a local checkout (run with `pytest -m gallery`)",
 ]
 
+[tool.maturin.sbom]
+# The generated Rust SBOM records pip's temporary build directory, which makes
+# otherwise identical wheels differ. Release artifacts carry an SPDX SBOM.
+rust = false
+
 [tool.maturin]
 python-source = "python"
 module-name = "matplotvite._core"
