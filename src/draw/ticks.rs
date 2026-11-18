@@ -1,6 +1,7 @@
 //! Manual tick marks, tick labels and colored axis labels.
 
 use super::polyline::draw_dashed;
+use super::text::rotated_style;
 use super::*;
 use crate::scale::{asinh_inverse, asinh_scale, logit, symlog};
 

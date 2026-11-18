@@ -69,7 +69,7 @@ independent of Python.
 | `src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
 | `src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
 | `src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |
-| `src/draw.rs`, `src/draw/*` | Panel orchestration, text and collections, plus the axes, bars, colorbar, contour, image, legend, markers, polyline, quiver, series and tick drawing modules. |
+| `src/draw.rs`, `src/draw/*` | Panel orchestration and collections, plus the axes, bars, colorbar, contour, image, legend, markers, polyline, quiver, series, text and tick drawing modules. |
 | `src/fonts.rs` | Registration of the embedded DejaVu Sans and Geist faces used by the drawing stack. |
 | `src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
 | `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP/EPS encoding. |
