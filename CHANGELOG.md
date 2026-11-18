@@ -40,6 +40,8 @@ Before 1.0, a minor release may contain a breaking change; see
   of a separate label-order list, preserving the bar-container-last rule.
 - The coverage trace now separates implemented, accepted-and-ignored, and missing
   call sites, and its baseline fails if an implemented API becomes a no-op shim.
+- A contract test keeps the Python panel payload and the Rust `Panel`, `Legend`,
+  `Grid`, and `Ticks` field sets in sync.
 - Release source distributions now contain only build inputs; development
   trees, galleries, and editor state are excluded.
 - Python linting covers Pyflakes, import sorting, bugbear, pyupgrade, and Ruff
