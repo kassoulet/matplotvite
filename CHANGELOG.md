@@ -21,6 +21,9 @@ Before 1.0, a minor release may contain a breaking change; see
   project changelog/issue/documentation URLs.
 - An explicit Python support policy covering the tested 3.9 through 3.14
   interpreters.
+- A native Rust `Figure`/`Axes` builder covering `plot`, `scatter`, `bar`,
+  `hist`, `imshow`, and `fill_between`, with PNG/SVG/PDF/WebP/EPS output through
+  the same renderer as the Python API.
 
 ### Changed
 

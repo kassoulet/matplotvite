@@ -66,6 +66,7 @@ independent of Python.
 | `python/matplotvite/__init__.py` | Public matplotlib-style API, artist state, GridSpec/SubFigure layout, panel serialisation, output-path handling, and the last-result byte cache. |
 | `python/matplotvite/__init__.pyi` | PEP 561 type surface shipped with the wheel. |
 | `src/lib.rs` | PyO3 adapter: GIL release, error mapping, and module exports. |
+| `src/api.rs` | Native Rust `Figure`/`Axes` builder for the priority plotting methods, rendering through the shared panel pipeline. |
 | `src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
 | `src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
 | `src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |

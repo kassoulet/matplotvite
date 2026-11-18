@@ -52,7 +52,7 @@ impl From<String> for RenderError {
 pub(crate) fn render_figure(
     size: (u32, u32),
     grid: (usize, usize),
-    panels: Vec<Panel>,
+    panels: &[Panel],
     options: RenderOptions,
 ) -> Result<Vec<u8>, RenderError> {
     let RenderOptions {
@@ -142,7 +142,7 @@ pub(crate) fn render_figure(
         && !transparent
         && decorations.is_empty()
         && figure_images.is_empty()
-        && direct_eligible(&panels);
+        && direct_eligible(panels);
     let direct_background =
         background_pixel(background).map(|pixel| [pixel[0], pixel[1], pixel[2]]);
 
@@ -150,7 +150,7 @@ pub(crate) fn render_figure(
         let background = direct_background.ok_or_else(|| {
             RenderError::Render("direct PNG requires an opaque background".into())
         })?;
-        let pixmap = render_png(size, grid, &panels, background)?;
+        let pixmap = render_png(size, grid, panels, background)?;
         let pixmap = match if tight {
             content_bbox(
                 &pixmap,
@@ -171,7 +171,7 @@ pub(crate) fn render_figure(
     let (svg, bounds) = render_svg(
         size,
         grid,
-        &panels,
+        panels,
         &figure_images,
         svg_background,
         decorations,
@@ -257,25 +257,15 @@ mod tests {
 
     #[test]
     fn renders_a_line_to_png_without_python() {
-        let png = render_figure(
-            (320, 240),
-            (1, 1),
-            vec![smoke_panel()],
-            smoke_options("png"),
-        )
-        .expect("minimal line figure renders");
+        let png = render_figure((320, 240), (1, 1), &[smoke_panel()], smoke_options("png"))
+            .expect("minimal line figure renders");
         assert!(png.starts_with(b"\x89PNG\r\n\x1a\n"));
     }
 
     #[test]
     fn renders_a_line_to_svg_without_python() {
-        let svg = render_figure(
-            (320, 240),
-            (1, 1),
-            vec![smoke_panel()],
-            smoke_options("svg"),
-        )
-        .expect("minimal line figure renders");
+        let svg = render_figure((320, 240), (1, 1), &[smoke_panel()], smoke_options("svg"))
+            .expect("minimal line figure renders");
         let text = String::from_utf8(svg).expect("SVG is UTF-8");
         assert!(text.starts_with("<svg"));
         assert!(text.contains("Smoke"));

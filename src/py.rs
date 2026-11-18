@@ -122,7 +122,7 @@ fn render_figure_py(
     panels: Vec<Panel>,
     options: RenderOptions,
 ) -> PyResult<Vec<u8>> {
-    py.detach(move || render_figure(size, grid, panels, options))
+    py.detach(move || render_figure(size, grid, &panels, options))
         .map_err(|err| {
             if err.is_value_error() {
                 PyValueError::new_err(err.into_message())

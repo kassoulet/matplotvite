@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "python"), allow(dead_code))]
 
+pub mod api;
+pub use api::{ApiError, Axes, Figure};
 mod cmap_data;
 mod color;
 mod draw;
