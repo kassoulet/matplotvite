@@ -202,7 +202,8 @@ def coverage_stats(out_dir: Path | None = None) -> dict[str, object]:
         stats = json.loads(
             (ROOT / "tools" / "trace_baseline.json").read_text(encoding="utf-8")
         )
-    stats["percent"] = 100 * int(stats["supported"]) // max(int(stats["total"]), 1)
+    implemented = int(stats.get("implemented", stats["supported"]))
+    stats["percent"] = 100 * implemented // max(int(stats["total"]), 1)
     if out_dir is not None:
         breakdown = gallery_status_breakdown(out_dir)
         if breakdown:
@@ -212,17 +213,19 @@ def coverage_stats(out_dir: Path | None = None) -> dict[str, object]:
 
 def coverage_counter_html(coverage: dict[str, object]) -> str:
     """Render the live coverage statistic beside the gallery coverage table."""
-    supported = int(coverage["supported"])
+    implemented = int(coverage.get("implemented", coverage["supported"]))
+    ignored = int(coverage.get("accepted_ignored", 0))
     total = int(coverage["total"])
     files = int(coverage["files"])
     version = html.escape(str(coverage["matplotlib"]))
     percent = int(coverage["percent"])
+    ignored_note = (f" {ignored:,} more are accepted but ignored." if ignored else "")
     return f"""
       <div class="coverage-counter">
         <p class="coverage-percent">{percent}<span>%</span></p>
-        <p class="coverage-count">{supported:,} / {total:,} call sites</p>
+        <p class="coverage-count">{implemented:,} / {total:,} call sites implemented</p>
         <div class="coverage-meter" aria-hidden="true"><span style="width: {percent}%"></span></div>
-        <p class="coverage-source">Static scan of {files} matplotlib {version} test files. The CI trace job re-runs this check and fails on any drop.</p>
+        <p class="coverage-source">Static scan of {files} matplotlib {version} test files.{ignored_note} The CI trace job re-runs this check and fails on any drop.</p>
         {gallery_breakdown_html(coverage.get("galleries"))}
       </div>"""
 
@@ -371,7 +374,7 @@ def generate_gallery_html(samples_info: list[dict[str, object]],
         </div>
         <div class="design-note">
           <h3>Compatibility scope</h3>
-          <p>The API covers common static plotting calls. It is not a complete matplotlib implementation; unsupported call sites are tracked in TRACE.md.</p>
+          <p>The API covers common static plotting calls. It is not a complete matplotlib implementation; implemented, accepted-and-ignored, and missing call sites are tracked in TRACE.md.</p>
         </div>
       </div>
     </section>

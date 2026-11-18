@@ -23,6 +23,8 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Changed
 
+- The coverage trace now separates implemented, accepted-and-ignored, and missing
+  call sites, and its baseline fails if an implemented API becomes a no-op shim.
 - Release source distributions now contain only build inputs; development
   trees, galleries, and editor state are excluded.
 - Python linting covers Pyflakes, import sorting, bugbear, pyupgrade, and Ruff

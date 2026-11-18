@@ -69,7 +69,6 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | # | Task |
 |---|------|
 | C1 | **Unknown kwargs are silently accepted** on `plot`, `scatter`, `bar`, `hist`, `imshow`, `legend`, `subplots` (561 `**kwargs` signatures; `_ignored` is called from only 65 shims). Raise `TypeError`/warn like Matplotlib. Make `tools/trace_unsupported.py::accepted_kwargs` treat `**kwargs` as unknown, so TRACE.md stops overstating (96% is an upper bound). |
-| C2 | **"Supported" counts no-op shims** (`set_axisbelow`, `set_xmargin`, `set_frame_on`, `label_outer`, `secondary_xaxis` returning `self`). Split TRACE.md into implemented / accepted-and-ignored / missing. |
 | C4 | **`__init__.pyi` covers 94 of 239 public names** and drifts (`set_xlim(lo, hi)` vs `left/right`; missing `norm`, `pad_inches`, `handles/labels`, `**kwargs`). Extend or generate the stubs and add `mypy.stubtest` to CI; today only a test that the file exists. |
 | C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
 | C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |

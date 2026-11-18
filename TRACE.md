@@ -1,31 +1,33 @@
 # matplotlib test-suite coverage trace
 
-94 test files scanned. Static AST scan, counts are call sites.
+91 test files scanned. Static AST scan, counts are call sites.
 
-Call sites supported: **9850/10156** (96%)
+Call sites implemented: **9178/10098** (90%)
+Call sites accepted and ignored: **632/10098** (6%)
+Call sites missing: **288/10098** (2%)
+
+`implemented` produces renderer output or real state; `accepted and ignored` exists as a no-op compatibility shim; `missing` is not available.
 
 ## Priority gaps
 
-Unsupported call sites sorted by how often matplotlib's own tests use them.
+Missing call sites sorted by how often matplotlib's own tests use them.
 
 | calls | API | files |
 |--:|---|---:|
 | 23 | `Axes.format_coord` | 2 |
-| 17 | `Figure.get_linewidth` | 7 |
 | 16 | `Axes.get_cursor_data` | 2 |
 | 16 | `Axes.contains` | 6 |
-| 12 | `Figure.set_edgecolor` | 5 |
+| 14 | `Figure.get_linewidth` | 6 |
 | 12 | `Axes.format_cursor_data` | 2 |
 | 10 | `pyplot.switch_backend` | 3 |
+| 10 | `Figure.set_edgecolor` | 4 |
 | 8 | `pyplot.imsave` | 1 |
-| 8 | `pyplot.fignum_exists` | 2 |
 | 8 | `Axes.get_navigate_mode` | 1 |
 | 7 | `Axes.set_figure` | 2 |
 | 7 | `Axes.get_autoscaley_on` | 2 |
 | 7 | `Axes.get_autoscalex_on` | 2 |
 | 6 | `Axes.violin` | 2 |
 | 6 | `Axes.contains_point` | 3 |
-| 5 | `pyplot.get_fignums` | 2 |
 | 5 | `Axes.set_url` | 1 |
 | 5 | `Axes.draw_artist` | 3 |
 | 4 | `pyplot.box` | 1 |
@@ -35,15 +37,32 @@ Unsupported call sites sorted by how often matplotlib's own tests use them.
 | 3 | `Figure.show` | 2 |
 | 3 | `Figure.set_linewidth` | 2 |
 | 3 | `Figure.set_figwidth` | 2 |
+| 3 | `Figure.set_figheight` | 2 |
+| 3 | `Figure.get_suptitle` | 2 |
 
-## pyplot: unsupported (by call count)
+## pyplot: implemented
+
+`subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `contourf`, `rc`, `savefig`, `imread`, `gcf`, `subplot_mosaic`, `contour`, `pcolor`, `streamplot`, `hist`, `axis`, `title`, `rc_context`, `quiver`, `pie`, `setp`, `pcolormesh`, `imshow`, `fignum_exists`, `errorbar`, `ylim`, `xticks`, `xlim`, `tricontourf`, `subplot2grid`, `polar`, `Circle`, `figtext`, `clabel`, `Rectangle`, `xlabel`, `get_fignums`, `bar`, `ylabel`, `tricontour`, `table`, `stairs`, `getp`, `figaspect`, `Line2D`, `suptitle`, `get_cmap`, `FixedLocator`, `yticks`, `triplot`, `tripcolor`, `fill_between`, `eventplot`, `NullLocator`, `MultipleLocator`, `FormatStrFormatter`, `FixedFormatter`, `yscale`, `xscale`, `violinplot`, `twinx`, `stem`, `stackplot`, `set_cmap`, `matshow`, `fill`, `boxplot`, `axline`, `annotate`, `MaxNLocator`, `LinearLocator`
+
+## pyplot: accepted and ignored
+
+| calls | name | files |
+|--:|---|--:|
+| 26 | `draw` | 10 |
+| 13 | `tight_layout` | 3 |
+| 11 | `ion` | 1 |
+| 11 | `ioff` | 1 |
+| 10 | `pause` | 2 |
+| 9 | `show` | 4 |
+| 5 | `subplots_adjust` | 4 |
+| 4 | `xkcd` | 2 |
+
+## pyplot: missing
 
 | calls | name | files |
 |--:|---|--:|
 | 10 | `switch_backend` | 3 |
 | 8 | `imsave` | 1 |
-| 8 | `fignum_exists` | 2 |
-| 5 | `get_fignums` | 2 |
 | 4 | `box` | 1 |
 | 2 | `specgram` | 1 |
 | 2 | `sca` | 2 |
@@ -58,9 +77,40 @@ Unsupported call sites sorted by how often matplotlib's own tests use them.
 | 1 | `autoscale` | 1 |
 | 1 | `FuncFormatter` | 1 |
 
-pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close`, `colorbar`, `legend`, `scatter`, `text`, `draw`, `contourf`, `rc`, `savefig`, `imread`, `gcf`, `subplot_mosaic`, `contour`, `pcolor`, `tight_layout`, `streamplot`, `hist`, `ion`, `ioff`, `axis`, `title`, `rc_context`, `quiver`, `pie`, `pause`, `show`, `setp`, `pcolormesh`, `imshow`, `errorbar`, `ylim`, `xticks`, `xlim`, `tricontourf`, `subplot2grid`, `polar`, `Circle`, `figtext`, `clabel`, `Rectangle`, `xlabel`, `subplots_adjust`, `bar`, `ylabel`, `xkcd`, `tricontour`, `table`, `stairs`, `getp`, `figaspect`, `Line2D`, `suptitle`, `get_cmap`, `FixedLocator`, `yticks`, `triplot`, `tripcolor`, `fill_between`, `eventplot`, `NullLocator`, `MultipleLocator`, `FormatStrFormatter`, `FixedFormatter`, `yscale`, `xscale`, `violinplot`, `twinx`, `stem`, `stackplot`, `set_cmap`, `matshow`, `fill`, `boxplot`, `axline`, `annotate`, `MaxNLocator`, `LinearLocator`
+## Axes: implemented
 
-## Axes: unsupported (by call count)
+`plot`, `imshow`, `text`, `set_xlim`, `legend`, `set_ylim`, `scatter`, `set_title`, `get_position`, `add_patch`, `get_ylim`, `get_xlim`, `pcolormesh`, `set`, `errorbar`, `bar`, `hist`, `get_visible`, `remove`, `add_artist`, `get_window_extent`, `get_facecolor`, `set_xlabel`, `contour`, `set_yscale`, `boxplot`, `annotate`, `tick_params`, `set_ylabel`, `set_xticks`, `violinplot`, `set_xscale`, `set_aspect`, `set_yticks`, `get_transform`, `axis`, `add_collection`, `set_prop_cycle`, `get_xticklabels`, `stem`, `set_axis_off`, `contourf`, `axhline`, `twinx`, `stairs`, `fill_between`, `set_visible`, `set_facecolor`, `get_alpha`, `set_position`, `grid`, `barh`, `pie`, `clear`, `get_tightbbox`, `bar_label`, `psd`, `hexbin`, `axline`, `hlines`, `get_figure`, `clabel`, `set_alpha`, `axvline`, `vlines`, `fill`, `quiver`, `get_yticklabels`, `get_label`, `eventplot`, `minorticks_on`, `inset_axes`, `get_yticks`, `tripcolor`, `table`, `pcolorfast`, `get_subplotspec`, `specgram`, `set_label`, `get_zorder`, `twiny`, `get_title`, `step`, `stackplot`, `loglog`, `get_ybound`, `axvspan`, `set_xticklabels`, `get_children`, `broken_barh`, `invert_yaxis`, `grouped_bar`, `get_xticks`, `get_xbound`, `set_zorder`, `pcolor`, `get_gridspec`, `fill_betweenx`, `cla`, `barbs`, `yaxis_inverted`, `set_yticklabels`, `set_box_aspect`, `get_aspect`, `axhspan`, `add_line`, `tricontourf`, `tricontour`, `streamplot`, `invert_xaxis`, `get_ylabel`, `semilogx`, `minorticks_off`, `hist2d`, `get_legend_handles_labels`, `csd`, `arrow`, `triplot`, `get_yscale`, `xaxis_inverted`, `spy`, `set_ybound`, `set_xbound`, `set_in_layout`, `semilogy`, `get_xlabel`, `get_frame_on`, `get_forward_navigation_events`, `get_yaxis_transform`, `get_xscale`, `get_xaxis_transform`, `add_image`, `sharey`, `sharex`, `matshow`, `magnitude_spectrum`, `indicate_inset_zoom`, `indicate_inset`, `get_in_layout`, `ecdf`, `bxp`, `acorr`, `set_rasterization_zorder`, `set_anchor`, `set_adjustable`, `phase_spectrum`, `get_box_aspect`, `get_adjustable`, `cohere`, `angle_spectrum`
+
+## Axes: accepted and ignored
+
+| calls | name | files |
+|--:|---|--:|
+| 208 | `draw` | 37 |
+| 35 | `update` | 17 |
+| 18 | `quiverkey` | 1 |
+| 18 | `margins` | 3 |
+| 15 | `set_clip_path` | 6 |
+| 15 | `autoscale` | 4 |
+| 12 | `set_path_effects` | 2 |
+| 10 | `secondary_xaxis` | 2 |
+| 9 | `relim` | 2 |
+| 8 | `autoscale_view` | 4 |
+| 5 | `pie_label` | 2 |
+| 5 | `locator_params` | 3 |
+| 4 | `label_outer` | 1 |
+| 2 | `set_frame_on` | 2 |
+| 2 | `set_clip_on` | 1 |
+| 2 | `set_autoscale_on` | 1 |
+| 2 | `secondary_yaxis` | 1 |
+| 2 | `get_legend` | 1 |
+| 1 | `ticklabel_format` | 1 |
+| 1 | `set_xmargin` | 1 |
+| 1 | `set_forward_navigation_events` | 1 |
+| 1 | `set_axisbelow` | 1 |
+| 1 | `set_autoscaley_on` | 1 |
+| 1 | `set_autoscalex_on` | 1 |
+
+## Axes: missing
 
 | calls | name | files |
 |--:|---|--:|
@@ -114,14 +164,30 @@ pyplot supported: `subplots`, `figure`, `subplot`, `plot`, `gca`, `axes`, `close
 | 1 | `format_xdata` | 1 |
 | 1 | `findobj` | 1 |
 
-Axes supported: `plot`, `imshow`, `set_xlim`, `text`, `draw`, `legend`, `set_ylim`, `scatter`, `set_title`, `get_position`, `add_patch`, `get_ylim`, `get_xlim`, `set`, `pcolormesh`, `errorbar`, `bar`, `hist`, `get_visible`, `remove`, `add_artist`, `get_facecolor`, `get_window_extent`, `set_xlabel`, `contour`, `set_yscale`, `boxplot`, `annotate`, `tick_params`, `set_ylabel`, `set_xticks`, `violinplot`, `set_xscale`, `set_aspect`, `update`, `set_yticks`, `get_transform`, `axis`, `add_collection`, `set_prop_cycle`, `get_xticklabels`, `stem`, `get_alpha`, `set_axis_off`, `contourf`, `axhline`, `twinx`, `stairs`, `set_visible`, `fill_between`, `set_facecolor`, `set_position`, `grid`, `barh`, `pie`, `clear`, `get_tightbbox`, `bar_label`, `psd`, `hexbin`, `axline`, `inset_axes`, `hlines`, `get_figure`, `clabel`, `set_alpha`, `axvline`, `vlines`, `fill`, `quiverkey`, `quiver`, `margins`, `get_yticklabels`, `get_label`, `eventplot`, `minorticks_on`, `get_zorder`, `get_yticks`, `tripcolor`, `table`, `set_clip_path`, `pcolorfast`, `get_subplotspec`, `autoscale`, `specgram`, `set_label`, `twiny`, `get_title`, `step`, `stackplot`, `set_path_effects`, `loglog`, `get_ybound`, `axvspan`, `set_xticklabels`, `get_children`, `broken_barh`, `secondary_xaxis`, `invert_yaxis`, `grouped_bar`, `get_xticks`, `get_xbound`, `set_zorder`, `relim`, `pcolor`, `get_gridspec`, `fill_betweenx`, `cla`, `barbs`, `yaxis_inverted`, `set_yticklabels`, `set_box_aspect`, `indicate_inset_zoom`, `get_aspect`, `axhspan`, `autoscale_view`, `add_line`, `tricontourf`, `tricontour`, `streamplot`, `invert_xaxis`, `get_ylabel`, `semilogx`, `minorticks_off`, `hist2d`, `get_legend_handles_labels`, `csd`, `arrow`, `triplot`, `pie_label`, `locator_params`, `indicate_inset`, `get_yscale`, `xaxis_inverted`, `spy`, `set_ybound`, `set_xbound`, `set_in_layout`, `semilogy`, `label_outer`, `get_xlabel`, `get_frame_on`, `get_forward_navigation_events`, `get_yaxis_transform`, `get_xscale`, `get_xaxis_transform`, `add_image`, `sharey`, `sharex`, `set_frame_on`, `set_clip_on`, `set_autoscale_on`, `secondary_yaxis`, `matshow`, `magnitude_spectrum`, `get_legend`, `get_in_layout`, `ecdf`, `bxp`, `acorr`, `ticklabel_format`, `set_xmargin`, `set_rasterization_zorder`, `set_forward_navigation_events`, `set_axisbelow`, `set_autoscaley_on`, `set_autoscalex_on`, `set_anchor`, `set_adjustable`, `phase_spectrum`, `get_box_aspect`, `get_adjustable`, `cohere`, `angle_spectrum`
+## Figure: implemented
 
-## Figure: unsupported (by call count)
+`add_subplot`, `subplots`, `savefig`, `colorbar`, `add_axes`, `suptitle`, `get_edgecolor`, `subfigures`, `add_gridspec`, `subplot_mosaic`, `set_size_inches`, `gca`, `get_layout_engine`, `set_layout_engine`, `add_subfigure`, `figimage`, `supylabel`, `supxlabel`, `get_size_inches`, `get_constrained_layout`, `autofmt_xdate`, `get_tight_layout`, `get_axes`, `get_dpi`
+
+## Figure: accepted and ignored
 
 | calls | name | files |
 |--:|---|--:|
-| 17 | `get_linewidth` | 7 |
-| 12 | `set_edgecolor` | 5 |
+| 102 | `draw_without_rendering` | 19 |
+| 26 | `subplots_adjust` | 10 |
+| 20 | `tight_layout` | 6 |
+| 5 | `set_constrained_layout` | 1 |
+| 4 | `set_tight_layout` | 1 |
+| 4 | `align_ylabels` | 3 |
+| 2 | `align_xlabels` | 1 |
+| 1 | `align_titles` | 1 |
+| 1 | `align_labels` | 1 |
+
+## Figure: missing
+
+| calls | name | files |
+|--:|---|--:|
+| 14 | `get_linewidth` | 6 |
+| 10 | `set_edgecolor` | 4 |
 | 3 | `waitforbuttonpress` | 1 |
 | 3 | `show` | 2 |
 | 3 | `set_linewidth` | 2 |
@@ -139,17 +205,10 @@ Axes supported: `plot`, `imshow`, `set_xlim`, `text`, `draw`, `legend`, `set_yli
 | 1 | `delaxes` | 1 |
 | 1 | `clf` | 1 |
 
-Figure supported: `add_subplot`, `subplots`, `savefig`, `colorbar`, `draw_without_rendering`, `add_axes`, `get_edgecolor`, `suptitle`, `subfigures`, `subplots_adjust`, `tight_layout`, `add_gridspec`, `subplot_mosaic`, `set_size_inches`, `gca`, `get_layout_engine`, `set_layout_engine`, `add_subfigure`, `figimage`, `supylabel`, `supxlabel`, `get_size_inches`, `get_constrained_layout`, `autofmt_xdate`, `get_tight_layout`, `set_constrained_layout`, `get_axes`, `set_tight_layout`, `get_dpi`, `align_ylabels`, `align_xlabels`, `align_titles`, `align_labels`
+## Unsupported kwargs on implemented calls
 
-## Unsupported kwargs on supported calls
-
-- `savefig`: `metadata` (12), `pil_kwargs` (6), `backend` (5), `papertype` (3), `orientation` (2), `non_existent_kwarg` (1)
-- `imsave`: `format` (8), `pil_kwargs` (2), `dpi` (2), `origin` (1)
-- `violin`: `widths` (5), `positions` (5), `orientation` (1)
 - `set_label`: `ha` (3), `x` (2), `loc` (2), `y` (1)
 - `get_window_extent`: `dpi` (1)
 - `get_title`: `loc` (4)
+- `get_tightbbox`: `for_layout_only` (2), `bbox_extra_artists` (1)
 - `set_position`: `which` (3)
-- `set_sketch_params`: `scale` (1), `randomness` (1), `length` (1)
-- `add_callback`: `flush` (1)
-- `waitforbuttonpress`: `timeout` (1)
