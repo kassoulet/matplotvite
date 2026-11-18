@@ -200,7 +200,9 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
 
     # 5. Cold process startup & execution
     env = dict(os.environ)
-    env["PYTHONPATH"] = str(ROOT / "python")
+    # CI installs the wheel; an inherited PYTHONPATH would shadow it with the
+    # source tree, which has no compiled _core extension there.
+    env.pop("PYTHONPATH", None)
 
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "bench_cold.png"
