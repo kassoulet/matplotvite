@@ -97,25 +97,29 @@ python tools/criterion_guard.py target/criterion benches/criterion_baseline.json
 
 ## Dependencies
 
-The wheel is a compiled Rust extension. No C/C++ sources are compiled and there is no
-system graphics stack (Cairo, Pango, fontconfig) to install. Python needs only NumPy
-at runtime.
+The wheel is a compiled Rust extension. Most of it is Rust; lossless WebP encoding
+builds the bundled libwebp C sources. There is no system graphics stack (Cairo, Pango,
+fontconfig) to install. Python needs only NumPy at runtime.
 
-| Layer | Dependency | Language / boundary |
+| Layer | Direct dependency | Language / boundary |
 |---|---|---|
 | Python runtime | `numpy` | the only required Python package |
 | Native FFI | `pyo3` → CPython, `numpy` crate → NumPy C API | **non-Rust boundary**: CPython and NumPy are C/C++; these crates contain `unsafe` FFI code |
-| Native FFI | `libc`, `memmap2` (via `fontdb`) | **non-Rust boundary**: OS/libc bindings, used for memory-mapped font files |
 | Rendering | `plotters` | Rust |
 | Rendering | `resvg`, `usvg`, `tiny-skia` | Rust (`tiny-skia` contains some `unsafe` SIMD internals) |
 | Rendering | `svg2pdf`, `pdf-writer`, `png` | Rust |
-| Text | `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter` | Rust; only the embedded DejaVu Sans and Geist faces are loaded |
+| WebP | `webp` → bundled `libwebp-sys` | C library compiled into the extension |
+| Text | `ab_glyph` plus the `usvg`/`svg2pdf` font stack | Rust; only the embedded DejaVu Sans and Geist faces are loaded |
+| Data / parallelism | `ndarray`, `rayon` | Rust |
 | Fonts | DejaVu Sans regular/bold, Geist serif/mono TTFs | Bitstream Vera / OFL, embedded in the binary (see `assets/fonts/`) |
 | Build | Rust stable, `maturin`, CPython (with development headers) | NumPy is only needed to import the built module |
 
-Matplotvite itself contains no `unsafe` code. All non-Rust code sits behind the
-`pyo3`/`numpy` and `libc` bindings; nothing on the drawing path shells out or links
-a C library directly.
+The font stack pulls `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter`, `libc`, and
+`memmap2` transitively; they are not direct dependencies and need no system packages.
+
+Matplotvite itself contains no `unsafe` code. Unsafe and foreign code is confined to
+dependencies: the `pyo3`/`numpy` FFI, OS bindings in transitive crates, and libwebp's C
+sources. Nothing on the drawing path shells out or links a system graphics library.
 
 Type stubs (`.pyi`) and the PEP 561 `py.typed` marker ship in the wheel, so editors
 and type checkers see the public API. Wheels use CPython's stable ABI
