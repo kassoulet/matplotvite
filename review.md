@@ -75,7 +75,6 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
 | C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
 | C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |
-| C16 | **Python support policy:** state the 3.9 EOL decision, run every supported minor in CI (3.11/3.12/3.14 gaps), align classifiers. |
 | C18 | **No API stability or deprecation policy:** no `FutureWarning`/`DeprecationWarning` helper, `__all__` unchecked against the stubs, no semver statement for a `0.x` crate/package. Add `_deprecated()` plus a policy paragraph in CONTRIBUTING/README (breaking changes only in minor versions before 1.0, one release of warning). |
 
 ## Suggested order

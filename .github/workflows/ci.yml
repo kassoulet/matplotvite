@@ -150,6 +150,7 @@ jobs:
       matrix:
         # macOS and Windows wheels only exist on tags and release/ branches.
         os: ${{ fromJSON((startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/release/')) && '["ubuntu-latest","macos-latest","windows-latest"]' || '["ubuntu-latest"]') }}
+        # Every supported minor (3.9 through 3.14) runs at least once on Linux.
         python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         exclude:
           # Python 3.9 and 3.10 are no longer available on current hosted

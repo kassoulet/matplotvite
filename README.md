@@ -29,6 +29,18 @@ wheel serves CPython 3.9 and newer; other platforms install from the sdist.
 
 The latest release is 0.6.0; version tags after it publish automatically.
 
+### Python support
+
+Matplotvite supports CPython 3.9 through 3.14. CI runs every supported minor at
+least once, using the stable-ABI wheel on Linux; macOS and Windows use the
+current hosted interpreters. PyPy and free-threaded builds are not tested.
+
+CPython 3.9 and 3.10 are past their upstream end-of-life dates (31 October 2025
+and 31 October 2026). They remain supported in the 0.6.x line because the
+`cp39-abi3` wheel covers them without a separate build. A future minor release
+may drop them; dropping a Python version is recorded in the changelog and is a
+minor change under the pre-1.0 compatibility policy.
+
 ### Build from source
 
 ```bash
