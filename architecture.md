@@ -35,7 +35,7 @@ flowchart TB
         MODEL["model.rs<br/>typed Panel / RenderOptions"]
         CHECK["render.rs<br/>validation and format routing"]
         LAYOUT["layout.rs<br/>ranges, scales, ticks"]
-        DRAW["draw.rs<br/>plotters drawing"]
+        DRAW["draw.rs + draw/*<br/>panel orchestration and layers"]
         SVG["export.rs<br/>SVG fragments and assembly"]
         BITMAP["raster.rs<br/>direct PNG panels"]
         ENCODE["export.rs / image.rs<br/>PNG, WebP, PDF encoding"]
@@ -69,13 +69,13 @@ independent of Python.
 | `src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
 | `src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
 | `src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |
-| `src/draw.rs`, `src/draw/*` | Plotters drawing of series, axes, text, legends, images, contours, and collections. |
+| `src/draw.rs`, `src/draw/*` | Panel orchestration, text and collections, plus the axes, bars, colorbar, contour, image, legend, markers, polyline, quiver, series and tick drawing modules. |
 | `src/fonts.rs` | Registration of the embedded DejaVu Sans and Geist faces used by the drawing stack. |
 | `src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
 | `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP/EPS encoding. |
 | `src/image.rs` | Image scaling, background compositing, and image-to-PNG helpers. |
 | `src/color.rs`, `src/cmap_data.rs`, `src/cmaps.txt` | Colour normalisation and colormap tables. |
-| `src/scale.rs` | Integer-oversampling drawing backend used by the bitmap path. |
+| `src/scale.rs` | Axis scale transforms (`symlog`, `logit`, `asinh`) and the integer-oversampling drawing backend used by the bitmap path. |
 | `bench.rs`, `benches/render.rs` | Criterion-facing output-stage benchmarks. |
 
 ## Save and render flow
@@ -159,7 +159,7 @@ and standalone `Colorbar(ax, ...)` construction into that record; Rust maps the
 gradient and ticks through the requested axis scale and limits, then draws any
 extension triangles or rectangles at the requested length.
 
-`draw.rs` draws one panel into an SVG fragment using plotters' SVG backend.
+`draw.rs` orchestrates one panel into an SVG fragment using plotters' SVG backend and delegates each artist layer to `draw/*`.
 Each fragment uses absolute canvas coordinates, so `export.rs` can concatenate
 independent panel fragments in panel order rather than translating each panel
 into a shared coordinate system. Text uses embedded DejaVu Sans by default,
@@ -216,7 +216,7 @@ To add a feature, the usual path is:
 
 1. Add the matplotlib-compatible method or property in the Python facade.
 2. Add or extend a record in `src/model.rs` and populate it from `_panel()`.
-3. Draw it in `src/draw.rs` (and, if needed, route it through `src/export.rs`).
+3. Draw it in `src/draw.rs` or a module under `src/draw/` (and, if needed, route it through `src/export.rs`).
 4. Add a Python regression test and, where relevant, a gallery example.
 
 Canvas limits, bin limits, and grid-cell limits are enforced in Python for early
