@@ -19,8 +19,12 @@ import pathlib
 
 import pytest
 
-from tools.harvest_matplotlib import (find_examples_root, find_tests_root,
-                                      harvest_examples_gallery, harvest_gallery)
+from tools.harvest_matplotlib import (
+    find_examples_root,
+    find_tests_root,
+    harvest_examples_gallery,
+    harvest_gallery,
+)
 from tools.harvest_seaborn import find_examples_root as find_seaborn_examples
 from tools.harvest_seaborn import harvest as harvest_seaborn
 from tools.harvest_seaborn import write_gallery

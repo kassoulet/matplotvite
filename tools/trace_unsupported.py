@@ -17,13 +17,18 @@ options:
   --baseline PATH     baseline json (default: tools/trace_baseline.json)
   --update-baseline   rewrite the baseline json from the current tree
 """
-import ast, collections, inspect, json, pathlib, sys
+import ast
+import collections
+import inspect
+import json
+import pathlib
+import sys
 
 import matplotlib
 import matplotlib.pyplot as mpl_plt
+import matplotvite
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-import matplotvite
 
 argv = sys.argv[1:]
 check = "--check" in argv

@@ -9,14 +9,23 @@ import pytest
 from png_utils import decode_png_rgba
 
 import tools.harvest_matplotlib as harvester
-
-from tools.harvest_matplotlib import (_SampleDataCbook, _resolve_baseline,
-                                      failure_status, find_examples_root,
-                                      find_sample_data, find_tests_root, harvest,
-                                      harvest_examples, harvest_examples_gallery,
-                                      harvest_gallery, prepare_body,
-                                      prepare_example, render,
-                                      render_matplotlib, source_details)
+from tools.harvest_matplotlib import (
+    _resolve_baseline,
+    _SampleDataCbook,
+    failure_status,
+    find_examples_root,
+    find_sample_data,
+    find_tests_root,
+    harvest,
+    harvest_examples,
+    harvest_examples_gallery,
+    harvest_gallery,
+    prepare_body,
+    prepare_example,
+    render,
+    render_matplotlib,
+    source_details,
+)
 
 RADAR_EXAMPLE = (Path(__file__).resolve().parents[1]
                  / "dist/mpl-src/galleries/examples/specialty_plots/radar_chart.py")

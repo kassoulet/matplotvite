@@ -3,8 +3,13 @@
 import json
 from pathlib import Path
 
-from tools.harvest_seaborn import (calls_in, classify, find_examples_root,
-                                   harvest, write_gallery)
+from tools.harvest_seaborn import (
+    calls_in,
+    classify,
+    find_examples_root,
+    harvest,
+    write_gallery,
+)
 
 
 def test_theming_only_example_passes():

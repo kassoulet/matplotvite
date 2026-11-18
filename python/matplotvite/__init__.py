@@ -10,60 +10,269 @@ import threading
 import warnings
 import zlib as _zlib
 from contextlib import contextmanager
+from typing import ClassVar
 
 import numpy as np
 
 from . import scale, tri
 from ._colors import CSS_COLORS as _CSS_COLORS
-from ._core import __version__, colormaps as _colormaps, render as _render
+from ._core import __version__
+from ._core import colormaps as _colormaps
+from ._core import render as _render
 
 _CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
 __all__ = (
-    "Axes", "Axes3D", "PolarAxes", "AxesImage", "Colorbar", "Colormap", "ContourSet", "DPI", "Figure", "GridSpec",
-    "TextPath", "Sankey", "BboxImage", "Table", "MouseEvent", "OffsetFrom", "AnchoredOffsetbox", "AnnotationBbox",
-    "HandlerTuple", "HandlerLineCollection", "StepPatch", "NonUniformImage",
-    "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "PaddedBox", "Shadow",
-    "TextArea", "VPacker",
+    "DAILY",
+    "DPI",
+    "FR",
+    "HOURLY",
+    "MINUTELY",
+    "MO",
+    "MONTHLY",
+    "SA",
+    "SECONDLY",
+    "SU",
+    "TH",
+    "TU",
+    "WE",
+    "WEEKLY",
+    "YEARLY",
+    "Affine2D",
+    "AnchoredDirectionArrows",
+    "AnchoredDrawingArea",
+    "AnchoredOffsetbox",
+    "AnchoredSizeBar",
+    "AnchoredText",
+    "AnnotationBbox",
+    "Annulus",
+    "Arc",
+    "Arrow",
+    "Artist",
+    "AutoDateFormatter",
+    "AutoDateLocator",
+    "AuxTransformBox",
+    "Axes",
+    "Axes3D",
+    "AxesImage",
+    "Bbox",
+    "BboxImage",
+    "CapStyle",
+    "Circle",
+    "Collection",
+    "Colorbar",
+    "Colormap",
+    "ConciseDateConverter",
+    "ConciseDateFormatter",
+    "ConnectionPatch",
+    "ContourSet",
+    "DateFormatter",
+    "DayLocator",
+    "DrawingArea",
+    "Ellipse",
+    "EllipseCollection",
+    "EngFormatter",
+    "EventCollection",
+    "FT2Font",
+    "FaceFlags",
+    "FancyArrow",
+    "FancyArrowPatch",
+    "FancyBboxPatch",
+    "Figure",
+    "FixedFormatter",
+    "FixedLocator",
+    "FontProperties",
+    "FormatStrFormatter",
+    "GridSpec",
+    "HPacker",
+    "HandlerLineCollection",
+    "HandlerTuple",
+    "HourLocator",
+    "JoinStyle",
+    "Kerning",
+    "LightSource",
+    "LineCollection",
+    "LinearLocator",
+    "LogLocator",
+    "MarkerStyle",
+    "MaxNLocator",
+    "MicrosecondLocator",
+    "MinuteLocator",
+    "MonthLocator",
+    "MouseEvent",
+    "MultipleLocator",
+    "NonUniformImage",
+    "NullLocator",
+    "OffsetFrom",
+    "OffsetImage",
+    "PaddedBox",
+    "Patch",
+    "PatchCollection",
+    "Path",
+    "PathCollection",
+    "PathPatch",
+    "PdfPages",
+    "PercentFormatter",
+    "PolarAxes",
+    "PolyCollection",
+    "Polygon",
+    "RRuleLocator",
+    "Rectangle",
+    "RegularPolyCollection",
+    "RegularPolygon",
+    "Sankey",
     "ScalarMappable",
-    "SubplotSpec", "Patch", "Rectangle", "Circle", "Ellipse", "Polygon", "Arc", "Wedge",
-    "RegularPolygon", "FancyArrow", "FancyArrowPatch", "FancyBboxPatch", "PathPatch",
-    "Annulus", "Affine2D", "Path", "Bbox", "patches", "mpatches", "mpath",
-    "mtransforms", "transforms", "mcolors", "colors", "mticker", "ticker", "gridspec", "lines", "spines", "axis",
-    "projections", "register_projection", "units",
-    "LightSource", "rgb_to_hsv", "hsv_to_rgb", "Artist",
-    "path", "dates", "cbook", "mlab", "font_manager", "ft2font", "FT2Font", "Kerning", "FontProperties", "CapStyle", "JoinStyle",
-    "StyleFlags", "FaceFlags",
-    "same_color", "FixedFormatter", "FormatStrFormatter", "PercentFormatter", "EngFormatter", "LogLocator",
-    "testing",
-    "AutoDateFormatter", "AutoDateLocator", "DateFormatter", "YearLocator",
-    "MonthLocator", "DayLocator", "HourLocator", "MinuteLocator", "SecondLocator",
-    "MicrosecondLocator", "WeekdayLocator", "RRuleLocator", "rrulewrapper", "drange",
-    "ConciseDateFormatter", "ConciseDateConverter",
-    "MO", "TU", "WE", "TH", "FR", "SA", "SU", "YEARLY", "MONTHLY", "WEEKLY",
-    "DAILY", "HOURLY", "MINUTELY", "SECONDLY",
-    "MultipleLocator", "MaxNLocator", "FixedLocator", "LinearLocator", "NullLocator",
+    "SecondLocator",
+    "Shadow",
+    "StepPatch",
+    "StyleFlags",
+    "SubplotSpec",
+    "Table",
+    "TextArea",
+    "TextPath",
+    "VPacker",
+    "Wedge",
+    "WeekdayLocator",
+    "YearLocator",
+    "__version__",
+    "annotate",
+    "axes",
+    "axhline",
+    "axhspan",
+    "axis",
+    "axline",
+    "axvline",
+    "axvspan",
+    "bar",
+    "bar_label",
+    "barh",
+    "bivar_colormaps",
+    "boxplot",
+    "broken_barh",
+    "cbook",
+    "clabel",
+    "close",
+    "cm",
+    "collections",
+    "color_sequences",
+    "colorbar",
+    "colormaps",
+    "colors",
+    "contour",
+    "contourf",
     "cycler",
-    "Collection", "LineCollection", "PolyCollection", "PatchCollection", "EventCollection",
-    "PathCollection", "RegularPolyCollection", "EllipseCollection", "Arrow",
-    "MarkerStyle", "markers", "mmarkers",
-    "mcollections", "collections", "ConnectionPatch", "bivar_colormaps",
-    "patheffects", "path_effects", "color_sequences", "cm", "colormaps", "tri",
-    "scale", "PdfPages",
-    "AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
-    "AnchoredText", "offsetbox", "widgets",
-    "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
-    "matshow", "spy", "xkcd", "get_data_path",
-    "bar", "bar_label", "barh", "boxplot", "broken_barh", "clabel", "close", "colorbar", "contour", "contourf",
-    "draw", "errorbar", "eventplot", "figure", "fignum_exists", "figtext", "fill", "fill_between", "violinplot",
-    "fill_betweenx", "gca", "gcf", "get_cmap", "get_fignums", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow", "imread",
-    "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
-    "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "polar", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
+    "dates",
+    "drange",
+    "draw",
+    "errorbar",
+    "eventplot",
+    "fignum_exists",
+    "figtext",
+    "figure",
+    "fill",
+    "fill_between",
+    "fill_betweenx",
+    "font_manager",
+    "ft2font",
+    "gca",
+    "gcf",
+    "get_cmap",
+    "get_data_path",
+    "get_fignums",
+    "getp",
+    "grid",
+    "gridspec",
+    "hexbin",
+    "hist",
+    "hist2d",
+    "hlines",
+    "hsv_to_rgb",
+    "imread",
+    "imshow",
+    "ioff",
+    "ion",
+    "legend",
+    "lines",
+    "loglog",
+    "markers",
+    "matshow",
+    "mcollections",
+    "mcolors",
+    "minorticks_off",
+    "minorticks_on",
+    "mlab",
+    "mmarkers",
+    "mpatches",
+    "mpath",
+    "mticker",
+    "mtransforms",
+    "offsetbox",
+    "patches",
+    "path",
+    "path_effects",
+    "patheffects",
+    "pause",
+    "pcolor",
+    "pcolorfast",
+    "pcolormesh",
+    "pie",
+    "plot",
+    "polar",
+    "projections",
+    "quiver",
+    "rc",
+    "rcParams",
+    "rc_context",
+    "rcdefaults",
+    "register_projection",
+    "rgb_to_hsv",
+    "rrulewrapper",
+    "same_color",
+    "savefig",
+    "scale",
+    "scatter",
+    "semilogx",
+    "semilogy",
+    "set_cmap",
+    "setp",
+    "show",
+    "spines",
+    "spy",
+    "stackplot",
+    "stairs",
+    "stem",
+    "step",
+    "streamplot",
+    "style",
+    "subplot",
+    "subplot_mosaic",
+    "subplots",
+    "subplots_adjust",
+    "suptitle",
     "table",
-    "rcParams", "savefig", "scatter", "semilogx", "semilogy", "set_cmap", "setp", "show", "style",
-    "stackplot", "stairs", "stem", "step", "subplot", "subplot_mosaic", "subplots", "subplots_adjust", "suptitle", "text", "tick_params",
-    "tight_layout", "title", "twinx", "twiny", "vlines", "xlabel", "xlim", "xscale", "xticks",
-    "ylabel", "ylim", "yscale", "yticks", "__version__",
+    "testing",
+    "text",
+    "tick_params",
+    "ticker",
+    "tight_layout",
+    "title",
+    "transforms",
+    "tri",
+    "twinx",
+    "twiny",
+    "units",
+    "violinplot",
+    "vlines",
+    "widgets",
+    "xkcd",
+    "xlabel",
+    "xlim",
+    "xscale",
+    "xticks",
+    "ylabel",
+    "ylim",
+    "yscale",
+    "yticks",
 )
 
 # matplotlib's tab10 cycle; also the targets of the C0-C9 shorthand.
@@ -660,8 +869,8 @@ class Path:
     CURVE3 = 3
     CURVE4 = 4
     CLOSEPOLY = 79
-    NUM_VERTICES_FOR_CODE = {STOP: 1, MOVETO: 1, LINETO: 1, CURVE3: 2,
-                             CURVE4: 3, CLOSEPOLY: 1}
+    NUM_VERTICES_FOR_CODE: ClassVar[dict[int, int]] = {
+        STOP: 1, MOVETO: 1, LINETO: 1, CURVE3: 2, CURVE4: 3, CLOSEPOLY: 1}
 
     def __init__(self, vertices, codes=None, **kwargs):
         self.vertices = np.asarray(vertices, dtype=float).reshape(-1, 2)
@@ -4740,7 +4949,7 @@ class Axes:
         else:
             self.artists.append(line)
         return line
-    def get_children(self): return list(self.artists) + [self]
+    def get_children(self): return [*list(self.artists), self]
     def update(self, *args, **kwargs): return None
 
     def get_label(self): return self.label
@@ -5939,7 +6148,6 @@ class Axes:
         if len(args) == 3 and _looks_like_dates(args[0]):
             args = (self._xdate(args[0]), args[1], args[2])
         x, y, z, edges = _mesh_args(args)
-        rows, cols = z.shape
         if edges:
             extent = (float(x[0]), float(x[-1]), float(y[0]), float(y[-1]))
         else:
@@ -6241,10 +6449,10 @@ class Axes:
             if not hi > lo:
                 lo, hi = lo - 0.5, lo + 0.5
             cmap_obj = get_cmap(cmap)
-            color_at = lambda px, py: cmap_obj((_streamplot_sample(color_values, xs, ys, px, py) - lo) / (hi - lo))  # noqa: E731
+            color_at = lambda px, py: cmap_obj((_streamplot_sample(color_values, xs, ys, px, py) - lo) / (hi - lo))
         else:
             uniform = _norm_color(color) if color is not None else self._next_color()
-            color_at = lambda px, py: uniform  # noqa: E731
+            color_at = lambda px, py: uniform
 
         linewidth_values = None
         if linewidth is not None and not np.isscalar(linewidth):
@@ -7753,8 +7961,9 @@ def _plot_args(args, fmt):
 # Marker characters the renderer understands; keep in sync with
 # `marker_shape` in src/draw.rs and `_STEM_MARKERS` below.
 _MARKERS = set("os^v<>Dx+.*hHpPXd8|_1234")
-Line2D.markers = {**{marker: "marker" for marker in sorted(_MARKERS)},
-                  "None": "nothing", "none": "nothing", " ": "nothing", "": "nothing"}
+Line2D.markers: ClassVar[dict[str, str]] = {
+    **{marker: "marker" for marker in sorted(_MARKERS)},
+    "None": "nothing", "none": "nothing", " ": "nothing", "": "nothing"}
 Line2D.filled_markers = tuple("osD^v<>pP*hHX")
 Line2D.fillStyles = ("full", "left", "right", "bottom", "top", "none")
 
@@ -7762,8 +7971,9 @@ Line2D.fillStyles = ("full", "left", "right", "bottom", "top", "none")
 class MarkerStyle:
     """Marker descriptor, as `matplotlib.markers.MarkerStyle`."""
 
-    markers = {**{name: None for name in sorted(_MARKERS)},
-               "None": None, "none": None, " ": None, "": None}
+    markers: ClassVar[dict[str, None]] = {
+        **{name: None for name in sorted(_MARKERS)},
+        "None": None, "none": None, " ": None, "": None}
     filled_markers = tuple("osD^v<>pP*hHX")
 
     def __init__(self, marker="o", fillstyle=None, transform=None,
@@ -8357,7 +8567,7 @@ def _contour_label_colour(entry, index, level):
     lo, hi = float(levels[0]), float(levels[-1])
     t = (level - lo) / (hi - lo) if hi > lo else 0.5
     rgb = np.asarray(get_cmap(entry.get("cmap"))(t), dtype=float).ravel()[:3]
-    return "#%02x%02x%02x" % tuple(int(round(float(v) * 255)) for v in rgb)
+    return "#{:02x}{:02x}{:02x}".format(*tuple(int(round(float(v) * 255)) for v in rgb))
 
 
 def _point_segment_distance(px, py, xa, ya, xb, yb):
@@ -8450,7 +8660,7 @@ class ContourSet:
         lo, hi = levels[0], levels[-1]
         t = (value - lo) / (hi - lo) if hi > lo else 0.5
         rgb = np.asarray(get_cmap(self._e["cmap"])(t), dtype=float).ravel()[:3]
-        return "#%02x%02x%02x" % tuple(int(round(float(v) * 255)) for v in rgb)
+        return "#{:02x}{:02x}{:02x}".format(*tuple(int(round(float(v) * 255)) for v in rgb))
 
     def _manual_linewidth(self, index):
         widths = self._e["linewidths"]
@@ -9136,8 +9346,8 @@ class Colorbar:
         if extend is None and cmap is not None:
             under = getattr(cmap, "_under", None) is not None
             over = getattr(cmap, "_over", None) is not None
-            extend = (("both" if under and over else "min" if under else "max" if over
-                       else "neither"))
+            extend = ("both" if under and over else "min" if under else "max" if over
+                       else "neither")
         bounds = boundaries
         if bounds is None and hasattr(norm, "boundaries"):
             bounds = norm.boundaries
@@ -10425,7 +10635,7 @@ class _PowerNorm(_Normalize):
         hi = 1.0 if self.vmax is None else float(self.vmax)
         span = hi - lo if hi != lo else 1.0
         out = np.clip((np.asarray(value, dtype=float) - lo) / span, 0.0, 1.0) ** self.gamma
-        return out if (clip if clip is not None else self.clip) else out
+        return out
 
 
 class _SymLogNorm(_Normalize):
@@ -10627,7 +10837,7 @@ class _MultivarColormap:
             result = np.stack([result] * 3, axis=-1)
         if result.shape[-1] == 3:
             result = np.concatenate(
-                [result, np.ones(result.shape[:-1] + (1,), dtype=result.dtype)],
+                [result, np.ones((*result.shape[:-1], 1), dtype=result.dtype)],
                 axis=-1)
         return (np.round(result * 255.0).astype(np.uint8) if bytes else result)
 
@@ -10646,8 +10856,9 @@ class _MColors:
     Colormap = Colormap
     ListedColormap = _ListedColormap
     LinearSegmentedColormap = _LinearSegmentedColormap
-    TABLEAU_COLORS = dict(_TAB10)
-    BASE_COLORS = {name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
+    TABLEAU_COLORS: ClassVar[dict] = dict(_TAB10)
+    BASE_COLORS: ClassVar[dict] = {
+        name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
     cnames = _CSS_COLORS
 
@@ -10733,7 +10944,7 @@ class LightSource:
         dy = -float(dy)
         elevation = np.asarray(elevation, dtype=float)
         e_dy, e_dx = np.gradient(float(vert_exag) * elevation, dy, dx)
-        normal = np.empty(elevation.shape + (3,), dtype=float)
+        normal = np.empty((*elevation.shape, 3), dtype=float)
         normal[..., 0], normal[..., 1], normal[..., 2] = -e_dx, -e_dy, 1.0
         normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
         return self.shade_normals(normal, fraction=fraction)
@@ -10787,7 +10998,7 @@ class LightSource:
         hsv_min_val = self.hsv_min_val if hsv_min_val is None else hsv_min_val
         intensity = np.asarray(intensity, dtype=float)[..., 0] * 2.0 - 1.0
         hsv = rgb_to_hsv(np.asarray(rgb, dtype=float)[..., :3])
-        hue, sat, val = np.moveaxis(hsv, -1, 0)
+        _hue, sat, val = np.moveaxis(hsv, -1, 0)
         positive = (np.abs(sat) > 1e-10) & (intensity > 0)
         negative = (np.abs(sat) > 1e-10) & (intensity < 0)
         sat[positive] = (1 - intensity[positive]) * sat[positive] + intensity[positive] * hsv_max_sat
@@ -11209,14 +11420,15 @@ class _AutoDateFormatter:
 class _ConciseDateFormatter:
     """Date formatter that picks a compact unit based on the tick's resolution."""
 
-    _DEFAULT_FORMATS = ["%Y", "%b", "%d", "%H:%M", "%H:%M", "%S.%f"]
+    _DEFAULT_FORMATS: ClassVar[tuple[str, ...]] = (
+        "%Y", "%b", "%d", "%H:%M", "%H:%M", "%S.%f")
 
     def __init__(self, locator=None, tz=None, formats=None,
                  offset_formats=None, zero_formats=None, show_offset=True):
         self.locator = locator
         self.tz = tz
         self.formats = list(formats or self._DEFAULT_FORMATS)
-        self.zero_formats = list(zero_formats or [""] + self.formats[:-1])
+        self.zero_formats = list(zero_formats or ["", *self.formats[:-1]])
         self.offset_formats = list(offset_formats or [""] * 6)
         self.show_offset = show_offset
 
@@ -11613,6 +11825,7 @@ def _imread(fname, format=None):
         return _decode_png(data)
     try:
         import io
+
         from PIL import Image
     except ImportError as exc:
         raise ImportError(
@@ -12504,7 +12717,7 @@ class _ColorSequences(dict):
 
 
 def _colormap_sequence(name):
-    base, table, reverse = _cmap_lookup(name)
+    _base, table, reverse = _cmap_lookup(name)
     rows = table[::-1] if reverse else table
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rows]
 
@@ -12671,17 +12884,30 @@ def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=
                          compression=compression, pad_inches=pad_inches)
 
 
-from . import offsetbox  # noqa: E402 - needs rcParams defined above
-from .offsetbox import (  # noqa: E402
-    AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredOffsetbox,
-    AnchoredSizeBar, AnchoredText, AnnotationBbox, AuxTransformBox, DrawingArea,
-    HPacker, OffsetImage, PaddedBox, Shadow, TextArea, VPacker,
+from . import (
+    offsetbox,
+    spines,
+    units,
+    widgets,
 )
-from .sankey import Sankey  # noqa: E402 - needs Patch and text artists above
-from . import spines  # noqa: E402 - public module for custom projections
-from . import units  # noqa: E402 - unit-converter registry
-from . import widgets  # noqa: E402 - public headless widget module
-from .backends.backend_pdf import PdfPages  # noqa: E402 - needs the figure API
+from .backends.backend_pdf import PdfPages
+from .offsetbox import (
+    AnchoredDirectionArrows,
+    AnchoredDrawingArea,
+    AnchoredOffsetbox,
+    AnchoredSizeBar,
+    AnchoredText,
+    AnnotationBbox,
+    AuxTransformBox,
+    DrawingArea,
+    HPacker,
+    OffsetImage,
+    PaddedBox,
+    Shadow,
+    TextArea,
+    VPacker,
+)
+from .sankey import Sankey
 
 
 def _data_kwargs(method):

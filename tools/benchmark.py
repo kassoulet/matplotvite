@@ -4,15 +4,15 @@
 from __future__ import annotations
 
 import argparse
-from importlib.util import find_spec
 import json
 import os
-from pathlib import Path
 import platform
 import subprocess
 import sys
 import tempfile
 import time
+from importlib.util import find_spec
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -23,8 +23,8 @@ if str(ROOT) not in sys.path:
 if find_spec("matplotvite") is None and str(ROOT / "python") not in sys.path:
     sys.path.insert(0, str(ROOT / "python"))
 
-import numpy as np
 import matplotvite as rs_plt
+import numpy as np
 
 try:
     import matplotlib

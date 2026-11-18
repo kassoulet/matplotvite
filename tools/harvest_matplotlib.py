@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-from concurrent.futures import ThreadPoolExecutor
 import gzip
 import html
 import importlib.util
@@ -32,11 +31,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import warnings
 import textwrap
+import warnings
+from concurrent.futures import ThreadPoolExecutor
 
-import numpy as np
 import matplotvite
+import numpy as np
 
 # Bodies that cannot be rendered out of process: pytest fixtures, checks against
 # Matplotlib internals, or interactive backends.
@@ -92,10 +92,10 @@ def _baseline_list(node: ast.AST) -> list[str] | None:
         value = ast.literal_eval(node)
     except ValueError:
         try:
-            value = eval(  # noqa: S307  # nosec
+            value = eval(  # nosec
                          compile(ast.Expression(node), "<baseline>", "eval"),
                          {"__builtins__": {}}, {"range": range})
-        except Exception:  # noqa: BLE001 - unparseable baselines are simply skipped
+        except Exception:
             return None
     return [str(v) for v in value] if isinstance(value, (list, tuple)) else None
 
@@ -450,7 +450,7 @@ def _nonwhite_pixels(path: pathlib.Path) -> int | None:
         decode_png_rgba = module.decode_png_rgba
     try:
         _, _, rows = decode_png_rgba(path.read_bytes())
-    except Exception:  # noqa: BLE001 - an unreadable PNG is unknown, not blank
+    except Exception:
         return None
     return sum(
         min(row[i], row[i + 1], row[i + 2]) < 250
@@ -703,29 +703,29 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     out_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         from matplotlib import cbook as mpl_cbook
-    except Exception:  # noqa: BLE001 - gallery tests may run without Matplotlib
+    except Exception:
         mpl_cbook = None
     try:
         from matplotlib.testing import _gen_multi_font_text as mpl_font_text
-    except Exception:  # noqa: BLE001
+    except Exception:
         mpl_font_text = None
     try:
         from matplotlib import animation as mpl_animation
-    except Exception:  # noqa: BLE001
+    except Exception:
         mpl_animation = None
     try:
         from matplotlib.testing import jpl_units as mpl_units
-    except Exception:  # noqa: BLE001
+    except Exception:
         mpl_units = None
     try:
         # `import PIL` alone does not expose the Image submodule on all
         # Pillow versions; load it so gallery snippets can use PIL.Image.
-        from PIL import Image as _pil_image  # noqa: F401
-    except Exception:  # noqa: BLE001
+        from PIL import Image as _pil_image
+    except Exception:
         _pil_image = None
     try:
         from matplotlib.projections.polar import PolarAxes as mpl_polar_axes
-    except Exception:  # noqa: BLE001
+    except Exception:
         mpl_polar_axes = None
 
     mpl_helpers = {name: value for name, value in (
@@ -772,7 +772,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
 
     def get_ax():
         """The headless `matplotlib.testing.widgets.get_ax` helper."""
-        fig, ax = matplotvite.subplots(1, 1)
+        _fig, ax = matplotvite.subplots(1, 1)
         ax.plot([0, 200], [0, 200])
         ax.set_aspect(1.0)
         return ax
@@ -839,7 +839,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
                 warnings.simplefilter("ignore", RuntimeWarning)
                 # The child process is timeout-bound and isolated from the harvest;
                 # snippets are pinned Matplotlib source, never downloaded input.
-                exec(snippet, namespace)  # noqa: S102  # nosec
+                exec(snippet, namespace)  # nosec
             if not out_path.exists():
                 return "no figure saved"
             return None
@@ -847,7 +847,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
             # Some examples (argparse helpers, for instance) exit the process;
             # that must fail one case, not abort the whole gallery run.
             return f"SystemExit: {exc.code}"
-        except Exception as exc:  # noqa: BLE001 - the gallery records every failure
+        except Exception as exc:
             return f"{type(exc).__name__}: {exc}"
         finally:
             if ignored is not None and ignored_calls is not None:
@@ -1059,7 +1059,7 @@ def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
         except ModuleNotFoundError:
             from tools.visual_compare import compare_images
         return compare_images(baseline, ours)
-    except Exception as exc:  # noqa: BLE001 - a missing matplotlib or bad PNG is data, not a crash
+    except Exception as exc:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
@@ -1228,7 +1228,7 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
             try:
                 error = render_matplotlib(str(case["path"]), path,
                                           pathlib.Path(str(case["path"])).parent)
-            except Exception as exc:  # noqa: BLE001 - one broken case must not stop the gallery
+            except Exception as exc:
                 error = f"{type(exc).__name__}: {exc}"
             return slug, str(path), error
 

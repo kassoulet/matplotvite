@@ -3,6 +3,7 @@
 import json
 import sys
 from pathlib import Path
+
 from tools.benchmark import measure_callable
 from tools.benchmark_guard import main as benchmark_guard
 from tools.build_pages import build_pages

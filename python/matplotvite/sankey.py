@@ -88,7 +88,7 @@ class Diagram:
             path_len = self._scale(self.pathlengths[i])
             if angle == 2:
                 start = pos_cursor if flow > 0 else neg_cursor
-                end = start - value if flow > 0 else start - value
+                end = start - value
                 if flow > 0:
                     pos_cursor -= value
                 else:

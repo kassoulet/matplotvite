@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from examples.karios_figures import make_data, overview, shift_by_row_col  # noqa: E402
+from examples.karios_figures import make_data, overview, shift_by_row_col
 
 
 def _check_png(path: Path):

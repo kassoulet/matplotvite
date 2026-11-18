@@ -5,11 +5,11 @@ import io
 from importlib import metadata
 from pathlib import Path
 
-import numpy as np
-from packaging.version import Version
-import pytest
 import matplotvite as plt
+import numpy as np
+import pytest
 from matplotvite import _core
+from packaging.version import Version
 
 
 def _extension_path() -> Path:

@@ -32,7 +32,7 @@ classifiers = [
 dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff==0.17.5", "pandas"]
+dev = ["pytest>=8", "ruff==0.17.5", "mypy==1.19.1", "pandas"]
 
 [project.urls]
 Homepage = "https://kassoulet.github.io/matplotvite/"
@@ -42,9 +42,29 @@ Repository = "https://github.com/kassoulet/matplotvite"
 target-version = "py39"
 
 [tool.ruff.lint]
-# Pyflakes plus syntax/runtime errors. The drawing code uses a deliberately
+# Pyflakes, syntax/runtime errors, import sorting, bugbear, pyupgrade and the
+# Ruff-specific correctness rules. The drawing code uses a deliberately
 # compact one-statement-per-line style, so formatting rules are not enforced.
-select = ["F", "E9"]
+select = ["F", "E9", "I", "B", "UP", "RUF"]
+ignore = [
+    # Labels and mathtext intentionally use Greek letters and symbols.
+    "RUF001",
+    # Explicit int() conversions document pixel/raster boundaries.
+    "RUF046",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests unpack both handles for readability even when only axes is used.
+"tests/**" = ["RUF059"]
+
+[tool.mypy]
+files = ["python/matplotvite"]
+python_version = "3.9"
+mypy_path = "python"
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 # `pytest` inserts only the test directory on sys.path, so bare invocations (CI)

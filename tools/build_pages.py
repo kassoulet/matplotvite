@@ -4,17 +4,17 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
-from collections.abc import Callable
 import html
 import importlib.util
 import json
-from pathlib import Path
 import shutil
 import statistics
 import subprocess
 import sys
 import time
+from collections import Counter
+from collections.abc import Callable
+from pathlib import Path
 from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -60,11 +60,11 @@ def _check_compiled_extension():
 if __name__ == "__main__":
     _check_compiled_extension()
 
-import numpy as np
 import matplotvite
+import numpy as np
+
 from examples.karios_figures import make_data, overview, shift_by_row_col
 from examples.samples import SAMPLES
-
 from tools.pages_assets import (
     benchmark_css,
     comparison_css,
@@ -862,11 +862,11 @@ def generate_svg_comparison_html(out_dir: Path) -> str | None:
         if pct is not None:
             detail += f" · {float(pct):.1f}% different"
 
-        def cell(filename: str, error: object) -> str:
+        def cell(filename: str, error: object, case_name: str = name) -> str:
             path = out_dir / SVG_COMPARISON_DIR / filename
             if path.exists():
                 src = f"{SVG_COMPARISON_DIR}/{html.escape(filename)}"
-                return f'<img src="{src}" alt="{html.escape(name)}" loading="lazy">'
+                return f'<img src="{src}" alt="{html.escape(case_name)}" loading="lazy">'
             return f'<pre class="error">{html.escape(str(error or "not rendered"))}</pre>'
 
         rows.append(
@@ -1232,7 +1232,8 @@ def build_pages(out_dir: Path) -> None:
         sample["runner"](str(target_path))
         size = target_path.stat().st_size
         rs_ms = measure_render_ms(
-            lambda: (sample["runner"](str(target_path)), matplotvite.close())
+            lambda sample=sample, target_path=target_path: (
+                sample["runner"](str(target_path)), matplotvite.close())
         )
         print(f"done ({format_bytes(size)}, {format_ms(rs_ms)})")
 
@@ -1264,7 +1265,7 @@ def build_pages(out_dir: Path) -> None:
         try:
             render_matplotlib_sample(sample, target)
             sample["mpl_ms"] = measure_render_ms(
-                lambda: render_matplotlib_sample(sample, target)
+                lambda sample=sample, target=target: render_matplotlib_sample(sample, target)
             )
             sample["mpl_filename"] = mpl_filename
             print(f"done ({format_ms(float(sample['mpl_ms']))})")

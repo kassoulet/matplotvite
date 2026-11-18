@@ -1,10 +1,11 @@
 """Tests verifying that every gallery example executes and is covered by tests."""
 
+import matplotvite
 import numpy as np
 import pytest
-from examples.samples import SAMPLES
 from png_utils import decode_png_rgba
-import matplotvite
+
+from examples.samples import SAMPLES
 
 
 def _skip_missing_dependency(sample):

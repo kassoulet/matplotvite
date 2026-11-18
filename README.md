@@ -436,9 +436,10 @@ Criterion provides the lower-noise, output-stage measurements.
 
 ```bash
 maturin develop --release
-pip install pytest ruff
+pip install pytest ruff mypy
 pytest
 ruff check python tests tools examples
+python -m mypy
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets

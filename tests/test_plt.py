@@ -4,9 +4,9 @@ import re
 import struct
 import zlib
 
+import matplotvite as plt
 import numpy as np
 import pytest
-import matplotvite as plt
 from png_utils import decode_png_rgba
 
 
@@ -1748,9 +1748,15 @@ def test_axes_grid1_size_divider_and_hbox_divider(tmp_path):
 
 def test_axes_grid1_anchored_artists_and_mark_inset(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1.anchored_artists import (
-        AnchoredDirectionArrows, AnchoredDrawingArea, AnchoredSizeBar, AnchoredText)
+        AnchoredDirectionArrows,
+        AnchoredDrawingArea,
+        AnchoredSizeBar,
+        AnchoredText,
+    )
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import (
-        mark_inset, zoomed_inset_axes)
+        mark_inset,
+        zoomed_inset_axes,
+    )
 
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])
@@ -1842,9 +1848,12 @@ def test_tri_axes_and_pyplot_helpers(tmp_path):
 
 def test_axisartist_axes_grid_and_floating_axes(tmp_path):
     from matplotvite.mpl_toolkits import axisartist
-    from matplotvite.mpl_toolkits.axisartist import (
-        GridHelperCurveLinear, angle_helper, grid_finder)
     from matplotvite.mpl_toolkits.axes_grid1 import host_subplot
+    from matplotvite.mpl_toolkits.axisartist import (
+        GridHelperCurveLinear,
+        angle_helper,
+        grid_finder,
+    )
 
     fig = plt.figure((6, 4))
     ax = fig.add_subplot(121, axes_class=axisartist.Axes,
@@ -1945,10 +1954,10 @@ def test_lightsource_hillshade_blends_and_rgb_hsv():
     assert np.allclose(np.linalg.norm(ls.direction), 1.0)
 
     shaded = ls.shade(z, plt.colormaps["copper"], vmin=-1, vmax=1)
-    assert shaded.shape == z.shape + (4,)
+    assert shaded.shape == (*z.shape, 4)
     for mode in ("hsv", "overlay", "soft"):
-        blended = ls.shade_rgb(np.ones(z.shape + (3,)), z, blend_mode=mode)
-        assert blended.shape == z.shape + (3,)
+        blended = ls.shade_rgb(np.ones((*z.shape, 3)), z, blend_mode=mode)
+        assert blended.shape == (*z.shape, 3)
 
     rgb = np.stack([x, y, np.full_like(x, 0.5)], axis=-1)
     hsv = plt.rgb_to_hsv(rgb)
@@ -1957,7 +1966,11 @@ def test_lightsource_hillshade_blends_and_rgb_hsv():
 
 def test_axes_grid1_axesgrid_host_subplot_and_divider_position(tmp_path):
     from matplotvite.mpl_toolkits.axes_grid1 import (
-        AxesGrid, Divider, Size, host_subplot)
+        AxesGrid,
+        Divider,
+        Size,
+        host_subplot,
+    )
 
     fig = plt.figure((6, 4))
     grid = AxesGrid(fig, 121, nrows_ncols=(2, 2), cbar_mode="edge",
@@ -1987,7 +2000,10 @@ def test_axes_grid1_axesgrid_host_subplot_and_divider_position(tmp_path):
 
 
 def test_mpl_toolkits_inset_axes(tmp_path):
-    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import inset_axes, zoomed_inset_axes
+    from matplotvite.mpl_toolkits.axes_grid1.inset_locator import (
+        inset_axes,
+        zoomed_inset_axes,
+    )
 
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.plot([0, 1], [0, 1])
@@ -2006,7 +2022,10 @@ def test_mpl_toolkits_inset_axes(tmp_path):
 
 def test_bbox_connector_shims():
     from matplotvite.mpl_toolkits.axes_grid1.inset_locator import (
-        BboxConnector, BboxConnectorPatch, BboxPatch)
+        BboxConnector,
+        BboxConnectorPatch,
+        BboxPatch,
+    )
 
     fig, ax = plt.subplots()
     first = plt.Bbox.from_extents(0.0, 0.0, 1.0, 1.0)
@@ -2029,9 +2048,8 @@ def test_axes_set_accepts_artist_properties():
 
 
 def test_scale_module_exposes_matplotlib_classes():
-    import numpy as np
-
     import matplotvite.scale as mscales
+    import numpy as np
 
     assert mscales.get_scale_names() == [
         "asinh", "function", "functionlog", "linear", "log", "logit", "symlog"
@@ -2066,9 +2084,8 @@ def test_function_scale_transforms_coordinates_and_keeps_labels(tmp_path):
 
 
 def test_registered_custom_scale_transforms_coordinates(tmp_path):
-    import numpy as np
-
     import matplotvite.scale as mscales
+    import numpy as np
 
     class CubeScale(mscales.ScaleBase):
         name = "test-cube"
@@ -2096,7 +2113,6 @@ def test_registered_custom_scale_transforms_coordinates(tmp_path):
 
 def test_cbook_boxplot_stats_feed_bxp(tmp_path):
     import numpy as np
-
     from matplotvite import cbook
 
     stats = cbook.boxplot_stats(np.array([[0, 10, 20], [1, 11, 21],
@@ -3392,7 +3408,7 @@ def test_colormap_registry_and_get_cmap():
     with pytest.raises(ValueError):
         plt.get_cmap("not-a-colormap")
     with pytest.raises(AttributeError):
-        plt.cm.not_a_colormap
+        _ = plt.cm.not_a_colormap
 
 
 def test_all_colormaps_map_and_render():
@@ -3996,7 +4012,7 @@ def test_twinx_png_keeps_primary_and_twin_axes():
     width, height, rows = decode_png_rgba(fig.savefig(format="png"))
     assert (width, height) == (500, 400)
     red = blue = dark_left = 0
-    for y, row in enumerate(rows):
+    for _y, row in enumerate(rows):
         for x in range(0, width * 4, 4):
             r, g, b = row[x], row[x + 1], row[x + 2]
             red += r > 160 and g < 100 and b < 100
@@ -4981,6 +4997,7 @@ def test_grouped_bar_returns_one_container_per_series():
 def test_textpath_is_a_renderable_path(tmp_path):
     """TextPath behaves like a Path, including copy and deepcopy semantics."""
     import copy
+
     from matplotvite import PathPatch, TextPath
 
     path = TextPath((0, 0), "!?", size=150)
@@ -5032,8 +5049,15 @@ def test_logit_scale_uses_probability_ticks(tmp_path):
 
 def test_offsetbox_containers_accept_artists(tmp_path):
     """Anchored offset boxes can hold text, drawing areas and image boxes."""
-    from matplotvite import (AnchoredOffsetbox, AnnotationBbox, Circle,
-                             DrawingArea, OffsetImage, TextArea, VPacker)
+    from matplotvite import (
+        AnchoredOffsetbox,
+        AnnotationBbox,
+        Circle,
+        DrawingArea,
+        OffsetImage,
+        TextArea,
+        VPacker,
+    )
 
     fig, ax = plt.subplots()
     area = DrawingArea(40, 20)

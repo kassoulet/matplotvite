@@ -14,11 +14,12 @@ import pathlib
 import re
 import tempfile
 
-import numpy as np
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
-import matplotlib.pyplot as mpl
 import matplotlib.image as mimg
+import matplotlib.pyplot as mpl
 import matplotvite
 
 x = np.linspace(0, 10, 200)
@@ -155,7 +156,7 @@ def run(name: str, code: str, lib, tag: str, out: pathlib.Path, fmt: str = "png"
         # Only repository-owned comparison snippets reach this renderer.
         exec(code, {"plt": lib, "np": np, "x": x, "OUT": str(path)})  # nosec
         return path, None
-    except Exception as exc:  # noqa: BLE001 - the gallery records every failure
+    except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"
 
 

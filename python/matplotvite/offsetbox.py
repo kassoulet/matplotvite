@@ -395,7 +395,19 @@ class Shadow:
         return self
 
 
-__all__ = ("AnchoredDirectionArrows", "AnchoredDrawingArea", "AnchoredSizeBar",
-           "AnchoredText", "AnchoredOffsetbox", "AnnotationBbox",
-           "AuxTransformBox", "DrawingArea", "HPacker", "OffsetImage", "PaddedBox",
-           "Shadow", "TextArea", "VPacker")
+__all__ = (
+    "AnchoredDirectionArrows",
+    "AnchoredDrawingArea",
+    "AnchoredOffsetbox",
+    "AnchoredSizeBar",
+    "AnchoredText",
+    "AnnotationBbox",
+    "AuxTransformBox",
+    "DrawingArea",
+    "HPacker",
+    "OffsetImage",
+    "PaddedBox",
+    "Shadow",
+    "TextArea",
+    "VPacker",
+)

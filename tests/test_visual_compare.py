@@ -4,14 +4,14 @@ import pytest
 
 matplotlib = pytest.importorskip("matplotlib")
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402 - backend must be set first
+import matplotlib.pyplot as plt
 
 pytest.importorskip("pypdfium2")
 pytest.importorskip("cairosvg")
 
-import matplotvite  # noqa: E402
+import matplotvite
 
-from tools.visual_compare import compare_images  # noqa: E402
+from tools.visual_compare import compare_images
 
 
 def test_vector_baselines_are_rasterised_at_the_rendered_size(tmp_path):

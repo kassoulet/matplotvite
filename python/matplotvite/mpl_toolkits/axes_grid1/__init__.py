@@ -19,6 +19,7 @@ __all__ = (
     "Divider",
     "HBoxDivider",
     "ImageGrid",
+    "RGBAxes",
     "Size",
     "SubplotDivider",
     "VBoxDivider",
@@ -28,6 +29,5 @@ __all__ = (
     "make_axes_locatable",
     "make_rgb_axes",
     "mark_inset",
-    "RGBAxes",
     "zoomed_inset_axes",
 )
