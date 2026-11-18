@@ -170,9 +170,13 @@ def accepted_kwargs(kind, name):
         params = list(inspect.signature(fn).parameters.values())
     except (TypeError, ValueError):
         return set()
-    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
-        return None
-    return {p.name for p in params if p.name not in ("self", "cls")}
+    # **kwargs names no supported keywords. Treating it as "anything" made the
+    # report overstate coverage, so retain only explicitly named parameters.
+    return {
+        p.name for p in params
+        if p.kind not in (inspect.Parameter.VAR_KEYWORD, inspect.Parameter.VAR_POSITIONAL)
+        and p.name not in ("self", "cls")
+    }
 
 
 files = sorted(pathlib.Path(positional[0]).rglob("test_*.py"))

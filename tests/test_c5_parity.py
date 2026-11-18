@@ -103,6 +103,40 @@ def test_savefig_accepts_metadata_and_pil_kwargs():
     plt.close(fig)
 
 
+@pytest.mark.parametrize("call", [
+    lambda ax: ax.plot([0, 1], bogus=1),
+    lambda ax: ax.scatter([0], [1], bogus=1),
+    lambda ax: ax.bar([0], [1], bogus=1),
+    lambda ax: ax.barh([0], [1], bogus=1),
+    lambda ax: ax.hist([1, 2], bogus=1),
+    lambda ax: ax.imshow([[0, 1]], bogus=1),
+    lambda ax: ax.legend(bogus=1),
+])
+def test_plotting_rejects_unknown_keywords(call):
+    fig, ax = plt.subplots()
+    with pytest.raises(TypeError, match="unexpected keyword argument 'bogus'"):
+        call(ax)
+    plt.close(fig)
+
+
+def test_pyplot_rejects_unknown_keywords():
+    with pytest.raises(TypeError, match="unexpected keyword argument 'bogus'"):
+        plt.subplots(bogus=1)
+    with pytest.raises(TypeError, match="unexpected keyword argument 'bogus'"):
+        plt.figure(bogus=1)
+    with pytest.raises(TypeError, match="unexpected keyword argument 'bogus'"):
+        plt.scatter([0], [1], bogus=1)
+    plt.close("all")
+
+
+def test_known_ignored_keywords_are_recorded():
+    fig, ax = plt.subplots()
+    before = len(plt._IGNORED_CALLS)
+    ax.plot([0, 1], zorder=3)
+    assert "plot(zorder=...)" in plt._IGNORED_CALLS[before:]
+    plt.close(fig)
+
+
 def test_savefig_transparent_defaults_to_rcparam():
     plt.rcdefaults()
     try:

@@ -1,6 +1,7 @@
 """matplotvite: minimal matplotlib-like API, rendered entirely in Rust."""
 import copy
 import datetime as _datetime
+import functools as _functools
 import hashlib as _hashlib
 import math as _math
 import os
@@ -303,6 +304,63 @@ def _ignored(name):
         _IGNORED_WARNED.add(name)
         warnings.warn(f"{name} is accepted but ignored by matplotvite",
                       RuntimeWarning, stacklevel=3)
+
+
+# Artist, legend and figure properties Matplotlib accepts but the renderer does
+# not model. They stay accepted, but are recorded as ignored instead of being
+# treated as silently supported. Unknown names raise TypeError, as in Matplotlib.
+_ARTIST_KWARGS = frozenset(
+    "agg_filter alpha animated clip_box clip_on clip_path figure gid in_layout label "
+    "mouseover path_effects picker rasterized sketch_params snap transform url visible "
+    "zorder".split()
+)
+_LINE2D_KWARGS = _ARTIST_KWARGS | frozenset(
+    "antialiased color dash_capstyle dash_joinstyle dashes data drawstyle ds fillstyle "
+    "gapcolor linestyle linewidth ls lw marker markeredgecolor markeredgewidth "
+    "markerfacecolor markerfacecoloralt markersize markevery mec mfc mew ms pickradius "
+    "solid_capstyle solid_joinstyle xdata ydata".split()
+)
+_COLLECTION_KWARGS = _ARTIST_KWARGS | frozenset(
+    "antialiased array capstyle clim cmap color edgecolor edgecolors ec facecolor "
+    "facecolors fc hatch hatch_linewidth hatchcolor joinstyle linestyle linewidth "
+    "linewidths ls norm offset_transform offsets paths pickradius urls".split()
+)
+_PATCH_KWARGS = _ARTIST_KWARGS | frozenset(
+    "antialiased capstyle color ec edgecolor edgegapcolor facecolor fc fill hatch "
+    "hatch_linewidth hatchcolor joinstyle linestyle linewidth ls lw".split()
+)
+_IMAGE_KWARGS = _ARTIST_KWARGS | frozenset(
+    "array clim cmap data extent filternorm filterrad interpolation "
+    "interpolation_stage norm resample".split()
+)
+_LEGEND_KWARGS = _ARTIST_KWARGS | frozenset(
+    "alignment bbox_to_anchor borderaxespad borderpad columnspacing draggable facecolor "
+    "fancybox frame_on framealpha frameon handleheight handlelength handletextpad "
+    "handler_map labelcolor labelspacing markerfirst markerscale mode ncol ncols "
+    "numpoints reverse shadow title title_fontproperties".split()
+)
+_FIGURE_KWARGS = _ARTIST_KWARGS | frozenset(
+    "canvas clear constrained_layout constrained_layout_pads dpi edgecolor facecolor "
+    "figheight figsize figwidth frameon layout layout_engine linewidth num size_inches "
+    "tight_layout".split()
+)
+_BAR_KWARGS = _PATCH_KWARGS | frozenset(
+    "capsize data error_kw log tick_label xerr".split()
+)
+_HIST_KWARGS = _BAR_KWARGS | frozenset("ec fc fill log".split())
+_SCATTER_KWARGS = _COLLECTION_KWARGS | frozenset(
+    "clim color colorizer plotnonfinite".split()
+)
+
+
+def _check_kwargs(kwargs, name, allowed):
+    """Reject unknown keywords and record known compatibility keywords."""
+    unexpected = sorted(key for key in kwargs if key not in allowed)
+    if unexpected:
+        raise TypeError(
+            f"{name}() got an unexpected keyword argument {unexpected[0]!r}")
+    for key in kwargs:
+        _ignored(f"{name}({key}=...)")
 
 
 def _deprecated(name, *, since, alternative=None, removal=None):
@@ -4284,6 +4342,7 @@ class Axes:
         gid = str(kwargs.pop("gid", "") or "")
         xunits = kwargs.pop("xunits", None)
         yunits = kwargs.pop("yunits", None)
+        _check_kwargs(kwargs, "plot", _LINE2D_KWARGS)
         if drawstyle is None:
             drawstyle = "default"
         if drawstyle == "steps":
@@ -5321,16 +5380,19 @@ class Axes:
         return 1.0 if value is None else max(float(value), 1e-300)
 
     def semilogx(self, *args, **kwargs):
-        self.set_xscale("log")
+        base = kwargs.pop("base", 10)
+        self.set_xscale("log", base=base)
         return self.plot(*args, **kwargs)
 
     def semilogy(self, *args, **kwargs):
-        self.set_yscale("log")
+        base = kwargs.pop("base", 10)
+        self.set_yscale("log", base=base)
         return self.plot(*args, **kwargs)
 
     def loglog(self, *args, **kwargs):
-        self.set_xscale("log")
-        self.set_yscale("log")
+        base = kwargs.pop("base", 10)
+        self.set_xscale("log", base=base)
+        self.set_yscale("log", base=base)
         return self.plot(*args, **kwargs)
 
     def get_subplotspec(self):
@@ -5409,6 +5471,7 @@ class Axes:
         image's opacity. When omitted, `rcParams["image.interpolation"]`
         supplies the default. `clim` and Matplotlib's extra artist kwargs are
         accepted."""
+        _check_kwargs(kwargs, "imshow", _IMAGE_KWARGS)
         if clim is not None:
             vmin, vmax = clim
         if colorizer is not None:
@@ -5501,6 +5564,7 @@ class Axes:
              bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
              label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
         """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
+        _check_kwargs(kwargs, "hist", _HIST_KWARGS)
         if histtype == "barstacked":
             histtype, stacked = "bar", True
         if histtype not in ("bar", "step", "stepfilled"):
@@ -6059,6 +6123,7 @@ class Axes:
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
         hist = kwargs.pop("_hist", False)
+        _check_kwargs(kwargs, "bar", _BAR_KWARGS)
         x = _as_f64(self._xdate(x))
         n = x.size
         h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
@@ -6147,6 +6212,7 @@ class Axes:
              align="center", alpha=None, linewidth=None, **kwargs):
         """Horizontal bars, stored as the same rectangles as `bar`."""
         hist = kwargs.pop("_hist", False)
+        _check_kwargs(kwargs, "barh", _BAR_KWARGS)
         y = (self._category_positions(y) if _looks_like_categories(y)
              else _as_f64(y))
         n = y.size
@@ -6446,6 +6512,7 @@ class Axes:
                 vmin=None, vmax=None, data=None, norm=None, **kwargs):
         """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
         colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
+        _check_kwargs(kwargs, "scatter", _SCATTER_KWARGS)
         if data is not None:
             def column(value):
                 return data[value] if isinstance(value, str) and value in data else value
@@ -6926,6 +6993,7 @@ class Axes:
                title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
                labels=None, fontfamily=None, **kwargs):
         """Show a legend. Supports placement, layout and explicit handles/labels."""
+        _check_kwargs(kwargs, "legend", _LEGEND_KWARGS)
         _handles = _labels = None
         if len(args) == 1:
             arg = args[0]
@@ -7185,8 +7253,7 @@ class Axes:
                     linewidths=rcParams.get("lines.linewidth", 1.5)))
             marker_colour, _, marker_fmt = _stem_fmt(markerfmt, "o")
             marker = self.scatter(x, y, s=36, c=marker_colour or colour,
-                                  marker=marker_fmt,
-                                  markersize=rcParams.get("lines.markersize", 6.0))
+                                  marker=marker_fmt)
             if basefmt != "none":
                 if orientation == "vertical":
                     base_lines = self.hlines(
@@ -10176,6 +10243,7 @@ def figure(*args, num=None, figsize=None, dpi=None, facecolor=None,
     accepted. The registry is process-wide and guarded by a lock, while the
     object-oriented `Figure` API is the thread-safe path.
     """
+    _check_kwargs(kwargs, "figure", _FIGURE_KWARGS)
     global _current_fig
     if args:
         first = args[0]
@@ -10445,7 +10513,7 @@ def annotate(*args, **kwargs): return gca().annotate(*args, **kwargs)
 def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", vmin=None,
             vmax=None, data=None, norm=None, **kwargs):
     return gca().scatter(x, y, s=s, c=c, alpha=alpha, cmap=cmap, label=label, marker=marker,
-                         vmin=vmin, vmax=vmax, data=data, norm=norm)
+                         vmin=vmin, vmax=vmax, data=data, norm=norm, **kwargs)
 
 
 def axes(*args, **kwargs):
@@ -13066,6 +13134,7 @@ from .sankey import Sankey
 def _data_kwargs(method):
     """Resolve Matplotlib `data=` string arguments before a plotting method."""
 
+    @_functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         data = kwargs.pop("data", None)
         if data is not None and hasattr(data, "get"):
@@ -13076,8 +13145,6 @@ def _data_kwargs(method):
                       for key, value in kwargs.items()}
         return method(self, *args, **kwargs)
 
-    wrapper.__name__ = getattr(method, "__name__", "wrapped")
-    wrapper.__doc__ = getattr(method, "__doc__", None)
     return wrapper
 
 

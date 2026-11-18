@@ -363,6 +363,8 @@ positions/labels are honoured by the renderer. `FT2Font` exposes glyph names,
 `magnitude_spectrum` are accepted and draw nothing, and `barbs` is drawn as a
 quiver of arrows. Shims that cannot affect the renderer emit a one-time
 `RuntimeWarning`, and the harvested gallery manifests count ignored calls per case.
+Recognized Matplotlib artist, legend and figure properties are accepted this way;
+unknown keyword arguments raise `TypeError` instead of being silently ignored.
 
 ### Not supported
 
