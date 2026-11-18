@@ -345,7 +345,7 @@ quiver of arrows. Shims that cannot affect the renderer emit a one-time
 ## Coverage
 
 `TRACE.md` tracks how many call sites from matplotlib's own test suite matplotvite
-accepts — currently **9 758 / 10 098 (96%)**. CI re-runs the trace against
+accepts — currently **9 850 / 10 156 (96%)**. CI re-runs the trace against
 matplotlib 3.11.2 and fails if coverage drops (`tools/trace_unsupported.py --check`).
 
 ## Examples and benchmarks
