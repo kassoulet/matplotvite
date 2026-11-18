@@ -30,6 +30,10 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Fixed
 
+- `savefig`, `plot`, `hist`, `legend`, and `subplots` now match Matplotlib's
+  signatures and validation, including `fname`, transparent defaults,
+  metadata/pil_kwargs acceptance, length and location checks, error types, and
+  keyword-only subplot arguments.
 - Rust builds are checked against the declared 1.88 MSRV and a dependency
   policy for licences, duplicate versions, banned crates, and registries.
 

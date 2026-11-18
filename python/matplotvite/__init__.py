@@ -741,8 +741,21 @@ class _Share:
         return (min(s[0] for s in spans), max(s[1] for s in spans))
 
 
+def _validate_share(value, name):
+    """Validate Matplotlib's share flags before building limit groups."""
+    if value in (False, None, "none"):
+        return False
+    if value in (True, "all", "row", "col"):
+        return value
+    raise ValueError(
+        f"{value!r} is not a valid value for {name}. "
+        "Supported values are 'all', 'row', 'col', 'none', False, True")
+
+
 def _share_axes(axs, shape, sharex, sharey):
     """Join axes into limit groups and hide duplicate inner tick labels."""
+    sharex = _validate_share(sharex, "sharex")
+    sharey = _validate_share(sharey, "sharey")
     rows, cols = shape
     grid = np.array(axs, dtype=object).reshape(rows, cols)
 
@@ -1782,12 +1795,18 @@ _MAX_GRID_CELLS = 10_000
 
 def _validate_grid_shape(nrows, ncols):
     """Reject grids that would allocate one Python object per requested cell."""
-    try:
-        rows, cols = int(nrows), int(ncols)
-    except (TypeError, ValueError):
-        raise ValueError("grid dimensions must be integers") from None
-    if rows < 1 or cols < 1:
-        raise ValueError("grid needs at least one row and one column")
+    def positive(value, label):
+        if (isinstance(value, bool)
+                or not isinstance(value, (int, np.integer))):
+            raise ValueError(
+                f"Number of {label} must be a positive integer, not {value!r}")
+        value = int(value)
+        if value <= 0:
+            raise ValueError(
+                f"Number of {label} must be a positive integer, not {value!r}")
+        return value
+
+    rows, cols = positive(nrows, "rows"), positive(ncols, "columns")
     cells = rows * cols
     if cells > _MAX_GRID_CELLS:
         raise ValueError(f"grid has too many cells ({cells} > {_MAX_GRID_CELLS})")
@@ -1893,6 +1912,59 @@ def _output_format(filepath, format):
             f"unsupported format: {fmt!r} (use 'png', 'svg', 'pdf', 'webp', or 'eps')"
         )
     return fmt
+
+
+_LEGEND_LOCATIONS = frozenset({
+    "best", "upper right", "upper left", "lower left", "lower right", "right",
+    "center left", "center right", "lower center", "upper center", "center",
+})
+_LEGEND_LOCATION_CODES = {
+    0: "best", 1: "upper right", 2: "upper left", 3: "lower left",
+    4: "lower right", 5: "right", 6: "center left", 7: "center right",
+    8: "lower center", 9: "upper center", 10: "center",
+}
+
+
+def _normalize_legend_loc(loc):
+    """Validate a legend location, accepting Matplotlib's integer codes."""
+    if loc is None:
+        return None
+    if isinstance(loc, str):
+        if loc not in _LEGEND_LOCATIONS:
+            raise ValueError(f"{loc!r} is not a valid value for loc.")
+        return loc
+    if isinstance(loc, (int, np.integer)) and not isinstance(loc, bool):
+        code = int(loc)
+        if 0 <= code <= 10:
+            return _LEGEND_LOCATION_CODES[code]
+        raise ValueError(
+            f"loc must be string, coordinate tuple, or an integer 0-10, not {loc!r}")
+    raise ValueError(
+        f"loc must be string, coordinate tuple, or an integer 0-10, not {loc!r}")
+
+
+def _validate_linestyle(style):
+    """Reject line-style strings the renderer cannot draw."""
+    if not isinstance(style, str):
+        raise NotImplementedError("custom dash patterns are not supported")
+    text = style.strip()
+    if not text:
+        return "None"
+    normalized = text.lower()
+    aliases = {"solid": "-", "dashed": "--", "dashdot": "-.", "dotted": ":"}
+    if normalized in aliases:
+        return aliases[normalized]
+    if normalized in ("-", "--", "-.", ":", "none"):
+        return "None" if normalized == "none" else normalized
+    raise ValueError(f"{style!r} is not a valid value for ls.")
+
+
+def _validate_savefig_mapping(value, name):
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} must be a dict, got {type(value).__name__}")
+    return dict(value)
 
 
 class _Wedge:
@@ -4243,7 +4315,7 @@ class Axes:
                 glabel = str(gy.name)
             else:
                 glabel = label if index == 0 else ""
-            style = linestyle or ls or "-"
+            style = linestyle if linestyle is not None else (ls if ls is not None else "-")
             gcolor = color if color is not None else c
             gmarker = marker
             if gfmt:
@@ -4253,12 +4325,18 @@ class Axes:
                     style = f_style or style
                 if not gmarker:
                     gmarker = f_marker
+            style = _validate_linestyle(style)
             line_color = self._next_color() if gcolor is None else gcolor
             edge = markeredgecolor if markeredgecolor is not None else mec
             gx = _convert_units(gx, self.xaxis, xunits)
             gy = _convert_units(gy, self.yaxis, yunits)
             xvals = self._xdate(gx)
             gy = self._ydate(gy)
+            xshape, yshape = np.asarray(xvals).shape, np.asarray(gy).shape
+            if xshape != yshape:
+                raise ValueError(
+                    "x and y must have same first dimension, but have shapes "
+                    f"{xshape} and {yshape}")
             series_style = drawstyle
             if drawstyle == "steps-mid":
                 xvals, gy = _mid_steps(xvals, gy)
@@ -5441,7 +5519,10 @@ class Axes:
         if histtype == "barstacked":
             histtype, stacked = "bar", True
         if histtype not in ("bar", "step", "stepfilled"):
-            raise NotImplementedError(f"histtype={histtype!r} is not supported yet")
+            raise ValueError(
+                f"{histtype!r} is not a valid value for histtype. "
+                "Supported values are 'bar', 'barstacked', 'step', 'stepfilled'")
+
         if data is not None and isinstance(x, str):
             x = data[x]
         bins = _validate_bins(bins)
@@ -6838,8 +6919,10 @@ class Axes:
         if isinstance(loc, (tuple, list)):
             self.legend_anchor = (float(loc[0]), float(loc[1]))
             self.legend_loc = "lower left"
-        elif loc is not None:
-            self.legend_loc = str(loc)
+        else:
+            normalized_loc = _normalize_legend_loc(loc)
+            if normalized_loc is not None:
+                self.legend_loc = normalized_loc
         cols = ncol if ncol is not None else ncols
         if cols is not None:
             self.legend_ncol = max(1, int(cols))
@@ -9587,14 +9670,13 @@ class Figure:
             out[label] = self.add_subplot(SubplotSpec(gs, (r0, r1), (c0, c1)))
         return out
 
-    def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False, squeeze=True,
-                 **kwargs):
+    def subplots(self, nrows=1, ncols=1, *, sharex=False, sharey=False,
+                 squeeze=True, subplot_kw=None, gridspec_kw=None):
         nrows, ncols = _validate_grid_shape(nrows, ncols)
         # `plt.subplots` builds its grid from a GridSpec in Matplotlib, so
         # `ax.get_gridspec()` must return one here too.
-        self._gridspec = GridSpec(nrows, ncols, figure=self)
-        subplot_kw = dict(kwargs.pop("subplot_kw", None) or {})
-        subplot_kw.update(kwargs)
+        self._gridspec = GridSpec(nrows, ncols, figure=self, **(gridspec_kw or {}))
+        subplot_kw = dict(subplot_kw or {})
         axs = [self.add_subplot(nrows, ncols, i + 1, **subplot_kw)
                for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
@@ -9821,14 +9903,32 @@ class Figure:
         return Colorbar(entry)
 
 
-    def savefig(self, filepath=None, format=None, dpi=None, bbox_inches=None,
-                transparent=False, facecolor=None, edgecolor=None,
-                compression=None, pad_inches=None):
-        """Write this figure, or return its bytes when `filepath` is None or a
+    def savefig(self, fname=None, format=None, dpi=None, bbox_inches=None,
+                transparent=None, facecolor=None, edgecolor=None,
+                compression=None, pad_inches=None, metadata=None,
+                pil_kwargs=None, **kwargs):
+        """Write this figure, or return its bytes when `fname` is None or a
         file-like object. `format` overrides the extension, `dpi` scales the
         pixel size and `bbox_inches="tight"` crops to the drawn content.
         `compression` selects PNG compression: "fast" (default), "default",
-        or "best"."""
+        or "best". `metadata` and `pil_kwargs` are accepted for Matplotlib
+        compatibility; the renderer currently has no metadata model for them."""
+        if "filepath" in kwargs:
+            _deprecated("filepath", since="0.8", alternative="fname")
+            if fname is not None:
+                raise TypeError("savefig() got multiple values for argument 'fname'")
+            fname = kwargs.pop("filepath")
+        if kwargs:
+            unexpected = next(iter(kwargs))
+            raise TypeError(f"savefig() got an unexpected keyword argument {unexpected!r}")
+        if transparent is None:
+            transparent = bool(rcParams.get("savefig.transparent", False))
+        metadata = _validate_savefig_mapping(metadata, "metadata")
+        pil_kwargs = _validate_savefig_mapping(pil_kwargs, "pil_kwargs")
+        if metadata:
+            _ignored("savefig(metadata=...)")
+        if pil_kwargs:
+            _ignored("savefig(pil_kwargs=...)")
         dpi = _validate_dimension(dpi if dpi is not None else (self.dpi or DPI), "dpi")
         if compression is not None:
             compression = str(compression).lower()
@@ -9839,7 +9939,7 @@ class Figure:
                 )
         if bbox_inches not in (None, "tight"):
             raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
-        fmt = _output_format(filepath, format)
+        fmt = _output_format(fname, format)
         # Matplotlib truncates fractional pixels here (`int(width * dpi)`),
         # matching its canvas; rounding made 6.4x4.8 in at 72 dpi 461x346
         # instead of 460x345.
@@ -9901,12 +10001,12 @@ class Figure:
             data = _render((w, h), self.grid, panels, options)
             if key is not None:
                 self._render_cache = (key, data)
-        if filepath is None:
+        if fname is None:
             return data
-        if hasattr(filepath, "write"):
-            filepath.write(data)
+        if hasattr(fname, "write"):
+            fname.write(data)
             return None
-        with open(os.fspath(filepath), "wb") as fh:
+        with open(os.fspath(fname), "wb") as fh:
             fh.write(data)
         return None
 
@@ -9944,13 +10044,16 @@ class _SubFigure:
     @property
     def canvas(self): return self.figure.canvas
 
-    def subplots(self, nrows=1, ncols=1, sharex=False, sharey=False,
-                 squeeze=True, **kwargs):
+    def subplots(self, nrows=1, ncols=1, *, sharex=False, sharey=False,
+                 squeeze=True, subplot_kw=None, gridspec_kw=None):
         nrows, ncols = _validate_grid_shape(nrows, ncols)
         x, y, width, height = self._bounds
         gs = GridSpec(nrows, ncols, figure=self.figure,
-                      left=x, right=x + width, bottom=y, top=y + height)
-        axs = [self.figure.add_subplot(gs[i]) for i in range(nrows * ncols)]
+                      left=x, right=x + width, bottom=y, top=y + height,
+                      **(gridspec_kw or {}))
+        subplot_kw = dict(subplot_kw or {})
+        axs = [self.figure.add_subplot(gs[i], **subplot_kw)
+               for i in range(nrows * ncols)]
         _share_axes(axs, (nrows, ncols), sharex, sharey)
         if len(axs) == 1 and squeeze:
             return axs[0]
@@ -10143,11 +10246,12 @@ def fignum_exists(num):
         return num in _figures
 
 
-def subplots(nrows=1, ncols=1, figsize=None, dpi=None, facecolor=None,
-             edgecolor=None, sharex=False, sharey=False, squeeze=True, **kwargs):
-    fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
+def subplots(nrows=1, ncols=1, *, sharex=False, sharey=False, squeeze=True,
+             subplot_kw=None, gridspec_kw=None, **fig_kw):
+    fig = figure(**fig_kw)
     return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey,
-                             squeeze=squeeze, **kwargs)
+                             squeeze=squeeze, subplot_kw=subplot_kw,
+                             gridspec_kw=gridspec_kw)
 
 
 def subplot(*args, **kwargs):
@@ -10500,6 +10604,7 @@ rcParams = {
     "font.sans-serif": ["DejaVu Sans", "Bitstream Vera Sans", "Arial"],
     "font.serif": ["DejaVu Serif", "Times New Roman"],
     "font.monospace": ["DejaVu Sans Mono", "Courier New"],
+    "savefig.transparent": False,
 }
 _RC_DEFAULTS = dict(rcParams)
 
@@ -12893,11 +12998,13 @@ class _StyleLibrary:
 style = _StyleLibrary()
 
 
-def savefig(filepath=None, format=None, dpi=None, bbox_inches=None, transparent=False,
-            facecolor=None, edgecolor=None, compression=None, pad_inches=None):
-    return gcf().savefig(filepath, format=format, dpi=dpi, bbox_inches=bbox_inches,
+def savefig(fname=None, format=None, dpi=None, bbox_inches=None, transparent=None,
+            facecolor=None, edgecolor=None, compression=None, pad_inches=None,
+            metadata=None, pil_kwargs=None, **kwargs):
+    return gcf().savefig(fname, format=format, dpi=dpi, bbox_inches=bbox_inches,
                          transparent=transparent, facecolor=facecolor, edgecolor=edgecolor,
-                         compression=compression, pad_inches=pad_inches)
+                         compression=compression, pad_inches=pad_inches,
+                         metadata=metadata, pil_kwargs=pil_kwargs, **kwargs)
 
 
 from . import (
