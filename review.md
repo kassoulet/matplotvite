@@ -72,10 +72,8 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 |---|------|
 | C1 | **Unknown kwargs are silently accepted** on `plot`, `scatter`, `bar`, `hist`, `imshow`, `legend`, `subplots` (561 `**kwargs` signatures; `_ignored` is called from only 65 shims). Raise `TypeError`/warn like Matplotlib. Make `tools/trace_unsupported.py::accepted_kwargs` treat `**kwargs` as unknown, so TRACE.md stops overstating (96% is an upper bound). |
 | C2 | **"Supported" counts no-op shims** (`set_axisbelow`, `set_xmargin`, `set_frame_on`, `label_outer`, `secondary_xaxis` returning `self`). Split TRACE.md into implemented / accepted-and-ignored / missing. |
-| C3 | **Stale trace baseline:** `tools/trace_baseline.json` records 9602/10098 while README/TRACE/ROADMAP say 9758. Refresh it so `--check` really guards regressions. |
 | C4 | **`__init__.pyi` covers 94 of 239 public names** and drifts (`set_xlim(lo, hi)` vs `left/right`; missing `norm`, `pad_inches`, `handles/labels`, `**kwargs`). Extend or generate the stubs and add `mypy.stubtest` to CI; today only a test that the file exists. |
 | C5 | **Parity of signatures and validation:** `savefig` first parameter `filepath` (Matplotlib: `fname`), `transparent` default, `metadata`/`pil_kwargs` rejected; `plot` length mismatch, bad `linestyle` and bad `legend(loc=)` accepted; `hist(histtype=)` raises `NotImplementedError` not `ValueError`; `subplots` keyword-only rules and message text. |
-| C6 | **README truth fixes:** the dependency table names crates that are not direct dependencies (`libc`, `memmap2`, `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter`); "no C/C++ compiled" conflicts with `webp` (libwebp-sys), verify in `Cargo.lock` and reword. |
 | C7 | **Gate `publish.yml`** on the test matrix (reusable workflow or `needs`), add `concurrency`, attestations/SBOM, `twine check` and a wheel smoke test; confirm OIDC trusted publishing is the upload path. |
 | C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
 | C9 | **Governance files:** CHANGELOG.md (Keep a Changelog), SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates, CITATION.cff, `[project.urls]` (Issues, Changelog, Documentation). |
@@ -88,11 +86,10 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C16 | **Python support policy:** state the 3.9 EOL decision, run every supported minor in CI (3.11/3.12/3.14 gaps), align classifiers. |
 | C17 | **pyplot state is one global `_fig`** (`figure`, `gcf`, `close(*_)` in `__init__.py`): the figure number is ignored, `close("all")`/`close(fig)`, `get_fignums`, `fignum_exists` and a figure registry (Matplotlib's `Gcf`) are missing, and the state is not thread-safe. Add a small registry with a lock; document that the object-oriented API is the thread-safe path. |
 | C18 | **No API stability or deprecation policy:** no `FutureWarning`/`DeprecationWarning` helper, `__all__` unchecked against the stubs, no semver statement for a `0.x` crate/package. Add `_deprecated()` plus a policy paragraph in CONTRIBUTING/README (breaking changes only in minor versions before 1.0, one release of warning). |
-| C19 | **`architecture.md` drift:** it says `scale.rs` is only the "integer-oversampling drawing backend" but the file now also holds the axis transforms (`symlog`, `logit`, `asinh`), and the `draw/` list omits `contour`, `markers`, `polyline`. Update it with each Q3/Q4 step, or generate the module table from `//!` headers and test it. |
 
 ## Suggested order
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
 2. **R4**, then R6 onward (R7 after Q1).
 3. **Q4, Q3** next (mechanical Rust moves), then **Q1** before **Q2**; **Q5** before adding more model fields; **Q9** whenever CI time matters.
-4. **C3, C6** (quick truth fixes) → **C1/C2/C4** → **C7/C9/C11** → **C19** with each move → the rest of C.
+4. **C1/C2/C4** → **C7/C9/C11** → the rest of C.
