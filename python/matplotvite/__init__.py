@@ -18,8 +18,10 @@ import numpy as np
 from . import scale, tri
 from ._colors import CSS_COLORS as _CSS_COLORS
 from ._core import __version__
+from ._core import auto_ticks as _auto_ticks_core
 from ._core import colormaps as _colormaps
 from ._core import render as _render
+from ._core import tick_target as _tick_target_core
 
 _CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
@@ -1735,59 +1737,9 @@ def _nice_step(raw, steps):
     return steps[-1] * max(1, int(_math.ceil(raw / steps[-1])))
 
 
-def _round_ticks(lo, hi, target=8):
-    """Ascending round tick positions on a 1/2/2.5/5/10 step.
-
-    Mirrors `nice_ticks` in `src/layout.rs`: the step is the candidate whose
-    ratio to `span / target` is closest among those whose labels fit the
-    budget, so a 17.6 span uses 2s rather than 5s.
-    """
-    if not (np.isfinite(lo) and np.isfinite(hi)) or hi == lo:
-        return []
-    if hi < lo:
-        lo, hi = hi, lo
-    raw = (hi - lo) / max(target, 1)
-    if not raw > 0:
-        return []
-    mag = 10.0 ** _math.floor(_math.log10(raw))
-    step = 10.0 * mag
-    best = _math.inf
-    for norm in (1.0, 2.0, 2.5, 5.0, 10.0):
-        candidate = norm * mag
-        count = int(_math.floor(hi / candidate + 1e-9)
-                    - _math.ceil(lo / candidate - 1e-9) + 1.0)
-        if count <= target + 1:
-            score = abs(_math.log(candidate / raw))
-            if score < best:
-                best, step = score, candidate
-    # Multiply an integer index by the step so a zero cannot print as -5e-17.
-    index = _math.ceil(lo / step)
-    out = []
-    while index * step <= hi + step * 1e-9 and len(out) < 50:
-        out.append(index * step)
-        index += 1.0
-    return out
-
-
 def _auto_ticks(lo, hi, log=False, base=10.0, target=8):
-    """Ticks for an axis with none set: decades on a log axis, else round values.
-
-    This is `auto_ticks` in `src/layout.rs`; the panel hands the result to the
-    renderer, so the drawn ticks and `get_xticks()`/`get_yticks()` agree. A
-    degenerate span falls back to the old six evenly spaced positions.
-    """
-    if log:
-        if hi < lo:
-            lo, hi = hi, lo
-        llo = _math.log(max(lo, 1e-300), base)
-        lhi = _math.log(max(hi, 1e-300), base)
-        start, end = _math.ceil(llo), _math.floor(lhi)
-        if end >= start and end - start <= 12:
-            return [float(base ** k) for k in range(int(start), int(end) + 1)]
-    ticks = _round_ticks(lo, hi, target)
-    if ticks:
-        return ticks
-    return [float(v) for v in np.linspace(lo, hi, 6)]
+    """Ticks for an axis with none set, computed by the Rust locator."""
+    return _auto_ticks_core(float(lo), float(hi), bool(log), float(base), int(target))
 
 
 def _date_ticks(lo, hi):
@@ -5234,7 +5186,7 @@ class Axes:
         if axis == "x" and self._colorbar is not None:
             pixels -= 95.0  # the renderer's colorbar strip takes room from the right
         per_label = 55.0 if axis == "x" else 45.0
-        return max(3, min(8, int(round(pixels / per_label))))
+        return _tick_target_core(pixels, per_label)
 
     def _drawn_ticks(self, axis):
         """The positions `_panel` hands the renderer when no ticks were set."""

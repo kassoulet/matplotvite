@@ -246,7 +246,8 @@ pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
     let mut index = (lo / step).ceil();
     let mut out = Vec::new();
     while index * step <= hi + step * 1e-9 && out.len() < 50 {
-        out.push(index * step);
+        let value = index * step;
+        out.push(if value == 0.0 { 0.0 } else { value });
         index += 1.0;
     }
     out
@@ -275,6 +276,36 @@ pub(crate) fn auto_ticks_for(lo: f64, hi: f64, log: bool, target: usize) -> Vec<
         }
     }
     nice_ticks(lo, hi, target.clamp(3, 8))
+}
+
+/// Tick positions in data space for the Python panel contract.
+///
+/// The renderer maps these values through the active scale, while
+/// [`auto_ticks_for`] receives chart-space limits. Log ticks therefore use
+/// `base^k` here instead of the integer exponent used by the renderer.
+pub(crate) fn data_ticks(lo: f64, hi: f64, log: bool, base: f64, target: usize) -> Vec<f64> {
+    let (lo, hi) = if hi < lo { (hi, lo) } else { (lo, hi) };
+    if log {
+        let base = if base > 1.0 { base } else { 10.0 };
+        let start = (lo.max(f64::MIN_POSITIVE).log(base) - 1e-9).ceil();
+        let end = (hi.max(f64::MIN_POSITIVE).log(base) + 1e-9).floor();
+        if end >= start && end - start <= 12.0 {
+            let mut out = Vec::new();
+            let mut k = start as i64;
+            while (k as f64) <= end {
+                out.push(base.powf(k as f64));
+                k += 1;
+            }
+            return out;
+        }
+    }
+    let ticks = nice_ticks(lo, hi, target);
+    if ticks.is_empty() {
+        return (0..6)
+            .map(|index| lo + (hi - lo) * index as f64 / 5.0)
+            .collect();
+    }
+    ticks
 }
 
 /// Matplotlib's `MaxNLocator` adapts its tick budget to the axis length; keep
@@ -313,10 +344,9 @@ mod tests {
 
     #[test]
     fn nice_ticks_uses_quarter_steps_for_a_two_unit_span() {
-        assert_eq!(
-            nice_ticks(-0.1, 2.1, 8),
-            vec![0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
-        );
+        let ticks = nice_ticks(-0.1, 2.1, 8);
+        assert_eq!(ticks, vec![0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]);
+        assert!(ticks[0].is_sign_positive(), "zero must not print as -0");
     }
 
     #[test]
@@ -325,6 +355,16 @@ mod tests {
         assert_eq!(tick_target(213.0, 55.0), 4);
         assert_eq!(tick_target(80.0, 55.0), 3);
         assert_eq!(tick_target(f64::NAN, 55.0), 8);
+    }
+
+    #[test]
+    fn data_ticks_uses_base_powers_and_a_linear_fallback() {
+        assert_eq!(
+            data_ticks(1.0, 1000.0, true, 10.0, 8),
+            vec![1.0, 10.0, 100.0, 1000.0]
+        );
+        assert_eq!(data_ticks(1.0, 8.0, true, 2.0, 8), vec![1.0, 2.0, 4.0, 8.0]);
+        assert_eq!(data_ticks(2.0, 2.0, false, 10.0, 8), vec![2.0; 6]);
     }
 
     #[test]

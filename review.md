@@ -34,7 +34,7 @@ Goal: a native Rust crate with the same matplotlib-like API. The API (`Figure`, 
 |---|------|
 | R6 | **Workspace split:** `matplotvite-core` (model, layout, draw, export; no Python), `matplotvite` (builder API: `Figure::new`, `fig.subplot`, `ax.plot(&x, &y).color(..)`, `fig.savefig`), `matplotvite-py` (thin pyo3 module). CI job runs `cargo test -p matplotvite-core`. |
 | R7 | **Partly done — priority Rust API exists.** `api::Figure`/`Axes` now cover `plot`, `scatter`, `bar`, `hist`, `imshow`, and `fill_between` through the shared renderer; the remaining `Axes._panel()` surface still needs a native builder. The API accepts slices and copies them into the renderer's owned panel records. Optional thread-local `pyplot` layer only if requested. |
-| R8 | **De-duplicate tick logic:** `_nice_step` / `Axis._ticks` in Python and `nice_ticks` / `auto_ticks` in `layout.rs` implement the same thing. Expose the Rust locators, norms and colormap lookup to Python and delete the Python copies. |
+| R8 | **Partly done — tick locators shared.** Python's `_auto_ticks` and `_auto_tick_target` now call the Rust locator, and the duplicate `_round_ticks` implementation is gone. Remaining: expose the norm classes and finish removing Python colormap wrapper code. Date-specific `_nice_step` step lists remain Python-side. |
 | R9 | **Shared golden-image test set** rendering the same scenes through the Python wrapper and the Rust crate, so the two front ends cannot drift. |
 
 ## KARIOS lacraux comparison (16 Nov)

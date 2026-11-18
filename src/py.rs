@@ -8,6 +8,7 @@ use pyo3::{Borrowed, FromPyObject};
 use crate::cmap_data;
 use crate::color::{Cmap, Color};
 use crate::export::render_pdf_pages;
+use crate::layout;
 use crate::model::{
     DrawStyle, LineStyle, Marker, OwnedArray1, OwnedArray2, OwnedArrayD, Panel, QuiverUnits,
     RenderOptions,
@@ -153,6 +154,19 @@ fn render_pdf_pages_py(py: Python<'_>, svgs: Vec<Vec<u8>>, dpis: Vec<f64>) -> Py
 }
 
 #[pyfunction]
+#[pyo3(name = "auto_ticks")]
+#[pyo3(signature = (lo, hi, log=false, base=10.0, target=8))]
+fn auto_ticks_py(lo: f64, hi: f64, log: bool, base: f64, target: usize) -> Vec<f64> {
+    layout::data_ticks(lo, hi, log, base, target)
+}
+
+#[pyfunction]
+#[pyo3(name = "tick_target")]
+fn tick_target_py(pixels: f64, pixels_per_label: f64) -> usize {
+    layout::tick_target(pixels, pixels_per_label)
+}
+
+#[pyfunction]
 #[pyo3(name = "symlog")]
 fn symlog_py<'py>(
     py: Python<'py>,
@@ -247,6 +261,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(colormaps, m)?)?;
     m.add_function(wrap_pyfunction!(render_figure_py, m)?)?;
     m.add_function(wrap_pyfunction!(render_pdf_pages_py, m)?)?;
+    m.add_function(wrap_pyfunction!(auto_ticks_py, m)?)?;
+    m.add_function(wrap_pyfunction!(tick_target_py, m)?)?;
     m.add_function(wrap_pyfunction!(symlog_py, m)?)?;
     m.add_function(wrap_pyfunction!(symlog_inverse_py, m)?)?;
     m.add_function(wrap_pyfunction!(logit_py, m)?)?;

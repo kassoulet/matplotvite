@@ -44,6 +44,9 @@ Before 1.0, a minor release may contain a breaking change; see
 - The Python scale shims now delegate symlog, logit, and asinh transforms to
   Rust. Symlog uses Matplotlib's linear-inside/logarithmic-outside formula,
   asinh includes its linear width, and logit uses base-10 odds.
+- Python's automatic tick positions and tick-label budget now come from the
+  Rust locator, so the Python and native Rust front ends share one step
+  selection; zero positions are normalized to avoid rendering `-0`.
 - The coverage trace now separates implemented, accepted-and-ignored, and missing
   call sites, and its baseline fails if an implemented API becomes a no-op shim.
 - A contract test keeps the Python panel payload and the Rust `Panel`, `Legend`,

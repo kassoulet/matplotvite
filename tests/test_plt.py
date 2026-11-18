@@ -824,6 +824,18 @@ def test_colorbar_from_scatter_and_scalar_mappable(tmp_path):
     assert cax._panel()["colorbar"] is not None
 
 
+def test_auto_ticks_use_the_rust_locator():
+    fig, ax = plt.subplots()
+    ax.set_xlim(11.2, 28.8)
+    assert np.allclose(ax.get_xticks(), np.arange(12.0, 29.0, 2.0))
+    ax.set_xscale("log")
+    ax.set_xlim(1.0, 1000.0)
+    assert np.allclose(ax.get_xticks(), [1.0, 10.0, 100.0, 1000.0])
+    ax.set_xscale("log", base=2)
+    ax.set_xlim(1.0, 8.0)
+    assert np.allclose(ax.get_xticks(), [1.0, 2.0, 4.0, 8.0])
+
+
 def test_colorbar_uses_nice_ticks():
     fig, ax = plt.subplots(figsize=(6, 3))
     im = ax.imshow(np.linspace(0.0, 1.0, 100).reshape(10, 10))
