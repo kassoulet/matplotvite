@@ -57,7 +57,6 @@ Measured: `python/matplotvite/__init__.py` is 12.6k lines (1489 methods; `class 
 | Q2 | **Break up `Axes`** (3849-7498): mixins per concern (`_plotting` for plot/scatter/bar/hist, `_stats` for boxplot/violin, `_fields` for contour/quiver/streamplot, `_decor` for legend/annotate/text). Biggest single methods to split first: `_panel` (217 lines), `_apply_axis_scales` (213), `set_axis` (179), `streamplot` (170), `boxplot` (159). |
 | Q6 | **Unify the two tick paths in `draw/ticks.rs`/`draw/axes.rs`.** The plotters mesh path and `draw_manual_ticks` produce different results (K1, K2, K5 were all path-dependent). Route every axis through the manual path once it matches the mesh output on the golden images, then delete the mesh-label code and the `manual` heuristic in `axes.rs`. |
 | Q8 | **Tools:** `tools/harvest_matplotlib.py` (1.3k) and `tools/build_pages.py` (1.3k) mix harvesting, rendering, metrics and HTML. Split rendering/metrics from HTML templates so CI can run the render step alone (see CI note below). |
-| Q9 | **CI galleries (716 s, the long pole):** the examples gallery already skips Matplotlib references; the remaining time is our own renders and comparison metrics. Profile per step, then (a) shard the corpus/examples/seaborn steps into parallel jobs, (b) cache `dist/sdist`, `dist/mpl-src` and `dist/sns-src` keyed on the version pins instead of re-downloading, (c) run the full gallery only on `main` and a sampled subset on pull requests. |
 
 ## Conformance and OSS practice audit (17 Nov)
 
@@ -72,5 +71,5 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 
 1. **V1:** rebuild the KARIOS images, re-render `02_dx`/`04_ce`, and finish the pixel-level sign-off.
 2. **R6** onward (R7 after Q1).
-3. **Q1** before **Q2**; **Q9** whenever CI time matters.
+3. **Q1** before **Q2**.
 4. **C1/C2/C4** → **C7/C9/C11** → the rest of C.

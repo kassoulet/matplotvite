@@ -387,6 +387,13 @@ def test_radar_gallery_example_renders(tmp_path):
     assert nonwhite > 500
 
 
+def test_sample_cases_is_evenly_spaced_and_preserves_order():
+    cases = [{"id": str(index)} for index in range(10)]
+    assert [case["id"] for case in harvester._sample_cases(cases, 3)] == ["0", "3", "6"]
+    assert harvester._sample_cases(cases, None) is cases
+    assert harvester._sample_cases(cases, 20) is cases
+
+
 def test_requires_gui_skips_toolkit_examples_up_front():
     from tools.harvest_matplotlib import requires_gui
 

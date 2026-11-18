@@ -56,6 +56,14 @@ def test_calls_in_collects_seaborn_and_pyplot_names(tmp_path: Path):
     assert plt_calls == ["subplots"]
 
 
+def test_harvest_limit_samples_evenly(tmp_path: Path):
+    for index in range(10):
+        (tmp_path / f"{index:02d}.py").write_text(
+            "import seaborn as sns\nsns.set_theme()\n", encoding="utf-8")
+    cases = harvest(tmp_path, limit=3)
+    assert [case["id"] for case in cases] == ["00", "03", "06"]
+
+
 def test_find_examples_root_accepts_the_checkout_or_examples_dir(tmp_path: Path):
     examples = tmp_path / "sns" / "examples"
     examples.mkdir(parents=True)

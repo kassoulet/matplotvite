@@ -117,7 +117,16 @@ def classify(seaborn_calls: list[str], pyplot_calls: list[str]) -> dict[str, obj
             "unsupported": hard, "missing_pyplot": missing_plt}
 
 
-def harvest(root: pathlib.Path) -> list[dict[str, object]]:
+def _sample_cases(cases: list[dict[str, object]],
+                  limit: int | None) -> list[dict[str, object]]:
+    """Evenly sample a gallery while keeping its input order."""
+    if limit is None or limit <= 0 or len(cases) <= limit:
+        return cases
+    step = len(cases) / limit
+    return [cases[min(len(cases) - 1, int(index * step))] for index in range(limit)]
+
+
+def harvest(root: pathlib.Path, limit: int | None = None) -> list[dict[str, object]]:
     """One classified record per gallery script."""
     cases: list[dict[str, object]] = []
     for script in sorted(root.glob("*.py")):
@@ -143,7 +152,7 @@ def harvest(root: pathlib.Path) -> list[dict[str, object]]:
             "unsupported": result["unsupported"],
             "missing_pyplot": result["missing_pyplot"],
         })
-    return cases
+    return _sample_cases(cases, limit)
 
 
 def main() -> int:
@@ -151,14 +160,18 @@ def main() -> int:
     parser.add_argument("--source", type=pathlib.Path,
                         help="Seaborn checkout or its examples/ directory")
     parser.add_argument("--out", type=pathlib.Path, default=pathlib.Path("dist/seaborn-gallery"))
+    parser.add_argument("--limit", type=int, default=None,
+                        help="classify an evenly spaced subset of this many examples")
     args = parser.parse_args()
+    if args.limit is not None and args.limit <= 0:
+        parser.error("--limit must be positive")
 
     root = find_examples_root(args.source)
     if root is None:
         print("No Seaborn examples found. Clone the repository (its gallery images "
               "are build artifacts) or pass --source.")
         return 1
-    cases = harvest(root)
+    cases = harvest(root, limit=args.limit)
     write_gallery(cases, args.out)
     return 0
 

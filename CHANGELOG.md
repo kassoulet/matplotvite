@@ -49,6 +49,9 @@ Before 1.0, a minor release may contain a breaking change; see
   trees, galleries, and editor state are excluded.
 - Python linting covers Pyflakes, import sorting, bugbear, pyupgrade, and Ruff
   correctness rules, with mypy checking the package.
+- CI shards the comparison galleries into parallel corpus, examples, and Seaborn
+  jobs, caches the pinned source checkouts, and renders sampled subsets on pull
+  requests instead of the full galleries.
 
 ### Fixed
 

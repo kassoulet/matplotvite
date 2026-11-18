@@ -1063,11 +1063,21 @@ def metrics(baseline: pathlib.Path, ours: pathlib.Path) -> dict[str, object]:
         return {"error": f"{type(exc).__name__}: {exc}"}
 
 
+def _sample_cases(cases: list[dict[str, object]],
+                  limit: int | None) -> list[dict[str, object]]:
+    """Evenly sample a gallery while keeping its input order."""
+    if limit is None or limit <= 0 or len(cases) <= limit:
+        return cases
+    step = len(cases) / limit
+    return [cases[min(len(cases) - 1, int(index * step))] for index in range(limit)]
+
+
 def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
-                    manifest_path: pathlib.Path) -> dict[str, int]:
+                    manifest_path: pathlib.Path,
+                    limit: int | None = None) -> dict[str, int]:
     """Render every baseline case and write the side-by-side gallery."""
     report_missing_metrics_converters()
-    cases = harvest(tests_root)
+    cases = _sample_cases(harvest(tests_root), limit)
     sample_data = find_sample_data(tests_root.parent)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -1177,33 +1187,39 @@ def main() -> int:
     parser.add_argument("--out", type=pathlib.Path, default=None)
     parser.add_argument("--no-reference", action="store_true",
                         help="with --examples, skip rendering the Matplotlib reference images (CI speed-up)")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="render an evenly spaced subset of this many cases")
     parser.add_argument("--json", type=pathlib.Path, dest="json_out", default=None)
     args = parser.parse_args()
+    if args.limit is not None and args.limit <= 0:
+        parser.error("--limit must be positive")
     default_out = "dist/mpl-examples" if args.examples else "dist/mpl-corpus"
     args.out = args.out or pathlib.Path(default_out)
     args.json_out = args.json_out or args.out / "manifest.json"
     if args.examples:
         return harvest_examples_gallery(args.examples, args.out, args.json_out,
-                                        references=not args.no_reference)
+                                        references=not args.no_reference,
+                                        limit=args.limit)
 
     tests_root = find_tests_root(args.source)
     if tests_root is None:
         print("No Matplotlib baseline images found. Point --source at a checkout or "
               "run `pip download --no-binary :all: matplotlib`; the wheel omits them.")
         return 1
-    harvest_gallery(tests_root, args.out, args.json_out)
+    harvest_gallery(tests_root, args.out, args.json_out, limit=args.limit)
     return 0
 
 
 def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
                              manifest_path: pathlib.Path,
-                             references: bool = True) -> int:
+                             references: bool = True,
+                             limit: int | None = None) -> int:
     """Render every gallery example and report the ones our API cannot express."""
     examples_root = find_examples_root(source)
     if examples_root is None:
         print(f"No gallery examples found under {source}.")
         return 1
-    cases = harvest_examples(examples_root)
+    cases = _sample_cases(harvest_examples(examples_root), limit)
     sample_data = find_sample_data(source)
     out.mkdir(parents=True, exist_ok=True)
     # Render the untouched scripts with matplotlib first, in parallel child
