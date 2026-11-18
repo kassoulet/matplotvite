@@ -245,6 +245,7 @@ __all__ = (
     "streamplot",
     "style",
     "subplot",
+    "subplot2grid",
     "subplot_mosaic",
     "subplots",
     "subplots_adjust",
@@ -302,6 +303,21 @@ def _ignored(name):
         _IGNORED_WARNED.add(name)
         warnings.warn(f"{name} is accepted but ignored by matplotvite",
                       RuntimeWarning, stacklevel=3)
+
+
+def _deprecated(name, *, since, alternative=None, removal=None):
+    """Warn that a public API is deprecated.
+
+    ``stacklevel=3`` points the warning at the caller of the public function
+    that invokes this helper, rather than at the helper or its wrapper.
+    """
+    message = f"{name} is deprecated since {since}"
+    if alternative:
+        message += f"; use {alternative} instead"
+    message += "."
+    if removal:
+        message += f" It will be removed in {removal}."
+    warnings.warn(message, FutureWarning, stacklevel=3)
 
 
 def _with_alpha(value, alpha):

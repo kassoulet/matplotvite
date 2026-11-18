@@ -52,12 +52,20 @@ trailers to commits.
 - State which checks you ran and any that could not run.
 - Do not commit generated `dist/`, gallery, or benchmark artifacts.
 
-## Compatibility policy
+## Compatibility and deprecation policy
 
-Matplotvite is pre-1.0. A breaking API change is released only in a minor
-version (`0.x.0`) and must be introduced through a deprecation warning at least
-one minor release before removal when practical. Patch releases are limited to
-fixes and backward-compatible additions.
+The public Python API is the set of names in `matplotvite.__all__` and the
+documented methods and attributes of exported classes. Matplotvite follows
+Semantic Versioning, with the usual pre-1.0 exception: a breaking API change is
+released only in a minor version (`0.x.0`). Patch releases are limited to fixes
+and backward-compatible additions. After 1.0, a breaking change requires a major
+release.
+
+Deprecate public APIs for at least one minor release before removing them. Use
+`matplotvite._deprecated(...)` to emit a user-visible `FutureWarning`, naming the
+replacement or removal release when known. Record deprecations and removals
+under the corresponding `CHANGELOG.md` headings. Do not add private names to
+`__all__`, and update `__init__.pyi` in the same change as a public signature.
 
 ## Releases
 

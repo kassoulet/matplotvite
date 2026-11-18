@@ -41,6 +41,19 @@ and 31 October 2026). They remain supported in the 0.6.x line because the
 may drop them; dropping a Python version is recorded in the changelog and is a
 minor change under the pre-1.0 compatibility policy.
 
+### API stability
+
+The public API consists of names listed in `matplotvite.__all__` and documented
+methods and attributes of exported classes. The package follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html): before 1.0, minor
+releases may contain breaking changes, while patch releases are limited to
+fixes and backward-compatible additions. Deprecated public APIs emit a
+`FutureWarning` for at least one minor release before removal, and the changes
+are listed in [CHANGELOG.md](CHANGELOG.md). See the
+[compatibility policy](CONTRIBUTING.md#compatibility-and-deprecation-policy)
+for details. The Rust crate is not yet published and has no separate stability
+promise.
+
 ### Build from source
 
 ```bash
