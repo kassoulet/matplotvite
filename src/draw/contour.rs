@@ -1,5 +1,7 @@
 //! Marching-squares contours and filled-band clipping.
 
+use super::*;
+
 use std::collections::HashMap;
 
 /// One level of a marching-squares pass: iso-line segments in data coordinates.
@@ -157,4 +159,187 @@ fn mix_at(a: (f64, f64, f64), b: (f64, f64, f64), bound: f64) -> (f64, f64, f64)
         (bound - a.2) / d
     };
     (a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t, bound)
+}
+
+/// Draw filled contour bands beneath the line series.
+pub(super) fn draw_filled_contours<DB, FX, FY>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    chart: &ChartContext<'_, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    p: &Panel,
+    tx: &FX,
+    ty: &FY,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB: DrawingBackend,
+    DB::ErrorType: 'static,
+    FX: Fn(f64) -> f64,
+    FY: Fn(f64) -> f64,
+{
+    // Filled contours sit on the image layer, under the line series.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for (x, y, z, levels, _linewidths, colors, cmap, filled, alpha) in &p.contours {
+            if !*filled || levels.len() < 2 {
+                continue;
+            }
+            let opacity = alpha.clamp(0.0, 1.0);
+            let xs: Vec<f64> = x.as_array().iter().copied().collect();
+            let ys: Vec<f64> = y.as_array().iter().copied().collect();
+            let zs: Vec<f64> = z.as_array().iter().copied().collect();
+            let (rows, cols) = (ys.len(), xs.len());
+            if rows < 2 || cols < 2 || rows.checked_mul(cols) != Some(zs.len()) {
+                continue;
+            }
+            let bands = levels.len() - 1;
+            for band in 0..bands {
+                let (lo, hi) = (levels[band], levels[band + 1]);
+                let col = (if colors.is_empty() {
+                    let c = cmap.sample((band as f64 + 0.5) / bands as f64);
+                    RGBAColor(c[0], c[1], c[2], 1.0)
+                } else {
+                    colors[band % colors.len()].rgba()
+                })
+                .mix(opacity);
+                let map = |px: f64, py: f64| {
+                    let (ax, ay) = chart_area.map_coordinate(&(tx(px), ty(py)));
+                    (ax - base.0, ay - base.1)
+                };
+                for i in 0..rows - 1 {
+                    let (y0, y1) = (ys[i], ys[i + 1]);
+                    let row = &zs[i * cols..i * cols + cols];
+                    let next = &zs[(i + 1) * cols..(i + 1) * cols + cols];
+                    let mut j = 0;
+                    while j + 1 < cols {
+                        let (z00, z01) = (row[j], row[j + 1]);
+                        let (z10, z11) = (next[j], next[j + 1]);
+                        let zmin = z00.min(z01).min(z10).min(z11);
+                        let zmax = z00.max(z01).max(z10).max(z11);
+                        if zmin > hi || zmax < lo {
+                            j += 1;
+                            continue;
+                        }
+                        if zmin >= lo && zmax <= hi {
+                            // Cells entirely inside a band tile it exactly, so a
+                            // horizontal run collapses into one rectangle. This
+                            // is what keeps the rasteriser from walking tens of
+                            // thousands of tiny triangle sub-paths.
+                            let j0 = j;
+                            while j + 1 < cols - 1 {
+                                let (a, b) = (row[j + 1], row[j + 2]);
+                                let (c, d) = (next[j + 1], next[j + 2]);
+                                if a >= lo
+                                    && a <= hi
+                                    && b >= lo
+                                    && b <= hi
+                                    && c >= lo
+                                    && c <= hi
+                                    && d >= lo
+                                    && d <= hi
+                                {
+                                    j += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                            // Runs are axis-aligned rectangles; `<rect>` is
+                            // considerably cheaper for resvg than a 4-point path.
+                            let (xa, ya) = map(xs[j0], y0);
+                            let (xb, yb) = map(xs[j + 1], y1);
+                            let (xl, xr) = (xa.min(xb), xa.max(xb));
+                            let (yt, yb) = (ya.min(yb), ya.max(yb));
+                            if xr > xl && yb > yt {
+                                area.draw(&Rectangle::new([(xl, yt), (xr, yb)], col.filled()))?;
+                            }
+                            j += 1;
+                            continue;
+                        }
+                        let p00 = (xs[j], y0, z00);
+                        let p01 = (xs[j + 1], y0, z01);
+                        let p10 = (xs[j], y1, z10);
+                        let p11 = (xs[j + 1], y1, z11);
+                        // Split each partial cell into two triangles: a band cut
+                        // through a triangle is an exact polygon for piecewise-
+                        // linear interpolation.
+                        for tri in [[p00, p01, p11], [p00, p11, p10]] {
+                            let poly = clip_band(&tri, lo, hi);
+                            if poly.len() < 3 {
+                                continue;
+                            }
+                            let pts: Vec<(i32, i32)> =
+                                poly.iter().map(|&(px, py, _)| map(px, py)).collect();
+                            area.draw(&Polygon::new(pts, col.filled()))?;
+                        }
+                        j += 1;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Draw contour iso-lines above the line series.
+pub(super) fn draw_line_contours<DB, FX, FY>(
+    area: &DrawingArea<DB, plotters::coord::Shift>,
+    chart: &ChartContext<'_, DB, Cartesian2d<RangedCoordf64, RangedCoordf64>>,
+    p: &Panel,
+    tx: &FX,
+    ty: &FY,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    DB: DrawingBackend,
+    DB::ErrorType: 'static,
+    FX: Fn(f64) -> f64,
+    FY: Fn(f64) -> f64,
+{
+    // Iso-lines are stroked above the series, one segment per marching-squares cell.
+    {
+        let chart_area = chart.plotting_area();
+        let base = area.get_base_pixel();
+        for (x, y, z, levels, linewidths, colors, cmap, filled, alpha) in &p.contours {
+            if *filled || levels.is_empty() {
+                continue;
+            }
+            let opacity = alpha.clamp(0.0, 1.0);
+            let xs: Vec<f64> = x.as_array().iter().copied().collect();
+            let ys: Vec<f64> = y.as_array().iter().copied().collect();
+            let zs: Vec<f64> = z.as_array().iter().copied().collect();
+            let (rows, cols) = (ys.len(), xs.len());
+            if rows < 2 || cols < 2 || rows.checked_mul(cols) != Some(zs.len()) {
+                continue;
+            }
+            let n = levels.len() as f64;
+            for (li, level) in levels.iter().enumerate() {
+                let col = (if colors.is_empty() {
+                    let t = if n > 1.0 { li as f64 / (n - 1.0) } else { 0.5 };
+                    let c = cmap.sample(t);
+                    RGBAColor(c[0], c[1], c[2], 1.0)
+                } else {
+                    colors[li % colors.len()].rgba()
+                })
+                .mix(opacity);
+                let width = linewidths
+                    .get(li)
+                    .or_else(|| linewidths.first())
+                    .copied()
+                    .unwrap_or(2.0)
+                    .clamp(0.25, 64.0);
+                for line in contour_polylines(contour_segments(&xs, &ys, &zs, *level)) {
+                    let points: Vec<(i32, i32)> = line
+                        .iter()
+                        .map(|(x, y)| {
+                            let (px, py) = chart_area.map_coordinate(&(tx(*x), ty(*y)));
+                            (px - base.0, py - base.1)
+                        })
+                        .collect();
+                    area.draw(&PathElement::new(
+                        points,
+                        col.stroke_width(width.round().max(1.0) as u32),
+                    ))?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
