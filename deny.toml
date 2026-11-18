@@ -4,6 +4,17 @@
 [graph]
 all-features = true
 
+[advisories]
+# CI runs the advisory check so a yanked crate cannot enter the lockfile.
+yanked = "deny"
+# The PDF/font stack pins these unmaintained crates; there is no safe upgrade
+# until svg2pdf moves off usvg 0.45. Track them rather than suppressing the
+# whole advisory class.
+ignore = [
+    "RUSTSEC-2026-0192",  # ttf-parser
+    "RUSTSEC-2026-0206",  # rustybuzz
+]
+
 [licenses]
 # The embedded fonts are not Cargo packages, but their licences ship in the
 # wheel and stay in this policy: DejaVu uses Bitstream Vera, Geist uses OFL.

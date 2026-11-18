@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml/badge.svg)](https://github.com/kassoulet/matplotvite/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/pypi/v/matplotvite?label=version)](https://pypi.org/project/matplotvite/)
+[![Python](https://img.shields.io/pypi/pyversions/matplotvite?label=python)](https://pypi.org/project/matplotvite/)
+[![License](https://img.shields.io/pypi/l/matplotvite?label=license)](https://github.com/kassoulet/matplotvite#license)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kassoulet/matplotvite/badge)](https://securityscorecards.dev/viewer/?uri=github.com/kassoulet/matplotvite)
 
 > **Experimental.** Matplotvite is under active development. Its API may change
 > between releases, and it does not cover the full matplotlib surface. Validate
@@ -477,7 +480,7 @@ python -m mypy
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
-cargo deny check licenses bans sources
+cargo deny check
 ```
 
 The Python suite includes runner and snippet execution for every gallery example,

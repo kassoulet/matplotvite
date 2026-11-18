@@ -65,9 +65,9 @@ jobs:
       - uses: taiki-e/install-action@cfdb7ed4ccc7c7dce37759eae89dc5674b469b39 # v2.90.3
         with:
           tool: cargo-deny
-      - name: Check licences, bans, duplicates and sources
-        # cargo-audit owns advisories; cargo-deny owns the repository policy.
-        run: cargo deny check licenses bans sources
+      - name: Check advisories, licences, bans, duplicates and sources
+        # cargo-deny owns the repository policy, including yanked crates.
+        run: cargo deny check
 
   security:
     name: security scan
@@ -205,20 +205,22 @@ jobs:
         with:
           name: sdist
           path: dist
-      - name: Build a wheel from the sdist
+      - name: Build two wheels from the sdist
         # Same PEP 517 path a user gets from `pip install matplotvite` on a
         # platform without a wheel, using the pinned maturin instead of an
-        # isolated resolution.
+        # isolated resolution. Building twice catches non-deterministic output.
         run: |
           python -m pip install -c .github/requirements-ci.txt maturin
-          python -m pip wheel --no-deps --no-build-isolation --wheel-dir wheel dist/*.tar.gz
+          SOURCE_DATE_EPOCH=0 python -m pip wheel --no-deps --no-build-isolation --wheel-dir wheel-a dist/*.tar.gz
+          SOURCE_DATE_EPOCH=0 python -m pip wheel --no-deps --no-build-isolation --wheel-dir wheel-b dist/*.tar.gz
+          python tools/check_reproducible_wheel.py wheel-a wheel-b
       - name: Check the wheel built from the sdist
         run: |
           python - <<'PY'
           import glob
           import pathlib
 
-          wheels = glob.glob("wheel/*.whl")
+          wheels = glob.glob("wheel-a/*.whl")
           assert len(wheels) == 1, wheels
           # The sdist must keep the abi3 configuration, or every interpreter
           # above 3.9 would lose its wheel.
@@ -228,7 +230,7 @@ jobs:
       - name: Install and smoke-test the sdist wheel
         run: |
           python -m pip install -c .github/requirements-ci.txt numpy pytest
-          python -m pip install --no-deps wheel/*.whl
+          python -m pip install --no-deps wheel-a/*.whl
           python -m pytest -q tests/test_wheel.py
 
   benchmarks:

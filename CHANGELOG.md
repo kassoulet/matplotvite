@@ -24,6 +24,9 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Changed
 
+- Supply-chain checks now include OpenSSF Scorecard, cargo-deny advisories
+  with yanked-crate enforcement, reproducible-wheel verification, and PyPI,
+  Python-version, licence, and scorecard badges.
 - Type stubs now cover every public export, and CI runs `mypy.stubtest`
   against the installed wheel to catch signature drift.
 - Public plotting and figure calls now reject unknown keyword arguments with
