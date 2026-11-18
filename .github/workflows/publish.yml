@@ -19,11 +19,12 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Compare the tag with the version in pyproject.toml, Cargo.toml and Cargo.lock
-        # PyPI rejects a duplicate version, so a mistyped tag would build every
-        # wheel and only fail at the upload. Stop before the matrix starts, and
-        # make sure the three manifests agree so the published metadata is not
-        # split between different versions.
+      - name: Compare the tag with the version in Cargo.toml and Cargo.lock
+        # Cargo.toml is the single version source and maturin reads it through
+        # pyproject.toml's dynamic metadata. PyPI rejects a duplicate version,
+        # so a mistyped tag would build every wheel and only fail at the upload.
+        # Stop before the matrix starts, and make sure the manifests agree so
+        # the published metadata is not split between different versions.
         if: github.ref_type == 'tag'
         run: |
           python - <<'PY'
@@ -37,6 +38,9 @@ jobs:
 
           tag = os.environ["GITHUB_REF_NAME"]
           wanted = tag[1:] if tag.startswith("v") else tag
+          project = load("pyproject.toml")["project"]
+          if "version" in project or project.get("dynamic") != ["version"]:
+              sys.exit("pyproject.toml must declare dynamic = [\"version\"] and no static version")
           cargo = load("Cargo.toml")["package"]
           locked = next(
               (item["version"] for item in load("Cargo.lock")["package"] if item["name"] == cargo["name"]),
@@ -45,7 +49,6 @@ jobs:
           if locked is None:
               sys.exit(f"{cargo['name']} is missing from Cargo.lock")
           versions = {
-              "pyproject.toml": load("pyproject.toml")["project"]["version"],
               "Cargo.toml": cargo["version"],
               "Cargo.lock": locked,
           }

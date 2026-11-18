@@ -75,7 +75,6 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C7 | **Gate `publish.yml`** on the test matrix (reusable workflow or `needs`), add `concurrency`, attestations/SBOM, `twine check` and a wheel smoke test; confirm OIDC trusted publishing is the upload path. |
 | C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
 | C9 | **Governance files:** CHANGELOG.md (Keep a Changelog), SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates, CITATION.cff, `[project.urls]` (Issues, Changelog, Documentation). |
-| C10 | **One version source:** `dynamic = ["version"]` in `pyproject.toml` (maturin reads `Cargo.toml`); keep the tag check as backstop. |
 | C11 | **Rust hygiene:** `[lints]` table, `rust-version` (MSRV) tested in CI, `rust-toolchain.toml`, `deny.toml` + cargo-deny (licences incl. bundled font licences, duplicates, bans), `publish = false`. |
 | C12 | **Packaging:** `[tool.maturin]` sdist include/exclude (drop `assets/`, `benches/`, `tools/`) with a sdist content test; untrack `.jules/`, ignore `.freebuff/`; add `.editorconfig`. |
 | C13 | **Lint/type rules:** ruff beyond `F,E9` (`I,B,UP,RUF`); mypy or pyright on the package. |

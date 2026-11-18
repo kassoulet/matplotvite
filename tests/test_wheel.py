@@ -6,6 +6,7 @@ from importlib import metadata
 from pathlib import Path
 
 import numpy as np
+from packaging.version import Version
 import pytest
 import matplotvite as plt
 from matplotvite import _core
@@ -16,7 +17,9 @@ def _extension_path() -> Path:
 
 
 def test_package_exposes_its_version():
-    assert plt.__version__ == "0.6.1-dev"
+    # Cargo.toml is the only source. Wheel metadata normalises a Cargo
+    # pre-release such as 0.6.1-dev to 0.6.1.dev0, so compare PEP 440 values.
+    assert Version(plt.__version__) == Version(metadata.version("matplotvite"))
 
 
 def test_compiled_extension_is_installed():

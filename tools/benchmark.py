@@ -644,7 +644,7 @@ def run_benchmarks(quick: bool = False) -> dict[str, object]:
         "arch": platform.machine(),
         "python_version": platform.python_version(),
         "matplotlib_version": matplotlib.__version__,
-        "matplotvite_version": "0.6.1-dev",
+        "matplotvite_version": rs_plt.__version__,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
     }
 
