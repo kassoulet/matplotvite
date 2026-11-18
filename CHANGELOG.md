@@ -23,6 +23,8 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Changed
 
+- Legend ordering now derives from each artist's creation sequence number instead
+  of a separate label-order list, preserving the bar-container-last rule.
 - The coverage trace now separates implemented, accepted-and-ignored, and missing
   call sites, and its baseline fails if an implemented API becomes a no-op shim.
 - Release source distributions now contain only build inputs; development

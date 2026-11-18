@@ -631,12 +631,14 @@ def test_legend_follows_creation_order_with_bar_containers_last(tmp_path):
     ax.fill_between([0, 1], [1, 2], label="band")
     ax.plot([0, 1], [2, 1], label="line", marker="+")
     ax.scatter([0, 1], [1, 2], label="dots")
+    ax.add_patch(plt.Rectangle((0, 0), 0.1, 0.1, label="patch"))
+    ax.hist([0.1, 0.2], bins=1, label="hist")
     ax.legend()
     p = tmp_path / "legend_order.svg"
     fig.savefig(p)
     s = p.read_text(encoding="utf-8")
     order = [re.search(rf">\s*{name}\s*<", s).start()
-             for name in ("band", "line", "dots", "bars")]
+             for name in ("band", "line", "dots", "patch", "hist", "bars")]
     assert order == sorted(order)
 
 

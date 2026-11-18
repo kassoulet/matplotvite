@@ -4130,20 +4130,6 @@ _AXES_ARTIST_PROPS = frozenset(
 )
 
 
-class _Stamped(list):
-    """List that records the creation order of labelled artists on `order`."""
-
-    def __init__(self, order):
-        super().__init__()
-        self._order = order
-
-    def append(self, item):
-        super().append(item)
-        label = item.get("label") if isinstance(item, dict) else getattr(item, "label", "")
-        if label and isinstance(label, str):
-            self._order.append(label)
-
-
 class Axes:
     def __init__(self, pos=0, *args, **kwargs):
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
@@ -4152,16 +4138,16 @@ class Axes:
         rect_arg = args[0] if args else None
         if args:
             pos = 0
-        self._label_order, self._container_order = [], []
-        self.pos, self.lines, self.texts = pos, _Stamped(self._label_order), []
+        self._artist_seq = 0
+        self.pos, self.lines, self.texts = pos, [], []
         self._subplotspec = None
         self.images, self.annotations = [], []
         self.contours = []
         self.errors = []
-        self.scatter_pts = _Stamped(self._label_order)
+        self.scatter_pts = []
         self.arrows = []
         self.bars = []
-        self.bands = _Stamped(self._label_order)
+        self.bands = []
         self._hline_refs = []
         self._vline_refs = []
         self.hspans = []
@@ -4234,8 +4220,8 @@ class Axes:
         self.yaxis = _Axis(self, "y")
         self.spines = _Spines()
         self.axis = _AxisAccessor(self)
-        self.patches = _Stamped(self._label_order)
-        self.collections = _Stamped(self._label_order)
+        self.patches = []
+        self.collections = []
         self.callbacks = _Callbacks()
         self._box_aspect = None
         self._axes_locator = None
@@ -4349,7 +4335,7 @@ class Axes:
                 mfc=(markerfacecolor if markerfacecolor is not None else mfc), mec=edge,
                 mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
                 alpha=alpha, drawstyle=series_style, gid=gid)
-            self.lines.append(handle)
+            self._append_series(handle)
             handles.append(Line2D(handle))
         return handles
 
@@ -4973,11 +4959,11 @@ class Axes:
         if isinstance(artist, Text):
             self.text(artist._x, artist._y, artist._text)
         elif isinstance(artist, Line2D):
-            self.lines.append(artist._series)
+            self._append_series(artist._series)
         elif hasattr(artist, "_add_to_axes"):
             artist._add_to_axes(self)
         else:
-            self.artists.append(artist)
+            self.artists.append(self._stamp(artist))
         return artist
     def set_anchor(self, anchor, **kwargs):
         self._anchor = anchor
@@ -5029,19 +5015,19 @@ class Axes:
             patch.figure = self._fig
         except AttributeError:
             pass
-        self.artists.append(patch)
+        self.artists.append(self._stamp(patch))
         self.patches.append(patch)
         return patch
     def add_collection(self, collection, autolim=True):
-        self.artists.append(collection)
+        self.artists.append(self._stamp(collection))
         self.collections.append(collection)
         return collection
     def add_line(self, line):
         if isinstance(line, Line2D):
             line.axes = self
-            self.lines.append(line._series)
+            self._append_series(line._series)
         else:
-            self.artists.append(line)
+            self.artists.append(self._stamp(line))
         return line
     def get_children(self): return [*list(self.artists), self]
     def update(self, *args, **kwargs): return None
@@ -5094,8 +5080,7 @@ class Axes:
         self.tick_params_x.clear()
         self.tick_params_y.clear()
         self.tick_params_box.clear()
-        self._label_order.clear()
-        self._container_order.clear()
+        self._artist_seq = 0
         self.legend_loc, self.legend_ncol = "best", 1
         self.legend_frameon, self.legend_fontsize = True, None
         self.legend_title, self.legend_title_fontsize = "", None
@@ -5735,9 +5720,9 @@ class Axes:
                               loc + inner, loc + inner, loc + half, loc + half, loc - half]
                         xs = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
                     if patch_artist:
-                        self.bands.append(_band(xs, ys, box_color, box_style.get("alpha")))
+                        self._append_band(_band(xs, ys, box_color, box_style.get("alpha")))
                     entry = _series(xs, ys, "", box_edge, linewidth=box_width)
-                    self.lines.append(entry)
+                    self._append_series(entry)
                     out["boxes"].append(_LineHandle(entry, box_color if patch_artist else "none"))
                 elif orientation == "vertical":
                     bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
@@ -5902,7 +5887,7 @@ class Axes:
     def _stats_line(self, x, y, color, linewidth=1.5, linestyle="-"):
         """Append one statistics line and return its mutable handle."""
         entry = _series(x, y, "", color, linestyle=linestyle, linewidth=linewidth)
-        self.lines.append(entry)
+        self._append_series(entry)
         return _LineHandle(entry)
 
     def violinplot(self, dataset, positions=None, vert=None, widths=0.5,
@@ -5979,7 +5964,7 @@ class Axes:
                     xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
             color = colors[i] if i < len(colors) else colors[0]
             entry = _band(xs, ys, color, body_alpha)
-            self.bands.append(entry)
+            self._append_band(entry)
             out["bodies"].append(_ViolinBody(entry, color))
             if edge is not None:
                 outline = np.append(xs, xs[0])
@@ -6022,16 +6007,58 @@ class Axes:
                         [loc - half, loc + half], [value, value], line_color))
         return out
 
-    def _note_bar_label(self, label, hist):
-        # Matplotlib lists bar containers after every other artist, but a
-        # histogram labels its first patch, so it keeps creation order.
-        if label:
-            (self._label_order if hist else self._container_order).append(str(label))
+    def _stamp(self, item, *, container=False):
+        """Give an artist a creation sequence number for legend ordering."""
+        self._artist_seq += 1
+        if isinstance(item, dict):
+            item["_seq"] = self._artist_seq
+            item["_container"] = bool(container)
+        else:
+            try:
+                item._seq = self._artist_seq
+                item._container = bool(container)
+            except (AttributeError, TypeError):
+                # add_artist also accepts opaque compatibility objects.
+                pass
+        return item
+
+    def _append_series(self, entry):
+        self.lines.append(self._stamp(entry))
+        return entry
+
+    def _append_band(self, entry):
+        self.bands.append(self._stamp(entry))
+        return entry
+
+    def _append_scatter(self, entry):
+        self.scatter_pts.append(self._stamp(entry))
+        return entry
+
+    def _append_bar(self, entry, *, container=True):
+        self.bars.append(self._stamp(entry, container=container))
+        return entry
+
+    def _legend_order(self):
+        """Legend labels in creation order, with bar containers last."""
+        entries = []
+        for item in (*self.lines, *self.scatter_pts, *self.bands, *self.bars):
+            label = item.get("label", "")
+            if label and isinstance(label, str):
+                entries.append((bool(item.get("_container")),
+                                item.get("_seq", 0), label))
+        for artist in self.artists:
+            if isinstance(artist, (Patch, Collection)):
+                label = getattr(artist, "label", "") or artist.get_label()
+                if label and isinstance(label, str):
+                    entries.append((bool(getattr(artist, "_container", False)),
+                                    getattr(artist, "_seq", 0), label))
+        entries.sort(key=lambda entry: (entry[0], entry[1]))
+        return [label for _, _, label in entries]
 
     def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
             align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
         """Vertical bars; `color` may be a single colour or one per bar."""
-        self._note_bar_label(label, kwargs.pop("_hist", False))
+        hist = kwargs.pop("_hist", False)
         x = _as_f64(self._xdate(x))
         n = x.size
         h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
@@ -6041,12 +6068,12 @@ class Axes:
         # Matplotlib pins each bar's baseline so autoscaling keeps it on the axis.
         self._sticky_y += [float(v) for v in np.asarray(b).ravel()]
         colors = _bar_colors(color if color is not None else self._next_color(patch=True), n)
-        self.bars.append(dict(left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
-                              colors=colors,
-                              edgecolor=(_bar_colors(edgecolor, n)
-                                         if edgecolor is not None else None),
-                              alpha=None if alpha is None else float(alpha), label=str(label),
-                              vertical=True))
+        self._append_bar(dict(
+            left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
+            colors=colors,
+            edgecolor=(_bar_colors(edgecolor, n) if edgecolor is not None else None),
+            alpha=None if alpha is None else float(alpha), label=str(label),
+            vertical=True), container=not hist)
         if yerr is not None:
             lo, hi = _err_pair(yerr, n, "yerr")
             ecolor = edgecolor or (colors[0] if colors else "#1f77b4")
@@ -6119,7 +6146,7 @@ class Axes:
     def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
              align="center", alpha=None, linewidth=None, **kwargs):
         """Horizontal bars, stored as the same rectangles as `bar`."""
-        self._note_bar_label(label, kwargs.pop("_hist", False))
+        hist = kwargs.pop("_hist", False)
         y = (self._category_positions(y) if _looks_like_categories(y)
              else _as_f64(y))
         n = y.size
@@ -6128,12 +6155,12 @@ class Axes:
             raise ValueError(f"unsupported align: {align!r}")
         bottom = y - h / 2.0 if align == "center" else y
         self._sticky_x += [float(v) for v in np.asarray(l).ravel()]
-        self.bars.append(dict(left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
-                              colors=_bar_colors(color if color is not None else self._next_color(patch=True), n),
-                              edgecolor=(_bar_colors(edgecolor, n)
-                                         if edgecolor is not None else None),
-                              alpha=None if alpha is None else float(alpha), label=str(label),
-                              vertical=False))
+        self._append_bar(dict(
+            left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
+            colors=_bar_colors(color if color is not None else self._next_color(patch=True), n),
+            edgecolor=(_bar_colors(edgecolor, n) if edgecolor is not None else None),
+            alpha=None if alpha is None else float(alpha), label=str(label),
+            vertical=False), container=not hist)
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
                              str(label))
 
@@ -6173,7 +6200,7 @@ class Axes:
         a, b = _fill(y1, x.size), _fill(y2, x.size)
         c = color if color is not None else self._next_color(patch=True)
         for xs, ya, yb in _runs(x, a, b, where):
-            self.bands.append(_band(np.concatenate([xs, xs[::-1]]),
+            self._append_band(_band(np.concatenate([xs, xs[::-1]]),
                                     np.concatenate([ya, yb[::-1]]), c, alpha, label))
 
     def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
@@ -6182,7 +6209,7 @@ class Axes:
         a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
         c = color if color is not None else self._next_color(patch=True)
         for ys, xa, xb in _runs(y, a, b, where):
-            self.bands.append(_band(np.concatenate([xa, xb[::-1]]),
+            self._append_band(_band(np.concatenate([xa, xb[::-1]]),
                                     np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
     def fill(self, *args, color=None, alpha=None, label="", **kwargs):
@@ -6204,7 +6231,7 @@ class Axes:
             raise TypeError("fill expects x, y pairs, optionally followed by a colour")
         for (x, y), spec in groups:
             c = spec or color or self._next_color(patch=True)
-            self.bands.append(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
+            self._append_band(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
 
     def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
                 alpha=None, label="", **kwargs):
@@ -6385,7 +6412,7 @@ class Axes:
         sel = centers[shown]
         xs = (sel[:, 0:1] + sx * polygon[:, 0]).ravel()
         ys = (sel[:, 1:2] + (sy / 3.0) * polygon[:, 1]).ravel()
-        self.bands.append(dict(
+        self._append_band(dict(
             x=np.ascontiguousarray(xs), y=np.ascontiguousarray(ys),
             color="#000000", alpha=None if alpha is None else float(alpha), label="",
             cells=int(shown.size),
@@ -6437,7 +6464,7 @@ class Axes:
             clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
             marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
             label=str(label))
-        self.scatter_pts.append(entry)
+        self._append_scatter(entry)
         return _ScatterHandle(entry, self)
 
     def streamplot(self, x, y, u, v, density=1, linewidth=None, color=None,
@@ -6727,7 +6754,7 @@ class Axes:
         # ('o', 's', ...) get bars only since markers are not rendered yet.
         elw = elinewidth if elinewidth is not None else rcParams.get("lines.linewidth", 1.5)
         if fmt != "none" and (fmt == "" or "-" in fmt):
-            self.lines.append(_series(x, y, label, c, linewidth=elw))
+            self._append_series(_series(x, y, label, c, linewidth=elw))
         self.errors.append((np.ascontiguousarray(x), np.ascontiguousarray(y), ylo, yhi,
                             xlo, xhi, c, float(capsize or 0.0) * 1.4))
         _, _, marker = _stem_fmt(fmt, "")
@@ -7008,7 +7035,7 @@ class Axes:
             offset = self._category_positions([position])[0]
             step = float(height) / 2.0 if kwargs.get("align", "center") == "center" else 0.0
             position = offset - step
-        self.bars.append(dict(left=np.array([a for a, _ in pairs]),
+        self._append_bar(dict(left=np.array([a for a, _ in pairs]),
                               bottom=np.full(n, float(position)),
                               width=np.array([b for _, b in pairs]),
                               height=np.full(n, float(height)),
@@ -7107,7 +7134,7 @@ class Axes:
         widths = _fill(linewidths, ys.size) if linewidths is not None else None
         handles = []
         for i in range(ys.size):
-            self.lines.append(_series(
+            self._append_series(_series(
                 [lo[i], hi[i]], [ys[i], ys[i]], label, cols[i], linestyle=styles[i],
                 linewidth=2.0 if widths is None else float(widths[i])))
             handles.append(_LineHandle(self.lines[-1]))
@@ -7122,7 +7149,7 @@ class Axes:
         widths = _fill(linewidths, xs.size) if linewidths is not None else None
         handles = []
         for i in range(xs.size):
-            self.lines.append(_series(
+            self._append_series(_series(
                 [xs[i], xs[i]], [lo[i], hi[i]], label, cols[i], linestyle=styles[i],
                 linewidth=2.0 if widths is None else float(widths[i])))
             handles.append(_LineHandle(self.lines[-1]))
@@ -7199,7 +7226,7 @@ class Axes:
             band = _band(np.concatenate([[ex], ex + np.cos(arc)]),
                          np.concatenate([[ey], ey + np.sin(arc)]),
                          cols[i % len(cols)], None)
-            self.bands.append(band)
+            self._append_band(band)
             wedges.append(_Wedge(cols[i % len(cols)], center=(ex, ey),
                                  theta1=float(np.degrees(a0)),
                                  theta2=float(np.degrees(a1)), band=band,
@@ -7497,6 +7524,9 @@ class Axes:
             xticklabels = [f"{float(v):g}" for v in xticks]
         if self._yscale_forward is not None and yticklabels is None and yticks is not None:
             yticklabels = [f"{float(v):g}" for v in yticks]
+        for payload in [*series, *bars, *bands]:
+            payload.pop("_seq", None)
+            payload.pop("_container", None)
         panel = dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     font_family=_font_family(),
                     title_family=self.title_family,
@@ -7512,7 +7542,7 @@ class Axes:
                                 title=self.legend_title,
                                 title_fontsize=legend_title, anchor=self.legend_anchor,
                                 labels=list(self.legend_labels or []),
-                                order=[*self._label_order, *self._container_order]),
+                                order=self._legend_order()),
                     xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
                     aspect=self.aspect,
                     aspect_datalim=self._adjustable == "datalim",
