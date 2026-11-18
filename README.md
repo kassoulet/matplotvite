@@ -112,7 +112,7 @@ fontconfig) to install. Python needs only NumPy at runtime.
 | Text | `ab_glyph` plus the `usvg`/`svg2pdf` font stack | Rust; only the embedded DejaVu Sans and Geist faces are loaded |
 | Data / parallelism | `ndarray`, `rayon` | Rust |
 | Fonts | DejaVu Sans regular/bold, Geist serif/mono TTFs | Bitstream Vera / OFL, embedded in the binary (see `assets/fonts/`) |
-| Build | Rust stable, `maturin`, CPython (with development headers) | NumPy is only needed to import the built module |
+| Build | Rust 1.88+ (MSRV), `maturin`, CPython (with development headers) | NumPy is only needed to import the built module |
 
 The font stack pulls `fontdb`, `ttf-parser`, `rustybuzz`, `subsetter`, `libc`, and
 `memmap2` transitively; they are not direct dependencies and need no system packages.
@@ -442,6 +442,7 @@ ruff check python tests tools examples
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
+cargo deny check licenses bans sources
 ```
 
 The Python suite includes runner and snippet execution for every gallery example,
@@ -471,6 +472,10 @@ dependency; the renderer's direct resvg/usvg stack is 0.50. There are no known
 vulnerabilities. Revisit when `svg2pdf` updates its usvg dependency. The tight-PDF
 tests gate those upgrades, so the hand-assembled PDF path is not changed
 independently.
+
+CI also runs `cargo deny check` for licence, duplicate-version, banned-crate and
+registry-source policy. The `svg2pdf 0.13` tree is the one documented duplicate
+exception; the MSRV check compiles with Rust 1.88.
 
 ## License
 

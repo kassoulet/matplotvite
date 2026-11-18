@@ -1,0 +1,49 @@
+# cargo-deny policy for the Rust core and its Python wheel.
+# Run with `cargo deny check`.
+
+[graph]
+all-features = true
+
+[licenses]
+# The embedded fonts are not Cargo packages, but their licences ship in the
+# wheel and stay in this policy: DejaVu uses Bitstream Vera, Geist uses OFL.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "Bitstream-Vera",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "MIT",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.9
+# The bundled font licences are intentionally listed even though cargo-deny
+# only sees Cargo packages.
+unused-allowed-license = "allow"
+
+[bans]
+# New duplicate versions should be deliberate. svg2pdf pins an older usvg
+# stack, so skip its tree until the direct resvg/usvg pair can be updated with
+# it (see the PDF tests and dependabot.yml).
+multiple-versions = "deny"
+wildcards = "deny"
+highlight = "all"
+deny = [
+    { crate = "openssl", reason = "the wheel must not require a system OpenSSL" },
+    { crate = "openssl-sys", reason = "the wheel must not require a system OpenSSL" },
+    { crate = "native-tls", reason = "the renderer has no network/TLS dependency" },
+]
+skip-tree = [
+    { crate = "svg2pdf@0.13.0", reason = "its documented older usvg/pdf-writer stack is intentionally pinned" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
