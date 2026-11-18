@@ -30,6 +30,21 @@ def test_public_stub_names_are_exported():
     assert not missing, f"public stub names missing from __all__: {missing}"
 
 
+def test_all_exports_have_stubs():
+    exported = {name for name in plt.__all__ if not name.startswith("_")}
+    missing = sorted(exported - _stub_public_names())
+    assert not missing, f"public exports missing from the stub: {missing}"
+
+
+def test_exported_callables_have_stubs():
+    callables = {
+        name for name in plt.__all__
+        if callable(getattr(plt, name, None))
+    }
+    missing = sorted(callables - _stub_public_names())
+    assert not missing, f"exported callables missing from the stub: {missing}"
+
+
 def test_deprecated_helper_emits_future_warning():
     with pytest.warns(FutureWarning) as caught:
         plt._deprecated("old_api", since="0.7", alternative="new_api", removal="0.8")

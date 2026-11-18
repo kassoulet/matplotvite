@@ -67,7 +67,6 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 
 | # | Task |
 |---|------|
-| C4 | **`__init__.pyi` covers 92 of 175 public top-level functions/classes** (rechecked 18 Nov; mypy now runs in CI, stubtest does not) and drifts (`set_xlim(lo, hi)` vs `left/right`; missing `norm`, `pad_inches`, `handles/labels`, `**kwargs`). Extend or generate the stubs and add `mypy.stubtest` to CI; today only a test that the file exists. |
 | C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
 | C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |
 | C20 | **Supply-chain and project signals:** OpenSSF Scorecard workflow and Best Practices badge, README status badges (CI, PyPI, licence, Python versions), `cargo vet` or at least `cargo deny` bans on yanked crates, reproducible-wheel check (build twice, compare hashes). |

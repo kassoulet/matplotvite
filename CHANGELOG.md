@@ -24,6 +24,8 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Changed
 
+- Type stubs now cover every public export, and CI runs `mypy.stubtest`
+  against the installed wheel to catch signature drift.
 - Public plotting and figure calls now reject unknown keyword arguments with
   `TypeError`; recognized Matplotlib properties that are not rendered are still
   accepted and recorded as ignored. The coverage trace no longer treats

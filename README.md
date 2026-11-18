@@ -148,7 +148,8 @@ dependencies: the `pyo3`/`numpy` FFI, OS bindings in transitive crates, and libw
 sources. Nothing on the drawing path shells out or links a system graphics library.
 
 Type stubs (`.pyi`) and the PEP 561 `py.typed` marker ship in the wheel, so editors
-and type checkers see the public API. Wheels use CPython's stable ABI
+and type checkers see the public API; CI runs `mypy.stubtest` against the
+installed wheel to catch stub drift. Wheels use CPython's stable ABI
 (`cp39-abi3`), so one build per platform and Linux libc supports Python 3.9 and
 newer.
 
