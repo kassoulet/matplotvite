@@ -191,6 +191,10 @@ After extraction, `lib.rs` releases the GIL with `py.detach`. Rayon then renders
 independent panels in parallel in both `render_svg()` and `render_png()`;
 image row scaling and some raster operations are parallelised as well.
 
+The object-oriented `Figure`/`Axes` API is the thread-safe path: figures hold
+their own state once created. The pyplot shims keep a process-wide figure
+registry, guarded by a lock only for registration and current-figure selection.
+
 ## Data and compatibility boundaries
 
 The Python layer deliberately implements a focused subset of matplotlib rather

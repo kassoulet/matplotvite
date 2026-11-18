@@ -6,6 +6,7 @@ import math as _math
 import os
 import re as _re
 import struct as _struct
+import threading
 import warnings
 import zlib as _zlib
 from contextlib import contextmanager
@@ -54,8 +55,8 @@ __all__ = (
     "annotate", "axes", "axhline", "axhspan", "axline", "axvline", "axvspan",
     "matshow", "spy", "xkcd", "get_data_path",
     "bar", "bar_label", "barh", "boxplot", "broken_barh", "clabel", "close", "colorbar", "contour", "contourf",
-    "draw", "errorbar", "eventplot", "figure", "figtext", "fill", "fill_between", "violinplot",
-    "fill_betweenx", "gca", "gcf", "get_cmap", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow", "imread",
+    "draw", "errorbar", "eventplot", "figure", "fignum_exists", "figtext", "fill", "fill_between", "violinplot",
+    "fill_betweenx", "gca", "gcf", "get_cmap", "get_fignums", "getp", "grid", "hexbin", "hist", "hist2d", "hlines", "imshow", "imread",
     "ioff", "ion", "legend", "loglog", "minorticks_off", "minorticks_on", "pause",
     "pcolor", "pcolorfast", "pcolormesh", "pie", "plot", "polar", "quiver", "streamplot", "rc", "rc_context", "rcdefaults",
     "table",
@@ -9188,6 +9189,7 @@ class Figure:
         if figsize is None:
             figsize = rcParams.get("figure.figsize", (6.4, 4.8))
         self.figsize = _validate_figsize(figsize)
+        self.number = None
         self.grid, self.axes, self._cur = (1, 1), [], None
         self._colorbar = None
         self.dpi = _validate_dimension(
@@ -9771,29 +9773,148 @@ class _SubFigure:
     def get_zorder(self): return self._zorder
 
 
-_fig = None
+# The pyplot shims share a process-wide registry. The lock only protects the
+# registry and current-figure selection; Figure objects remain independent, so
+# the object-oriented API is the thread-safe path for concurrent work.
+_figures = {}
+_current_fig = None
+_figure_lock = threading.RLock()
 
 
-def figure(*args, figsize=None, dpi=None, facecolor=None, edgecolor=None, **kwargs):
-    """Create a figure; a leading scalar or string is accepted as matplotlib's
-    figure number and ignored, while a leading sequence sets `figsize`."""
-    global _fig
+def _find_figure_locked(fig):
+    if isinstance(fig, Figure):
+        for number, candidate in _figures.items():
+            if candidate is fig:
+                return number
+        number = getattr(fig, "number", None)
+        return number if isinstance(number, int) and _figures.get(number) is fig else None
+    if isinstance(fig, str):
+        return next((number for number, candidate in sorted(_figures.items())
+                     if candidate.get_label() == fig), None)
+    if isinstance(fig, (int, np.integer)):
+        number = int(fig)
+        return number if number in _figures else None
+    return None
+
+
+def _new_figure_locked(number, label=None, **kwargs):
+    global _current_fig
+    fig = Figure(**kwargs)
+    fig.number = number
+    if label is not None:
+        fig.set_label(label)
+    _figures[number] = fig
+    _current_fig = number
+    return fig
+
+
+def figure(*args, num=None, figsize=None, dpi=None, facecolor=None,
+           edgecolor=None, **kwargs):
+    """Create or activate a figure.
+
+    A leading sequence sets `figsize`, as elsewhere in this facade. A leading
+    integer or string is the matplotlib figure number or label; `num=` is also
+    accepted. The registry is process-wide and guarded by a lock, while the
+    object-oriented `Figure` API is the thread-safe path.
+    """
+    global _current_fig
     if args:
-        if isinstance(args[0], (tuple, list, np.ndarray)):
-            figsize = args[0]
+        first = args[0]
+        if isinstance(first, (tuple, list, np.ndarray)):
+            figsize = first
+        elif isinstance(first, (Figure, int, np.integer, str)):
+            if num is not None:
+                raise TypeError("figure() got multiple values for argument 'num'")
+            num = first
         if len(args) > 1:
             second = args[1]
             if isinstance(second, (tuple, list, np.ndarray)):
                 figsize = second
             else:
                 dpi = second
-    _fig = Figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
-    return _fig
+    with _figure_lock:
+        if isinstance(num, Figure):
+            number = _find_figure_locked(num)
+            if number is not None:
+                _current_fig = number
+                return num
+            number = getattr(num, "number", None)
+            if not isinstance(number, int) or number in _figures:
+                number = max(_figures, default=0) + 1
+            num.number = number
+            _figures[number] = num
+            _current_fig = number
+            return num
+        if num is not None and not isinstance(num, (int, np.integer, str)):
+            raise TypeError("figure number must be an integer or a string label")
+        if isinstance(num, str):
+            number = _find_figure_locked(num)
+            if number is not None:
+                _current_fig = number
+                return _figures[number]
+            number = max(_figures, default=0) + 1
+            return _new_figure_locked(number, label=num, figsize=figsize, dpi=dpi,
+                                      facecolor=facecolor, edgecolor=edgecolor)
+        if num is not None:
+            number = int(num)
+            if number in _figures:
+                _current_fig = number
+                return _figures[number]
+        else:
+            number = max(_figures, default=0) + 1
+        return _new_figure_locked(number, figsize=figsize, dpi=dpi,
+                                  facecolor=facecolor, edgecolor=edgecolor)
 
 
-def gcf(): return _fig or figure()
+def gcf():
+    with _figure_lock:
+        current = _figures.get(_current_fig)
+        if current is not None:
+            return current
+        return figure()
+
+
 def gca(): return gcf().gca()
-def close(*_): global _fig; _fig = None
+
+
+def close(fig=None):
+    """Close the current figure, a numbered/labelled figure, or all figures."""
+    global _current_fig
+    with _figure_lock:
+        if fig is None:
+            if _current_fig is None:
+                return
+            _figures.pop(_current_fig, None)
+            _current_fig = max(_figures, default=None)
+            return
+        if isinstance(fig, str) and fig == "all":
+            _figures.clear()
+            _current_fig = None
+            return
+        if not isinstance(fig, (Figure, int, np.integer, str)):
+            raise TypeError("close() expects a figure number, label, Figure or 'all'")
+        number = _find_figure_locked(fig)
+        if number is None:
+            return
+        _figures.pop(number, None)
+        if _current_fig == number:
+            _current_fig = max(_figures, default=None)
+
+
+def get_fignums():
+    """Return the numbers of all open figures, in ascending order."""
+    with _figure_lock:
+        return sorted(_figures)
+
+
+def fignum_exists(num):
+    """Return whether a figure with the given number is open."""
+    if isinstance(num, np.integer):
+        num = int(num)
+    if not isinstance(num, int):
+        return False
+    with _figure_lock:
+        return num in _figures
 
 
 def subplots(nrows=1, ncols=1, figsize=None, dpi=None, facecolor=None,

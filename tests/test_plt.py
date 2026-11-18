@@ -3068,6 +3068,44 @@ def test_fractional_dpi_truncates_figure_pixels():
     plt.close("all")
 
 
+def test_pyplot_registry_tracks_numbered_and_labelled_figures():
+    plt.close("all")
+    try:
+        first = plt.figure(3)
+        assert first.number == 3
+        assert plt.get_fignums() == [3]
+        assert plt.fignum_exists(3)
+        assert plt.figure(num=3) is first
+
+        labelled = plt.figure("analysis", figsize=(3, 2))
+        assert labelled.number == 4
+        assert labelled.get_label() == "analysis"
+        assert plt.figure("analysis") is labelled
+        assert plt.gcf() is labelled
+
+        plt.close(first)
+        assert plt.get_fignums() == [4]
+        assert not plt.fignum_exists(3)
+        plt.close()
+        assert plt.get_fignums() == []
+    finally:
+        plt.close("all")
+
+
+def test_pyplot_registry_allocates_unique_numbers_from_threads():
+    from concurrent.futures import ThreadPoolExecutor
+
+    plt.close("all")
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            figures = list(pool.map(lambda _: plt.figure(), range(24)))
+        numbers = sorted(figure.number for figure in figures)
+        assert numbers == list(range(1, 25))
+        assert plt.get_fignums() == numbers
+    finally:
+        plt.close("all")
+
+
 def test_stem_plot(tmp_path):
     plt.figure()
     ax = plt.gca()
@@ -4240,9 +4278,16 @@ def test_imshow_origin_and_explicit_extent():
 
 
 def test_figure_accepts_number_and_positional_figsize():
-    assert plt.figure(1).get_size_inches() == pytest.approx((6.4, 4.8))
-    assert plt.figure(1, (4, 3)).get_size_inches() == pytest.approx((4, 3))
-    assert plt.figure(2, figsize=(5, 4)).get_size_inches() == pytest.approx((5, 4))
+    plt.close("all")
+    first = plt.figure(1)
+    assert first.number == 1
+    assert first.get_size_inches() == pytest.approx((6.4, 4.8))
+    second = plt.figure(2, (4, 3))
+    assert second.number == 2 and second.get_size_inches() == pytest.approx((4, 3))
+    third = plt.figure(3, figsize=(5, 4))
+    assert third.number == 3 and third.get_size_inches() == pytest.approx((5, 4))
+    assert plt.figure(1) is first
+    plt.close("all")
 
 
 def test_quiver_broadcasts_coordinate_axes(tmp_path):

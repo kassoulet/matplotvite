@@ -423,7 +423,9 @@ WebP, SVG, and PDF keep the existing vector path; dense markers use its batched
 raster-marker layer instead.
 
 Subplot panels render concurrently with Rayon, and repeated `savefig()` calls on an
-unchanged figure reuse the previously encoded bytes. CI runs the comparison suite
+unchanged figure reuse the previously encoded bytes. The pyplot helpers keep a
+process-wide figure registry guarded by a lock; `Figure`/`Axes` objects are
+independent, so the object-oriented API is the thread-safe path for concurrent work. CI runs the comparison suite
 against `tools/benchmark_baseline.json` and reports when the matplotlib-normalized
 speedup drops by more than 30% (`tools/benchmark_guard.py`). The wider budget
 accounts for single-run variance on shared CI hosts; the guard warns by default
