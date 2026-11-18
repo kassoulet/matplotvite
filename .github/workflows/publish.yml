@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Never cancel an upload halfway through, but do not start a second release
+  # for the same tag while one is still running.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   check-version:
     name: tag matches package version
@@ -59,9 +65,16 @@ jobs:
           print(f"tag {tag} matches " + ", ".join(f"{path} {version}" for path, version in versions.items()))
           PY
 
+  tests:
+    name: test matrix
+    needs: check-version
+    # ci.yml is reusable. Reusing it keeps the release gate identical to the
+    # pull-request and main checks instead of maintaining a second list.
+    uses: ./.github/workflows/ci.yml
+
   wheels:
     name: wheel (${{ matrix.name }})
-    needs: check-version
+    needs: [check-version, tests]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -133,6 +146,8 @@ jobs:
       id-token: write
       # The same job records the GitHub release after the upload succeeds.
       contents: write
+      # Build provenance is attached to the wheel and sdist before upload.
+      attestations: write
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -143,6 +158,37 @@ jobs:
         with:
           name: sdist
           path: dist
+      - name: Validate the package metadata
+        # twine parses the metadata every index will read; catch a broken
+        # README, classifier or licence file before the upload starts.
+        run: |
+          python -m pip install -c .github/requirements-ci.txt twine
+          python -m twine check dist/*
+      - name: Smoke-test the installed wheel
+        # Build the wheel in a clean environment, then import it and render once.
+        # This catches shipping mistakes that a source-tree test cannot see.
+        run: |
+          python -m venv smoke
+          . smoke/bin/activate
+          python -m pip install -c .github/requirements-ci.txt numpy
+          python -m pip install --no-index --no-deps --find-links dist matplotvite
+          cd smoke
+          python - <<'PY'
+          import matplotvite
+          import matplotvite as plt
+
+          plt.figure((3, 2))
+          plt.plot([0, 1], [1, 0])
+          png = plt.savefig(format="png")
+          assert png.startswith(b"\x89PNG\r\n\x1a\n"), png[:8]
+          print(f"matplotvite {matplotvite.__version__} rendered {len(png)} PNG bytes")
+          PY
+      - name: Attest wheel and sdist provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
       - name: Upload the wheels and sdist to PyPI
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
@@ -165,3 +211,31 @@ jobs:
             gh release create "$GITHUB_REF_NAME" dist/* \
               --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
           fi
+
+  sbom:
+    name: SBOM
+    needs: publish
+    # A manual dispatch has no GitHub release to attach the SBOM to.
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sdist
+          path: dist
+      - name: Generate and attach an SPDX SBOM
+        uses: anchore/sbom-action@fffec3d851af758d56fee099cf3fbf8aa8779843 # v0.24.3
+        with:
+          path: dist
+          format: spdx-json
+          output-file: dist/matplotvite-${{ github.ref_name }}.spdx.json
+          artifact-name: matplotvite-${{ github.ref_name }}.spdx.json
+          upload-artifact: true
+          upload-release-assets: true
