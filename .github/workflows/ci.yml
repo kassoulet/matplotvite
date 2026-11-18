@@ -102,7 +102,7 @@ jobs:
         # the linux-x86_64 wheel (also the sdist) to keep the wheel tests alive.
         include: ${{ fromJSON(
           (startsWith(github.ref, 'refs/tags/') || startsWith(github.ref, 'refs/heads/release/'))
-          && '[{"name":"linux-x86_64","os":"ubuntu-latest","target":"x86_64-unknown-linux-gnu","manylinux":"auto","interpreter":"python3.13"},{"name":"linux-aarch64","os":"ubuntu-24.04-arm","target":"aarch64-unknown-linux-gnu","manylinux":"auto","interpreter":"python3.13"},{"name":"macos-arm64","os":"macos-latest","target":"aarch64-apple-darwin","interpreter":"python"},{"name":"macos-x86_64","os":"macos-15-intel","target":"x86_64-apple-darwin","interpreter":"python"},{"name":"windows-x86_64","os":"windows-latest","target":"x86_64-pc-windows-msvc","interpreter":"python"},{"name":"windows-arm64","os":"windows-11-arm","target":"aarch64-pc-windows-msvc","interpreter":"python"}]'
+          && '[{"name":"linux-x86_64","os":"ubuntu-latest","target":"x86_64-unknown-linux-gnu","manylinux":"auto","interpreter":"python3.13"},{"name":"linux-aarch64","os":"ubuntu-24.04-arm","target":"aarch64-unknown-linux-gnu","manylinux":"auto","interpreter":"python3.13"},{"name":"musllinux-x86_64","os":"ubuntu-latest","target":"x86_64-unknown-linux-musl","manylinux":"musllinux_1_2","interpreter":""},{"name":"musllinux-aarch64","os":"ubuntu-24.04-arm","target":"aarch64-unknown-linux-musl","manylinux":"musllinux_1_2","interpreter":""},{"name":"macos-arm64","os":"macos-latest","target":"aarch64-apple-darwin","interpreter":"python"},{"name":"macos-x86_64","os":"macos-15-intel","target":"x86_64-apple-darwin","interpreter":"python"},{"name":"windows-x86_64","os":"windows-latest","target":"x86_64-pc-windows-msvc","interpreter":"python"},{"name":"windows-arm64","os":"windows-11-arm","target":"aarch64-pc-windows-msvc","interpreter":"python"}]'
           || '[{"name":"linux-x86_64","os":"ubuntu-latest","target":"x86_64-unknown-linux-gnu","manylinux":"auto","interpreter":"python3.13"}]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,10 +113,10 @@ jobs:
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
-          # The manylinux container does not see setup-python's interpreter, so
-          # select the matching container Python explicitly. The wheel is built
-          # against the stable ABI (cp39-abi3) and works on every version above 3.9.
-          args: --release --out dist --interpreter ${{ matrix.interpreter }}
+          # manylinux containers do not see setup-python's interpreter, so
+          # select the matching container Python explicitly. musllinux cross
+          # images autodetect it; the wheel is stable-ABI either way.
+          args: --release --out dist ${{ matrix.interpreter && format('--interpreter {0}', matrix.interpreter) || '' }}
       - name: Build the sdist
         # One matrix entry builds the source distribution: the tarball is
         # platform independent, so every platform would only duplicate it.

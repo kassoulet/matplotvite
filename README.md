@@ -23,8 +23,8 @@ only Python runtime dependency.
 pip install matplotvite
 ```
 
-Wheels are published to PyPI from each `v*` version tag: Linux (x86_64, aarch64),
-macOS (arm64, x86_64) and Windows (x64, arm64). They use the stable ABI, so a single
+Wheels are published to PyPI from each `v*` version tag: Linux glibc and musl
+(x86_64, aarch64), macOS (arm64, x86_64) and Windows (x64, arm64). They use the stable ABI, so a single
 wheel serves CPython 3.9 and newer; other platforms install from the sdist.
 
 The latest release is 0.6.0; version tags after it publish automatically.

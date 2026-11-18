@@ -13,7 +13,8 @@ Before 1.0, a minor release may contain a breaking change; see
 
 - A documented pre-1.0 compatibility and deprecation policy, plus a helper that
   emits user-visible `FutureWarning` messages for deprecated APIs.
-- Release provenance attestations and an SPDX SBOM for every tagged release.
+- Release provenance attestations and an SPDX SBOM for every tagged release, plus
+  musllinux wheels for x86_64 and aarch64.
 - A release gate that reuses the full CI matrix, plus `twine check` and an
   installed-wheel rendering smoke test.
 - Governance files, issue and pull-request templates, citation metadata, and

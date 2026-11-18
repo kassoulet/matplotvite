@@ -90,6 +90,16 @@ jobs:
             target: aarch64-unknown-linux-gnu
             manylinux: auto
             interpreter: python3.13
+          - name: musllinux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            manylinux: musllinux_1_2
+            interpreter: ""
+          - name: musllinux-aarch64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            manylinux: musllinux_1_2
+            interpreter: ""
           - name: macos-arm64
             os: macos-latest
             target: aarch64-apple-darwin
@@ -117,7 +127,8 @@ jobs:
           manylinux: ${{ matrix.manylinux }}
           # Same stable-ABI wheel as CI: one cp39-abi3 build serves every
           # interpreter above 3.9, so the matrix only varies by platform.
-          args: --release --out dist --interpreter ${{ matrix.interpreter }}
+          # musllinux cross images autodetect Python; manylinux needs it named.
+          args: --release --out dist ${{ matrix.interpreter && format('--interpreter {0}', matrix.interpreter) || '' }}
       - name: Build the sdist
         # The tarball is platform independent, so exactly one job builds it.
         if: matrix.name == 'linux-x86_64'
