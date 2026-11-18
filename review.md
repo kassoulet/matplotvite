@@ -75,7 +75,6 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C7 | **Gate `publish.yml`** on the test matrix (reusable workflow or `needs`), add `concurrency`, attestations/SBOM, `twine check` and a wheel smoke test; confirm OIDC trusted publishing is the upload path. |
 | C8 | **musllinux wheels** (x86_64, aarch64); consider a free-threaded 3.14 test. |
 | C9 | **Governance files:** CHANGELOG.md (Keep a Changelog), SECURITY.md, CONTRIBUTING.md, CODE_OF_CONDUCT.md, issue/PR templates, CITATION.cff, `[project.urls]` (Issues, Changelog, Documentation). |
-| C12 | **Packaging:** `[tool.maturin]` sdist include/exclude (drop `assets/`, `benches/`, `tools/`) with a sdist content test; untrack `.jules/`, ignore `.freebuff/`; add `.editorconfig`. |
 | C13 | **Lint/type rules:** ruff beyond `F,E9` (`I,B,UP,RUF`); mypy or pyright on the package. |
 | C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
 | C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |

@@ -59,3 +59,13 @@ markers = [
 [tool.maturin]
 python-source = "python"
 module-name = "matplotvite._core"
+# Keep the sdist buildable but free of development-only trees. The fonts under
+# assets/fonts must stay because src/fonts.rs embeds them with include_bytes!.
+exclude = [
+    "benches/**",
+    "tools/**",
+    ".github/**",
+    ".jules/**",
+    ".freebuff/**",
+    "review.md",
+]
