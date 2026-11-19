@@ -11,9 +11,7 @@ import shutil
 import statistics
 import subprocess
 import sys
-import time
 from collections import Counter
-from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
@@ -61,10 +59,13 @@ if __name__ == "__main__":
     _check_compiled_extension()
 
 import matplotvite
-import numpy as np
 
-from examples.karios_figures import make_data, overview, shift_by_row_col
-from examples.samples import SAMPLES
+from tools.gallery_render import (
+    format_bytes,
+    format_ms,
+    load_render_data,
+    render_gallery,
+)
 from tools.pages_assets import (
     benchmark_css,
     comparison_css,
@@ -77,15 +78,6 @@ from tools.pages_assets import (
 )
 
 
-def format_bytes(size: int) -> str:
-    """Format a file size in binary units."""
-    if size < 1024:
-        return f"{size} B"
-    if size < 1024 * 1024:
-        return f"{size / 1024:.1f} KiB"
-    return f"{size / (1024 * 1024):.1f} MiB"
-
-
 def category_id(category: object) -> str:
     """Return the stable HTML filter identifier for a sample category."""
     return str(category).lower().replace(" ", "-").replace("&", "and")
@@ -96,23 +88,6 @@ def speedup_label(ratio: float) -> str:
     if ratio >= 1.0:
         return f"{ratio:.1f}× faster"
     return f"{1.0 / ratio:.1f}× slower"
-
-
-def format_ms(milliseconds: float) -> str:
-    """Format a wall-clock duration with a readable number of digits."""
-    if milliseconds < 10.0:
-        return f"{milliseconds:.2f} ms"
-    return f"{milliseconds:.1f} ms"
-
-
-def measure_render_ms(render: Callable[[], None], repeats: int = 3) -> float:
-    """Return the fastest of `repeats` wall-clock renders, in milliseconds."""
-    best = float("inf")
-    for _ in range(repeats):
-        start = time.perf_counter()
-        render()
-        best = min(best, (time.perf_counter() - start) * 1000.0)
-    return best
 
 
 def commit_link_html() -> str:
@@ -778,53 +753,6 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
 """
 
 
-def render_matplotlib_sample(sample: dict[str, object], out_path: Path) -> None:
-    """Execute a gallery snippet with matplotlib's Agg backend."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    filename = str(sample["filename"])
-    code = str(sample["code"]).replace(
-        "import matplotvite as plt", "import matplotlib.pyplot as plt"
-    )
-    code = code.replace(f'"{filename}"', f'"{out_path.as_posix()}"')
-    code += "\nplt.close('all')\n"
-    # Only repository-owned sample definitions reach this renderer.
-    exec(code, {})  # nosec
-
-
-def render_scaling_chart(out_path: Path, results: list[dict[str, object]]) -> None:
-    """Render the latency-scaling chart with matplotvite itself."""
-    scaling = [r for r in results if r.get("category") == "Data Scaling"]
-    points = np.array([r["points"] for r in scaling], dtype=np.float64)
-    latencies = np.array([r["rs_ms"] for r in scaling], dtype=np.float64)
-
-    matplotvite.figure(figsize=(7.8, 4.4))
-    matplotvite.plot(
-        np.log10(points),
-        latencies,
-        label="Matplotvite latency",
-        color="#1f4e79",
-        marker="o",
-        markersize=4,
-    )
-    matplotvite.plot(
-        np.log10(points),
-        [0.44, 0.44, 0.44, 0.44],
-        label="0.5 ms reference",
-        color="#8a97a8",
-        linestyle="--",
-        linewidth=1.0,
-    )
-    matplotvite.title("Latency scaling with input size")
-    matplotvite.xlabel("log10(points)")
-    matplotvite.ylabel("Time to disk (ms)")
-    matplotvite.grid(True, linestyle=":", alpha=0.4)
-    matplotvite.legend(frameon=False, loc="upper left")
-    matplotvite.savefig(str(out_path))
-    matplotvite.close()
-
-
 class GalleryPage(NamedTuple):
     """One generated comparison gallery shown on the galleries page."""
 
@@ -1182,14 +1110,7 @@ def generate_karios_html() -> str:
 
 
 def write_karios_page(out_dir: Path) -> Path:
-    """Render the KARIOS figures and write karios.html."""
-    karios_dir = out_dir / "karios"
-    karios_dir.mkdir(parents=True, exist_ok=True)
-    data = make_data()
-    print("Rendering KARIOS report figures ...")
-    overview(karios_dir / "01_overview.png", data)
-    shift_by_row_col(karios_dir / "02_dx.png", "dx", data)
-    shift_by_row_col(karios_dir / "03_dy.png", "dy", data)
+    """Write karios.html for the figures rendered by the render step."""
     path = out_dir / "karios.html"
     path.write_text(generate_karios_html(), encoding="utf-8")
     return path
@@ -1209,7 +1130,7 @@ def write_galleries_page(out_dir: Path) -> Path:
 
 
 def build_pages(out_dir: Path) -> None:
-    """Render gallery images and write both HTML pages into out_dir."""
+    """Render the site assets and write every HTML page into out_dir."""
     out_dir.mkdir(parents=True, exist_ok=True)
     font_dir = out_dir / "assets" / "fonts"
     font_dir.mkdir(parents=True, exist_ok=True)
@@ -1220,32 +1141,16 @@ def build_pages(out_dir: Path) -> None:
         "LICENSE_GEIST_OFL.txt",
     ):
         shutil.copyfile(ROOT / "assets" / "fonts" / font_name, font_dir / font_name)
-    print(f"Building example gallery and benchmark site in: {out_dir}")
+    render_gallery(out_dir)
+    build_pages_from_data(out_dir)
 
-    samples_info: list[dict[str, object]] = []
-    for sample in SAMPLES:
-        requires = sample.get("requires")
-        if requires and importlib.util.find_spec(str(requires)) is None:
-            print(f"  Skipping [{sample['id']}]: requires {requires}")
-            continue
 
-        filename = str(sample["filename"])
-        target_path = out_dir / filename
-        print(f"  Rendering [{sample['id']}] -> {filename} ...", end=" ", flush=True)
-        sample["runner"](str(target_path))
-        size = target_path.stat().st_size
-        rs_ms = measure_render_ms(
-            lambda sample=sample, target_path=target_path: (
-                sample["runner"](str(target_path)), matplotvite.close())
-        )
-        print(f"done ({format_bytes(size)}, {format_ms(rs_ms)})")
-
-        info = dict(sample)
-        info["file_size"] = format_bytes(size)
-        info["rs_ms"] = rs_ms
-        samples_info.append(info)
-
-    (out_dir / ".nojekyll").touch()
+def build_pages_from_data(out_dir: Path,
+                          data: dict[str, object] | None = None) -> None:
+    """Write the HTML pages from the metadata left by the render step."""
+    if data is None:
+        data = load_render_data(out_dir)
+    samples_info: list[dict[str, object]] = list(data["samples"])  # type: ignore[arg-type]
 
     gallery_html = generate_gallery_html(samples_info, coverage_stats(out_dir))
     index_path = out_dir / "index.html"
@@ -1253,46 +1158,14 @@ def build_pages(out_dir: Path) -> None:
     gallery_size = format_bytes(len(gallery_html.encode("utf-8")))
     print(f"Wrote gallery page -> {index_path} ({gallery_size})")
 
-    mpl_available = importlib.util.find_spec("matplotlib") is not None
-
-    comparison_dir = out_dir / "comparison"
-    comparison_dir.mkdir(parents=True, exist_ok=True)
-    for sample in samples_info:
-        sample["mpl_filename"] = None
-        if not mpl_available or sample["format"] == "webp":
-            continue
-        suffix = Path(str(sample["filename"])).suffix
-        mpl_filename = f"{Path(str(sample['filename'])).stem}-matplotlib{suffix}"
-        target = comparison_dir / mpl_filename
-        print(f"  Rendering matplotlib comparison [{sample['id']}] ...", end=" ", flush=True)
-        try:
-            render_matplotlib_sample(sample, target)
-            sample["mpl_ms"] = measure_render_ms(
-                lambda sample=sample, target=target: render_matplotlib_sample(sample, target)
-            )
-            sample["mpl_filename"] = mpl_filename
-            print(f"done ({format_ms(float(sample['mpl_ms']))})")
-        except Exception as exc:  # pragma: no cover - backend-specific fallback
-            sample.pop("mpl_ms", None)
-            print(f"skipped ({exc})")
-
-    comparison_html = generate_comparison_html(samples_info, mpl_available)
+    comparison_html = generate_comparison_html(samples_info, bool(data["mpl_available"]))
     comparison_path = out_dir / "comparison.html"
     comparison_path.write_text(comparison_html, encoding="utf-8")
     comparison_size = format_bytes(len(comparison_html.encode("utf-8")))
     print(f"Wrote comparison page -> {comparison_path} ({comparison_size})")
 
-    bench_data_path = ROOT / "tools" / "benchmarks_data.json"
-    if bench_data_path.exists():
-        bench_data = json.loads(bench_data_path.read_text(encoding="utf-8"))
-    else:
-        bench_data = {"system": {}, "results": []}
-
-    scaling_chart_path = out_dir / "benchmark_scaling.png"
-    render_scaling_chart(scaling_chart_path, bench_data.get("results", []))
-    print(f"Wrote scaling chart -> {scaling_chart_path}")
-
-    benchmarks_html = generate_benchmarks_html(bench_data)
+    bench_data = data["benchmark"]
+    benchmarks_html = generate_benchmarks_html(bench_data)  # type: ignore[arg-type]
     bench_path = out_dir / "benchmarks.html"
     bench_path.write_text(benchmarks_html, encoding="utf-8")
     print(f"Wrote benchmarks page -> {bench_path} ({format_bytes(len(benchmarks_html.encode('utf-8')))})")
@@ -1307,10 +1180,21 @@ def build_pages(out_dir: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate the Matplotvite example gallery and benchmark site.")
     parser.add_argument("--out", type=Path, default=ROOT / "dist", help="Output directory (default: dist)")
+    parser.add_argument("--render-only", action="store_true",
+                        help="Only render images and samples.json (see tools/gallery_render.py)")
+    parser.add_argument("--html-only", action="store_true",
+                        help="Only rewrite the HTML from an existing samples.json")
     parser.add_argument("--galleries-only", action="store_true",
                         help="Only refresh galleries.html from existing manifests")
     args = parser.parse_args()
-    if args.galleries_only:
+    modes = [args.render_only, args.html_only, args.galleries_only]
+    if sum(modes) > 1:
+        parser.error("--render-only, --html-only and --galleries-only are mutually exclusive")
+    if args.render_only:
+        render_gallery(args.out)
+    elif args.html_only:
+        build_pages_from_data(args.out)
+    elif args.galleries_only:
         print(f"Wrote galleries page -> {write_galleries_page(args.out)}")
     else:
         build_pages(args.out)
