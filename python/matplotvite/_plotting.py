@@ -3822,7 +3822,2134 @@ _AXES_ARTIST_PROPS = frozenset(
 )
 
 
-class Axes:
+class _PlotAxes:
+    """Plot families: lines, points, bars, fills and categorical plots."""
+
+    def plot(self, *args, label="", color=None, c=None, linestyle=None, ls=None,
+             linewidth=None, lw=None, marker=None, markersize=None, ms=None,
+             markerfacecolor=None, mfc=None, markeredgecolor=None, mec=None,
+             markeredgewidth=None, mew=None, alpha=None, drawstyle="default", fmt=None,
+             data=None, x=None, y=None, **kwargs):
+        """Line plot with matplotlib's styling keywords (`lw`, `ls`, `marker`, `ms`,
+        `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
+        `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
+        args = _resolve_data_args(args, data, x, y)
+        gid = str(kwargs.pop("gid", "") or "")
+        xunits = kwargs.pop("xunits", None)
+        yunits = kwargs.pop("yunits", None)
+        _check_kwargs(kwargs, "plot", _LINE2D_KWARGS)
+        if drawstyle is None:
+            drawstyle = "default"
+        if drawstyle == "steps":
+            drawstyle = "steps-pre"
+        if drawstyle not in ("default", "steps-pre", "steps-mid", "steps-post"):
+            raise ValueError(f"unsupported drawstyle: {drawstyle!r}")
+        handles = []
+        for index, (gx, gy, gfmt) in enumerate(_plot_args(args, fmt)):
+            if gx is None:
+                gx = np.arange(np.asarray(gy).size)
+            elif gy is None:
+                gx, gy = np.arange(np.asarray(gx).size), gx
+            gfmt = gfmt or (fmt if index == 0 else None)
+            if not label and getattr(gy, "name", None) is not None:
+                glabel = str(gy.name)
+            else:
+                glabel = label if index == 0 else ""
+            style = linestyle if linestyle is not None else (ls if ls is not None else "-")
+            gcolor = color if color is not None else c
+            gmarker = marker
+            if gfmt:
+                f_color, f_style, f_marker = _parse_fmt(gfmt)
+                gcolor = gcolor if gcolor is not None else f_color
+                if linestyle is None and ls is None:
+                    style = f_style or style
+                if not gmarker:
+                    gmarker = f_marker
+            style = _validate_linestyle(style)
+            line_color = self._next_color() if gcolor is None else gcolor
+            edge = markeredgecolor if markeredgecolor is not None else mec
+            gx = _convert_units(gx, self.xaxis, xunits)
+            gy = _convert_units(gy, self.yaxis, yunits)
+            xvals = self._xdate(gx)
+            gy = self._ydate(gy)
+            xshape, yshape = np.asarray(xvals).shape, np.asarray(gy).shape
+            if xshape != yshape:
+                raise ValueError(
+                    "x and y must have same first dimension, but have shapes "
+                    f"{xshape} and {yshape}")
+            series_style = drawstyle
+            if drawstyle == "steps-mid":
+                xvals, gy = _mid_steps(xvals, gy)
+                series_style = "steps-post"
+            handle = _series(
+                xvals, gy, glabel, line_color, linestyle=style,
+                linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
+                marker=gmarker or "",
+                markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
+                mfc=(markerfacecolor if markerfacecolor is not None else mfc), mec=edge,
+                mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
+                alpha=alpha, drawstyle=series_style, gid=gid)
+            self._append_series(handle)
+            handles.append(Line2D(handle))
+        return handles
+
+    def specgram(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+                 noverlap=None, cmap=None, xextent=None, pad_to=None, sides=None,
+                 scale_by_freq=None, mode=None, scale=None, vmin=None, vmax=None,
+                 **kwargs):
+        """Windowed FFT magnitude, drawn as an image; returns (Pxx, freqs, bins, image)."""
+        data = np.asarray(x, dtype=np.float64).ravel()
+        nfft = max(int(NFFT), 2)
+        step = nfft - (nfft // 2 if noverlap is None else int(noverlap))
+        if step <= 0:
+            raise ValueError("noverlap must be smaller than NFFT")
+        if data.size < nfft:
+            raise ValueError("specgram needs at least NFFT samples")
+        taper = np.hanning(nfft) if window is None or window is np.hanning else np.asarray(window)
+        frames = np.stack([data[i:i + nfft] * taper
+                           for i in range(0, data.size - nfft + 1, step)])
+        spectrum = np.abs(np.fft.rfft(frames, n=nfft, axis=1)) ** 2
+        pxx = spectrum.T / max(float(Fs), 1e-12)
+        freqs = np.fft.rfftfreq(nfft, d=1.0 / float(Fs)) + float(Fc)
+        bins = np.arange(frames.shape[0]) * step / float(Fs)
+        decibels = 10.0 * np.log10(np.maximum(pxx, 1e-20))
+        image = self.imshow(decibels, aspect="auto", origin="lower", cmap=cmap,
+                            vmin=vmin, vmax=vmax,
+                            extent=(float(bins[0]), float(bins[-1]),
+                                    float(freqs[0]), float(freqs[-1])), **kwargs)
+        return pxx, freqs, bins, image
+
+    def psd(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
+            return_line=False, **kwargs):
+        """Plot a one-sided power spectral density estimate."""
+        pxx, freqs = _spectral_estimates(
+            x, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
+            pad_to=pad_to)
+        line = self.plot(freqs, 10.0 * np.log10(np.maximum(pxx, 1e-20)), **kwargs)
+        return (line if return_line else (pxx, freqs))
+
+    def csd(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
+            return_line=False, **kwargs):
+        """Plot the cross spectral density of two signals."""
+        _, _, pxy, freqs = _spectral_estimates(
+            x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
+            pad_to=pad_to)
+        line = self.plot(freqs, 10.0 * np.log10(np.maximum(np.abs(pxy), 1e-20)),
+                         **kwargs)
+        return (line if return_line else (pxy, freqs))
+
+    def cohere(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
+               noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
+               **kwargs):
+        """Plot the magnitude-squared coherence of two signals."""
+        pxx, pyy, pxy, freqs = _spectral_estimates(
+            x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
+            pad_to=pad_to)
+        coh = np.clip(np.abs(pxy) ** 2 / np.maximum(pxx * pyy, 1e-20), 0.0, 1.0)
+        self.plot(freqs, coh, **kwargs)
+        return coh, freqs
+
+    def magnitude_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
+                           sides="default", scale="linear", **kwargs):
+        """Plot the single-sided magnitude spectrum of a signal."""
+        pxx, freqs = _spectral_estimates(
+            x, NFFT=min(max(len(np.asarray(x).ravel()), 2), 256), Fs=Fs, Fc=Fc,
+            window=window, pad_to=pad_to)
+        magnitude = np.sqrt(pxx)
+        if scale == "dB":
+            magnitude = 20.0 * np.log10(np.maximum(magnitude, 1e-20))
+        line = self.plot(freqs, magnitude, **kwargs)
+        return magnitude, freqs, line[0]
+
+    def angle_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
+                       sides="default", **kwargs):
+        """Plot the wrapped phase spectrum of a signal."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
+        spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
+        freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
+        angle = np.angle(spectrum)
+        line = self.plot(freqs[:angle.size], angle, **kwargs)
+        return angle, freqs[:angle.size], line[0]
+
+    def phase_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
+                       sides="default", **kwargs):
+        """Plot the unwrapped phase spectrum of a signal."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
+        spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
+        freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
+        phase = np.unwrap(np.angle(spectrum))
+        line = self.plot(freqs[:phase.size], phase, **kwargs)
+        return phase, freqs[:phase.size], line[0]
+
+    def xcorr(self, x, y, normed=False, maxlags=10, usevlines=True, **kwargs):
+        """Plot the cross-correlation of two signals."""
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        maxlags = x.size - 1 if maxlags is None else max(int(maxlags), 0)
+        corr = np.correlate(x, y, mode="full")[x.size - 1 - maxlags:
+                                                x.size + maxlags]
+        if normed:
+            corr = corr / max(np.sqrt(np.sum(x ** 2) * np.sum(y ** 2)), 1e-20)
+        lags = np.arange(-maxlags, maxlags + 1)
+        line = self.vlines(lags, 0, corr, **kwargs) if usevlines else self.plot(
+            lags, corr, **kwargs)
+        if usevlines:
+            self.axhline(0, color="black", linewidth=0.8)
+        return lags, corr, line, None
+
+    def acorr(self, x, normed=False, maxlags=10, usevlines=True, **kwargs):
+        """Plot the autocorrelation of a signal."""
+        return self.xcorr(x, x, normed=normed, maxlags=maxlags,
+                          usevlines=usevlines, **kwargs)
+
+    def ecdf(self, x, weights=None, complementary=False, orientation="vertical",
+             **kwargs):
+        """Plot the empirical cumulative distribution function of a sample."""
+        x = np.sort(np.asarray(x, dtype=np.float64).ravel())
+        if weights is None:
+            y = np.arange(1, x.size + 1) / max(x.size, 1)
+        else:
+            w = np.asarray(weights, dtype=np.float64).ravel()
+            if w.size != x.size:
+                raise ValueError("weights must match the sample size")
+            y = np.cumsum(w) / max(w.sum(), 1e-20)
+        if complementary:
+            y = 1.0 - y
+        if orientation == "horizontal":
+            line = self.step(y, x, where="post", **kwargs)
+        else:
+            line = self.step(x, y, where="post", **kwargs)
+        return x, y, line
+
+    def barbs(self, *args, **kwargs):
+        pivot = kwargs.get("pivot")
+        if isinstance(pivot, (int, float, np.number)):
+            kwargs["pivot"] = "middle"
+        return self.quiver(*args, **kwargs)
+
+    def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
+             bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
+             label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
+        """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
+        _check_kwargs(kwargs, "hist", _HIST_KWARGS)
+        if histtype == "barstacked":
+            histtype, stacked = "bar", True
+        if histtype not in ("bar", "step", "stepfilled"):
+            raise ValueError(
+                f"{histtype!r} is not a valid value for histtype. "
+                "Supported values are 'bar', 'barstacked', 'step', 'stepfilled'")
+
+        if data is not None and isinstance(x, str):
+            x = data[x]
+        bins = _validate_bins(bins)
+        datasets = None
+        if isinstance(x, (list, tuple)) and x:
+            try:
+                candidate = np.asarray(x, dtype=np.float64)
+                if candidate.ndim == 2:
+                    datasets = list(candidate)
+                elif candidate.ndim == 1:
+                    datasets = [candidate]
+            except (TypeError, ValueError):
+                # Ragged sample sizes are the usual multi-histogram input.
+                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
+        elif isinstance(x, np.ndarray) and x.ndim == 2:
+            datasets = list(x)
+        if datasets is not None and len(datasets) > 1 and not stacked:
+            # Overlaid histograms: one pass per data set, as Matplotlib draws them.
+            counts_list, handles = [], []
+            edges = None
+            for i, dataset in enumerate(datasets):
+                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
+                          else color)
+                label_i = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
+                           else label)
+                counts, edges, handle = self.hist(
+                    dataset, bins=bins, range=range, density=density, weights=weights,
+                    cumulative=cumulative, bottom=bottom, histtype=histtype, align=align,
+                    orientation=orientation, color=colour, label=label_i, alpha=alpha,
+                    edgecolor=edgecolor, **kwargs)
+                counts_list.append(counts)
+                handles.append(handle)
+            return counts_list, edges, handles
+        if datasets is not None and len(datasets) > 1 and stacked:
+            edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
+            counts_list = []
+            for dataset in datasets:
+                count, _ = np.histogram(dataset, bins=edges, density=bool(density))
+                if cumulative:
+                    count = np.cumsum(count)
+                counts_list.append(np.asarray(count, dtype=np.float64))
+            widths = np.diff(edges)
+            bar_align = "edge" if align in ("left", "edge") else "center"
+            centers = edges[:-1] if bar_align == "edge" else (edges[:-1] + edges[1:]) / 2.0
+            handles = []
+            running = np.zeros(counts_list[0].size)
+            for i, count in enumerate(counts_list):
+                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
+                          else color)
+                label_i = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
+                           else label)
+                text = "" if label_i is None else str(label_i)
+                if histtype == "bar":
+                    if orientation == "horizontal":
+                        raise NotImplementedError("stacked hist bars need orientation='vertical'")
+                    handles.append(self.bar(centers, count, width=widths, bottom=running,
+                                            align=bar_align, color=colour,
+                                            edgecolor=edgecolor, alpha=alpha, label=text, _hist=True))
+                elif orientation != "vertical":
+                    raise NotImplementedError("stacked hist steps need orientation='vertical'")
+                else:
+                    sx = np.empty(2 * count.size)
+                    sx[0::2], sx[1::2] = edges[:-1], edges[1:]
+                    if histtype == "stepfilled":
+                        self.fill_between(sx, np.repeat(running, 2),
+                                          np.repeat(running + count, 2),
+                                          color=colour, alpha=alpha)
+                    handles.append(self.plot(sx, np.repeat(running + count, 2),
+                                             color=colour, label=text)[0])
+                running = running + count
+            return counts_list, edges, handles
+        data = (datasets[0] if datasets is not None and len(datasets) == 1
+                else np.asarray(x, dtype=np.float64).ravel())
+        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
+                                     density=bool(density))
+        if cumulative:
+            counts = np.cumsum(counts)
+        widths = np.diff(edges)
+        base = np.zeros(counts.size) if bottom is None else _fill(bottom, counts.size)
+        bar_align = "edge" if align in ("left", "edge") else "center"
+        if bar_align == "edge":
+            centers = edges[:-1]
+        else:
+            centers = (edges[:-1] + edges[1:]) / 2.0
+        lab = "" if label is None else str(label)
+        if histtype == "bar":
+            if orientation == "horizontal":
+                handles = self.barh(centers, counts, height=widths, left=base,
+                                    align=bar_align, color=color, edgecolor=edgecolor,
+                                    alpha=alpha, label=lab, _hist=True)
+            elif orientation == "vertical":
+                handles = self.bar(centers, counts, width=widths, bottom=base,
+                                   align=bar_align, color=color, edgecolor=edgecolor,
+                                   alpha=alpha, label=lab, _hist=True)
+            else:
+                raise ValueError(f"unsupported orientation: {orientation!r}")
+            return np.asarray(counts, dtype=np.float64), edges, handles
+        if orientation == "horizontal":
+            sx = np.repeat(counts, 2)
+            sy = np.empty(2 * counts.size)
+            sy[0::2], sy[1::2] = edges[:-1], edges[1:]
+            if histtype == "stepfilled":
+                self.fill_betweenx(sy, np.repeat(base, 2), sx,
+                                   color=color, alpha=alpha)
+            handles = self.plot(sx, sy, color=color, label=lab)
+            return np.asarray(counts, dtype=np.float64), edges, handles
+        if orientation != "vertical":
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        sx = np.empty(2 * counts.size)
+        sy = np.empty(2 * counts.size)
+        sx[0::2], sx[1::2] = edges[:-1], edges[1:]
+        sy[0::2], sy[1::2] = counts, counts
+        if histtype == "stepfilled":
+            self.fill_between(sx, sy, np.repeat(base, 2), color=color, alpha=alpha)
+        handles = self.plot(sx, sy, color=color, label=lab)
+        return np.asarray(counts, dtype=np.float64), edges, handles
+
+    def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
+            align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
+        """Vertical bars; `color` may be a single colour or one per bar."""
+        hist = kwargs.pop("_hist", False)
+        _check_kwargs(kwargs, "bar", _BAR_KWARGS)
+        x = _as_f64(self._xdate(x))
+        n = x.size
+        h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
+        if align not in ("center", "edge"):
+            raise ValueError(f"unsupported align: {align!r}")
+        left = x - w / 2.0 if align == "center" else x
+        # Matplotlib pins each bar's baseline so autoscaling keeps it on the axis.
+        self._sticky_y += [float(v) for v in np.asarray(b).ravel()]
+        colors = _bar_colors(color if color is not None else self._next_color(patch=True), n)
+        self._append_bar(dict(
+            left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
+            colors=colors,
+            edgecolor=(_bar_colors(edgecolor, n) if edgecolor is not None else None),
+            alpha=None if alpha is None else float(alpha), label=str(label),
+            vertical=True), container=not hist)
+        if yerr is not None:
+            lo, hi = _err_pair(yerr, n, "yerr")
+            ecolor = edgecolor or (colors[0] if colors else "#1f77b4")
+            self.errors.append((np.ascontiguousarray(left + w / 2.0),
+                                np.ascontiguousarray(b + h), lo, hi,
+                                np.zeros(n), np.zeros(n), str(ecolor), 0.0))
+        return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
+                             str(label))
+
+    def bar_label(self, container, labels=None, fmt="%g", label_type="edge", padding=0,
+                  **kwargs):
+        """Annotate each bar with its length, at the bar end or centred."""
+        if label_type not in ("edge", "center"):
+            raise ValueError(f"unsupported label_type: {label_type!r}")
+        handles = list(container) if isinstance(container, (list, tuple)) else [container]
+        texts = None if labels is None else [str(v) for v in np.asarray(labels, dtype=object).ravel()]
+        if texts is not None and len(texts) != len(handles):
+            raise ValueError("labels must have one entry per bar")
+        out = []
+        for i, handle in enumerate(handles):
+            group = self.bars[handle._group]
+            index = handle._index
+            if group.get("vertical", True):
+                length = float(group["height"][index])
+                x = float(group["left"][index] + group["width"][index] / 2.0)
+                anchor = float(group["bottom"][index])
+                if label_type == "edge":
+                    y, va, shift = anchor + length, "bottom", (0.0, float(padding))
+                else:
+                    y, va, shift = anchor + length / 2.0, "center", (0.0, 0.0)
+                ha = "center"
+            else:
+                length = float(group["width"][index])
+                y = float(group["bottom"][index] + group["height"][index] / 2.0)
+                anchor = float(group["left"][index])
+                if label_type == "edge":
+                    x, ha, shift = anchor + length, "left", (float(padding), 0.0)
+                else:
+                    x, ha, shift = anchor + length / 2.0, "center", (0.0, 0.0)
+                va = "center"
+            if texts is not None:
+                text = texts[i]
+            elif callable(fmt):
+                text = str(fmt(length))
+            elif "%" in str(fmt):
+                text = str(fmt) % length
+            else:
+                text = str(fmt).format(length)
+            self.text(x, y, text, color=kwargs.get("color", "black"),
+                      fontsize=kwargs.get("fontsize", 10), ha=ha, va=va,
+                      offset=shift)
+            out.append(text)
+        return out
+
+    def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
+             align="center", alpha=None, linewidth=None, **kwargs):
+        """Horizontal bars, stored as the same rectangles as `bar`."""
+        hist = kwargs.pop("_hist", False)
+        _check_kwargs(kwargs, "barh", _BAR_KWARGS)
+        y = (self._category_positions(y) if _looks_like_categories(y)
+             else _as_f64(y))
+        n = y.size
+        w, h, l = _fill(width, n), _fill(height, n), _fill(left, n)
+        if align not in ("center", "edge"):
+            raise ValueError(f"unsupported align: {align!r}")
+        bottom = y - h / 2.0 if align == "center" else y
+        self._sticky_x += [float(v) for v in np.asarray(l).ravel()]
+        self._append_bar(dict(
+            left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
+            colors=_bar_colors(color if color is not None else self._next_color(patch=True), n),
+            edgecolor=(_bar_colors(edgecolor, n) if edgecolor is not None else None),
+            alpha=None if alpha is None else float(alpha), label=str(label),
+            vertical=False), container=not hist)
+        return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
+                             str(label))
+
+    def grouped_bar(self, data, tick_labels=None, labels=None, bottom=None,
+                    group_spacing=None, colors=None, edgecolor=None, **kwargs):
+        """Side-by-side bars for several series, one `BarContainer` per series."""
+        if isinstance(data, dict):
+            series = [str(v) for v in (labels if labels is not None else data.keys())]
+            values = np.asarray(list(data.values()), dtype=np.float64).T
+        else:
+            values = np.asarray(data, dtype=np.float64)
+            series = [str(v) for v in (labels or [])]
+        if values.ndim != 2:
+            raise ValueError("grouped_bar expects a mapping or a 2-D array")
+        n, m = values.shape
+        if len(series) != m:
+            series = [f"series {i + 1}" for i in range(m)]
+        bar_width = 0.8 / m
+        gap = 0.0 if group_spacing is None else float(group_spacing) * bar_width
+        centers = np.arange(n, dtype=np.float64) * (m * bar_width + gap)
+        palette = _colors(colors) if colors is not None else []
+        containers = []
+        for i in range(m):
+            colour = palette[i % len(palette)] if palette else self._next_color()
+            containers.append(self.bar(
+                centers + (i - (m - 1) / 2.0) * bar_width, values[:, i],
+                width=bar_width, bottom=0.0 if bottom is None else bottom,
+                color=colour, edgecolor=edgecolor, label=series[i], **kwargs))
+        if tick_labels is not None:
+            self.set_xticks(centers, labels=list(tick_labels))
+        return _GroupedBarResult(containers)
+
+    def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
+                     alpha=None, label="", step=None, **kwargs):
+        """Fill between two curves; `where` masks split the area into runs."""
+        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
+        a, b = _fill(y1, x.size), _fill(y2, x.size)
+        c = color if color is not None else self._next_color(patch=True)
+        for xs, ya, yb in _runs(x, a, b, where):
+            self._append_band(_band(np.concatenate([xs, xs[::-1]]),
+                                    np.concatenate([ya, yb[::-1]]), c, alpha, label))
+
+    def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
+                      **kwargs):
+        y = _as_f64(y)
+        a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
+        c = color if color is not None else self._next_color(patch=True)
+        for ys, xa, xb in _runs(y, a, b, where):
+            self._append_band(_band(np.concatenate([xa, xb[::-1]]),
+                                    np.concatenate([ys, ys[::-1]]), c, alpha, label))
+
+    def fill(self, *args, color=None, alpha=None, label="", **kwargs):
+        """Filled polygons: every `x, y` pair is one polygon, optionally
+        followed by its own colour, as in Matplotlib (`fill(x, y, x2, y2)`
+        draws two polygons, not one polygon through both)."""
+        groups, pair = [], []
+        for arg in args:
+            if isinstance(arg, str):
+                if not groups or groups[-1][1] is not None:
+                    raise TypeError("fill expects x, y pairs, optionally followed by a colour")
+                groups[-1] = (groups[-1][0], arg)
+                continue
+            pair.append(arg)
+            if len(pair) == 2:
+                groups.append((pair, None))
+                pair = []
+        if pair:
+            raise TypeError("fill expects x, y pairs, optionally followed by a colour")
+        for (x, y), spec in groups:
+            c = spec or color or self._next_color(patch=True)
+            self._append_band(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
+
+    def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
+                alpha=None, label="", **kwargs):
+        """Horizontal line at data `y`, spanning an axes-fraction x range."""
+        y = _as_f64(y)[0]
+        self._hline_refs.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
+                                linestyle=linestyle, linewidth=linewidth, alpha=alpha,
+                                label=str(label)))
+
+    def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
+                alpha=None, label="", **kwargs):
+        """Vertical line at data `x`, spanning an axes-fraction y range."""
+        x = _as_f64(self._xdate(x))[0]
+        self._vline_refs.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
+                                linestyle=linestyle, linewidth=linewidth, alpha=alpha,
+                                label=str(label)))
+
+    def axhspan(self, ymin, ymax, xmin=0.0, xmax=1.0, color=None, alpha=None, label="",
+                **kwargs):
+        """Horizontal band between two data y values, over an axes-fraction x range."""
+        ymin, ymax = _as_f64((ymin, ymax))
+        self.hspans.append(dict(ymin=float(ymin), ymax=float(ymax), xmin=float(xmin),
+                                xmax=float(xmax), color=color, alpha=alpha, label=str(label)))
+
+    def axvspan(self, xmin, xmax, ymin=0.0, ymax=1.0, color=None, alpha=None, label="",
+                **kwargs):
+        """Vertical band between two data x values, over an axes-fraction y range."""
+        values = _as_f64(self._xdate((xmin, xmax)))
+        self.vspans.append(dict(xmin=float(values[0]), xmax=float(values[1]), ymin=float(ymin),
+                                ymax=float(ymax), color=color, alpha=alpha, label=str(label)))
+
+    def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
+                vmin=None, vmax=None, data=None, norm=None, **kwargs):
+        """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
+        colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
+        _check_kwargs(kwargs, "scatter", _SCATTER_KWARGS)
+        if data is not None:
+            def column(value):
+                return data[value] if isinstance(value, str) and value in data else value
+            x, y, s, c = column(x), column(y), column(s), column(c)
+        x = _as_f64(self._xdate(x))
+        y = _as_f64(self._ydate(y))
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        n = y.size
+        values, colors = _scatter_colors(c if c is not None else self._next_color(patch=True), n)
+        if norm is not None and values is not None:
+            values, vmin, vmax = _norm_values(norm, values)
+        entry = dict(
+            x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
+            values=values, cmap=_cmap_name(cmap),
+            clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
+            marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
+            label=str(label))
+        self._append_scatter(entry)
+        return _ScatterHandle(entry, self)
+
+    def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
+                 capsize=None, label="", color=None, **kwargs):
+        """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
+        error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
+        x = _as_f64(self._xdate(x))
+        y = _as_f64(y)
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        n = y.size
+        ylo, yhi = _err_pair(yerr, n, "yerr")
+        xlo, xhi = _err_pair(xerr, n, "xerr")
+        c = (color or ecolor or _FMT_COLORS.get(fmt[:1])
+             or self._next_color())
+        # matplotlib's default fmt='' still draws a solid line; marker-only formats
+        # ('o', 's', ...) get bars only since markers are not rendered yet.
+        elw = elinewidth if elinewidth is not None else rcParams.get("lines.linewidth", 1.5)
+        if fmt != "none" and (fmt == "" or "-" in fmt):
+            self._append_series(_series(x, y, label, c, linewidth=elw))
+        self.errors.append((np.ascontiguousarray(x), np.ascontiguousarray(y), ylo, yhi,
+                            xlo, xhi, c, float(capsize or 0.0) * 1.4))
+        _, _, marker = _stem_fmt(fmt, "")
+        if marker:
+            self.scatter(x, y, s=36, c=c, marker=marker)
+
+    def eventplot(self, positions, orientation="horizontal", lineoffsets=0.0, linelengths=1.0,
+                  colors=None, linestyles=None, linewidths=None, **kwargs):
+        """One short line per event position, one row per positions array."""
+        data = kwargs.pop("data", None)
+        if data is not None:
+            positions = data[positions] if isinstance(positions, str) else positions
+            colors = data[colors] if isinstance(colors, str) else colors
+            lineoffsets = data[lineoffsets] if isinstance(lineoffsets, str) else lineoffsets
+            linelengths = data[linelengths] if isinstance(linelengths, str) else linelengths
+            linestyles = data[linestyles] if isinstance(linestyles, str) else linestyles
+        rows = positions
+        if isinstance(rows, np.ndarray) and rows.ndim == 2:
+            rows = list(rows)
+        elif not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
+            rows = [rows]
+        rows = [np.asarray(r, dtype=np.float64).ravel() for r in rows]
+        if not rows:
+            return None
+        n = len(rows)
+        if np.isscalar(lineoffsets):
+            offsets = np.full(n, float(lineoffsets)) + np.arange(n)
+        else:
+            offsets = _fill(lineoffsets, n)
+        lengths = _fill(linelengths, n)
+        cols = _line_colors(colors, n)
+        styles = _line_styles(linestyles, n)
+        collections = []
+        for i, row in enumerate(rows):
+            half = float(lengths[i]) / 2.0
+            if orientation == "horizontal":
+                collections.append(self.vlines(
+                    row, offsets[i] - half, offsets[i] + half,
+                    colors=cols[i], linestyles=styles[i], linewidths=linewidths))
+            elif orientation == "vertical":
+                collections.append(self.hlines(
+                    row, offsets[i] - half, offsets[i] + half,
+                    colors=cols[i], linestyles=styles[i], linewidths=linewidths))
+            else:
+                raise ValueError(f"unsupported orientation: {orientation!r}")
+        return collections
+
+    def broken_barh(self, xranges, yrange, colors=None, edgecolor=None, alpha=None,
+                    linewidth=None, **kwargs):
+        """Horizontal bars from `(xstart, width)` pairs over a shared y range."""
+        colors = kwargs.get("facecolors", colors)
+        pairs = [(float(a), float(b)) for a, b in xranges]
+        if not pairs:
+            return None
+        n = len(pairs)
+        position, height = yrange
+        if isinstance(position, str):
+            # A categorical y position labels the axis and sits at index 0.
+            offset = self._category_positions([position])[0]
+            step = float(height) / 2.0 if kwargs.get("align", "center") == "center" else 0.0
+            position = offset - step
+        self._append_bar(dict(left=np.array([a for a, _ in pairs]),
+                              bottom=np.full(n, float(position)),
+                              width=np.array([b for _, b in pairs]),
+                              height=np.full(n, float(height)),
+                              colors=_bar_colors(colors, n),
+                              edgecolor=(_bar_colors(edgecolor, n)
+                                         if edgecolor is not None else None),
+                              alpha=None if alpha is None else float(alpha),
+                              label="", vertical=True))
+        return None
+
+    def axline(self, xy1, xy2=None, slope=None, **kwargs):
+        """Infinite line through `xy1`/`xy2` (or `xy1` with `slope`), clipped to
+        the axes. It never contributes to the data limits."""
+        if (xy2 is None) == (slope is None):
+            raise ValueError("axline needs exactly one of xy2 or slope")
+        self._axlines.append(dict(
+            p=(float(xy1[0]), float(xy1[1])),
+            xy2=None if xy2 is None else (float(xy2[0]), float(xy2[1])),
+            slope=None if slope is None else float(slope),
+            color=kwargs.get("color") or kwargs.get("c"),
+            linestyle=kwargs.get("linestyle") or kwargs.get("ls") or "-",
+            linewidth=float(kwargs.get("linewidth") or kwargs.get("lw") or 1.5),
+            alpha=kwargs.get("alpha"), label=str(kwargs.get("label", ""))))
+        return None
+
+    def hlines(self, y, xmin, xmax, colors=None, linestyles=None, linewidths=None,
+               label="", **kwargs):
+        """Horizontal segments from `xmin` to `xmax` at every `y`."""
+        ys = np.asarray(y, dtype=np.float64).ravel()
+        lo, hi = _fill(self._xdate(xmin), ys.size), _fill(self._xdate(xmax), ys.size)
+        cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
+        widths = _fill(linewidths, ys.size) if linewidths is not None else None
+        handles = []
+        for i in range(ys.size):
+            self._append_series(_series(
+                [lo[i], hi[i]], [ys[i], ys[i]], label, cols[i], linestyle=styles[i],
+                linewidth=2.0 if widths is None else float(widths[i])))
+            handles.append(_LineHandle(self.lines[-1]))
+        return handles
+
+    def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
+               label="", **kwargs):
+        """Vertical segments from `ymin` to `ymax` at every `x`."""
+        xs = np.asarray(self._xdate(x), dtype=np.float64).ravel()
+        lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
+        cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
+        widths = _fill(linewidths, xs.size) if linewidths is not None else None
+        handles = []
+        for i in range(xs.size):
+            self._append_series(_series(
+                [xs[i], xs[i]], [lo[i], hi[i]], label, cols[i], linestyle=styles[i],
+                linewidth=2.0 if widths is None else float(widths[i])))
+            handles.append(_LineHandle(self.lines[-1]))
+        return handles
+
+    def stem(self, *args, linefmt=None, markerfmt=None, basefmt=None, bottom=0.0, label="",
+             orientation="vertical", **kwargs):
+        """Stem plot: one segment per point plus a marker at the tip."""
+        if len(args) == 1:
+            y = np.asarray(args[0], dtype=np.float64).ravel()
+            x = np.arange(y.size, dtype=np.float64)
+        elif len(args) == 2:
+            x = np.asarray(self._xdate(args[0]), dtype=np.float64).ravel()
+            y = np.asarray(args[1], dtype=np.float64).ravel()
+        else:
+            raise TypeError("stem expects y or x, y")
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        colour, style, _ = _stem_fmt(linefmt)
+        colour = kwargs.get("color") or colour or _CYCLE[len(self.lines) % len(_CYCLE)]
+        marker = baseline = None
+        stemlines = _LineGroupHandle()
+        if x.size:
+            if orientation == "vertical":
+                stemlines = _LineGroupHandle(self.vlines(
+                    x, bottom, y, colors=colour, linestyles=style,
+                    linewidths=rcParams.get("lines.linewidth", 1.5)))
+            else:
+                stemlines = _LineGroupHandle(self.hlines(
+                    y, bottom, x, colors=colour, linestyles=style,
+                    linewidths=rcParams.get("lines.linewidth", 1.5)))
+            marker_colour, _, marker_fmt = _stem_fmt(markerfmt, "o")
+            marker = self.scatter(x, y, s=36, c=marker_colour or colour,
+                                  marker=marker_fmt)
+            if basefmt != "none":
+                if orientation == "vertical":
+                    base_lines = self.hlines(
+                        [float(bottom)], float(x.min()), float(x.max()),
+                        colors=colour, linewidths=rcParams.get("lines.linewidth", 1.5))
+                else:
+                    base_lines = self.vlines(
+                        [float(bottom)], float(y.min()), float(y.max()),
+                        colors=colour, linewidths=rcParams.get("lines.linewidth", 1.5))
+                baseline = _LineGroupHandle(base_lines)[0] if base_lines else None
+        return _StemContainer(marker, stemlines, baseline)
+
+    def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
+            normalize=True, shadow=False, **kwargs):
+        """Pie chart drawn as filled wedges; returns `(wedges, texts, autotexts)`."""
+        values = np.asarray(x, dtype=np.float64).ravel()
+        if values.size == 0 or np.any(values < 0):
+            raise ValueError("pie values must be non-negative")
+        total = float(values.sum())
+        if total <= 0.0:
+            raise ValueError("pie values must sum to a positive number")
+        if not normalize and total > 1.0:
+            raise ValueError("pie values must sum to <= 1 when normalize=False")
+        fracs = values / total
+        angles = np.concatenate([[0.0], np.cumsum(fracs) * 360.0]) + float(startangle)
+        offsets = np.zeros(values.size) if explode is None else _fill(explode, values.size)
+        cols = _colors(colors) or list(_CYCLE)
+        self.set_aspect("equal")
+        self.set_xlim(-1.25, 1.25)
+        self.set_ylim(-1.25, 1.25)
+        texts, autotexts, wedges = [], [], []
+        for i in range(values.size):
+            a0, a1 = np.radians(angles[i]), np.radians(angles[i + 1])
+            mid = (a0 + a1) / 2.0
+            ex, ey = float(offsets[i]) * np.cos(mid), float(offsets[i]) * np.sin(mid)
+            arc = np.linspace(a0, a1, 48)
+            band = _band(np.concatenate([[ex], ex + np.cos(arc)]),
+                         np.concatenate([[ey], ey + np.sin(arc)]),
+                         cols[i % len(cols)], None)
+            self._append_band(band)
+            wedges.append(_Wedge(cols[i % len(cols)], center=(ex, ey),
+                                 theta1=float(np.degrees(a0)),
+                                 theta2=float(np.degrees(a1)), band=band,
+                                 label=labels[i] if labels is not None else ""))
+            if labels is not None:
+                self.text(ex + 1.1 * np.cos(mid), ey + 1.1 * np.sin(mid), labels[i],
+                          ha="center", va="center")
+                texts.append(_TextLabel(labels[i]))
+            if autopct is not None:
+                pct = float(fracs[i]) * 100.0
+                shown = autopct(pct) if callable(autopct) else str(autopct) % pct
+                self.text(ex + 0.6 * np.cos(mid), ey + 0.6 * np.sin(mid), shown,
+                          ha="center", va="center")
+                autotexts.append(_TextLabel(shown))
+        self.set_axis_off()
+        return _PieResult(wedges, texts, autotexts)
+
+    def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
+                  **kwargs):
+        """Stacked areas: each layer fills between the running total and itself."""
+        if baseline not in ("zero", "sym", "wiggle", "weighted_wiggle"):
+            raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
+        wiggle = baseline in ("wiggle", "weighted_wiggle")
+        x = np.asarray(x, dtype=np.float64).ravel()
+        layers = []
+        for y in ys:
+            a = np.asarray(_as_list(y), dtype=np.float64)
+            if a.ndim == 2 and a.shape[0] == x.size:
+                layers.extend(a[:, i] for i in range(a.shape[1]))
+            elif a.ndim == 2 and a.shape[1] == x.size:
+                layers.extend(a[i] for i in range(a.shape[0]))
+            else:
+                layers.append(a.ravel())
+        if not layers:
+            raise ValueError("stackplot needs at least one y array")
+        labels = list(_as_list(labels)) if labels else []
+        cols = _colors(colors)
+        if baseline == "sym":
+            cum = -np.sum(np.stack(layers), axis=0) / 2.0
+        elif baseline == "weighted_wiggle":
+            stacked = np.stack(layers)
+            total = stacked.sum(axis=0)
+            weights = stacked.shape[0] - np.arange(1, stacked.shape[0] + 1)
+            center = np.divide((stacked * weights[:, None]).sum(axis=0), total,
+                               out=np.zeros_like(total), where=total != 0)
+            cum = -center
+        elif baseline == "wiggle":
+            cum = -np.sum(np.stack(layers), axis=0) / 2.0
+        else:
+            cum = np.zeros(x.size)
+        data_lo = data_hi = 0.0
+        for i, layer in enumerate(layers):
+            if layer.size != x.size:
+                raise ValueError("x and y must have the same length")
+            colour = cols[i % len(cols)] if cols else _CYCLE[i % len(_CYCLE)]
+            lab = str(labels[i]) if i < len(labels) else ""
+            self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha, label=lab)
+            data_lo = min(data_lo, float(cum.min()), float((cum + layer).min()))
+            data_hi = max(data_hi, float(cum.max()), float((cum + layer).max()))
+            cum = cum + layer
+        # Like bars, a stack that stays on one side of zero meets the axis at
+        # y=0 instead of autoscaling a margin below it.
+        if (baseline == "zero" or wiggle) and self.ylim is None:
+            lo, hi = self.get_ylim()
+            if wiggle:
+                reach = max(abs(data_lo), abs(data_hi))
+                lo, hi = -reach, reach
+            elif data_lo >= 0.0:
+                lo = 0.0
+            elif data_hi <= 0.0:
+                hi = 0.0
+            self.set_ylim(lo, hi)
+
+    def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
+        """Staircase line through `x`/`y`; `where` picks the corner placement."""
+        if where in ("pre", "post"):
+            return self.plot(x, y, fmt, label=label, color=color,
+                             drawstyle=f"steps-{where}", **kwargs)
+        elif where == "mid":
+            x_out, y_out = _mid_steps(x, y)
+            return self.plot(x_out, y_out, fmt, label=label, color=color, drawstyle="steps-post", **kwargs)
+        else:
+            raise ValueError(f"unsupported where: {where!r}")
+
+    def stairs(self, values, edges=None, baseline=0.0, orientation="vertical", fill=False,
+               color=None, label="", **kwargs):
+        """Step chart from bin `values` and `edges` (one longer than `values`)."""
+        v = np.asarray(values, dtype=np.float64).ravel()
+        if edges is None:
+            e = np.arange(v.size + 1.0)
+        else:
+            e = np.asarray(edges, dtype=np.float64).ravel()
+            if e.size != v.size + 1:
+                raise ValueError("edges must have len(values) + 1 entries")
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        first = np.empty(2 * v.size)
+        second = np.empty(2 * v.size)
+        first[0::2] = e[:-1]
+        first[1::2] = e[1:]
+        second[0::2] = v
+        second[1::2] = v
+        xs, ys = ((first, second) if orientation == "vertical"
+                  else (second, first))
+        if not fill:
+            return self.plot(xs, ys, color=color, label=label, **kwargs)
+        # A filled `stairs` is one StepPatch: `color` fills it, `alpha` applies to
+        # the whole patch, and no edge is drawn unless one is asked for.
+        alpha = kwargs.pop("alpha", None)
+        edge = kwargs.pop("edgecolor", kwargs.pop("ec", None))
+        linewidth = kwargs.pop("linewidth", kwargs.pop("lw", None))
+        face = kwargs.pop("facecolor", kwargs.pop("fc", None)) or color
+        base = baseline
+        if not np.isscalar(baseline):
+            base = np.repeat(np.asarray(baseline, dtype=float).ravel(), 2)
+        if orientation == "vertical":
+            self.fill_between(xs, ys, base, color=face, alpha=alpha, label=label)
+        else:
+            self.fill_betweenx(ys, xs, base, color=face, alpha=alpha, label=label)
+        if edge is not None:
+            self.plot(xs, ys, color=edge, alpha=alpha, label="",
+                      linewidth=linewidth if linewidth is not None else 1.0)
+        return None
+
+class _StatsAxes:
+    """Statistical plots: box, whisker and violin summaries."""
+
+    def boxplot(self, x, notch=None, sym=None, vert=None, whis=None, positions=None,
+                widths=None, patch_artist=None, labels=None, orientation=None,
+                showmeans=False, showcaps=None, showbox=None, showfliers=None,
+                meanline=False, capwidths=None, boxprops=None, medianprops=None,
+                whiskerprops=None, capprops=None, flierprops=None, meanprops=None,
+                manage_ticks=True, autorange=False, label=None, tick_labels=None,
+                **kwargs):
+        """Box-and-whisker plot for one dataset or a sequence of datasets.
+
+        Returns a dict with `boxes`, `medians`, `whiskers`, `caps`, `fliers`
+        and `means` lists, matching matplotlib's `boxplot` result."""
+        groups = _box_datasets(x)
+        if not groups:
+            raise ValueError("boxplot needs at least one dataset")
+        if orientation is None:
+            orientation = "vertical" if (vert is None or vert) else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        n = len(groups)
+        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
+        wid = _fill(0.5 if widths is None else widths, n)
+        # Matplotlib's caps are half the box width unless `capwidths` says otherwise.
+        cap = _fill([0.5 * v for v in wid] if capwidths is None else capwidths, n)
+        box_style = dict(boxprops or {})
+        median_style = dict(medianprops or {})
+        whisker_style = dict(whiskerprops or {})
+        cap_style = dict(capprops or {})
+        flier_style = dict(flierprops or {})
+        mean_style = dict(meanprops or {})
+        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
+        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
+        box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.0)
+        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
+        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
+        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
+        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
+        cap_color = _single_color(cap_style.get("color", cap_style.get("c")), "black")
+        cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.0)
+        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
+        # `sym=None` means matplotlib's default flier (`o`); only an explicit
+        # empty string (`sym=""`) hides the outliers.
+        flier_format = "o" if sym is None else str(sym)
+        parsed_color, _, parsed_marker = _stem_fmt(flier_format, None)
+        flier_edge = _single_color(
+            flier_style.get("markeredgecolor", flier_style.get("mec",
+                             flier_style.get("color", flier_style.get("c")))),
+            parsed_color or "black")
+        flier_face = _single_color(
+            flier_style.get("markerfacecolor", flier_style.get("mfc")),
+            parsed_color or "none")
+        flier_marker = str(flier_style.get("marker", parsed_marker or "o"))
+        flier_width = _number(
+            flier_style.get("markeredgewidth", flier_style.get("mew")), 1.0)
+        flier_size = _number(flier_style.get("markersize", flier_style.get("ms")), 8.0)
+        draw_caps = True if showcaps is None else bool(showcaps)
+        draw_box = True if showbox is None else bool(showbox)
+        draw_fliers = True if showfliers is None else bool(showfliers)
+        if labels is None:
+            labels = tick_labels
+        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
+        for i, raw in enumerate(groups):
+            vals = np.asarray(raw, dtype=np.float64).ravel()
+            vals = vals[np.isfinite(vals)]
+            if vals.size == 0:
+                raise ValueError("boxplot datasets must not be empty")
+            q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
+            iqr = q3 - q1
+            if autorange:
+                lo, hi = float(vals.min()), float(vals.max())
+            elif isinstance(whis, (tuple, list)):
+                lo = float(np.percentile(vals, float(whis[0])))
+                hi = float(np.percentile(vals, float(whis[1])))
+            else:
+                bound = 1.5 if whis is None else float(whis)
+                low_bound, high_bound = q1 - bound * iqr, q3 + bound * iqr
+                inside = vals[(vals >= low_bound) & (vals <= high_bound)]
+                lo, hi = (float(inside.min()), float(inside.max())) if inside.size else (q1, q3)
+            fliers = vals[(vals < lo) | (vals > hi)]
+            loc, half = float(pos[i]), float(wid[i]) / 2.0
+            if draw_box:
+                if notch:
+                    depth = 1.57 * iqr / np.sqrt(vals.size)
+                    nlo, nhi = med - depth, med + depth
+                    inner = half / 2.0
+                    if orientation == "vertical":
+                        xs = [loc - half, loc - half, loc - inner, loc - inner,
+                              loc - half, loc - half, loc + half, loc + half,
+                              loc + inner, loc + inner, loc + half, loc + half, loc - half]
+                        ys = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
+                    else:
+                        ys = [loc - half, loc - half, loc - inner, loc - inner,
+                              loc - half, loc - half, loc + half, loc + half,
+                              loc + inner, loc + inner, loc + half, loc + half, loc - half]
+                        xs = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
+                    if patch_artist:
+                        self._append_band(_band(xs, ys, box_color, box_style.get("alpha")))
+                    entry = _series(xs, ys, "", box_edge, linewidth=box_width)
+                    self._append_series(entry)
+                    out["boxes"].append(_LineHandle(entry, box_color if patch_artist else "none"))
+                elif orientation == "vertical":
+                    bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
+                                    color=box_color if patch_artist else "none",
+                                    edgecolor=box_edge, label=str(label or "") if i == 0 else "")
+                    out["boxes"].append(bars[0])
+                else:
+                    bars = self.barh([loc], [q3 - q1], height=wid[i], left=q1,
+                                     color=box_color if patch_artist else "none",
+                                     edgecolor=box_edge, label=str(label or "") if i == 0 else "")
+                    out["boxes"].append(bars[0])
+            if orientation == "vertical":
+                med_entry = self._stats_line([loc - half, loc + half], [med, med],
+                                             median_color, median_width)
+                out["medians"].append(med_entry)
+                for y0, y1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [loc, loc], [y0, y1], whisker_color, whisker_width))
+                    if draw_caps:
+                        out["caps"].append(self._stats_line(
+                            [loc - cap[i] / 2.0, loc + cap[i] / 2.0], [y1, y1],
+                            cap_color, cap_width))
+            else:
+                med_entry = self._stats_line([med, med], [loc - half, loc + half],
+                                             median_color, median_width)
+                out["medians"].append(med_entry)
+                for x0, x1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [x0, x1], [loc, loc], whisker_color, whisker_width))
+                    if draw_caps:
+                        out["caps"].append(self._stats_line(
+                            [x1, x1], [loc - cap[i] / 2.0, loc + cap[i] / 2.0],
+                            cap_color, cap_width))
+            if showmeans:
+                mean = float(vals.mean())
+                if orientation == "vertical":
+                    out["means"].append(self._stats_line(
+                        [loc - half, loc + half], [mean, mean], mean_color))
+                else:
+                    out["means"].append(self._stats_line(
+                        [mean, mean], [loc - half, loc + half], mean_color))
+            if draw_fliers and fliers.size and flier_format != "":
+                style = dict(linestyle="none", marker=flier_marker,
+                             markersize=flier_size, mfc=flier_face, mec=flier_edge,
+                             mew=flier_width)
+                if orientation == "vertical":
+                    entry = self.plot(np.full(fliers.size, loc), fliers, **style)
+                else:
+                    entry = self.plot(fliers, np.full(fliers.size, loc), **style)
+                out["fliers"].append(entry[0])
+            else:
+                out["fliers"].append(None)
+        if manage_ticks:
+            shown = ([str(v) for v in labels] if labels is not None
+                     else [f"{v:g}" for v in pos])
+            if orientation == "vertical":
+                self.set_xticks(pos, labels=shown)
+            else:
+                self.set_yticks(pos, labels=shown)
+        return out
+
+    def bxp(self, bxpstats, positions=None, widths=None, vert=None, orientation=None,
+            patch_artist=False, shownotches=False, showmeans=False, showcaps=True,
+            showbox=True, showfliers=True, boxprops=None, whiskerprops=None,
+            flierprops=None, medianprops=None, meanprops=None, meanline=False,
+            manage_ticks=True, zorder=2, **kwargs):
+        """Draw precomputed boxplot statistics, as returned by `cbook.boxplot_stats`."""
+        stats = list(bxpstats)
+        if not stats:
+            raise ValueError("bxp needs at least one statistics entry")
+        if orientation is None:
+            orientation = "vertical" if (vert is None or vert) else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        n = len(stats)
+        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
+        wid = _fill(0.5 if widths is None else widths, n)
+        box_style = dict(boxprops or {})
+        median_style = dict(medianprops or {})
+        whisker_style = dict(whiskerprops or {})
+        flier_style = dict(flierprops or {})
+        mean_style = dict(meanprops or {})
+        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
+        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
+        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
+        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
+        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
+        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
+        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
+        flier_color = _single_color(
+            flier_style.get("markerfacecolor", flier_style.get("mfc",
+                             flier_style.get("color", flier_style.get("c")))),
+            "black")
+        flier_marker = str(flier_style.get("marker", "o"))
+        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
+        for i, stat in enumerate(stats):
+            q1 = float(stat.get("q1", 0.0))
+            q3 = float(stat.get("q3", q1))
+            med = float(stat.get("med", 0.5 * (q1 + q3)))
+            lo = float(stat.get("whislo", q1))
+            hi = float(stat.get("whishi", q3))
+            loc, half = float(pos[i]), float(wid[i]) / 2.0
+            cap_half = half / 2.0
+            if showbox:
+                if orientation == "vertical":
+                    bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
+                                    color=box_color if patch_artist else "none",
+                                    edgecolor=box_edge, label=str(stat.get("label", "")) if i == 0 else "")
+                else:
+                    bars = self.barh([loc], [q3 - q1], height=wid[i], left=q1,
+                                     color=box_color if patch_artist else "none",
+                                     edgecolor=box_edge, label=str(stat.get("label", "")) if i == 0 else "")
+                out["boxes"].append(bars[0])
+            if orientation == "vertical":
+                out["medians"].append(self._stats_line(
+                    [loc - half, loc + half], [med, med], median_color, median_width))
+                for y0, y1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [loc, loc], [y0, y1], whisker_color, whisker_width))
+                    if showcaps:
+                        out["caps"].append(self._stats_line(
+                            [loc - cap_half, loc + cap_half], [y1, y1],
+                            whisker_color, whisker_width))
+            else:
+                out["medians"].append(self._stats_line(
+                    [med, med], [loc - half, loc + half], median_color, median_width))
+                for x0, x1 in ((q3, hi), (q1, lo)):
+                    out["whiskers"].append(self._stats_line(
+                        [x0, x1], [loc, loc], whisker_color, whisker_width))
+                    if showcaps:
+                        out["caps"].append(self._stats_line(
+                            [x1, x1], [loc - cap_half, loc + cap_half],
+                            whisker_color, whisker_width))
+            if showmeans and stat.get("mean") is not None:
+                mean = float(stat["mean"])
+                if orientation == "vertical":
+                    out["means"].append(self._stats_line(
+                        [loc - half, loc + half], [mean, mean], mean_color))
+                else:
+                    out["means"].append(self._stats_line(
+                        [mean, mean], [loc - half, loc + half], mean_color))
+            fliers = np.asarray(stat.get("fliers", []), dtype=float).ravel()
+            if showfliers and fliers.size:
+                if orientation == "vertical":
+                    self.scatter(np.full(fliers.size, loc), fliers, s=36,
+                                 c=flier_color, marker=flier_marker)
+                else:
+                    self.scatter(fliers, np.full(fliers.size, loc), s=36,
+                                 c=flier_color, marker=flier_marker)
+                out["fliers"].append(self.scatter_pts[-1])
+            else:
+                out["fliers"].append(None)
+        if manage_ticks:
+            labels = [str(stat.get("label", "")) for stat in stats]
+            shown = labels if any(labels) else [f"{v:g}" for v in pos]
+            if orientation == "vertical":
+                self.set_xticks(pos, labels=shown)
+            else:
+                self.set_yticks(pos, labels=shown)
+        return out
+
+    def _stats_line(self, x, y, color, linewidth=1.5, linestyle="-"):
+        """Append one statistics line and return its mutable handle."""
+        entry = _series(x, y, "", color, linestyle=linestyle, linewidth=linewidth)
+        self._append_series(entry)
+        return _LineHandle(entry)
+
+    def violinplot(self, dataset, positions=None, vert=None, widths=0.5,
+                   showmeans=False, showextrema=True, showmedians=False,
+                   quantiles=None, points=100, bw_method=None, orientation=None,
+                   side="both", **kwargs):
+        """Violin plot: a Gaussian KDE per dataset drawn as a filled violin.
+
+        Returns a dict with `bodies`, `cmeans`, `cmaxes`, `cmins` and `cbars`
+        (plus `cquantiles` when `quantiles` is given)."""
+        groups = _box_datasets(dataset)
+        if not groups:
+            raise ValueError("violinplot needs at least one dataset")
+        if orientation is None:
+            orientation = "vertical" if (vert is None or vert) else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        if side not in ("both", "left", "right", "low", "high"):
+            raise ValueError(f"unsupported side: {side!r}")
+        n = len(groups)
+        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
+        wid = _fill(widths, n)
+        colors = _colors(kwargs.get("facecolor", kwargs.get("facecolors")))
+        if not colors:
+            # Matplotlib 3.11 uses one cycle colour for every body in the call,
+            # not a new colour per violin.
+            colors = [self._next_color()]
+        alpha = kwargs.get("alpha")
+        body_alpha = 0.3 if alpha is None else float(alpha)
+        # Extrema, means, medians and quantiles use the body colour. Bodies are
+        # plain translucent fills with no outline, like Matplotlib's
+        # fill_between path; an explicit edge colour is the only thing drawn.
+        edge = kwargs.get("linecolor", kwargs.get("edgecolor"))
+        line_color = _single_color(edge, colors[0])
+        out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
+        if quantiles is not None:
+            out["cquantiles"] = []
+        per_group_quantiles = None
+        if quantiles is not None and isinstance(quantiles, (list, tuple)):
+            if len(quantiles) == n and any(
+                    isinstance(q, (list, tuple, np.ndarray)) for q in quantiles):
+                per_group_quantiles = [
+                    np.atleast_1d(np.asarray(q, dtype=np.float64)).ravel()
+                    for q in quantiles
+                ]
+        for i, raw in enumerate(groups):
+            vals = np.asarray(raw, dtype=np.float64).ravel()
+            vals = vals[np.isfinite(vals)]
+            if vals.size == 0:
+                raise ValueError("violinplot datasets must not be empty")
+            grid, density = _kde(vals, points, bw_method)
+            peak = float(density.max())
+            if not np.isfinite(peak) or peak <= 0.0:
+                peak = 1.0
+            loc, half = float(pos[i]), float(wid[i]) / 2.0
+            scale = half / peak
+            if orientation == "vertical":
+                if side == "both":
+                    xs = np.concatenate([loc + density * scale,
+                                         (loc - density * scale)[::-1]])
+                    ys = np.concatenate([grid, grid[::-1]])
+                else:
+                    sign = -1.0 if side in ("left", "low") else 1.0
+                    xs = np.concatenate([[loc], loc + sign * density * scale, [loc]])
+                    ys = np.concatenate([[grid[0]], grid, [grid[-1]]])
+            else:
+                if side == "both":
+                    ys = np.concatenate([loc + density * scale,
+                                         (loc - density * scale)[::-1]])
+                    xs = np.concatenate([grid, grid[::-1]])
+                else:
+                    sign = -1.0 if side in ("left", "low") else 1.0
+                    ys = np.concatenate([[loc], loc + sign * density * scale, [loc]])
+                    xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
+            color = colors[i] if i < len(colors) else colors[0]
+            entry = _band(xs, ys, color, body_alpha)
+            self._append_band(entry)
+            out["bodies"].append(_ViolinBody(entry, color))
+            if edge is not None:
+                outline = np.append(xs, xs[0])
+                outline_y = np.append(ys, ys[0])
+                self._stats_line(outline, outline_y, line_color)
+            vmin, vmax = float(vals.min()), float(vals.max())
+            horizontal = orientation == "horizontal"
+            if showextrema:
+                out["cmins"].append(self._stats_line(
+                    [loc - half, loc + half], [vmin, vmin], line_color)
+                    if not horizontal else self._stats_line(
+                    [vmin, vmin], [loc - half, loc + half], line_color))
+                out["cmaxes"].append(self._stats_line(
+                    [loc - half, loc + half], [vmax, vmax], line_color)
+                    if not horizontal else self._stats_line(
+                    [vmax, vmax], [loc - half, loc + half], line_color))
+                out["cbars"].append(self._stats_line(
+                    [loc, loc], [vmin, vmax], line_color)
+                    if not horizontal else self._stats_line(
+                    [vmin, vmax], [loc, loc], line_color))
+            if showmeans:
+                mean = float(vals.mean())
+                out["cmeans"].append(self._stats_line(
+                    [loc - half, loc + half], [mean, mean], line_color)
+                    if not horizontal else self._stats_line(
+                    [mean, mean], [loc - half, loc + half], line_color))
+            if showmedians:
+                median = float(np.median(vals))
+                self._stats_line(
+                    [loc - half, loc + half], [median, median], line_color)
+            if quantiles is not None:
+                q_values = (per_group_quantiles[i] if per_group_quantiles is not None
+                            else np.atleast_1d(
+                                np.asarray(quantiles, dtype=np.float64)).ravel())
+                for q in q_values:
+                    value = float(np.percentile(vals, q))
+                    out["cquantiles"].append(self._stats_line(
+                        [value, value], [loc - half, loc + half], line_color)
+                        if horizontal else self._stats_line(
+                        [loc - half, loc + half], [value, value], line_color))
+        return out
+
+class _FieldAxes:
+    """Gridded and vector fields: images, contours, quiver and hexbin."""
+
+    def clabel(self, *args, **kwargs):
+        if args and hasattr(args[0], "clabel"):
+            return args[0].clabel(*args[1:], **kwargs)
+        return []
+
+    def table(self, cellText=None, cellColours=None, **kwargs):
+        """Add a table to the Axes, as `Axes.table`."""
+        return Table(self, cellText=cellText, cellColours=cellColours, **kwargs)
+
+    def spy(self, Z, precision=0, marker=None, markersize=None,
+            aspect="equal", origin="upper", **kwargs):
+        """Plot the sparsity pattern of an array."""
+        data = np.asarray(Z)
+        if precision == "present":
+            mask = np.isfinite(data)
+        elif precision in (None, 0):
+            mask = data != 0
+        else:
+            mask = np.abs(data) > float(precision)
+        image = self.imshow(
+            mask.astype(float), cmap="binary_r", interpolation="nearest",
+            aspect=aspect, origin=origin, **kwargs)
+        self.set_xticks([])
+        self.set_yticks([])
+        return image
+
+    def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
+               interpolation=None, aspect=None, alpha=None, clim=None, norm=None,
+               colorizer=None, **kwargs):
+        """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
+        (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
+        `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
+        image's opacity. When omitted, `rcParams["image.interpolation"]`
+        supplies the default. `clim` and Matplotlib's extra artist kwargs are
+        accepted."""
+        _check_kwargs(kwargs, "imshow", _IMAGE_KWARGS)
+        if clim is not None:
+            vmin, vmax = clim
+        if colorizer is not None:
+            cmap = colorizer.cmap if colorizer.cmap is not None else cmap
+            if colorizer.norm is not None:
+                vmin = getattr(colorizer.norm, "vmin", vmin)
+                vmax = getattr(colorizer.norm, "vmax", vmax)
+        setting = (rcParams.get("image.interpolation", "nearest")
+                   if interpolation is None else interpolation)
+        interp = str(setting).lower()
+        interp = {
+            "spline16": "bicubic", "spline36": "bicubic", "hanning": "bilinear",
+            "hamming": "bilinear", "hermite": "bicubic", "kaiser": "bicubic",
+            "quadric": "bicubic", "catrom": "bicubic", "gaussian": "bicubic",
+            "lanczos": "bicubic", "blackman": "bilinear", "sinc": "bicubic",
+            "bessel": "bicubic", "mitchell": "bicubic",
+        }.get(interp, interp)
+        a = _as_image(X)
+        if isinstance(norm, str):
+            # Matplotlib accepts "log" as shorthand for a LogNorm; map it before
+            # the normalisation pass, which expects an object with vmin/vmax.
+            kind = norm.lower()
+            if kind == "log":
+                positive = a[np.isfinite(a) & (a > 0.0)] if a.ndim == 2 else np.empty(0)
+                lo = vmin if vmin is not None else (
+                    float(positive.min()) if positive.size else 1.0)
+                hi = vmax if vmax is not None else (
+                    float(positive.max()) if positive.size else float(lo) * 10.0)
+                if not float(hi) > float(lo):
+                    hi = float(lo) * 10.0
+                norm = _LogNorm(vmin=lo, vmax=hi)
+            elif kind in ("linear", "none", ""):
+                norm = None
+            else:
+                raise NotImplementedError(f"norm={norm!r} is not supported yet")
+        if norm is not None and a.ndim == 2:
+            a, vmin, vmax = _norm_values(norm, a)
+        h, w = a.shape[:2]
+        if origin == "lower":
+            a = a[::-1]
+        elif origin != "upper":
+            raise ValueError(f"unsupported origin: {origin!r}")
+        if extent is None:
+            # Matplotlib centres pixels on integer data coordinates. An upper
+            # origin puts row 0 at the top, which requires a descending y axis.
+            extent = (-0.5, float(w) - 0.5, -0.5, float(h) - 0.5)
+            self._inverted[1] = origin == "upper"
+            if origin == "upper":
+                extent = (extent[0], extent[1], extent[3], extent[2])
+        elif len(extent) != 4:
+            raise ValueError("extent must be (left, right, bottom, top)")
+        elif extent[2] > extent[3]:
+            self._inverted[1] = True  # bottom > top reads as a descending y axis
+        alpha_data = None
+        if alpha is not None and np.ndim(alpha) > 0:
+            alpha_data = np.asarray(alpha, dtype=np.float64)
+            opacity = 1.0
+        else:
+            opacity = 1.0 if alpha is None else float(alpha)
+        if alpha_data is not None:
+            alpha_data = np.broadcast_to(alpha_data, a.shape[:2])
+            if a.ndim == 2:
+                lo = vmin if vmin is not None else float(np.nanmin(a))
+                hi = vmax if vmax is not None else float(np.nanmax(a))
+                span = hi - lo
+                normalized = (np.zeros_like(a) if span == 0.0
+                              else np.clip((a - lo) / span, 0.0, 1.0))
+                a = np.dstack([get_cmap(cmap)(normalized)[..., :3], alpha_data])
+            elif a.shape[2] == 3:
+                a = np.dstack([a, alpha_data])
+            else:
+                a = a.copy()
+                a[..., 3] *= alpha_data
+        if interp == "auto":
+            interp = "antialiased"
+        if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
+            raise ValueError(f"unsupported interpolation: {setting!r}")
+        if not np.isfinite(opacity):
+            raise ValueError("alpha must be finite")
+        entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
+                     extent=tuple(float(v) for v in extent),
+                     alpha=float(np.clip(opacity, 0.0, 1.0)), interpolation=interp)
+        image = AxesImage(entry, self)
+        self.images.append(image)
+        # matplotlib's image.aspect default is "equal".
+        self.set_aspect("equal" if aspect is None else aspect)
+        return image
+
+    def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading="auto",
+                   alpha=None, norm=None, **kwargs):
+        """Quad mesh: each Z cell is filled through `cmap` via the image path.
+
+        `X`/`Y` may be cell edges (one longer than Z's axis) or cell centres.
+        """
+        if len(args) == 3 and _looks_like_dates(args[0]):
+            args = (self._xdate(args[0]), args[1], args[2])
+        x, y, z, edges = _mesh_args(args)
+        if edges:
+            extent = (float(x[0]), float(x[-1]), float(y[0]), float(y[-1]))
+        else:
+            dx = float(x[1] - x[0]) if x.size > 1 else 1.0
+            dy = float(y[1] - y[0]) if y.size > 1 else 1.0
+            extent = (float(x[0]) - dx / 2, float(x[-1]) + dx / 2,
+                      float(y[0]) - dy / 2, float(y[-1]) + dy / 2)
+        return self.imshow(z, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
+                           extent=extent, origin="lower", alpha=alpha, norm=norm)
+
+    def pcolor(self, *args, **kwargs):
+        return self.pcolormesh(*args, **kwargs)
+
+    def pcolorfast(self, *args, **kwargs):
+        return self.pcolormesh(*args, **kwargs)
+
+    def hist2d(self, x, y, bins=10, range=None, density=False, weights=None,
+               cmin=None, cmax=None, cmap=None, data=None, **kwargs):
+        """2-D histogram rasterised through `imshow`; returns
+        `(counts, xedges, yedges, image)`."""
+        if data is not None:
+            x = data[x] if isinstance(x, str) else x
+            y = data[y] if isinstance(y, str) else y
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        bins = _validate_bins(bins, max_cells=_MAX_BIN_CELLS)
+        counts, xedges, yedges = np.histogram2d(
+            x, y, bins=bins, range=range, density=bool(density), weights=weights)
+        image = self.imshow(counts.T, cmap=_cmap_name(cmap), vmin=cmin, vmax=cmax,
+                            extent=(float(xedges[0]), float(xedges[-1]),
+                                    float(yedges[0]), float(yedges[-1])),
+                            origin="lower")
+        self.set_aspect("auto")
+        return counts, xedges, yedges, image
+
+    def hexbin(self, x, y, C=None, gridsize=100, bins=None, xscale="linear",
+               yscale="linear", extent=None, cmap=None, norm=None, vmin=None,
+               vmax=None, alpha=None, linewidths=None, edgecolors="face",
+               reduce_C_function=None, mincnt=None, marginals=False, data=None, **kwargs):
+        """Hexagonal binning: one coloured hexagon per occupied grid cell."""
+        if data is not None:
+            x = data[x] if isinstance(x, str) else x
+            y = data[y] if isinstance(y, str) else y
+            C = data[C] if isinstance(C, str) else C
+        x = np.asarray(x, dtype=np.float64).ravel()
+        y = np.asarray(y, dtype=np.float64).ravel()
+        if x.size != y.size:
+            raise ValueError("x and y must have the same length")
+        if x.size == 0:
+            handle = Collection(colors=[])
+            self.add_collection(handle)
+            return handle
+        gridsize = _validate_bins(gridsize, name="gridsize")
+        if isinstance(gridsize, (tuple, list, np.ndarray)):
+            nx, ny = (max(int(v), 1) for v in np.asarray(gridsize).ravel()[:2])
+        else:
+            nx = max(int(gridsize), 1)
+            ny = None
+        if extent is None:
+            extent = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
+        ex0, ex1, ey0, ey1 = (float(v) for v in extent)
+        if ex1 <= ex0:
+            ex0, ex1 = ex0 - 0.5, ex1 + 0.5
+        if ey1 <= ey0:
+            ey0, ey1 = ey0 - 0.5, ey1 + 0.5
+        if ny is None:
+            ny = max(int(nx / np.sqrt(3.0)), 1)
+        ny = max(int(ny), 1)
+        if nx * ny > _MAX_BIN_CELLS // 2:
+            raise ValueError(
+                f"gridsize=({nx}, {ny}) creates too many hexagons "
+                f"({nx * ny} > {_MAX_BIN_CELLS // 2})"
+            )
+        sx = (ex1 - ex0) / nx
+        sy = (ey1 - ey0) / ny
+        nx1, ny1 = nx + 1, ny + 1
+        nx2, ny2 = nx, ny
+        # Two interleaved rectangular grids form a triangular lattice. The
+        # nearest of their centres gives the hexagonal Voronoi cell for a point.
+        centers = np.column_stack([
+            np.concatenate([
+                np.repeat(np.arange(nx1), ny1),
+                np.repeat(np.arange(nx2) + 0.5, ny2),
+            ]) * sx + ex0,
+            np.concatenate([
+                np.tile(np.arange(ny1), nx1),
+                np.tile(np.arange(ny2), nx2) + 0.5,
+            ]) * sy + ey0,
+        ])
+        ix = (x - ex0) / sx
+        iy = (y - ey0) / sy
+        ix1 = np.rint(ix).astype(int)
+        iy1 = np.rint(iy).astype(int)
+        ix2 = np.floor(ix).astype(int)
+        iy2 = np.floor(iy).astype(int)
+        valid1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1)
+        valid2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2)
+        d1 = (ix - ix1) ** 2 + 3.0 * (iy - iy1) ** 2
+        d2 = (ix - ix2 - 0.5) ** 2 + 3.0 * (iy - iy2 - 0.5) ** 2
+        use1 = valid1 & (~valid2 | (d1 <= d2))
+        valid = valid1 | valid2
+        cell = np.where(use1, ix1 * ny1 + iy1, nx1 * ny1 + ix2 * ny2 + iy2)
+        cell = cell[valid]
+        total = nx1 * ny1 + nx2 * ny2
+        counts = np.bincount(cell, minlength=total).astype(np.float64)
+        if C is None:
+            values = counts.copy()
+        else:
+            weights = np.asarray(C, dtype=np.float64).ravel()
+            if weights.size != x.size:
+                raise ValueError("C must have one value per point")
+            sums = np.bincount(cell, weights=weights[valid], minlength=total)
+            values = np.divide(sums, counts, out=np.zeros(total), where=counts > 0)
+        if mincnt is None:
+            keep = np.ones(total, dtype=bool)
+        else:
+            keep = counts >= float(mincnt)
+        if not keep.any():
+            keep = counts > 0
+        shown = np.flatnonzero(keep)
+        if vmin is None:
+            vmin = float(values[shown].min())
+        if vmax is None:
+            vmax = float(values[shown].max())
+        if not vmax > vmin:
+            vmax = vmin + 1.0
+        t = np.clip((values[shown] - float(vmin)) / (float(vmax) - float(vmin)), 0.0, 1.0)
+        cmap = _cmap_name(cmap)
+        colors = _cmap_colors(cmap, t)
+        polygon = np.array([
+            [0.5, -0.5], [0.5, 0.5], [0.0, 1.0],
+            [-0.5, 0.5], [-0.5, -0.5], [0.0, -1.0],
+        ])
+        # Build every hexagon in one array and keep the cells in a single band:
+        # one dict per cell dominates hexbin's Python time and cache-key hashing.
+        sel = centers[shown]
+        xs = (sel[:, 0:1] + sx * polygon[:, 0]).ravel()
+        ys = (sel[:, 1:2] + (sy / 3.0) * polygon[:, 1]).ravel()
+        self._append_band(dict(
+            x=np.ascontiguousarray(xs), y=np.ascontiguousarray(ys),
+            color="#000000", alpha=None if alpha is None else float(alpha), label="",
+            cells=int(shown.size),
+            cell_colors="".join(c[1:] for c in colors), gid="",
+        ))
+        self._sticky_x += [ex0, ex1]
+        self._sticky_y += [ey0, ey1]
+        return _HexbinHandle(values[shown], centers[shown], colors, cmap)
+
+    def streamplot(self, x, y, u, v, density=1, linewidth=None, color=None,
+                   cmap=None, norm=None, arrowsize=1, arrowstyle="-|>",
+                   minlength=0.1, maxlength=4.0, integration_direction="both",
+                   broken_streamlines=True, start_points=None, num_arrows=1,
+                   integration_max_step_scale=1.0,
+                   integration_max_error_scale=1.0, **kwargs):
+        """Draw streamlines for a 2-D vector field.
+
+        This is a compact integrator: it seeds a regular grid (or the supplied
+        `start_points`), integrates the normalised field with a midpoint step,
+        and draws each streamline as a segment collection so colour can vary
+        along the path.
+        """
+        if integration_max_step_scale <= 0:
+            raise ValueError("The value of integration_max_step_scale must be > 0")
+        if integration_max_error_scale <= 0:
+            raise ValueError("The value of integration_max_error_scale must be > 0")
+        if integration_direction not in ("forward", "backward", "both"):
+            raise ValueError(f"unsupported integration_direction: {integration_direction!r}")
+        xs, ys, uu, vv, mask = _streamplot_field(x, y, u, v)
+        x0, x1, y0, y1 = xs[0], xs[-1], ys[0], ys[-1]
+        dx = abs(xs[1] - xs[0]) if xs.size > 1 else 1.0
+        dy = abs(ys[1] - ys[0]) if ys.size > 1 else 1.0
+        step = 0.5 * min(dx, dy)
+        max_distance = float(maxlength) * max(x1 - x0, y1 - y0, 1.0)
+        max_steps = min(600, max(10, int(np.ceil(max_distance / max(step, 1e-12)))))
+
+        if start_points is not None:
+            seeds = np.asarray(start_points, dtype=float)
+            if seeds.ndim == 1:
+                seeds = seeds.reshape(1, -1)
+            if seeds.shape[0] == 2 and seeds.shape[1] != 2:
+                seeds = seeds.T
+            seeds = seeds[:, :2]
+        else:
+            dens = np.asarray(density, dtype=float).ravel()
+            if dens.size == 1:
+                dens = np.repeat(dens, 2)
+            nx = max(2, int(round((xs.size - 1) / 10.0 * dens[0])))
+            ny = max(2, int(round((ys.size - 1) / 10.0 * dens[1])))
+            seeds = np.array([[sx, sy] for sy in np.linspace(y0, y1, ny)
+                              for sx in np.linspace(x0, x1, nx)])
+
+        sampler = _streamplot_sampler(xs, ys, uu, vv, mask)
+
+        def field(px, py):
+            ux, vy = sampler(px, py)
+            speed = _math.hypot(ux, vy)
+            if not np.isfinite(speed) or speed <= 1e-12:
+                return None
+            return ux / speed, vy / speed
+
+        def advance(px, py, sign):
+            first = field(px, py)
+            if first is None:
+                return None
+            mx = px + sign * step * 0.5 * first[0]
+            my = py + sign * step * 0.5 * first[1]
+            mid = field(mx, my)
+            if mid is None:
+                return None
+            return px + sign * step * mid[0], py + sign * step * mid[1]
+
+        def trace(sx, sy, sign):
+            points = [(float(sx), float(sy))]
+            px, py, travelled = float(sx), float(sy), 0.0
+            for _ in range(max_steps):
+                nxt = advance(px, py, sign)
+                if nxt is None:
+                    break
+                nxv, nyv = nxt
+                if not (x0 - step <= nxv <= x1 + step and y0 - step <= nyv <= y1 + step):
+                    break
+                travelled += _math.hypot(nxv - px, nyv - py)
+                if travelled > max_distance:
+                    break
+                points.append((nxv, nyv))
+                px, py = nxv, nyv
+            return points
+
+        trajectories = []
+        for sx, sy in seeds:
+            if not (x0 <= sx <= x1 and y0 <= sy <= y1):
+                continue
+            if integration_direction == "forward":
+                pts = trace(sx, sy, 1)
+            elif integration_direction == "backward":
+                pts = trace(sx, sy, -1)
+            else:
+                back = trace(sx, sy, -1)[1:]
+                pts = list(reversed(back)) + trace(sx, sy, 1)
+            if len(pts) >= 2:
+                trajectories.append(np.asarray(pts, dtype=float))
+
+        color_values = None
+        if color is not None and not isinstance(color, str):
+            candidate = np.asarray(color)
+            if candidate.shape == uu.shape and candidate.dtype.kind in "iuf":
+                color_values = np.asarray(candidate, dtype=float)
+        if color_values is not None:
+            vals = color_values[np.isfinite(color_values)]
+            lo = float(vals.min()) if vals.size else 0.0
+            hi = float(vals.max()) if vals.size else 1.0
+            if not hi > lo:
+                lo, hi = lo - 0.5, lo + 0.5
+            cmap_obj = get_cmap(cmap)
+            color_at = lambda px, py: cmap_obj((_streamplot_sample(color_values, xs, ys, px, py) - lo) / (hi - lo))
+        else:
+            uniform = _norm_color(color) if color is not None else self._next_color()
+            color_at = lambda px, py: uniform
+
+        linewidth_values = None
+        if linewidth is not None and not np.isscalar(linewidth):
+            candidate = np.asarray(linewidth, dtype=float)
+            if candidate.shape == uu.shape:
+                linewidth_values = candidate
+        if linewidth_values is not None:
+            widths = linewidth_values[np.isfinite(linewidth_values)]
+            line_width = float(widths.mean()) if widths.size else 2.0
+        else:
+            line_width = 2.0 if linewidth is None else float(linewidth)
+
+        segments, colors, shown_values = [], [], []
+        arrow_segments, arrow_colors = [], []
+        for pts in trajectories:
+            good = np.isfinite(pts).all(axis=1)
+            pts = pts[good]
+            if len(pts) < 2:
+                continue
+            for i in range(len(pts) - 1):
+                p0, p1 = pts[i], pts[i + 1]
+                if np.allclose(p0, p1):
+                    continue
+                segments.append(np.vstack([p0, p1]).ravel().tolist())
+                mid = (p0 + p1) * 0.5
+                colors.append(color_at(mid[0], mid[1]))
+                if color_values is not None:
+                    shown_values.append(_streamplot_sample(color_values, xs, ys, mid[0], mid[1]))
+            if num_arrows and arrowsize and arrowsize > 1e-3 and len(pts) > 2:
+                count = max(1, int(num_arrows))
+                for idx in np.linspace(1, len(pts) - 1, count, endpoint=False):
+                    i = int(np.clip(round(idx), 1, len(pts) - 1))
+                    tip = pts[i]
+                    direction = pts[i] - pts[i - 1]
+                    norm = _math.hypot(direction[0], direction[1])
+                    if not norm:
+                        continue
+                    direction = direction / norm
+                    normal = np.array([-direction[1], direction[0]])
+                    size = 0.45 * min(dx, dy)
+                    left = tip - direction * size + normal * size * 0.45
+                    right = tip - direction * size - normal * size * 0.45
+                    arrow_segments.append(np.vstack([left, tip, right]).ravel().tolist())
+                    arrow_colors.append(color_at(tip[0], tip[1]))
+
+        segments.extend(arrow_segments)
+        colors.extend(arrow_colors)
+        lines = LineCollection(segments, colors=colors, linewidths=line_width,
+                               label=kwargs.get("label", ""))
+        lines.axes = self
+        lines._array = np.asarray(shown_values) if shown_values else None
+        lines._cmap = _cmap_name(cmap) if color_values is not None else None
+        if color_values is not None:
+            vals = color_values[np.isfinite(color_values)]
+            lines._clim = ((float(vals.min()), float(vals.max()))
+                           if vals.size else None)
+        self.add_collection(lines)
+        arrows = Collection(colors=[])
+        return _StreamplotSet(lines, arrows)
+
+    def quiver(self, *args, U=None, V=None, C=None, color=None, angles="xy",
+               scale=None, scale_units=None, units="width", width=None,
+               headwidth=3.0, headlength=5.0, headaxislength=4.5, pivot="tail",
+               **kwargs):
+        """Vector field arrows from `quiver(U, V)` or `quiver(X, Y, U, V)`.
+
+        `scale` and `units` set the arrow length from the finished axes box, as
+        in Matplotlib; `pivot` places the arrow at its tail, middle or tip."""
+        if len(args) == 2:
+            ua = np.asarray(args[0], dtype=np.float64)
+            va = np.asarray(args[1], dtype=np.float64)
+            if ua.shape != va.shape:
+                raise ValueError("U and V must have the same shape")
+            if ua.ndim == 2:
+                rows, cols = ua.shape
+                gx, gy = np.meshgrid(np.arange(cols, dtype=float),
+                                     np.arange(rows, dtype=float))
+                x, y = gx.ravel(), gy.ravel()
+            else:
+                x = np.arange(ua.size, dtype=float)
+                y = np.zeros(ua.size)
+            u, v = ua.ravel(), va.ravel()
+        elif len(args) >= 4:
+            xa = np.asarray(self._xdate(args[0]), dtype=np.float64)
+            ya = np.asarray(args[1], dtype=np.float64)
+            ua = np.asarray(args[2], dtype=np.float64)
+            va = np.asarray(args[3], dtype=np.float64)
+            if ua.shape != va.shape:
+                raise ValueError("U and V must have the same shape")
+            if ua.ndim == 2:
+                if (xa.ndim == 1 and ya.ndim == 1
+                        and xa.size == ua.shape[1] and ya.size == ua.shape[0]):
+                    xa, ya = np.meshgrid(xa, ya)
+                elif xa.shape != ua.shape or ya.shape != va.shape:
+                    raise ValueError("X and Y must match U's shape or one axis each")
+                x, y = xa.ravel(), ya.ravel()
+            else:
+                x, y = xa.ravel(), ya.ravel()
+            u, v = ua.ravel(), va.ravel()
+            if len(args) >= 5 and C is None:
+                C = args[4]
+        elif len(args) == 0 and U is not None and V is not None:
+            ua = np.asarray(U, dtype=np.float64)
+            va = np.asarray(V, dtype=np.float64)
+            if ua.shape != va.shape:
+                raise ValueError("U and V must have the same shape")
+            if ua.ndim == 2:
+                rows, cols = ua.shape
+                x, y = np.meshgrid(np.arange(cols, dtype=float),
+                                   np.arange(rows, dtype=float))
+                x, y = x.ravel(), y.ravel()
+            else:
+                x = np.arange(ua.size, dtype=float)
+                y = np.zeros(ua.size)
+            u, v = ua.ravel(), va.ravel()
+        else:
+            raise TypeError("quiver expects U, V or X, Y, U, V")
+        if not (x.size == y.size == u.size == v.size):
+            raise ValueError("X, Y, U and V must have the same length")
+        if x.size == 0:
+            raise ValueError("quiver needs at least one vector")
+        if angles not in ("xy", "uv"):
+            raise ValueError(f"unsupported angles: {angles!r}")
+        if pivot not in ("tail", "middle", "mid", "tip"):
+            raise ValueError(f"unsupported pivot: {pivot!r}")
+        supported_units = ("width", "height", "dots", "inches", "x", "y", "xy")
+        if units not in supported_units:
+            raise ValueError(f"unsupported units: {units!r}")
+        if scale_units is not None and scale_units not in supported_units:
+            raise ValueError(f"unsupported scale_units: {scale_units!r}")
+        if isinstance(scale, str):
+            if scale != "auto":
+                raise ValueError(f"unsupported scale: {scale!r}")
+            scale = None
+        if scale is not None:
+            scale = float(scale)
+            if scale == 0.0:
+                raise ValueError("scale must not be zero")
+        # Matplotlib sizes arrows from the axes box, so keep U/V in data units
+        # and hand `scale`/`units` to the renderer.
+        colors = (_line_colors(color, x.size) if color is not None
+                  else [self._next_color()])
+        entry = dict(x=np.ascontiguousarray(x), y=np.ascontiguousarray(y),
+                     u=np.ascontiguousarray(u), v=np.ascontiguousarray(v),
+                     colors=colors,
+                     scale=scale, units=str(units),
+                     scale_units=None if scale_units is None else str(scale_units),
+                     angles=str(angles),
+                     width=None if width is None else _number(width, 0.005),
+                     headwidth=_number(headwidth, 3.0),
+                     headlength=_number(headlength, 5.0),
+                     headaxislength=_number(headaxislength, 4.5),
+                     pivot="middle" if pivot == "mid" else str(pivot))
+        self.arrows.append(entry)
+        return _QuiverHandle(entry)
+
+    def quiverkey(self, Q, X, Y, U, label, **kwargs):
+        """Accept the quiver-key annotation; keys are not drawn yet."""
+        return None
+
+    def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
+                alpha=None, locator=None, **kwargs):
+        """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
+        followed by `levels`. Matplotlib contour kwargs are accepted."""
+        return self._add_contour(args, levels, colors, cmap, False, linewidths,
+                                 alpha, locator)
+
+    def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
+                 alpha=None, locator=None, **kwargs):
+        """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
+        return self._add_contour(args, levels, colors, cmap, True, linewidths,
+                                 alpha, locator)
+
+    def triplot(self, *args, **kwargs):
+        """Draw the edges of an unstructured triangular grid.
+
+        Accepts `triplot(triangulation, fmt, ...)` or `triplot(x, y, triangles,
+        fmt, ...)`; a missing triangle array asks for a Delaunay triangulation.
+        """
+        triangulation, _, rest = _tri_args(args)
+        fmt = rest[0] if rest and isinstance(rest[0], str) else None
+        edges = triangulation.get_masked_triangles()
+        if len(edges) == 0:
+            return []
+        ex, ey = [], []
+        for a, b, c in edges:
+            for i, j in ((a, b), (b, c), (c, a)):
+                ex.extend((triangulation.x[i], triangulation.x[j], np.nan))
+                ey.extend((triangulation.y[i], triangulation.y[j], np.nan))
+        color = kwargs.pop("color", kwargs.pop("c", None))
+        return self.plot(np.asarray(ex), np.asarray(ey), fmt or "-",
+                         color=color, **kwargs)
+
+    def tricontour(self, *args, levels=None, colors=None, cmap=None,
+                   linewidths=None, alpha=None, **kwargs):
+        """Iso-lines of data on an unstructured triangular grid."""
+        triangulation, z, rest = _tri_args(args)
+        if levels is None and rest:
+            levels = rest[0]
+        xi, yi, zi = _tri_field(triangulation, z)
+        return self.contour(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
+                            linewidths=linewidths, alpha=alpha, **kwargs)
+
+    def tricontourf(self, *args, levels=None, colors=None, cmap=None,
+                    linewidths=None, alpha=None, **kwargs):
+        """Filled iso-bands of data on an unstructured triangular grid."""
+        triangulation, z, rest = _tri_args(args)
+        if levels is None and rest:
+            levels = rest[0]
+        xi, yi, zi = _tri_field(triangulation, z)
+        return self.contourf(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
+                             linewidths=linewidths, alpha=alpha, **kwargs)
+
+    def tripcolor(self, *args, shading="flat", facecolors=None, edgecolors=None,
+                  cmap=None, vmin=None, vmax=None, alpha=None, **kwargs):
+        """Pseudocolour of an unstructured triangular grid."""
+        triangulation, z, _ = _tri_args(args)
+        if z is None and facecolors is not None:
+            values = np.asarray(facecolors, dtype=float).ravel()
+            totals = np.zeros(len(triangulation.x))
+            counts = np.zeros(len(triangulation.x))
+            for tri, value in zip(triangulation.get_masked_triangles(), values):
+                totals[tri] += value
+                counts[tri] += 1
+            z = np.divide(totals, counts, out=np.full_like(totals, np.nan),
+                          where=counts > 0)
+        if z is None:
+            raise TypeError("tripcolor expects z or facecolors")
+        xi, yi, zi = _tri_field(triangulation, z, resolution=140)
+        image = self.pcolormesh(xi, yi, zi, cmap=cmap, vmin=vmin, vmax=vmax,
+                                shading=shading, alpha=alpha, **kwargs)
+        if edgecolors is not None:
+            self.triplot(triangulation, color=edgecolors)
+        return image
+
+    def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None,
+                     alpha=None, locator=None):
+        x, y, z, levels = _contour_args(args, levels)
+        levels = _levels(z, levels, allow_single=not filled, locator=locator)
+        if linewidths is None:
+            widths = []
+        elif np.isscalar(linewidths):
+            widths = [float(linewidths)]
+        else:
+            widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
+        if widths and len(widths) not in (1, len(levels)):
+            # Matplotlib cycles the sequence across levels.
+            widths = [widths[i % len(widths)] for i in range(len(levels))]
+        opacity = 1.0 if alpha is None else float(alpha)
+        if not np.isfinite(opacity):
+            raise ValueError("alpha must be finite")
+        entry = dict(x=x, y=y, z=z, levels=levels, linewidths=widths,
+                     colors=_colors(colors), cmap=_cmap_name(cmap), filled=filled,
+                     alpha=float(np.clip(opacity, 0.0, 1.0)))
+        self.contours.append(entry)
+        return ContourSet(entry, axes=self)
+
+class _DecorAxes:
+    """Labels, annotation, legends and axis decoration."""
+
+    def arrow(self, x, y, dx, dy, **kwargs):
+        """Add a data-space `FancyArrow` and return the patch."""
+        patch = FancyArrow(x, y, dx, dy, **kwargs)
+        self.add_patch(patch)
+        return patch
+
+    def text(self, x, y, s, fontdict=None, offset=(0.0, 0.0), **kwargs):
+        """Place text at (x, y); `transform` may be `ax.transAxes` or
+        `fig.transFigure` to use axes- or figure-fraction coordinates. `offset`
+        shifts the glyphs by that many points from the anchor. Other Matplotlib
+        text properties are accepted but not drawn yet."""
+        transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
+            fontdict, kwargs)
+        if ha not in ("left", "center", "right"):
+            raise ValueError(f"unsupported ha: {ha!r}")
+        if va == "center_baseline":
+            va = "center"
+        if va not in ("baseline", "bottom", "center", "top"):
+            raise ValueError(f"unsupported va: {va!r}")
+        kind = getattr(transform, "kind", "data") if transform is not None else "data"
+        if kind not in ("data", "axes", "figure"):
+            raise ValueError(f"unsupported text transform: {transform!r}")
+        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
+        colour = colour if colour is not None else rcParams.get("text.color", "black")
+        x = _as_f64(self._xdate(x) if kind == "data" else x)
+        y = _as_f64(y)
+        self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s, family),
+                                      _norm_color(colour), size, ha, va, kind, bbox,
+                                      rotation, family,
+                                      (float(offset[0]), float(offset[1])))))
+        return _TextArt(str(s))
+
+    def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None,
+                 **kwargs):
+        """Text at `xytext` with an arrow pointing at `xy`.
+
+        `xycoords`/`textcoords`, alignment and box keywords are accepted; the
+        renderer currently treats both coordinate systems as data coordinates.
+        """
+        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
+        family = _family_override(kwargs)
+        color = color or kwargs.get("color") or rcParams.get("text.color", "black")
+        xytext = kwargs.get("xytext", xytext)
+        xy = _as_f64(xy)
+        xytext = None if xytext is None else _as_f64(xytext)
+        self.annotations.append((_mathtext(text, family), (float(xy[0]), float(xy[1])),
+                                 None if xytext is None else (float(xytext[0]), float(xytext[1])),
+                                 _norm_color(color), size, family or ""))
+        art = _TextArt(str(text))
+        art.arrow_patch = _TextArt()
+        return art
+
+    def set_title(self, t, fontsize=None, **kwargs):
+        family = _family_override(kwargs)
+        self.title = _mathtext(t, family)
+        self.title_size = self._size_or(fontsize, "axes.titlesize")
+        self.title_family = family
+
+    def set_xlabel(self, t, fontsize=None, **kwargs):
+        family = _family_override(kwargs)
+        self.xlabel = _mathtext(t, family)
+        self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
+        self.xlabel_family = family
+        if "color" in kwargs or "labelcolor" in kwargs:
+            self.xlabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
+
+    def set_ylabel(self, t, fontsize=None, **kwargs):
+        family = _family_override(kwargs)
+        self.ylabel = _mathtext(t, family)
+        self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
+        self.ylabel_family = family
+        if "color" in kwargs or "labelcolor" in kwargs:
+            self.ylabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
+
+    @staticmethod
+    def _size_or(value, key):
+        return _font_size(value, rcParams.get(key, rcParams.get("font.size", 10.0)))
+
+    def legend(self, *args, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
+               title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
+               labels=None, fontfamily=None, **kwargs):
+        """Show a legend. Supports placement, layout and explicit handles/labels."""
+        _check_kwargs(kwargs, "legend", _LEGEND_KWARGS)
+        _handles = _labels = None
+        if len(args) == 1:
+            arg = args[0]
+            if isinstance(arg, (list, tuple)) and arg and isinstance(arg[0], str):
+                _labels = arg
+            elif isinstance(arg, str):
+                loc = arg
+            else:
+                _handles = arg
+        elif len(args) >= 2:
+            _handles, _labels = args[0], args[1]
+            if len(args) > 2 and isinstance(args[2], str):
+                loc = args[2]
+        self.show_legend = True
+        explicit_labels = labels if labels is not None else _labels
+        if explicit_labels is not None:
+            self.legend_labels = [str(v) for v in explicit_labels]
+        if isinstance(loc, (tuple, list)):
+            self.legend_anchor = (float(loc[0]), float(loc[1]))
+            self.legend_loc = "lower left"
+        else:
+            normalized_loc = _normalize_legend_loc(loc)
+            if normalized_loc is not None:
+                self.legend_loc = normalized_loc
+        cols = ncol if ncol is not None else ncols
+        if cols is not None:
+            self.legend_ncol = max(1, int(cols))
+        if frameon is not None:
+            self.legend_frameon = bool(frameon)
+        if fontsize is not None:
+            self.legend_fontsize = _font_size(fontsize, rcParams.get("legend.fontsize", 10.0))
+        if title is not None:
+            self.legend_title = _mathtext(title, _font_family(fontfamily))
+        if title_fontsize is not None:
+            self.legend_title_fontsize = _font_size(title_fontsize, 11.0)
+        if fontfamily is not None:
+            self.legend_family = _font_family(fontfamily)
+        elif title is not None and self.legend_title_fontsize is None:
+            self.legend_title_fontsize = _font_size(rcParams.get("legend.fontsize", 10.0)) * 1.1
+        if bbox_to_anchor is not None:
+            if hasattr(bbox_to_anchor, "get_points"):
+                bbox_to_anchor = np.asarray(bbox_to_anchor.get_points()).ravel()
+            anchor = [float(v) for v in np.asarray(bbox_to_anchor).ravel()]
+            if len(anchor) not in (2, 4):
+                raise ValueError("bbox_to_anchor needs 2 or 4 values")
+            self.legend_anchor = (anchor[0], anchor[1])
+        return _LegendHandle()
+
+    def grid(self, visible=None, which="major", axis="both", **kwargs):
+        """Toggle gridlines and style them (`color`, `linewidth`, `alpha`,
+        `linestyle`, `axis`). `visible=None` flips the current state."""
+        if axis not in ("both", "x", "y"):
+            raise ValueError(f"unsupported grid axis: {axis!r}")
+        if which not in ("major", "minor", "both"):
+            raise ValueError(f"unsupported grid which: {which!r}")
+        targets = ("major", "minor") if which == "both" else (which,)
+        self.grid_axis = axis
+        for target in targets:
+            if target == "major":
+                self.show_grid = (not self.show_grid) if visible is None else bool(visible)
+                prefix, active = "grid_", self.show_grid
+            else:
+                self.grid_minor_show = ((not self.grid_minor_show)
+                                        if visible is None else bool(visible))
+                prefix, active = "grid_minor_", self.grid_minor_show
+            if "color" in kwargs or "c" in kwargs:
+                setattr(self, f"{prefix}color",
+                        _norm_color(kwargs.get("color", kwargs.get("c"))))
+            if "linewidth" in kwargs or "lw" in kwargs:
+                setattr(self, f"{prefix}linewidth",
+                        float(kwargs.get("linewidth", kwargs.get("lw"))))
+            if "linestyle" in kwargs or "ls" in kwargs:
+                setattr(self, f"{prefix}linestyle",
+                        str(kwargs.get("linestyle", kwargs.get("ls"))))
+            if "alpha" in kwargs:
+                setattr(self, f"{prefix}alpha", float(kwargs["alpha"]))
+            if active:
+                # Matplotlib's default grid is light grey and thin.
+                if getattr(self, f"{prefix}color") is None:
+                    setattr(self, f"{prefix}color", "#b0b0b0")
+                if getattr(self, f"{prefix}linewidth") is None:
+                    setattr(self, f"{prefix}linewidth", 0.8)
+                if getattr(self, f"{prefix}alpha") is None:
+                    setattr(self, f"{prefix}alpha", 1.0)
+        return None
+
+    def tick_params(self, axis="both", **kwargs):
+        """Style ticks on `axis` ("x", "y" or "both"); stored for the renderer."""
+        if axis not in ("x", "y", "both"):
+            raise ValueError(f"unsupported tick axis: {axis!r}")
+        self.tick_params_box.update(kwargs)
+        axes = ("x", "y") if axis == "both" else (axis,)
+        if "y" in axes:
+            # Moving the labels to one side of the axes (twinx idiom).
+            left = kwargs.get("labelleft", kwargs.get("left"))
+            right = kwargs.get("labelright", kwargs.get("right"))
+            if right and not left:
+                self._yside = "right"
+            elif left and not right:
+                self._yside = "left"
+        for name in axes:
+            self._tick_style(name, **{
+                "rotation": kwargs.get("rotation"),
+                "labelsize": kwargs.get("labelsize"),
+                "labelcolor": kwargs.get("labelcolor", kwargs.get("color")),
+                "tickcolor": kwargs.get("color"),
+                "length": kwargs.get("length"),
+                "width": kwargs.get("width"),
+                "pad": kwargs.get("pad"),
+            })
+        return None
+
+class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     """Matplotlib-style axes: plotting calls and axis configuration for one panel."""
     def __init__(self, pos=0, *args, **kwargs):
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
@@ -3965,73 +6092,6 @@ class Axes:
     def get_prop_cycle(self):
         return _PropCycler(self._prop_cycle)
 
-    def plot(self, *args, label="", color=None, c=None, linestyle=None, ls=None,
-             linewidth=None, lw=None, marker=None, markersize=None, ms=None,
-             markerfacecolor=None, mfc=None, markeredgecolor=None, mec=None,
-             markeredgewidth=None, mew=None, alpha=None, drawstyle="default", fmt=None,
-             data=None, x=None, y=None, **kwargs):
-        """Line plot with matplotlib's styling keywords (`lw`, `ls`, `marker`, `ms`,
-        `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
-        `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
-        args = _resolve_data_args(args, data, x, y)
-        gid = str(kwargs.pop("gid", "") or "")
-        xunits = kwargs.pop("xunits", None)
-        yunits = kwargs.pop("yunits", None)
-        _check_kwargs(kwargs, "plot", _LINE2D_KWARGS)
-        if drawstyle is None:
-            drawstyle = "default"
-        if drawstyle == "steps":
-            drawstyle = "steps-pre"
-        if drawstyle not in ("default", "steps-pre", "steps-mid", "steps-post"):
-            raise ValueError(f"unsupported drawstyle: {drawstyle!r}")
-        handles = []
-        for index, (gx, gy, gfmt) in enumerate(_plot_args(args, fmt)):
-            if gx is None:
-                gx = np.arange(np.asarray(gy).size)
-            elif gy is None:
-                gx, gy = np.arange(np.asarray(gx).size), gx
-            gfmt = gfmt or (fmt if index == 0 else None)
-            if not label and getattr(gy, "name", None) is not None:
-                glabel = str(gy.name)
-            else:
-                glabel = label if index == 0 else ""
-            style = linestyle if linestyle is not None else (ls if ls is not None else "-")
-            gcolor = color if color is not None else c
-            gmarker = marker
-            if gfmt:
-                f_color, f_style, f_marker = _parse_fmt(gfmt)
-                gcolor = gcolor if gcolor is not None else f_color
-                if linestyle is None and ls is None:
-                    style = f_style or style
-                if not gmarker:
-                    gmarker = f_marker
-            style = _validate_linestyle(style)
-            line_color = self._next_color() if gcolor is None else gcolor
-            edge = markeredgecolor if markeredgecolor is not None else mec
-            gx = _convert_units(gx, self.xaxis, xunits)
-            gy = _convert_units(gy, self.yaxis, yunits)
-            xvals = self._xdate(gx)
-            gy = self._ydate(gy)
-            xshape, yshape = np.asarray(xvals).shape, np.asarray(gy).shape
-            if xshape != yshape:
-                raise ValueError(
-                    "x and y must have same first dimension, but have shapes "
-                    f"{xshape} and {yshape}")
-            series_style = drawstyle
-            if drawstyle == "steps-mid":
-                xvals, gy = _mid_steps(xvals, gy)
-                series_style = "steps-post"
-            handle = _series(
-                xvals, gy, glabel, line_color, linestyle=style,
-                linewidth=linewidth if linewidth is not None else (lw if lw is not None else rcParams.get("lines.linewidth", 2.0)),
-                marker=gmarker or "",
-                markersize=markersize if markersize is not None else (ms if ms is not None else rcParams.get("lines.markersize", 6.0)),
-                mfc=(markerfacecolor if markerfacecolor is not None else mfc), mec=edge,
-                mew=markeredgewidth if markeredgewidth is not None else (mew if mew is not None else rcParams.get("lines.markerlinewidth", 1.0)),
-                alpha=alpha, drawstyle=series_style, gid=gid)
-            self._append_series(handle)
-            handles.append(Line2D(handle))
-        return handles
 
     def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
         self.aspect = _norm_aspect(aspect)
@@ -4426,139 +6486,15 @@ class Axes:
                 labels.append(entry["label"])
         return handles, labels
 
-    def specgram(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-                 noverlap=None, cmap=None, xextent=None, pad_to=None, sides=None,
-                 scale_by_freq=None, mode=None, scale=None, vmin=None, vmax=None,
-                 **kwargs):
-        """Windowed FFT magnitude, drawn as an image; returns (Pxx, freqs, bins, image)."""
-        data = np.asarray(x, dtype=np.float64).ravel()
-        nfft = max(int(NFFT), 2)
-        step = nfft - (nfft // 2 if noverlap is None else int(noverlap))
-        if step <= 0:
-            raise ValueError("noverlap must be smaller than NFFT")
-        if data.size < nfft:
-            raise ValueError("specgram needs at least NFFT samples")
-        taper = np.hanning(nfft) if window is None or window is np.hanning else np.asarray(window)
-        frames = np.stack([data[i:i + nfft] * taper
-                           for i in range(0, data.size - nfft + 1, step)])
-        spectrum = np.abs(np.fft.rfft(frames, n=nfft, axis=1)) ** 2
-        pxx = spectrum.T / max(float(Fs), 1e-12)
-        freqs = np.fft.rfftfreq(nfft, d=1.0 / float(Fs)) + float(Fc)
-        bins = np.arange(frames.shape[0]) * step / float(Fs)
-        decibels = 10.0 * np.log10(np.maximum(pxx, 1e-20))
-        image = self.imshow(decibels, aspect="auto", origin="lower", cmap=cmap,
-                            vmin=vmin, vmax=vmax,
-                            extent=(float(bins[0]), float(bins[-1]),
-                                    float(freqs[0]), float(freqs[-1])), **kwargs)
-        return pxx, freqs, bins, image
 
-    def psd(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
-            return_line=False, **kwargs):
-        """Plot a one-sided power spectral density estimate."""
-        pxx, freqs = _spectral_estimates(
-            x, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
-            pad_to=pad_to)
-        line = self.plot(freqs, 10.0 * np.log10(np.maximum(pxx, 1e-20)), **kwargs)
-        return (line if return_line else (pxx, freqs))
 
-    def csd(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
-            return_line=False, **kwargs):
-        """Plot the cross spectral density of two signals."""
-        _, _, pxy, freqs = _spectral_estimates(
-            x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
-            pad_to=pad_to)
-        line = self.plot(freqs, 10.0 * np.log10(np.maximum(np.abs(pxy), 1e-20)),
-                         **kwargs)
-        return (line if return_line else (pxy, freqs))
 
-    def cohere(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-               noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
-               **kwargs):
-        """Plot the magnitude-squared coherence of two signals."""
-        pxx, pyy, pxy, freqs = _spectral_estimates(
-            x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
-            pad_to=pad_to)
-        coh = np.clip(np.abs(pxy) ** 2 / np.maximum(pxx * pyy, 1e-20), 0.0, 1.0)
-        self.plot(freqs, coh, **kwargs)
-        return coh, freqs
 
-    def magnitude_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
-                           sides="default", scale="linear", **kwargs):
-        """Plot the single-sided magnitude spectrum of a signal."""
-        pxx, freqs = _spectral_estimates(
-            x, NFFT=min(max(len(np.asarray(x).ravel()), 2), 256), Fs=Fs, Fc=Fc,
-            window=window, pad_to=pad_to)
-        magnitude = np.sqrt(pxx)
-        if scale == "dB":
-            magnitude = 20.0 * np.log10(np.maximum(magnitude, 1e-20))
-        line = self.plot(freqs, magnitude, **kwargs)
-        return magnitude, freqs, line[0]
 
-    def angle_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
-                       sides="default", **kwargs):
-        """Plot the wrapped phase spectrum of a signal."""
-        x = np.asarray(x, dtype=np.float64).ravel()
-        taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
-        spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
-        freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
-        angle = np.angle(spectrum)
-        line = self.plot(freqs[:angle.size], angle, **kwargs)
-        return angle, freqs[:angle.size], line[0]
 
-    def phase_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
-                       sides="default", **kwargs):
-        """Plot the unwrapped phase spectrum of a signal."""
-        x = np.asarray(x, dtype=np.float64).ravel()
-        taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
-        spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
-        freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
-        phase = np.unwrap(np.angle(spectrum))
-        line = self.plot(freqs[:phase.size], phase, **kwargs)
-        return phase, freqs[:phase.size], line[0]
 
-    def xcorr(self, x, y, normed=False, maxlags=10, usevlines=True, **kwargs):
-        """Plot the cross-correlation of two signals."""
-        x = np.asarray(x, dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
-        maxlags = x.size - 1 if maxlags is None else max(int(maxlags), 0)
-        corr = np.correlate(x, y, mode="full")[x.size - 1 - maxlags:
-                                                x.size + maxlags]
-        if normed:
-            corr = corr / max(np.sqrt(np.sum(x ** 2) * np.sum(y ** 2)), 1e-20)
-        lags = np.arange(-maxlags, maxlags + 1)
-        line = self.vlines(lags, 0, corr, **kwargs) if usevlines else self.plot(
-            lags, corr, **kwargs)
-        if usevlines:
-            self.axhline(0, color="black", linewidth=0.8)
-        return lags, corr, line, None
 
-    def acorr(self, x, normed=False, maxlags=10, usevlines=True, **kwargs):
-        """Plot the autocorrelation of a signal."""
-        return self.xcorr(x, x, normed=normed, maxlags=maxlags,
-                          usevlines=usevlines, **kwargs)
 
-    def ecdf(self, x, weights=None, complementary=False, orientation="vertical",
-             **kwargs):
-        """Plot the empirical cumulative distribution function of a sample."""
-        x = np.sort(np.asarray(x, dtype=np.float64).ravel())
-        if weights is None:
-            y = np.arange(1, x.size + 1) / max(x.size, 1)
-        else:
-            w = np.asarray(weights, dtype=np.float64).ravel()
-            if w.size != x.size:
-                raise ValueError("weights must match the sample size")
-            y = np.cumsum(w) / max(w.sum(), 1e-20)
-        if complementary:
-            y = 1.0 - y
-        if orientation == "horizontal":
-            line = self.step(y, x, where="post", **kwargs)
-        else:
-            line = self.step(x, y, where="post", **kwargs)
-        return x, y, line
 
     def set_rorigin(self, value): return None
     def set_rlabel_position(self, value): return None
@@ -4636,18 +6572,9 @@ class Axes:
     def set_rmax(self, value): return None
     def set_rmin(self, value): return None
     def set_rlim(self, *args, **kwargs): return None
-    def clabel(self, *args, **kwargs):
-        if args and hasattr(args[0], "clabel"):
-            return args[0].clabel(*args[1:], **kwargs)
-        return []
     def secondary_xaxis(self, *args, **kwargs): _ignored("Axes.secondary_xaxis"); return self
     def secondary_yaxis(self, *args, **kwargs): _ignored("Axes.secondary_yaxis"); return self
     def get_aux_axes(self, *args, **kwargs): return self
-    def barbs(self, *args, **kwargs):
-        pivot = kwargs.get("pivot")
-        if isinstance(pivot, (int, float, np.number)):
-            kwargs["pivot"] = "middle"
-        return self.quiver(*args, **kwargs)
 
     def add_artist(self, artist, **kwargs):
         if isinstance(artist, Text):
@@ -4667,31 +6594,7 @@ class Axes:
         kwargs.setdefault("aspect", "equal")
         return self.imshow(Z, **kwargs)
 
-    def table(self, cellText=None, cellColours=None, **kwargs):
-        """Add a table to the Axes, as `Axes.table`."""
-        return Table(self, cellText=cellText, cellColours=cellColours, **kwargs)
 
-    def spy(self, Z, precision=0, marker=None, markersize=None,
-            aspect="equal", origin="upper", **kwargs):
-        """Plot the sparsity pattern of an array."""
-        data = np.asarray(Z)
-        if precision == "present":
-            mask = np.isfinite(data)
-        elif precision in (None, 0):
-            mask = data != 0
-        else:
-            mask = np.abs(data) > float(precision)
-        image = self.imshow(
-            mask.astype(float), cmap="binary_r", interpolation="nearest",
-            aspect=aspect, origin=origin, **kwargs)
-        self.set_xticks([])
-        self.set_yticks([])
-        return image
-    def arrow(self, x, y, dx, dy, **kwargs):
-        """Add a data-space `FancyArrow` and return the patch."""
-        patch = FancyArrow(x, y, dx, dy, **kwargs)
-        self.add_patch(patch)
-        return patch
 
     def add_image(self, image):
         if isinstance(image, NonUniformImage):
@@ -5071,640 +6974,12 @@ class Axes:
                 else:
                     raise AttributeError(f"Axes.set() does not support {key!r}")
 
-    def text(self, x, y, s, fontdict=None, offset=(0.0, 0.0), **kwargs):
-        """Place text at (x, y); `transform` may be `ax.transAxes` or
-        `fig.transFigure` to use axes- or figure-fraction coordinates. `offset`
-        shifts the glyphs by that many points from the anchor. Other Matplotlib
-        text properties are accepted but not drawn yet."""
-        transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
-            fontdict, kwargs)
-        if ha not in ("left", "center", "right"):
-            raise ValueError(f"unsupported ha: {ha!r}")
-        if va == "center_baseline":
-            va = "center"
-        if va not in ("baseline", "bottom", "center", "top"):
-            raise ValueError(f"unsupported va: {va!r}")
-        kind = getattr(transform, "kind", "data") if transform is not None else "data"
-        if kind not in ("data", "axes", "figure"):
-            raise ValueError(f"unsupported text transform: {transform!r}")
-        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
-        colour = colour if colour is not None else rcParams.get("text.color", "black")
-        x = _as_f64(self._xdate(x) if kind == "data" else x)
-        y = _as_f64(y)
-        self.texts.append(_TextEntry((float(x[0]), float(y[0]), _mathtext(s, family),
-                                      _norm_color(colour), size, ha, va, kind, bbox,
-                                      rotation, family,
-                                      (float(offset[0]), float(offset[1])))))
-        return _TextArt(str(s))
 
-    def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
-               interpolation=None, aspect=None, alpha=None, clim=None, norm=None,
-               colorizer=None, **kwargs):
-        """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
-        (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
-        `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
-        image's opacity. When omitted, `rcParams["image.interpolation"]`
-        supplies the default. `clim` and Matplotlib's extra artist kwargs are
-        accepted."""
-        _check_kwargs(kwargs, "imshow", _IMAGE_KWARGS)
-        if clim is not None:
-            vmin, vmax = clim
-        if colorizer is not None:
-            cmap = colorizer.cmap if colorizer.cmap is not None else cmap
-            if colorizer.norm is not None:
-                vmin = getattr(colorizer.norm, "vmin", vmin)
-                vmax = getattr(colorizer.norm, "vmax", vmax)
-        setting = (rcParams.get("image.interpolation", "nearest")
-                   if interpolation is None else interpolation)
-        interp = str(setting).lower()
-        interp = {
-            "spline16": "bicubic", "spline36": "bicubic", "hanning": "bilinear",
-            "hamming": "bilinear", "hermite": "bicubic", "kaiser": "bicubic",
-            "quadric": "bicubic", "catrom": "bicubic", "gaussian": "bicubic",
-            "lanczos": "bicubic", "blackman": "bilinear", "sinc": "bicubic",
-            "bessel": "bicubic", "mitchell": "bicubic",
-        }.get(interp, interp)
-        a = _as_image(X)
-        if isinstance(norm, str):
-            # Matplotlib accepts "log" as shorthand for a LogNorm; map it before
-            # the normalisation pass, which expects an object with vmin/vmax.
-            kind = norm.lower()
-            if kind == "log":
-                positive = a[np.isfinite(a) & (a > 0.0)] if a.ndim == 2 else np.empty(0)
-                lo = vmin if vmin is not None else (
-                    float(positive.min()) if positive.size else 1.0)
-                hi = vmax if vmax is not None else (
-                    float(positive.max()) if positive.size else float(lo) * 10.0)
-                if not float(hi) > float(lo):
-                    hi = float(lo) * 10.0
-                norm = _LogNorm(vmin=lo, vmax=hi)
-            elif kind in ("linear", "none", ""):
-                norm = None
-            else:
-                raise NotImplementedError(f"norm={norm!r} is not supported yet")
-        if norm is not None and a.ndim == 2:
-            a, vmin, vmax = _norm_values(norm, a)
-        h, w = a.shape[:2]
-        if origin == "lower":
-            a = a[::-1]
-        elif origin != "upper":
-            raise ValueError(f"unsupported origin: {origin!r}")
-        if extent is None:
-            # Matplotlib centres pixels on integer data coordinates. An upper
-            # origin puts row 0 at the top, which requires a descending y axis.
-            extent = (-0.5, float(w) - 0.5, -0.5, float(h) - 0.5)
-            self._inverted[1] = origin == "upper"
-            if origin == "upper":
-                extent = (extent[0], extent[1], extent[3], extent[2])
-        elif len(extent) != 4:
-            raise ValueError("extent must be (left, right, bottom, top)")
-        elif extent[2] > extent[3]:
-            self._inverted[1] = True  # bottom > top reads as a descending y axis
-        alpha_data = None
-        if alpha is not None and np.ndim(alpha) > 0:
-            alpha_data = np.asarray(alpha, dtype=np.float64)
-            opacity = 1.0
-        else:
-            opacity = 1.0 if alpha is None else float(alpha)
-        if alpha_data is not None:
-            alpha_data = np.broadcast_to(alpha_data, a.shape[:2])
-            if a.ndim == 2:
-                lo = vmin if vmin is not None else float(np.nanmin(a))
-                hi = vmax if vmax is not None else float(np.nanmax(a))
-                span = hi - lo
-                normalized = (np.zeros_like(a) if span == 0.0
-                              else np.clip((a - lo) / span, 0.0, 1.0))
-                a = np.dstack([get_cmap(cmap)(normalized)[..., :3], alpha_data])
-            elif a.shape[2] == 3:
-                a = np.dstack([a, alpha_data])
-            else:
-                a = a.copy()
-                a[..., 3] *= alpha_data
-        if interp == "auto":
-            interp = "antialiased"
-        if interp not in ("none", "nearest", "antialiased", "bilinear", "bicubic"):
-            raise ValueError(f"unsupported interpolation: {setting!r}")
-        if not np.isfinite(opacity):
-            raise ValueError("alpha must be finite")
-        entry = dict(data=a, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
-                     extent=tuple(float(v) for v in extent),
-                     alpha=float(np.clip(opacity, 0.0, 1.0)), interpolation=interp)
-        image = AxesImage(entry, self)
-        self.images.append(image)
-        # matplotlib's image.aspect default is "equal".
-        self.set_aspect("equal" if aspect is None else aspect)
-        return image
 
-    def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
-             bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
-             label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
-        """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
-        _check_kwargs(kwargs, "hist", _HIST_KWARGS)
-        if histtype == "barstacked":
-            histtype, stacked = "bar", True
-        if histtype not in ("bar", "step", "stepfilled"):
-            raise ValueError(
-                f"{histtype!r} is not a valid value for histtype. "
-                "Supported values are 'bar', 'barstacked', 'step', 'stepfilled'")
 
-        if data is not None and isinstance(x, str):
-            x = data[x]
-        bins = _validate_bins(bins)
-        datasets = None
-        if isinstance(x, (list, tuple)) and x:
-            try:
-                candidate = np.asarray(x, dtype=np.float64)
-                if candidate.ndim == 2:
-                    datasets = list(candidate)
-                elif candidate.ndim == 1:
-                    datasets = [candidate]
-            except (TypeError, ValueError):
-                # Ragged sample sizes are the usual multi-histogram input.
-                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
-        elif isinstance(x, np.ndarray) and x.ndim == 2:
-            datasets = list(x)
-        if datasets is not None and len(datasets) > 1 and not stacked:
-            # Overlaid histograms: one pass per data set, as Matplotlib draws them.
-            counts_list, handles = [], []
-            edges = None
-            for i, dataset in enumerate(datasets):
-                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
-                          else color)
-                label_i = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
-                           else label)
-                counts, edges, handle = self.hist(
-                    dataset, bins=bins, range=range, density=density, weights=weights,
-                    cumulative=cumulative, bottom=bottom, histtype=histtype, align=align,
-                    orientation=orientation, color=colour, label=label_i, alpha=alpha,
-                    edgecolor=edgecolor, **kwargs)
-                counts_list.append(counts)
-                handles.append(handle)
-            return counts_list, edges, handles
-        if datasets is not None and len(datasets) > 1 and stacked:
-            edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
-            counts_list = []
-            for dataset in datasets:
-                count, _ = np.histogram(dataset, bins=edges, density=bool(density))
-                if cumulative:
-                    count = np.cumsum(count)
-                counts_list.append(np.asarray(count, dtype=np.float64))
-            widths = np.diff(edges)
-            bar_align = "edge" if align in ("left", "edge") else "center"
-            centers = edges[:-1] if bar_align == "edge" else (edges[:-1] + edges[1:]) / 2.0
-            handles = []
-            running = np.zeros(counts_list[0].size)
-            for i, count in enumerate(counts_list):
-                colour = (color[i] if isinstance(color, (list, tuple)) and i < len(color)
-                          else color)
-                label_i = (label[i] if isinstance(label, (list, tuple)) and i < len(label)
-                           else label)
-                text = "" if label_i is None else str(label_i)
-                if histtype == "bar":
-                    if orientation == "horizontal":
-                        raise NotImplementedError("stacked hist bars need orientation='vertical'")
-                    handles.append(self.bar(centers, count, width=widths, bottom=running,
-                                            align=bar_align, color=colour,
-                                            edgecolor=edgecolor, alpha=alpha, label=text, _hist=True))
-                elif orientation != "vertical":
-                    raise NotImplementedError("stacked hist steps need orientation='vertical'")
-                else:
-                    sx = np.empty(2 * count.size)
-                    sx[0::2], sx[1::2] = edges[:-1], edges[1:]
-                    if histtype == "stepfilled":
-                        self.fill_between(sx, np.repeat(running, 2),
-                                          np.repeat(running + count, 2),
-                                          color=colour, alpha=alpha)
-                    handles.append(self.plot(sx, np.repeat(running + count, 2),
-                                             color=colour, label=text)[0])
-                running = running + count
-            return counts_list, edges, handles
-        data = (datasets[0] if datasets is not None and len(datasets) == 1
-                else np.asarray(x, dtype=np.float64).ravel())
-        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
-                                     density=bool(density))
-        if cumulative:
-            counts = np.cumsum(counts)
-        widths = np.diff(edges)
-        base = np.zeros(counts.size) if bottom is None else _fill(bottom, counts.size)
-        bar_align = "edge" if align in ("left", "edge") else "center"
-        if bar_align == "edge":
-            centers = edges[:-1]
-        else:
-            centers = (edges[:-1] + edges[1:]) / 2.0
-        lab = "" if label is None else str(label)
-        if histtype == "bar":
-            if orientation == "horizontal":
-                handles = self.barh(centers, counts, height=widths, left=base,
-                                    align=bar_align, color=color, edgecolor=edgecolor,
-                                    alpha=alpha, label=lab, _hist=True)
-            elif orientation == "vertical":
-                handles = self.bar(centers, counts, width=widths, bottom=base,
-                                   align=bar_align, color=color, edgecolor=edgecolor,
-                                   alpha=alpha, label=lab, _hist=True)
-            else:
-                raise ValueError(f"unsupported orientation: {orientation!r}")
-            return np.asarray(counts, dtype=np.float64), edges, handles
-        if orientation == "horizontal":
-            sx = np.repeat(counts, 2)
-            sy = np.empty(2 * counts.size)
-            sy[0::2], sy[1::2] = edges[:-1], edges[1:]
-            if histtype == "stepfilled":
-                self.fill_betweenx(sy, np.repeat(base, 2), sx,
-                                   color=color, alpha=alpha)
-            handles = self.plot(sx, sy, color=color, label=lab)
-            return np.asarray(counts, dtype=np.float64), edges, handles
-        if orientation != "vertical":
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        sx = np.empty(2 * counts.size)
-        sy = np.empty(2 * counts.size)
-        sx[0::2], sx[1::2] = edges[:-1], edges[1:]
-        sy[0::2], sy[1::2] = counts, counts
-        if histtype == "stepfilled":
-            self.fill_between(sx, sy, np.repeat(base, 2), color=color, alpha=alpha)
-        handles = self.plot(sx, sy, color=color, label=lab)
-        return np.asarray(counts, dtype=np.float64), edges, handles
 
-    def boxplot(self, x, notch=None, sym=None, vert=None, whis=None, positions=None,
-                widths=None, patch_artist=None, labels=None, orientation=None,
-                showmeans=False, showcaps=None, showbox=None, showfliers=None,
-                meanline=False, capwidths=None, boxprops=None, medianprops=None,
-                whiskerprops=None, capprops=None, flierprops=None, meanprops=None,
-                manage_ticks=True, autorange=False, label=None, tick_labels=None,
-                **kwargs):
-        """Box-and-whisker plot for one dataset or a sequence of datasets.
 
-        Returns a dict with `boxes`, `medians`, `whiskers`, `caps`, `fliers`
-        and `means` lists, matching matplotlib's `boxplot` result."""
-        groups = _box_datasets(x)
-        if not groups:
-            raise ValueError("boxplot needs at least one dataset")
-        if orientation is None:
-            orientation = "vertical" if (vert is None or vert) else "horizontal"
-        if orientation not in ("vertical", "horizontal"):
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        n = len(groups)
-        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
-        wid = _fill(0.5 if widths is None else widths, n)
-        # Matplotlib's caps are half the box width unless `capwidths` says otherwise.
-        cap = _fill([0.5 * v for v in wid] if capwidths is None else capwidths, n)
-        box_style = dict(boxprops or {})
-        median_style = dict(medianprops or {})
-        whisker_style = dict(whiskerprops or {})
-        cap_style = dict(capprops or {})
-        flier_style = dict(flierprops or {})
-        mean_style = dict(meanprops or {})
-        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
-        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
-        box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.0)
-        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
-        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
-        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
-        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
-        cap_color = _single_color(cap_style.get("color", cap_style.get("c")), "black")
-        cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.0)
-        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
-        # `sym=None` means matplotlib's default flier (`o`); only an explicit
-        # empty string (`sym=""`) hides the outliers.
-        flier_format = "o" if sym is None else str(sym)
-        parsed_color, _, parsed_marker = _stem_fmt(flier_format, None)
-        flier_edge = _single_color(
-            flier_style.get("markeredgecolor", flier_style.get("mec",
-                             flier_style.get("color", flier_style.get("c")))),
-            parsed_color or "black")
-        flier_face = _single_color(
-            flier_style.get("markerfacecolor", flier_style.get("mfc")),
-            parsed_color or "none")
-        flier_marker = str(flier_style.get("marker", parsed_marker or "o"))
-        flier_width = _number(
-            flier_style.get("markeredgewidth", flier_style.get("mew")), 1.0)
-        flier_size = _number(flier_style.get("markersize", flier_style.get("ms")), 8.0)
-        draw_caps = True if showcaps is None else bool(showcaps)
-        draw_box = True if showbox is None else bool(showbox)
-        draw_fliers = True if showfliers is None else bool(showfliers)
-        if labels is None:
-            labels = tick_labels
-        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
-        for i, raw in enumerate(groups):
-            vals = np.asarray(raw, dtype=np.float64).ravel()
-            vals = vals[np.isfinite(vals)]
-            if vals.size == 0:
-                raise ValueError("boxplot datasets must not be empty")
-            q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
-            iqr = q3 - q1
-            if autorange:
-                lo, hi = float(vals.min()), float(vals.max())
-            elif isinstance(whis, (tuple, list)):
-                lo = float(np.percentile(vals, float(whis[0])))
-                hi = float(np.percentile(vals, float(whis[1])))
-            else:
-                bound = 1.5 if whis is None else float(whis)
-                low_bound, high_bound = q1 - bound * iqr, q3 + bound * iqr
-                inside = vals[(vals >= low_bound) & (vals <= high_bound)]
-                lo, hi = (float(inside.min()), float(inside.max())) if inside.size else (q1, q3)
-            fliers = vals[(vals < lo) | (vals > hi)]
-            loc, half = float(pos[i]), float(wid[i]) / 2.0
-            if draw_box:
-                if notch:
-                    depth = 1.57 * iqr / np.sqrt(vals.size)
-                    nlo, nhi = med - depth, med + depth
-                    inner = half / 2.0
-                    if orientation == "vertical":
-                        xs = [loc - half, loc - half, loc - inner, loc - inner,
-                              loc - half, loc - half, loc + half, loc + half,
-                              loc + inner, loc + inner, loc + half, loc + half, loc - half]
-                        ys = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
-                    else:
-                        ys = [loc - half, loc - half, loc - inner, loc - inner,
-                              loc - half, loc - half, loc + half, loc + half,
-                              loc + inner, loc + inner, loc + half, loc + half, loc - half]
-                        xs = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
-                    if patch_artist:
-                        self._append_band(_band(xs, ys, box_color, box_style.get("alpha")))
-                    entry = _series(xs, ys, "", box_edge, linewidth=box_width)
-                    self._append_series(entry)
-                    out["boxes"].append(_LineHandle(entry, box_color if patch_artist else "none"))
-                elif orientation == "vertical":
-                    bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
-                                    color=box_color if patch_artist else "none",
-                                    edgecolor=box_edge, label=str(label or "") if i == 0 else "")
-                    out["boxes"].append(bars[0])
-                else:
-                    bars = self.barh([loc], [q3 - q1], height=wid[i], left=q1,
-                                     color=box_color if patch_artist else "none",
-                                     edgecolor=box_edge, label=str(label or "") if i == 0 else "")
-                    out["boxes"].append(bars[0])
-            if orientation == "vertical":
-                med_entry = self._stats_line([loc - half, loc + half], [med, med],
-                                             median_color, median_width)
-                out["medians"].append(med_entry)
-                for y0, y1 in ((q3, hi), (q1, lo)):
-                    out["whiskers"].append(self._stats_line(
-                        [loc, loc], [y0, y1], whisker_color, whisker_width))
-                    if draw_caps:
-                        out["caps"].append(self._stats_line(
-                            [loc - cap[i] / 2.0, loc + cap[i] / 2.0], [y1, y1],
-                            cap_color, cap_width))
-            else:
-                med_entry = self._stats_line([med, med], [loc - half, loc + half],
-                                             median_color, median_width)
-                out["medians"].append(med_entry)
-                for x0, x1 in ((q3, hi), (q1, lo)):
-                    out["whiskers"].append(self._stats_line(
-                        [x0, x1], [loc, loc], whisker_color, whisker_width))
-                    if draw_caps:
-                        out["caps"].append(self._stats_line(
-                            [x1, x1], [loc - cap[i] / 2.0, loc + cap[i] / 2.0],
-                            cap_color, cap_width))
-            if showmeans:
-                mean = float(vals.mean())
-                if orientation == "vertical":
-                    out["means"].append(self._stats_line(
-                        [loc - half, loc + half], [mean, mean], mean_color))
-                else:
-                    out["means"].append(self._stats_line(
-                        [mean, mean], [loc - half, loc + half], mean_color))
-            if draw_fliers and fliers.size and flier_format != "":
-                style = dict(linestyle="none", marker=flier_marker,
-                             markersize=flier_size, mfc=flier_face, mec=flier_edge,
-                             mew=flier_width)
-                if orientation == "vertical":
-                    entry = self.plot(np.full(fliers.size, loc), fliers, **style)
-                else:
-                    entry = self.plot(fliers, np.full(fliers.size, loc), **style)
-                out["fliers"].append(entry[0])
-            else:
-                out["fliers"].append(None)
-        if manage_ticks:
-            shown = ([str(v) for v in labels] if labels is not None
-                     else [f"{v:g}" for v in pos])
-            if orientation == "vertical":
-                self.set_xticks(pos, labels=shown)
-            else:
-                self.set_yticks(pos, labels=shown)
-        return out
 
-    def bxp(self, bxpstats, positions=None, widths=None, vert=None, orientation=None,
-            patch_artist=False, shownotches=False, showmeans=False, showcaps=True,
-            showbox=True, showfliers=True, boxprops=None, whiskerprops=None,
-            flierprops=None, medianprops=None, meanprops=None, meanline=False,
-            manage_ticks=True, zorder=2, **kwargs):
-        """Draw precomputed boxplot statistics, as returned by `cbook.boxplot_stats`."""
-        stats = list(bxpstats)
-        if not stats:
-            raise ValueError("bxp needs at least one statistics entry")
-        if orientation is None:
-            orientation = "vertical" if (vert is None or vert) else "horizontal"
-        if orientation not in ("vertical", "horizontal"):
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        n = len(stats)
-        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
-        wid = _fill(0.5 if widths is None else widths, n)
-        box_style = dict(boxprops or {})
-        median_style = dict(medianprops or {})
-        whisker_style = dict(whiskerprops or {})
-        flier_style = dict(flierprops or {})
-        mean_style = dict(meanprops or {})
-        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
-        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
-        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
-        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
-        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
-        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
-        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
-        flier_color = _single_color(
-            flier_style.get("markerfacecolor", flier_style.get("mfc",
-                             flier_style.get("color", flier_style.get("c")))),
-            "black")
-        flier_marker = str(flier_style.get("marker", "o"))
-        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
-        for i, stat in enumerate(stats):
-            q1 = float(stat.get("q1", 0.0))
-            q3 = float(stat.get("q3", q1))
-            med = float(stat.get("med", 0.5 * (q1 + q3)))
-            lo = float(stat.get("whislo", q1))
-            hi = float(stat.get("whishi", q3))
-            loc, half = float(pos[i]), float(wid[i]) / 2.0
-            cap_half = half / 2.0
-            if showbox:
-                if orientation == "vertical":
-                    bars = self.bar([loc], [q3 - q1], width=wid[i], bottom=q1,
-                                    color=box_color if patch_artist else "none",
-                                    edgecolor=box_edge, label=str(stat.get("label", "")) if i == 0 else "")
-                else:
-                    bars = self.barh([loc], [q3 - q1], height=wid[i], left=q1,
-                                     color=box_color if patch_artist else "none",
-                                     edgecolor=box_edge, label=str(stat.get("label", "")) if i == 0 else "")
-                out["boxes"].append(bars[0])
-            if orientation == "vertical":
-                out["medians"].append(self._stats_line(
-                    [loc - half, loc + half], [med, med], median_color, median_width))
-                for y0, y1 in ((q3, hi), (q1, lo)):
-                    out["whiskers"].append(self._stats_line(
-                        [loc, loc], [y0, y1], whisker_color, whisker_width))
-                    if showcaps:
-                        out["caps"].append(self._stats_line(
-                            [loc - cap_half, loc + cap_half], [y1, y1],
-                            whisker_color, whisker_width))
-            else:
-                out["medians"].append(self._stats_line(
-                    [med, med], [loc - half, loc + half], median_color, median_width))
-                for x0, x1 in ((q3, hi), (q1, lo)):
-                    out["whiskers"].append(self._stats_line(
-                        [x0, x1], [loc, loc], whisker_color, whisker_width))
-                    if showcaps:
-                        out["caps"].append(self._stats_line(
-                            [x1, x1], [loc - cap_half, loc + cap_half],
-                            whisker_color, whisker_width))
-            if showmeans and stat.get("mean") is not None:
-                mean = float(stat["mean"])
-                if orientation == "vertical":
-                    out["means"].append(self._stats_line(
-                        [loc - half, loc + half], [mean, mean], mean_color))
-                else:
-                    out["means"].append(self._stats_line(
-                        [mean, mean], [loc - half, loc + half], mean_color))
-            fliers = np.asarray(stat.get("fliers", []), dtype=float).ravel()
-            if showfliers and fliers.size:
-                if orientation == "vertical":
-                    self.scatter(np.full(fliers.size, loc), fliers, s=36,
-                                 c=flier_color, marker=flier_marker)
-                else:
-                    self.scatter(fliers, np.full(fliers.size, loc), s=36,
-                                 c=flier_color, marker=flier_marker)
-                out["fliers"].append(self.scatter_pts[-1])
-            else:
-                out["fliers"].append(None)
-        if manage_ticks:
-            labels = [str(stat.get("label", "")) for stat in stats]
-            shown = labels if any(labels) else [f"{v:g}" for v in pos]
-            if orientation == "vertical":
-                self.set_xticks(pos, labels=shown)
-            else:
-                self.set_yticks(pos, labels=shown)
-        return out
-
-    def _stats_line(self, x, y, color, linewidth=1.5, linestyle="-"):
-        """Append one statistics line and return its mutable handle."""
-        entry = _series(x, y, "", color, linestyle=linestyle, linewidth=linewidth)
-        self._append_series(entry)
-        return _LineHandle(entry)
-
-    def violinplot(self, dataset, positions=None, vert=None, widths=0.5,
-                   showmeans=False, showextrema=True, showmedians=False,
-                   quantiles=None, points=100, bw_method=None, orientation=None,
-                   side="both", **kwargs):
-        """Violin plot: a Gaussian KDE per dataset drawn as a filled violin.
-
-        Returns a dict with `bodies`, `cmeans`, `cmaxes`, `cmins` and `cbars`
-        (plus `cquantiles` when `quantiles` is given)."""
-        groups = _box_datasets(dataset)
-        if not groups:
-            raise ValueError("violinplot needs at least one dataset")
-        if orientation is None:
-            orientation = "vertical" if (vert is None or vert) else "horizontal"
-        if orientation not in ("vertical", "horizontal"):
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        if side not in ("both", "left", "right", "low", "high"):
-            raise ValueError(f"unsupported side: {side!r}")
-        n = len(groups)
-        pos = np.arange(1.0, n + 1.0) if positions is None else _fill(positions, n)
-        wid = _fill(widths, n)
-        colors = _colors(kwargs.get("facecolor", kwargs.get("facecolors")))
-        if not colors:
-            # Matplotlib 3.11 uses one cycle colour for every body in the call,
-            # not a new colour per violin.
-            colors = [self._next_color()]
-        alpha = kwargs.get("alpha")
-        body_alpha = 0.3 if alpha is None else float(alpha)
-        # Extrema, means, medians and quantiles use the body colour. Bodies are
-        # plain translucent fills with no outline, like Matplotlib's
-        # fill_between path; an explicit edge colour is the only thing drawn.
-        edge = kwargs.get("linecolor", kwargs.get("edgecolor"))
-        line_color = _single_color(edge, colors[0])
-        out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
-        if quantiles is not None:
-            out["cquantiles"] = []
-        per_group_quantiles = None
-        if quantiles is not None and isinstance(quantiles, (list, tuple)):
-            if len(quantiles) == n and any(
-                    isinstance(q, (list, tuple, np.ndarray)) for q in quantiles):
-                per_group_quantiles = [
-                    np.atleast_1d(np.asarray(q, dtype=np.float64)).ravel()
-                    for q in quantiles
-                ]
-        for i, raw in enumerate(groups):
-            vals = np.asarray(raw, dtype=np.float64).ravel()
-            vals = vals[np.isfinite(vals)]
-            if vals.size == 0:
-                raise ValueError("violinplot datasets must not be empty")
-            grid, density = _kde(vals, points, bw_method)
-            peak = float(density.max())
-            if not np.isfinite(peak) or peak <= 0.0:
-                peak = 1.0
-            loc, half = float(pos[i]), float(wid[i]) / 2.0
-            scale = half / peak
-            if orientation == "vertical":
-                if side == "both":
-                    xs = np.concatenate([loc + density * scale,
-                                         (loc - density * scale)[::-1]])
-                    ys = np.concatenate([grid, grid[::-1]])
-                else:
-                    sign = -1.0 if side in ("left", "low") else 1.0
-                    xs = np.concatenate([[loc], loc + sign * density * scale, [loc]])
-                    ys = np.concatenate([[grid[0]], grid, [grid[-1]]])
-            else:
-                if side == "both":
-                    ys = np.concatenate([loc + density * scale,
-                                         (loc - density * scale)[::-1]])
-                    xs = np.concatenate([grid, grid[::-1]])
-                else:
-                    sign = -1.0 if side in ("left", "low") else 1.0
-                    ys = np.concatenate([[loc], loc + sign * density * scale, [loc]])
-                    xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
-            color = colors[i] if i < len(colors) else colors[0]
-            entry = _band(xs, ys, color, body_alpha)
-            self._append_band(entry)
-            out["bodies"].append(_ViolinBody(entry, color))
-            if edge is not None:
-                outline = np.append(xs, xs[0])
-                outline_y = np.append(ys, ys[0])
-                self._stats_line(outline, outline_y, line_color)
-            vmin, vmax = float(vals.min()), float(vals.max())
-            horizontal = orientation == "horizontal"
-            if showextrema:
-                out["cmins"].append(self._stats_line(
-                    [loc - half, loc + half], [vmin, vmin], line_color)
-                    if not horizontal else self._stats_line(
-                    [vmin, vmin], [loc - half, loc + half], line_color))
-                out["cmaxes"].append(self._stats_line(
-                    [loc - half, loc + half], [vmax, vmax], line_color)
-                    if not horizontal else self._stats_line(
-                    [vmax, vmax], [loc - half, loc + half], line_color))
-                out["cbars"].append(self._stats_line(
-                    [loc, loc], [vmin, vmax], line_color)
-                    if not horizontal else self._stats_line(
-                    [vmin, vmax], [loc, loc], line_color))
-            if showmeans:
-                mean = float(vals.mean())
-                out["cmeans"].append(self._stats_line(
-                    [loc - half, loc + half], [mean, mean], line_color)
-                    if not horizontal else self._stats_line(
-                    [mean, mean], [loc - half, loc + half], line_color))
-            if showmedians:
-                median = float(np.median(vals))
-                self._stats_line(
-                    [loc - half, loc + half], [median, median], line_color)
-            if quantiles is not None:
-                q_values = (per_group_quantiles[i] if per_group_quantiles is not None
-                            else np.atleast_1d(
-                                np.asarray(quantiles, dtype=np.float64)).ravel())
-                for q in q_values:
-                    value = float(np.percentile(vals, q))
-                    out["cquantiles"].append(self._stats_line(
-                        [value, value], [loc - half, loc + half], line_color)
-                        if horizontal else self._stats_line(
-                        [loc - half, loc + half], [value, value], line_color))
-        return out
 
     def _stamp(self, item, *, container=False):
         """Give an artist a creation sequence number for legend ordering."""
@@ -5754,79 +7029,7 @@ class Axes:
         entries.sort(key=lambda entry: (entry[0], entry[1]))
         return [label for _, _, label in entries]
 
-    def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
-            align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
-        """Vertical bars; `color` may be a single colour or one per bar."""
-        hist = kwargs.pop("_hist", False)
-        _check_kwargs(kwargs, "bar", _BAR_KWARGS)
-        x = _as_f64(self._xdate(x))
-        n = x.size
-        h, w, b = _fill(height, n), _fill(width, n), _fill(bottom, n)
-        if align not in ("center", "edge"):
-            raise ValueError(f"unsupported align: {align!r}")
-        left = x - w / 2.0 if align == "center" else x
-        # Matplotlib pins each bar's baseline so autoscaling keeps it on the axis.
-        self._sticky_y += [float(v) for v in np.asarray(b).ravel()]
-        colors = _bar_colors(color if color is not None else self._next_color(patch=True), n)
-        self._append_bar(dict(
-            left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
-            colors=colors,
-            edgecolor=(_bar_colors(edgecolor, n) if edgecolor is not None else None),
-            alpha=None if alpha is None else float(alpha), label=str(label),
-            vertical=True), container=not hist)
-        if yerr is not None:
-            lo, hi = _err_pair(yerr, n, "yerr")
-            ecolor = edgecolor or (colors[0] if colors else "#1f77b4")
-            self.errors.append((np.ascontiguousarray(left + w / 2.0),
-                                np.ascontiguousarray(b + h), lo, hi,
-                                np.zeros(n), np.zeros(n), str(ecolor), 0.0))
-        return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
-                             str(label))
 
-    def bar_label(self, container, labels=None, fmt="%g", label_type="edge", padding=0,
-                  **kwargs):
-        """Annotate each bar with its length, at the bar end or centred."""
-        if label_type not in ("edge", "center"):
-            raise ValueError(f"unsupported label_type: {label_type!r}")
-        handles = list(container) if isinstance(container, (list, tuple)) else [container]
-        texts = None if labels is None else [str(v) for v in np.asarray(labels, dtype=object).ravel()]
-        if texts is not None and len(texts) != len(handles):
-            raise ValueError("labels must have one entry per bar")
-        out = []
-        for i, handle in enumerate(handles):
-            group = self.bars[handle._group]
-            index = handle._index
-            if group.get("vertical", True):
-                length = float(group["height"][index])
-                x = float(group["left"][index] + group["width"][index] / 2.0)
-                anchor = float(group["bottom"][index])
-                if label_type == "edge":
-                    y, va, shift = anchor + length, "bottom", (0.0, float(padding))
-                else:
-                    y, va, shift = anchor + length / 2.0, "center", (0.0, 0.0)
-                ha = "center"
-            else:
-                length = float(group["width"][index])
-                y = float(group["bottom"][index] + group["height"][index] / 2.0)
-                anchor = float(group["left"][index])
-                if label_type == "edge":
-                    x, ha, shift = anchor + length, "left", (float(padding), 0.0)
-                else:
-                    x, ha, shift = anchor + length / 2.0, "center", (0.0, 0.0)
-                va = "center"
-            if texts is not None:
-                text = texts[i]
-            elif callable(fmt):
-                text = str(fmt(length))
-            elif "%" in str(fmt):
-                text = str(fmt) % length
-            else:
-                text = str(fmt).format(length)
-            self.text(x, y, text, color=kwargs.get("color", "black"),
-                      fontsize=kwargs.get("fontsize", 10), ha=ha, va=va,
-                      offset=shift)
-            out.append(text)
-        return out
 
     def _ydate(self, values):
         """Convert date-like or categorical y values to numbers and label the axis."""
@@ -5843,748 +7046,36 @@ class Axes:
         self._yticklabels = labels
         return np.arange(len(labels), dtype=np.float64)
 
-    def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
-             align="center", alpha=None, linewidth=None, **kwargs):
-        """Horizontal bars, stored as the same rectangles as `bar`."""
-        hist = kwargs.pop("_hist", False)
-        _check_kwargs(kwargs, "barh", _BAR_KWARGS)
-        y = (self._category_positions(y) if _looks_like_categories(y)
-             else _as_f64(y))
-        n = y.size
-        w, h, l = _fill(width, n), _fill(height, n), _fill(left, n)
-        if align not in ("center", "edge"):
-            raise ValueError(f"unsupported align: {align!r}")
-        bottom = y - h / 2.0 if align == "center" else y
-        self._sticky_x += [float(v) for v in np.asarray(l).ravel()]
-        self._append_bar(dict(
-            left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
-            colors=_bar_colors(color if color is not None else self._next_color(patch=True), n),
-            edgecolor=(_bar_colors(edgecolor, n) if edgecolor is not None else None),
-            alpha=None if alpha is None else float(alpha), label=str(label),
-            vertical=False), container=not hist)
-        return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
-                             str(label))
 
-    def grouped_bar(self, data, tick_labels=None, labels=None, bottom=None,
-                    group_spacing=None, colors=None, edgecolor=None, **kwargs):
-        """Side-by-side bars for several series, one `BarContainer` per series."""
-        if isinstance(data, dict):
-            series = [str(v) for v in (labels if labels is not None else data.keys())]
-            values = np.asarray(list(data.values()), dtype=np.float64).T
-        else:
-            values = np.asarray(data, dtype=np.float64)
-            series = [str(v) for v in (labels or [])]
-        if values.ndim != 2:
-            raise ValueError("grouped_bar expects a mapping or a 2-D array")
-        n, m = values.shape
-        if len(series) != m:
-            series = [f"series {i + 1}" for i in range(m)]
-        bar_width = 0.8 / m
-        gap = 0.0 if group_spacing is None else float(group_spacing) * bar_width
-        centers = np.arange(n, dtype=np.float64) * (m * bar_width + gap)
-        palette = _colors(colors) if colors is not None else []
-        containers = []
-        for i in range(m):
-            colour = palette[i % len(palette)] if palette else self._next_color()
-            containers.append(self.bar(
-                centers + (i - (m - 1) / 2.0) * bar_width, values[:, i],
-                width=bar_width, bottom=0.0 if bottom is None else bottom,
-                color=colour, edgecolor=edgecolor, label=series[i], **kwargs))
-        if tick_labels is not None:
-            self.set_xticks(centers, labels=list(tick_labels))
-        return _GroupedBarResult(containers)
 
-    def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
-                     alpha=None, label="", step=None, **kwargs):
-        """Fill between two curves; `where` masks split the area into runs."""
-        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
-        a, b = _fill(y1, x.size), _fill(y2, x.size)
-        c = color if color is not None else self._next_color(patch=True)
-        for xs, ya, yb in _runs(x, a, b, where):
-            self._append_band(_band(np.concatenate([xs, xs[::-1]]),
-                                    np.concatenate([ya, yb[::-1]]), c, alpha, label))
 
-    def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
-                      **kwargs):
-        y = _as_f64(y)
-        a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
-        c = color if color is not None else self._next_color(patch=True)
-        for ys, xa, xb in _runs(y, a, b, where):
-            self._append_band(_band(np.concatenate([xa, xb[::-1]]),
-                                    np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
-    def fill(self, *args, color=None, alpha=None, label="", **kwargs):
-        """Filled polygons: every `x, y` pair is one polygon, optionally
-        followed by its own colour, as in Matplotlib (`fill(x, y, x2, y2)`
-        draws two polygons, not one polygon through both)."""
-        groups, pair = [], []
-        for arg in args:
-            if isinstance(arg, str):
-                if not groups or groups[-1][1] is not None:
-                    raise TypeError("fill expects x, y pairs, optionally followed by a colour")
-                groups[-1] = (groups[-1][0], arg)
-                continue
-            pair.append(arg)
-            if len(pair) == 2:
-                groups.append((pair, None))
-                pair = []
-        if pair:
-            raise TypeError("fill expects x, y pairs, optionally followed by a colour")
-        for (x, y), spec in groups:
-            c = spec or color or self._next_color(patch=True)
-            self._append_band(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
 
-    def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
-                alpha=None, label="", **kwargs):
-        """Horizontal line at data `y`, spanning an axes-fraction x range."""
-        y = _as_f64(y)[0]
-        self._hline_refs.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
-                                linestyle=linestyle, linewidth=linewidth, alpha=alpha,
-                                label=str(label)))
 
-    def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
-                alpha=None, label="", **kwargs):
-        """Vertical line at data `x`, spanning an axes-fraction y range."""
-        x = _as_f64(self._xdate(x))[0]
-        self._vline_refs.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
-                                linestyle=linestyle, linewidth=linewidth, alpha=alpha,
-                                label=str(label)))
 
-    def axhspan(self, ymin, ymax, xmin=0.0, xmax=1.0, color=None, alpha=None, label="",
-                **kwargs):
-        """Horizontal band between two data y values, over an axes-fraction x range."""
-        ymin, ymax = _as_f64((ymin, ymax))
-        self.hspans.append(dict(ymin=float(ymin), ymax=float(ymax), xmin=float(xmin),
-                                xmax=float(xmax), color=color, alpha=alpha, label=str(label)))
 
-    def axvspan(self, xmin, xmax, ymin=0.0, ymax=1.0, color=None, alpha=None, label="",
-                **kwargs):
-        """Vertical band between two data x values, over an axes-fraction y range."""
-        values = _as_f64(self._xdate((xmin, xmax)))
-        self.vspans.append(dict(xmin=float(values[0]), xmax=float(values[1]), ymin=float(ymin),
-                                ymax=float(ymax), color=color, alpha=alpha, label=str(label)))
 
-    def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading="auto",
-                   alpha=None, norm=None, **kwargs):
-        """Quad mesh: each Z cell is filled through `cmap` via the image path.
 
-        `X`/`Y` may be cell edges (one longer than Z's axis) or cell centres.
-        """
-        if len(args) == 3 and _looks_like_dates(args[0]):
-            args = (self._xdate(args[0]), args[1], args[2])
-        x, y, z, edges = _mesh_args(args)
-        if edges:
-            extent = (float(x[0]), float(x[-1]), float(y[0]), float(y[-1]))
-        else:
-            dx = float(x[1] - x[0]) if x.size > 1 else 1.0
-            dy = float(y[1] - y[0]) if y.size > 1 else 1.0
-            extent = (float(x[0]) - dx / 2, float(x[-1]) + dx / 2,
-                      float(y[0]) - dy / 2, float(y[-1]) + dy / 2)
-        return self.imshow(z, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
-                           extent=extent, origin="lower", alpha=alpha, norm=norm)
 
-    def pcolor(self, *args, **kwargs):
-        return self.pcolormesh(*args, **kwargs)
 
-    def pcolorfast(self, *args, **kwargs):
-        return self.pcolormesh(*args, **kwargs)
 
-    def hist2d(self, x, y, bins=10, range=None, density=False, weights=None,
-               cmin=None, cmax=None, cmap=None, data=None, **kwargs):
-        """2-D histogram rasterised through `imshow`; returns
-        `(counts, xedges, yedges, image)`."""
-        if data is not None:
-            x = data[x] if isinstance(x, str) else x
-            y = data[y] if isinstance(y, str) else y
-        x = np.asarray(x, dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
-        bins = _validate_bins(bins, max_cells=_MAX_BIN_CELLS)
-        counts, xedges, yedges = np.histogram2d(
-            x, y, bins=bins, range=range, density=bool(density), weights=weights)
-        image = self.imshow(counts.T, cmap=_cmap_name(cmap), vmin=cmin, vmax=cmax,
-                            extent=(float(xedges[0]), float(xedges[-1]),
-                                    float(yedges[0]), float(yedges[-1])),
-                            origin="lower")
-        self.set_aspect("auto")
-        return counts, xedges, yedges, image
 
-    def hexbin(self, x, y, C=None, gridsize=100, bins=None, xscale="linear",
-               yscale="linear", extent=None, cmap=None, norm=None, vmin=None,
-               vmax=None, alpha=None, linewidths=None, edgecolors="face",
-               reduce_C_function=None, mincnt=None, marginals=False, data=None, **kwargs):
-        """Hexagonal binning: one coloured hexagon per occupied grid cell."""
-        if data is not None:
-            x = data[x] if isinstance(x, str) else x
-            y = data[y] if isinstance(y, str) else y
-            C = data[C] if isinstance(C, str) else C
-        x = np.asarray(x, dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
-        if x.size == 0:
-            handle = Collection(colors=[])
-            self.add_collection(handle)
-            return handle
-        gridsize = _validate_bins(gridsize, name="gridsize")
-        if isinstance(gridsize, (tuple, list, np.ndarray)):
-            nx, ny = (max(int(v), 1) for v in np.asarray(gridsize).ravel()[:2])
-        else:
-            nx = max(int(gridsize), 1)
-            ny = None
-        if extent is None:
-            extent = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
-        ex0, ex1, ey0, ey1 = (float(v) for v in extent)
-        if ex1 <= ex0:
-            ex0, ex1 = ex0 - 0.5, ex1 + 0.5
-        if ey1 <= ey0:
-            ey0, ey1 = ey0 - 0.5, ey1 + 0.5
-        if ny is None:
-            ny = max(int(nx / np.sqrt(3.0)), 1)
-        ny = max(int(ny), 1)
-        if nx * ny > _MAX_BIN_CELLS // 2:
-            raise ValueError(
-                f"gridsize=({nx}, {ny}) creates too many hexagons "
-                f"({nx * ny} > {_MAX_BIN_CELLS // 2})"
-            )
-        sx = (ex1 - ex0) / nx
-        sy = (ey1 - ey0) / ny
-        nx1, ny1 = nx + 1, ny + 1
-        nx2, ny2 = nx, ny
-        # Two interleaved rectangular grids form a triangular lattice. The
-        # nearest of their centres gives the hexagonal Voronoi cell for a point.
-        centers = np.column_stack([
-            np.concatenate([
-                np.repeat(np.arange(nx1), ny1),
-                np.repeat(np.arange(nx2) + 0.5, ny2),
-            ]) * sx + ex0,
-            np.concatenate([
-                np.tile(np.arange(ny1), nx1),
-                np.tile(np.arange(ny2), nx2) + 0.5,
-            ]) * sy + ey0,
-        ])
-        ix = (x - ex0) / sx
-        iy = (y - ey0) / sy
-        ix1 = np.rint(ix).astype(int)
-        iy1 = np.rint(iy).astype(int)
-        ix2 = np.floor(ix).astype(int)
-        iy2 = np.floor(iy).astype(int)
-        valid1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1)
-        valid2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2)
-        d1 = (ix - ix1) ** 2 + 3.0 * (iy - iy1) ** 2
-        d2 = (ix - ix2 - 0.5) ** 2 + 3.0 * (iy - iy2 - 0.5) ** 2
-        use1 = valid1 & (~valid2 | (d1 <= d2))
-        valid = valid1 | valid2
-        cell = np.where(use1, ix1 * ny1 + iy1, nx1 * ny1 + ix2 * ny2 + iy2)
-        cell = cell[valid]
-        total = nx1 * ny1 + nx2 * ny2
-        counts = np.bincount(cell, minlength=total).astype(np.float64)
-        if C is None:
-            values = counts.copy()
-        else:
-            weights = np.asarray(C, dtype=np.float64).ravel()
-            if weights.size != x.size:
-                raise ValueError("C must have one value per point")
-            sums = np.bincount(cell, weights=weights[valid], minlength=total)
-            values = np.divide(sums, counts, out=np.zeros(total), where=counts > 0)
-        if mincnt is None:
-            keep = np.ones(total, dtype=bool)
-        else:
-            keep = counts >= float(mincnt)
-        if not keep.any():
-            keep = counts > 0
-        shown = np.flatnonzero(keep)
-        if vmin is None:
-            vmin = float(values[shown].min())
-        if vmax is None:
-            vmax = float(values[shown].max())
-        if not vmax > vmin:
-            vmax = vmin + 1.0
-        t = np.clip((values[shown] - float(vmin)) / (float(vmax) - float(vmin)), 0.0, 1.0)
-        cmap = _cmap_name(cmap)
-        colors = _cmap_colors(cmap, t)
-        polygon = np.array([
-            [0.5, -0.5], [0.5, 0.5], [0.0, 1.0],
-            [-0.5, 0.5], [-0.5, -0.5], [0.0, -1.0],
-        ])
-        # Build every hexagon in one array and keep the cells in a single band:
-        # one dict per cell dominates hexbin's Python time and cache-key hashing.
-        sel = centers[shown]
-        xs = (sel[:, 0:1] + sx * polygon[:, 0]).ravel()
-        ys = (sel[:, 1:2] + (sy / 3.0) * polygon[:, 1]).ravel()
-        self._append_band(dict(
-            x=np.ascontiguousarray(xs), y=np.ascontiguousarray(ys),
-            color="#000000", alpha=None if alpha is None else float(alpha), label="",
-            cells=int(shown.size),
-            cell_colors="".join(c[1:] for c in colors), gid="",
-        ))
-        self._sticky_x += [ex0, ex1]
-        self._sticky_y += [ey0, ey1]
-        return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
-    def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None,
-                 **kwargs):
-        """Text at `xytext` with an arrow pointing at `xy`.
 
-        `xycoords`/`textcoords`, alignment and box keywords are accepted; the
-        renderer currently treats both coordinate systems as data coordinates.
-        """
-        size = _font_size(fontsize, rcParams.get("font.size", 10.0))
-        family = _family_override(kwargs)
-        color = color or kwargs.get("color") or rcParams.get("text.color", "black")
-        xytext = kwargs.get("xytext", xytext)
-        xy = _as_f64(xy)
-        xytext = None if xytext is None else _as_f64(xytext)
-        self.annotations.append((_mathtext(text, family), (float(xy[0]), float(xy[1])),
-                                 None if xytext is None else (float(xytext[0]), float(xytext[1])),
-                                 _norm_color(color), size, family or ""))
-        art = _TextArt(str(text))
-        art.arrow_patch = _TextArt()
-        return art
 
-    def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
-                vmin=None, vmax=None, data=None, norm=None, **kwargs):
-        """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
-        colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
-        _check_kwargs(kwargs, "scatter", _SCATTER_KWARGS)
-        if data is not None:
-            def column(value):
-                return data[value] if isinstance(value, str) and value in data else value
-            x, y, s, c = column(x), column(y), column(s), column(c)
-        x = _as_f64(self._xdate(x))
-        y = _as_f64(self._ydate(y))
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
-        n = y.size
-        values, colors = _scatter_colors(c if c is not None else self._next_color(patch=True), n)
-        if norm is not None and values is not None:
-            values, vmin, vmax = _norm_values(norm, values)
-        entry = dict(
-            x=np.ascontiguousarray(x), y=np.ascontiguousarray(y), sizes=_sizes(s, n),
-            values=values, cmap=_cmap_name(cmap),
-            clim=None if vmin is None and vmax is None else (vmin, vmax), colors=colors,
-            marker=str(marker), alpha=1.0 if alpha is None else float(alpha),
-            label=str(label))
-        self._append_scatter(entry)
-        return _ScatterHandle(entry, self)
 
-    def streamplot(self, x, y, u, v, density=1, linewidth=None, color=None,
-                   cmap=None, norm=None, arrowsize=1, arrowstyle="-|>",
-                   minlength=0.1, maxlength=4.0, integration_direction="both",
-                   broken_streamlines=True, start_points=None, num_arrows=1,
-                   integration_max_step_scale=1.0,
-                   integration_max_error_scale=1.0, **kwargs):
-        """Draw streamlines for a 2-D vector field.
 
-        This is a compact integrator: it seeds a regular grid (or the supplied
-        `start_points`), integrates the normalised field with a midpoint step,
-        and draws each streamline as a segment collection so colour can vary
-        along the path.
-        """
-        if integration_max_step_scale <= 0:
-            raise ValueError("The value of integration_max_step_scale must be > 0")
-        if integration_max_error_scale <= 0:
-            raise ValueError("The value of integration_max_error_scale must be > 0")
-        if integration_direction not in ("forward", "backward", "both"):
-            raise ValueError(f"unsupported integration_direction: {integration_direction!r}")
-        xs, ys, uu, vv, mask = _streamplot_field(x, y, u, v)
-        x0, x1, y0, y1 = xs[0], xs[-1], ys[0], ys[-1]
-        dx = abs(xs[1] - xs[0]) if xs.size > 1 else 1.0
-        dy = abs(ys[1] - ys[0]) if ys.size > 1 else 1.0
-        step = 0.5 * min(dx, dy)
-        max_distance = float(maxlength) * max(x1 - x0, y1 - y0, 1.0)
-        max_steps = min(600, max(10, int(np.ceil(max_distance / max(step, 1e-12)))))
 
-        if start_points is not None:
-            seeds = np.asarray(start_points, dtype=float)
-            if seeds.ndim == 1:
-                seeds = seeds.reshape(1, -1)
-            if seeds.shape[0] == 2 and seeds.shape[1] != 2:
-                seeds = seeds.T
-            seeds = seeds[:, :2]
-        else:
-            dens = np.asarray(density, dtype=float).ravel()
-            if dens.size == 1:
-                dens = np.repeat(dens, 2)
-            nx = max(2, int(round((xs.size - 1) / 10.0 * dens[0])))
-            ny = max(2, int(round((ys.size - 1) / 10.0 * dens[1])))
-            seeds = np.array([[sx, sy] for sy in np.linspace(y0, y1, ny)
-                              for sx in np.linspace(x0, x1, nx)])
 
-        sampler = _streamplot_sampler(xs, ys, uu, vv, mask)
 
-        def field(px, py):
-            ux, vy = sampler(px, py)
-            speed = _math.hypot(ux, vy)
-            if not np.isfinite(speed) or speed <= 1e-12:
-                return None
-            return ux / speed, vy / speed
 
-        def advance(px, py, sign):
-            first = field(px, py)
-            if first is None:
-                return None
-            mx = px + sign * step * 0.5 * first[0]
-            my = py + sign * step * 0.5 * first[1]
-            mid = field(mx, my)
-            if mid is None:
-                return None
-            return px + sign * step * mid[0], py + sign * step * mid[1]
 
-        def trace(sx, sy, sign):
-            points = [(float(sx), float(sy))]
-            px, py, travelled = float(sx), float(sy), 0.0
-            for _ in range(max_steps):
-                nxt = advance(px, py, sign)
-                if nxt is None:
-                    break
-                nxv, nyv = nxt
-                if not (x0 - step <= nxv <= x1 + step and y0 - step <= nyv <= y1 + step):
-                    break
-                travelled += _math.hypot(nxv - px, nyv - py)
-                if travelled > max_distance:
-                    break
-                points.append((nxv, nyv))
-                px, py = nxv, nyv
-            return points
 
-        trajectories = []
-        for sx, sy in seeds:
-            if not (x0 <= sx <= x1 and y0 <= sy <= y1):
-                continue
-            if integration_direction == "forward":
-                pts = trace(sx, sy, 1)
-            elif integration_direction == "backward":
-                pts = trace(sx, sy, -1)
-            else:
-                back = trace(sx, sy, -1)[1:]
-                pts = list(reversed(back)) + trace(sx, sy, 1)
-            if len(pts) >= 2:
-                trajectories.append(np.asarray(pts, dtype=float))
 
-        color_values = None
-        if color is not None and not isinstance(color, str):
-            candidate = np.asarray(color)
-            if candidate.shape == uu.shape and candidate.dtype.kind in "iuf":
-                color_values = np.asarray(candidate, dtype=float)
-        if color_values is not None:
-            vals = color_values[np.isfinite(color_values)]
-            lo = float(vals.min()) if vals.size else 0.0
-            hi = float(vals.max()) if vals.size else 1.0
-            if not hi > lo:
-                lo, hi = lo - 0.5, lo + 0.5
-            cmap_obj = get_cmap(cmap)
-            color_at = lambda px, py: cmap_obj((_streamplot_sample(color_values, xs, ys, px, py) - lo) / (hi - lo))
-        else:
-            uniform = _norm_color(color) if color is not None else self._next_color()
-            color_at = lambda px, py: uniform
 
-        linewidth_values = None
-        if linewidth is not None and not np.isscalar(linewidth):
-            candidate = np.asarray(linewidth, dtype=float)
-            if candidate.shape == uu.shape:
-                linewidth_values = candidate
-        if linewidth_values is not None:
-            widths = linewidth_values[np.isfinite(linewidth_values)]
-            line_width = float(widths.mean()) if widths.size else 2.0
-        else:
-            line_width = 2.0 if linewidth is None else float(linewidth)
 
-        segments, colors, shown_values = [], [], []
-        arrow_segments, arrow_colors = [], []
-        for pts in trajectories:
-            good = np.isfinite(pts).all(axis=1)
-            pts = pts[good]
-            if len(pts) < 2:
-                continue
-            for i in range(len(pts) - 1):
-                p0, p1 = pts[i], pts[i + 1]
-                if np.allclose(p0, p1):
-                    continue
-                segments.append(np.vstack([p0, p1]).ravel().tolist())
-                mid = (p0 + p1) * 0.5
-                colors.append(color_at(mid[0], mid[1]))
-                if color_values is not None:
-                    shown_values.append(_streamplot_sample(color_values, xs, ys, mid[0], mid[1]))
-            if num_arrows and arrowsize and arrowsize > 1e-3 and len(pts) > 2:
-                count = max(1, int(num_arrows))
-                for idx in np.linspace(1, len(pts) - 1, count, endpoint=False):
-                    i = int(np.clip(round(idx), 1, len(pts) - 1))
-                    tip = pts[i]
-                    direction = pts[i] - pts[i - 1]
-                    norm = _math.hypot(direction[0], direction[1])
-                    if not norm:
-                        continue
-                    direction = direction / norm
-                    normal = np.array([-direction[1], direction[0]])
-                    size = 0.45 * min(dx, dy)
-                    left = tip - direction * size + normal * size * 0.45
-                    right = tip - direction * size - normal * size * 0.45
-                    arrow_segments.append(np.vstack([left, tip, right]).ravel().tolist())
-                    arrow_colors.append(color_at(tip[0], tip[1]))
 
-        segments.extend(arrow_segments)
-        colors.extend(arrow_colors)
-        lines = LineCollection(segments, colors=colors, linewidths=line_width,
-                               label=kwargs.get("label", ""))
-        lines.axes = self
-        lines._array = np.asarray(shown_values) if shown_values else None
-        lines._cmap = _cmap_name(cmap) if color_values is not None else None
-        if color_values is not None:
-            vals = color_values[np.isfinite(color_values)]
-            lines._clim = ((float(vals.min()), float(vals.max()))
-                           if vals.size else None)
-        self.add_collection(lines)
-        arrows = Collection(colors=[])
-        return _StreamplotSet(lines, arrows)
 
-    def quiver(self, *args, U=None, V=None, C=None, color=None, angles="xy",
-               scale=None, scale_units=None, units="width", width=None,
-               headwidth=3.0, headlength=5.0, headaxislength=4.5, pivot="tail",
-               **kwargs):
-        """Vector field arrows from `quiver(U, V)` or `quiver(X, Y, U, V)`.
-
-        `scale` and `units` set the arrow length from the finished axes box, as
-        in Matplotlib; `pivot` places the arrow at its tail, middle or tip."""
-        if len(args) == 2:
-            ua = np.asarray(args[0], dtype=np.float64)
-            va = np.asarray(args[1], dtype=np.float64)
-            if ua.shape != va.shape:
-                raise ValueError("U and V must have the same shape")
-            if ua.ndim == 2:
-                rows, cols = ua.shape
-                gx, gy = np.meshgrid(np.arange(cols, dtype=float),
-                                     np.arange(rows, dtype=float))
-                x, y = gx.ravel(), gy.ravel()
-            else:
-                x = np.arange(ua.size, dtype=float)
-                y = np.zeros(ua.size)
-            u, v = ua.ravel(), va.ravel()
-        elif len(args) >= 4:
-            xa = np.asarray(self._xdate(args[0]), dtype=np.float64)
-            ya = np.asarray(args[1], dtype=np.float64)
-            ua = np.asarray(args[2], dtype=np.float64)
-            va = np.asarray(args[3], dtype=np.float64)
-            if ua.shape != va.shape:
-                raise ValueError("U and V must have the same shape")
-            if ua.ndim == 2:
-                if (xa.ndim == 1 and ya.ndim == 1
-                        and xa.size == ua.shape[1] and ya.size == ua.shape[0]):
-                    xa, ya = np.meshgrid(xa, ya)
-                elif xa.shape != ua.shape or ya.shape != va.shape:
-                    raise ValueError("X and Y must match U's shape or one axis each")
-                x, y = xa.ravel(), ya.ravel()
-            else:
-                x, y = xa.ravel(), ya.ravel()
-            u, v = ua.ravel(), va.ravel()
-            if len(args) >= 5 and C is None:
-                C = args[4]
-        elif len(args) == 0 and U is not None and V is not None:
-            ua = np.asarray(U, dtype=np.float64)
-            va = np.asarray(V, dtype=np.float64)
-            if ua.shape != va.shape:
-                raise ValueError("U and V must have the same shape")
-            if ua.ndim == 2:
-                rows, cols = ua.shape
-                x, y = np.meshgrid(np.arange(cols, dtype=float),
-                                   np.arange(rows, dtype=float))
-                x, y = x.ravel(), y.ravel()
-            else:
-                x = np.arange(ua.size, dtype=float)
-                y = np.zeros(ua.size)
-            u, v = ua.ravel(), va.ravel()
-        else:
-            raise TypeError("quiver expects U, V or X, Y, U, V")
-        if not (x.size == y.size == u.size == v.size):
-            raise ValueError("X, Y, U and V must have the same length")
-        if x.size == 0:
-            raise ValueError("quiver needs at least one vector")
-        if angles not in ("xy", "uv"):
-            raise ValueError(f"unsupported angles: {angles!r}")
-        if pivot not in ("tail", "middle", "mid", "tip"):
-            raise ValueError(f"unsupported pivot: {pivot!r}")
-        supported_units = ("width", "height", "dots", "inches", "x", "y", "xy")
-        if units not in supported_units:
-            raise ValueError(f"unsupported units: {units!r}")
-        if scale_units is not None and scale_units not in supported_units:
-            raise ValueError(f"unsupported scale_units: {scale_units!r}")
-        if isinstance(scale, str):
-            if scale != "auto":
-                raise ValueError(f"unsupported scale: {scale!r}")
-            scale = None
-        if scale is not None:
-            scale = float(scale)
-            if scale == 0.0:
-                raise ValueError("scale must not be zero")
-        # Matplotlib sizes arrows from the axes box, so keep U/V in data units
-        # and hand `scale`/`units` to the renderer.
-        colors = (_line_colors(color, x.size) if color is not None
-                  else [self._next_color()])
-        entry = dict(x=np.ascontiguousarray(x), y=np.ascontiguousarray(y),
-                     u=np.ascontiguousarray(u), v=np.ascontiguousarray(v),
-                     colors=colors,
-                     scale=scale, units=str(units),
-                     scale_units=None if scale_units is None else str(scale_units),
-                     angles=str(angles),
-                     width=None if width is None else _number(width, 0.005),
-                     headwidth=_number(headwidth, 3.0),
-                     headlength=_number(headlength, 5.0),
-                     headaxislength=_number(headaxislength, 4.5),
-                     pivot="middle" if pivot == "mid" else str(pivot))
-        self.arrows.append(entry)
-        return _QuiverHandle(entry)
-
-    def quiverkey(self, Q, X, Y, U, label, **kwargs):
-        """Accept the quiver-key annotation; keys are not drawn yet."""
-        return None
-
-    def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
-                 capsize=None, label="", color=None, **kwargs):
-        """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
-        error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
-        x = _as_f64(self._xdate(x))
-        y = _as_f64(y)
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
-        n = y.size
-        ylo, yhi = _err_pair(yerr, n, "yerr")
-        xlo, xhi = _err_pair(xerr, n, "xerr")
-        c = (color or ecolor or _FMT_COLORS.get(fmt[:1])
-             or self._next_color())
-        # matplotlib's default fmt='' still draws a solid line; marker-only formats
-        # ('o', 's', ...) get bars only since markers are not rendered yet.
-        elw = elinewidth if elinewidth is not None else rcParams.get("lines.linewidth", 1.5)
-        if fmt != "none" and (fmt == "" or "-" in fmt):
-            self._append_series(_series(x, y, label, c, linewidth=elw))
-        self.errors.append((np.ascontiguousarray(x), np.ascontiguousarray(y), ylo, yhi,
-                            xlo, xhi, c, float(capsize or 0.0) * 1.4))
-        _, _, marker = _stem_fmt(fmt, "")
-        if marker:
-            self.scatter(x, y, s=36, c=c, marker=marker)
-
-    def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
-                alpha=None, locator=None, **kwargs):
-        """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
-        followed by `levels`. Matplotlib contour kwargs are accepted."""
-        return self._add_contour(args, levels, colors, cmap, False, linewidths,
-                                 alpha, locator)
-
-    def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
-                 alpha=None, locator=None, **kwargs):
-        """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
-        return self._add_contour(args, levels, colors, cmap, True, linewidths,
-                                 alpha, locator)
-
-    def triplot(self, *args, **kwargs):
-        """Draw the edges of an unstructured triangular grid.
-
-        Accepts `triplot(triangulation, fmt, ...)` or `triplot(x, y, triangles,
-        fmt, ...)`; a missing triangle array asks for a Delaunay triangulation.
-        """
-        triangulation, _, rest = _tri_args(args)
-        fmt = rest[0] if rest and isinstance(rest[0], str) else None
-        edges = triangulation.get_masked_triangles()
-        if len(edges) == 0:
-            return []
-        ex, ey = [], []
-        for a, b, c in edges:
-            for i, j in ((a, b), (b, c), (c, a)):
-                ex.extend((triangulation.x[i], triangulation.x[j], np.nan))
-                ey.extend((triangulation.y[i], triangulation.y[j], np.nan))
-        color = kwargs.pop("color", kwargs.pop("c", None))
-        return self.plot(np.asarray(ex), np.asarray(ey), fmt or "-",
-                         color=color, **kwargs)
-
-    def tricontour(self, *args, levels=None, colors=None, cmap=None,
-                   linewidths=None, alpha=None, **kwargs):
-        """Iso-lines of data on an unstructured triangular grid."""
-        triangulation, z, rest = _tri_args(args)
-        if levels is None and rest:
-            levels = rest[0]
-        xi, yi, zi = _tri_field(triangulation, z)
-        return self.contour(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
-                            linewidths=linewidths, alpha=alpha, **kwargs)
-
-    def tricontourf(self, *args, levels=None, colors=None, cmap=None,
-                    linewidths=None, alpha=None, **kwargs):
-        """Filled iso-bands of data on an unstructured triangular grid."""
-        triangulation, z, rest = _tri_args(args)
-        if levels is None and rest:
-            levels = rest[0]
-        xi, yi, zi = _tri_field(triangulation, z)
-        return self.contourf(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
-                             linewidths=linewidths, alpha=alpha, **kwargs)
-
-    def tripcolor(self, *args, shading="flat", facecolors=None, edgecolors=None,
-                  cmap=None, vmin=None, vmax=None, alpha=None, **kwargs):
-        """Pseudocolour of an unstructured triangular grid."""
-        triangulation, z, _ = _tri_args(args)
-        if z is None and facecolors is not None:
-            values = np.asarray(facecolors, dtype=float).ravel()
-            totals = np.zeros(len(triangulation.x))
-            counts = np.zeros(len(triangulation.x))
-            for tri, value in zip(triangulation.get_masked_triangles(), values):
-                totals[tri] += value
-                counts[tri] += 1
-            z = np.divide(totals, counts, out=np.full_like(totals, np.nan),
-                          where=counts > 0)
-        if z is None:
-            raise TypeError("tripcolor expects z or facecolors")
-        xi, yi, zi = _tri_field(triangulation, z, resolution=140)
-        image = self.pcolormesh(xi, yi, zi, cmap=cmap, vmin=vmin, vmax=vmax,
-                                shading=shading, alpha=alpha, **kwargs)
-        if edgecolors is not None:
-            self.triplot(triangulation, color=edgecolors)
-        return image
-
-    def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None,
-                     alpha=None, locator=None):
-        x, y, z, levels = _contour_args(args, levels)
-        levels = _levels(z, levels, allow_single=not filled, locator=locator)
-        if linewidths is None:
-            widths = []
-        elif np.isscalar(linewidths):
-            widths = [float(linewidths)]
-        else:
-            widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
-        if widths and len(widths) not in (1, len(levels)):
-            # Matplotlib cycles the sequence across levels.
-            widths = [widths[i % len(widths)] for i in range(len(levels))]
-        opacity = 1.0 if alpha is None else float(alpha)
-        if not np.isfinite(opacity):
-            raise ValueError("alpha must be finite")
-        entry = dict(x=x, y=y, z=z, levels=levels, linewidths=widths,
-                     colors=_colors(colors), cmap=_cmap_name(cmap), filled=filled,
-                     alpha=float(np.clip(opacity, 0.0, 1.0)))
-        self.contours.append(entry)
-        return ContourSet(entry, axes=self)
-
-    def set_title(self, t, fontsize=None, **kwargs):
-        family = _family_override(kwargs)
-        self.title = _mathtext(t, family)
-        self.title_size = self._size_or(fontsize, "axes.titlesize")
-        self.title_family = family
-
-    def set_xlabel(self, t, fontsize=None, **kwargs):
-        family = _family_override(kwargs)
-        self.xlabel = _mathtext(t, family)
-        self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
-        self.xlabel_family = family
-        if "color" in kwargs or "labelcolor" in kwargs:
-            self.xlabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
-
-    def set_ylabel(self, t, fontsize=None, **kwargs):
-        family = _family_override(kwargs)
-        self.ylabel = _mathtext(t, family)
-        self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
-        self.ylabel_family = family
-        if "color" in kwargs or "labelcolor" in kwargs:
-            self.ylabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
-
-    @staticmethod
-    def _size_or(value, key):
-        return _font_size(value, rcParams.get(key, rcParams.get("font.size", 10.0)))
 
     def set_xlim(self, left=None, right=None, **kwargs):
         """Set the x limits; accepts `left`/`right` or Matplotlib's `xmin`/`xmax`."""
@@ -6624,58 +7115,6 @@ class Axes:
             self._share_y.limits = limits
         return self.get_ylim()
 
-    def legend(self, *args, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
-               title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
-               labels=None, fontfamily=None, **kwargs):
-        """Show a legend. Supports placement, layout and explicit handles/labels."""
-        _check_kwargs(kwargs, "legend", _LEGEND_KWARGS)
-        _handles = _labels = None
-        if len(args) == 1:
-            arg = args[0]
-            if isinstance(arg, (list, tuple)) and arg and isinstance(arg[0], str):
-                _labels = arg
-            elif isinstance(arg, str):
-                loc = arg
-            else:
-                _handles = arg
-        elif len(args) >= 2:
-            _handles, _labels = args[0], args[1]
-            if len(args) > 2 and isinstance(args[2], str):
-                loc = args[2]
-        self.show_legend = True
-        explicit_labels = labels if labels is not None else _labels
-        if explicit_labels is not None:
-            self.legend_labels = [str(v) for v in explicit_labels]
-        if isinstance(loc, (tuple, list)):
-            self.legend_anchor = (float(loc[0]), float(loc[1]))
-            self.legend_loc = "lower left"
-        else:
-            normalized_loc = _normalize_legend_loc(loc)
-            if normalized_loc is not None:
-                self.legend_loc = normalized_loc
-        cols = ncol if ncol is not None else ncols
-        if cols is not None:
-            self.legend_ncol = max(1, int(cols))
-        if frameon is not None:
-            self.legend_frameon = bool(frameon)
-        if fontsize is not None:
-            self.legend_fontsize = _font_size(fontsize, rcParams.get("legend.fontsize", 10.0))
-        if title is not None:
-            self.legend_title = _mathtext(title, _font_family(fontfamily))
-        if title_fontsize is not None:
-            self.legend_title_fontsize = _font_size(title_fontsize, 11.0)
-        if fontfamily is not None:
-            self.legend_family = _font_family(fontfamily)
-        elif title is not None and self.legend_title_fontsize is None:
-            self.legend_title_fontsize = _font_size(rcParams.get("legend.fontsize", 10.0)) * 1.1
-        if bbox_to_anchor is not None:
-            if hasattr(bbox_to_anchor, "get_points"):
-                bbox_to_anchor = np.asarray(bbox_to_anchor.get_points()).ravel()
-            anchor = [float(v) for v in np.asarray(bbox_to_anchor).ravel()]
-            if len(anchor) not in (2, 4):
-                raise ValueError("bbox_to_anchor needs 2 or 4 values")
-            self.legend_anchor = (anchor[0], anchor[1])
-        return _LegendHandle()
 
     def minorticks_on(self): self.minor_ticks = True
     def minorticks_off(self): self.minor_ticks = False
@@ -6683,375 +7122,17 @@ class Axes:
     def set_rasterization_zorder(self, zorder):
         self._rasterization_zorder = None if zorder is None else float(zorder)
 
-    def eventplot(self, positions, orientation="horizontal", lineoffsets=0.0, linelengths=1.0,
-                  colors=None, linestyles=None, linewidths=None, **kwargs):
-        """One short line per event position, one row per positions array."""
-        data = kwargs.pop("data", None)
-        if data is not None:
-            positions = data[positions] if isinstance(positions, str) else positions
-            colors = data[colors] if isinstance(colors, str) else colors
-            lineoffsets = data[lineoffsets] if isinstance(lineoffsets, str) else lineoffsets
-            linelengths = data[linelengths] if isinstance(linelengths, str) else linelengths
-            linestyles = data[linestyles] if isinstance(linestyles, str) else linestyles
-        rows = positions
-        if isinstance(rows, np.ndarray) and rows.ndim == 2:
-            rows = list(rows)
-        elif not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
-            rows = [rows]
-        rows = [np.asarray(r, dtype=np.float64).ravel() for r in rows]
-        if not rows:
-            return None
-        n = len(rows)
-        if np.isscalar(lineoffsets):
-            offsets = np.full(n, float(lineoffsets)) + np.arange(n)
-        else:
-            offsets = _fill(lineoffsets, n)
-        lengths = _fill(linelengths, n)
-        cols = _line_colors(colors, n)
-        styles = _line_styles(linestyles, n)
-        collections = []
-        for i, row in enumerate(rows):
-            half = float(lengths[i]) / 2.0
-            if orientation == "horizontal":
-                collections.append(self.vlines(
-                    row, offsets[i] - half, offsets[i] + half,
-                    colors=cols[i], linestyles=styles[i], linewidths=linewidths))
-            elif orientation == "vertical":
-                collections.append(self.hlines(
-                    row, offsets[i] - half, offsets[i] + half,
-                    colors=cols[i], linestyles=styles[i], linewidths=linewidths))
-            else:
-                raise ValueError(f"unsupported orientation: {orientation!r}")
-        return collections
 
-    def broken_barh(self, xranges, yrange, colors=None, edgecolor=None, alpha=None,
-                    linewidth=None, **kwargs):
-        """Horizontal bars from `(xstart, width)` pairs over a shared y range."""
-        colors = kwargs.get("facecolors", colors)
-        pairs = [(float(a), float(b)) for a, b in xranges]
-        if not pairs:
-            return None
-        n = len(pairs)
-        position, height = yrange
-        if isinstance(position, str):
-            # A categorical y position labels the axis and sits at index 0.
-            offset = self._category_positions([position])[0]
-            step = float(height) / 2.0 if kwargs.get("align", "center") == "center" else 0.0
-            position = offset - step
-        self._append_bar(dict(left=np.array([a for a, _ in pairs]),
-                              bottom=np.full(n, float(position)),
-                              width=np.array([b for _, b in pairs]),
-                              height=np.full(n, float(height)),
-                              colors=_bar_colors(colors, n),
-                              edgecolor=(_bar_colors(edgecolor, n)
-                                         if edgecolor is not None else None),
-                              alpha=None if alpha is None else float(alpha),
-                              label="", vertical=True))
-        return None
 
-    def grid(self, visible=None, which="major", axis="both", **kwargs):
-        """Toggle gridlines and style them (`color`, `linewidth`, `alpha`,
-        `linestyle`, `axis`). `visible=None` flips the current state."""
-        if axis not in ("both", "x", "y"):
-            raise ValueError(f"unsupported grid axis: {axis!r}")
-        if which not in ("major", "minor", "both"):
-            raise ValueError(f"unsupported grid which: {which!r}")
-        targets = ("major", "minor") if which == "both" else (which,)
-        self.grid_axis = axis
-        for target in targets:
-            if target == "major":
-                self.show_grid = (not self.show_grid) if visible is None else bool(visible)
-                prefix, active = "grid_", self.show_grid
-            else:
-                self.grid_minor_show = ((not self.grid_minor_show)
-                                        if visible is None else bool(visible))
-                prefix, active = "grid_minor_", self.grid_minor_show
-            if "color" in kwargs or "c" in kwargs:
-                setattr(self, f"{prefix}color",
-                        _norm_color(kwargs.get("color", kwargs.get("c"))))
-            if "linewidth" in kwargs or "lw" in kwargs:
-                setattr(self, f"{prefix}linewidth",
-                        float(kwargs.get("linewidth", kwargs.get("lw"))))
-            if "linestyle" in kwargs or "ls" in kwargs:
-                setattr(self, f"{prefix}linestyle",
-                        str(kwargs.get("linestyle", kwargs.get("ls"))))
-            if "alpha" in kwargs:
-                setattr(self, f"{prefix}alpha", float(kwargs["alpha"]))
-            if active:
-                # Matplotlib's default grid is light grey and thin.
-                if getattr(self, f"{prefix}color") is None:
-                    setattr(self, f"{prefix}color", "#b0b0b0")
-                if getattr(self, f"{prefix}linewidth") is None:
-                    setattr(self, f"{prefix}linewidth", 0.8)
-                if getattr(self, f"{prefix}alpha") is None:
-                    setattr(self, f"{prefix}alpha", 1.0)
-        return None
 
-    def tick_params(self, axis="both", **kwargs):
-        """Style ticks on `axis` ("x", "y" or "both"); stored for the renderer."""
-        if axis not in ("x", "y", "both"):
-            raise ValueError(f"unsupported tick axis: {axis!r}")
-        self.tick_params_box.update(kwargs)
-        axes = ("x", "y") if axis == "both" else (axis,)
-        if "y" in axes:
-            # Moving the labels to one side of the axes (twinx idiom).
-            left = kwargs.get("labelleft", kwargs.get("left"))
-            right = kwargs.get("labelright", kwargs.get("right"))
-            if right and not left:
-                self._yside = "right"
-            elif left and not right:
-                self._yside = "left"
-        for name in axes:
-            self._tick_style(name, **{
-                "rotation": kwargs.get("rotation"),
-                "labelsize": kwargs.get("labelsize"),
-                "labelcolor": kwargs.get("labelcolor", kwargs.get("color")),
-                "tickcolor": kwargs.get("color"),
-                "length": kwargs.get("length"),
-                "width": kwargs.get("width"),
-                "pad": kwargs.get("pad"),
-            })
-        return None
 
-    def axline(self, xy1, xy2=None, slope=None, **kwargs):
-        """Infinite line through `xy1`/`xy2` (or `xy1` with `slope`), clipped to
-        the axes. It never contributes to the data limits."""
-        if (xy2 is None) == (slope is None):
-            raise ValueError("axline needs exactly one of xy2 or slope")
-        self._axlines.append(dict(
-            p=(float(xy1[0]), float(xy1[1])),
-            xy2=None if xy2 is None else (float(xy2[0]), float(xy2[1])),
-            slope=None if slope is None else float(slope),
-            color=kwargs.get("color") or kwargs.get("c"),
-            linestyle=kwargs.get("linestyle") or kwargs.get("ls") or "-",
-            linewidth=float(kwargs.get("linewidth") or kwargs.get("lw") or 1.5),
-            alpha=kwargs.get("alpha"), label=str(kwargs.get("label", ""))))
-        return None
 
-    def hlines(self, y, xmin, xmax, colors=None, linestyles=None, linewidths=None,
-               label="", **kwargs):
-        """Horizontal segments from `xmin` to `xmax` at every `y`."""
-        ys = np.asarray(y, dtype=np.float64).ravel()
-        lo, hi = _fill(self._xdate(xmin), ys.size), _fill(self._xdate(xmax), ys.size)
-        cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
-        widths = _fill(linewidths, ys.size) if linewidths is not None else None
-        handles = []
-        for i in range(ys.size):
-            self._append_series(_series(
-                [lo[i], hi[i]], [ys[i], ys[i]], label, cols[i], linestyle=styles[i],
-                linewidth=2.0 if widths is None else float(widths[i])))
-            handles.append(_LineHandle(self.lines[-1]))
-        return handles
 
-    def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
-               label="", **kwargs):
-        """Vertical segments from `ymin` to `ymax` at every `x`."""
-        xs = np.asarray(self._xdate(x), dtype=np.float64).ravel()
-        lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
-        cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
-        widths = _fill(linewidths, xs.size) if linewidths is not None else None
-        handles = []
-        for i in range(xs.size):
-            self._append_series(_series(
-                [xs[i], xs[i]], [lo[i], hi[i]], label, cols[i], linestyle=styles[i],
-                linewidth=2.0 if widths is None else float(widths[i])))
-            handles.append(_LineHandle(self.lines[-1]))
-        return handles
 
-    def stem(self, *args, linefmt=None, markerfmt=None, basefmt=None, bottom=0.0, label="",
-             orientation="vertical", **kwargs):
-        """Stem plot: one segment per point plus a marker at the tip."""
-        if len(args) == 1:
-            y = np.asarray(args[0], dtype=np.float64).ravel()
-            x = np.arange(y.size, dtype=np.float64)
-        elif len(args) == 2:
-            x = np.asarray(self._xdate(args[0]), dtype=np.float64).ravel()
-            y = np.asarray(args[1], dtype=np.float64).ravel()
-        else:
-            raise TypeError("stem expects y or x, y")
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
-        if orientation not in ("vertical", "horizontal"):
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        colour, style, _ = _stem_fmt(linefmt)
-        colour = kwargs.get("color") or colour or _CYCLE[len(self.lines) % len(_CYCLE)]
-        marker = baseline = None
-        stemlines = _LineGroupHandle()
-        if x.size:
-            if orientation == "vertical":
-                stemlines = _LineGroupHandle(self.vlines(
-                    x, bottom, y, colors=colour, linestyles=style,
-                    linewidths=rcParams.get("lines.linewidth", 1.5)))
-            else:
-                stemlines = _LineGroupHandle(self.hlines(
-                    y, bottom, x, colors=colour, linestyles=style,
-                    linewidths=rcParams.get("lines.linewidth", 1.5)))
-            marker_colour, _, marker_fmt = _stem_fmt(markerfmt, "o")
-            marker = self.scatter(x, y, s=36, c=marker_colour or colour,
-                                  marker=marker_fmt)
-            if basefmt != "none":
-                if orientation == "vertical":
-                    base_lines = self.hlines(
-                        [float(bottom)], float(x.min()), float(x.max()),
-                        colors=colour, linewidths=rcParams.get("lines.linewidth", 1.5))
-                else:
-                    base_lines = self.vlines(
-                        [float(bottom)], float(y.min()), float(y.max()),
-                        colors=colour, linewidths=rcParams.get("lines.linewidth", 1.5))
-                baseline = _LineGroupHandle(base_lines)[0] if base_lines else None
-        return _StemContainer(marker, stemlines, baseline)
 
-    def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
-            normalize=True, shadow=False, **kwargs):
-        """Pie chart drawn as filled wedges; returns `(wedges, texts, autotexts)`."""
-        values = np.asarray(x, dtype=np.float64).ravel()
-        if values.size == 0 or np.any(values < 0):
-            raise ValueError("pie values must be non-negative")
-        total = float(values.sum())
-        if total <= 0.0:
-            raise ValueError("pie values must sum to a positive number")
-        if not normalize and total > 1.0:
-            raise ValueError("pie values must sum to <= 1 when normalize=False")
-        fracs = values / total
-        angles = np.concatenate([[0.0], np.cumsum(fracs) * 360.0]) + float(startangle)
-        offsets = np.zeros(values.size) if explode is None else _fill(explode, values.size)
-        cols = _colors(colors) or list(_CYCLE)
-        self.set_aspect("equal")
-        self.set_xlim(-1.25, 1.25)
-        self.set_ylim(-1.25, 1.25)
-        texts, autotexts, wedges = [], [], []
-        for i in range(values.size):
-            a0, a1 = np.radians(angles[i]), np.radians(angles[i + 1])
-            mid = (a0 + a1) / 2.0
-            ex, ey = float(offsets[i]) * np.cos(mid), float(offsets[i]) * np.sin(mid)
-            arc = np.linspace(a0, a1, 48)
-            band = _band(np.concatenate([[ex], ex + np.cos(arc)]),
-                         np.concatenate([[ey], ey + np.sin(arc)]),
-                         cols[i % len(cols)], None)
-            self._append_band(band)
-            wedges.append(_Wedge(cols[i % len(cols)], center=(ex, ey),
-                                 theta1=float(np.degrees(a0)),
-                                 theta2=float(np.degrees(a1)), band=band,
-                                 label=labels[i] if labels is not None else ""))
-            if labels is not None:
-                self.text(ex + 1.1 * np.cos(mid), ey + 1.1 * np.sin(mid), labels[i],
-                          ha="center", va="center")
-                texts.append(_TextLabel(labels[i]))
-            if autopct is not None:
-                pct = float(fracs[i]) * 100.0
-                shown = autopct(pct) if callable(autopct) else str(autopct) % pct
-                self.text(ex + 0.6 * np.cos(mid), ey + 0.6 * np.sin(mid), shown,
-                          ha="center", va="center")
-                autotexts.append(_TextLabel(shown))
-        self.set_axis_off()
-        return _PieResult(wedges, texts, autotexts)
 
-    def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
-                  **kwargs):
-        """Stacked areas: each layer fills between the running total and itself."""
-        if baseline not in ("zero", "sym", "wiggle", "weighted_wiggle"):
-            raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
-        wiggle = baseline in ("wiggle", "weighted_wiggle")
-        x = np.asarray(x, dtype=np.float64).ravel()
-        layers = []
-        for y in ys:
-            a = np.asarray(_as_list(y), dtype=np.float64)
-            if a.ndim == 2 and a.shape[0] == x.size:
-                layers.extend(a[:, i] for i in range(a.shape[1]))
-            elif a.ndim == 2 and a.shape[1] == x.size:
-                layers.extend(a[i] for i in range(a.shape[0]))
-            else:
-                layers.append(a.ravel())
-        if not layers:
-            raise ValueError("stackplot needs at least one y array")
-        labels = list(_as_list(labels)) if labels else []
-        cols = _colors(colors)
-        if baseline == "sym":
-            cum = -np.sum(np.stack(layers), axis=0) / 2.0
-        elif baseline == "weighted_wiggle":
-            stacked = np.stack(layers)
-            total = stacked.sum(axis=0)
-            weights = stacked.shape[0] - np.arange(1, stacked.shape[0] + 1)
-            center = np.divide((stacked * weights[:, None]).sum(axis=0), total,
-                               out=np.zeros_like(total), where=total != 0)
-            cum = -center
-        elif baseline == "wiggle":
-            cum = -np.sum(np.stack(layers), axis=0) / 2.0
-        else:
-            cum = np.zeros(x.size)
-        data_lo = data_hi = 0.0
-        for i, layer in enumerate(layers):
-            if layer.size != x.size:
-                raise ValueError("x and y must have the same length")
-            colour = cols[i % len(cols)] if cols else _CYCLE[i % len(_CYCLE)]
-            lab = str(labels[i]) if i < len(labels) else ""
-            self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha, label=lab)
-            data_lo = min(data_lo, float(cum.min()), float((cum + layer).min()))
-            data_hi = max(data_hi, float(cum.max()), float((cum + layer).max()))
-            cum = cum + layer
-        # Like bars, a stack that stays on one side of zero meets the axis at
-        # y=0 instead of autoscaling a margin below it.
-        if (baseline == "zero" or wiggle) and self.ylim is None:
-            lo, hi = self.get_ylim()
-            if wiggle:
-                reach = max(abs(data_lo), abs(data_hi))
-                lo, hi = -reach, reach
-            elif data_lo >= 0.0:
-                lo = 0.0
-            elif data_hi <= 0.0:
-                hi = 0.0
-            self.set_ylim(lo, hi)
 
-    def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
-        """Staircase line through `x`/`y`; `where` picks the corner placement."""
-        if where in ("pre", "post"):
-            return self.plot(x, y, fmt, label=label, color=color,
-                             drawstyle=f"steps-{where}", **kwargs)
-        elif where == "mid":
-            x_out, y_out = _mid_steps(x, y)
-            return self.plot(x_out, y_out, fmt, label=label, color=color, drawstyle="steps-post", **kwargs)
-        else:
-            raise ValueError(f"unsupported where: {where!r}")
 
-    def stairs(self, values, edges=None, baseline=0.0, orientation="vertical", fill=False,
-               color=None, label="", **kwargs):
-        """Step chart from bin `values` and `edges` (one longer than `values`)."""
-        v = np.asarray(values, dtype=np.float64).ravel()
-        if edges is None:
-            e = np.arange(v.size + 1.0)
-        else:
-            e = np.asarray(edges, dtype=np.float64).ravel()
-            if e.size != v.size + 1:
-                raise ValueError("edges must have len(values) + 1 entries")
-        if orientation not in ("vertical", "horizontal"):
-            raise ValueError(f"unsupported orientation: {orientation!r}")
-        first = np.empty(2 * v.size)
-        second = np.empty(2 * v.size)
-        first[0::2] = e[:-1]
-        first[1::2] = e[1:]
-        second[0::2] = v
-        second[1::2] = v
-        xs, ys = ((first, second) if orientation == "vertical"
-                  else (second, first))
-        if not fill:
-            return self.plot(xs, ys, color=color, label=label, **kwargs)
-        # A filled `stairs` is one StepPatch: `color` fills it, `alpha` applies to
-        # the whole patch, and no edge is drawn unless one is asked for.
-        alpha = kwargs.pop("alpha", None)
-        edge = kwargs.pop("edgecolor", kwargs.pop("ec", None))
-        linewidth = kwargs.pop("linewidth", kwargs.pop("lw", None))
-        face = kwargs.pop("facecolor", kwargs.pop("fc", None)) or color
-        base = baseline
-        if not np.isscalar(baseline):
-            base = np.repeat(np.asarray(baseline, dtype=float).ravel(), 2)
-        if orientation == "vertical":
-            self.fill_between(xs, ys, base, color=face, alpha=alpha, label=label)
-        else:
-            self.fill_betweenx(ys, xs, base, color=face, alpha=alpha, label=label)
-        if edge is not None:
-            self.plot(xs, ys, color=edge, alpha=alpha, label="",
-                      linewidth=linewidth if linewidth is not None else 1.0)
-        return None
 
     # Layout requests are accepted but ignored: every panel is drawn at its fixed
     # gridspec cell, so there is nothing to negotiate.
