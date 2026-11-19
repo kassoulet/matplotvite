@@ -25,7 +25,9 @@ mod py {
             return Err(PyValueError::new_err("a colormap table needs RGB triples"));
         }
         let colors = rgb
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|pixel| [pixel[0], pixel[1], pixel[2]])
             .collect();
         custom()

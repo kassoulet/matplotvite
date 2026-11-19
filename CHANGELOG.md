@@ -33,6 +33,9 @@ Before 1.0, a minor release may contain a breaking change; see
   project changelog/issue/documentation URLs.
 - An explicit Python support policy covering the tested 3.9 through 3.14
   interpreters.
+- `matplotvite/__init__.py` is now a re-export facade; the implementation lives
+  in `_plotting.py`, with the existing satellite modules imported afterwards
+  to preserve their package-level compatibility imports.
 - Ticks and tick labels always render through the manual path; the plotters
   mesh now contributes only the axis frame and descriptions, so customised and
   default axes can no longer diverge.
