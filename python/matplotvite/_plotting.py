@@ -7156,8 +7156,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                 bool(entry.get("extendrect", False)),
                 float(entry.get("extendfrac", 0.05)))
 
-    def _panel(self, dpi=None):
-        (x0, x1), (y0, y1) = self._limits()
+    def _panel_series(self, x0, x1, y0, y1):
+        """Resolve reference lines, spans, bands and polar geometry."""
         dx, dy = x1 - x0, y1 - y0
         # Reference lines and bands are axes-fraction based, so they are resolved
         # here, once the drawing limits are known.
@@ -7225,23 +7225,10 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                         x, y = self._polar_xy(t, r)
                         clipped_bands.append(dict(b, x=x, y=y))
             bands = clipped_bands
-        patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
-        collections = [c for c in (_collection_entry(a) for a in self.artists) if c is not None]
-        texts = polar_texts + [self._resolve_text(t, x0, x1, y0, y1)
-                              for t in self.texts]
-        scatter = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
-                   for e in self.scatter_pts]
-        arrows = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
-                  for e in self.arrows]
-        contours = [(c["x"], c["y"], c["z"], c["levels"], c["linewidths"],
-                     [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"],
-                     c["alpha"])
-                    for c in self.contours]
-        font = float(rcParams.get("font.size", 10.0))
-        legend_font = (float(self.legend_fontsize) if self.legend_fontsize is not None
-                       else float(rcParams.get("legend.fontsize", font)))
-        legend_title = (float(self.legend_title_fontsize)
-                        if self.legend_title_fontsize is not None else legend_font * 1.1)
+        return series, bars, bands, polar_texts
+
+    def _panel_ticks(self, x0, x1, y0, y1):
+        """Resolve explicit, locator, date, category and scale-specific ticks."""
         xticks, xticklabels = self._xticks, self._xticklabels
         if xticks is None:
             xticks = self._locator_ticks("x")
@@ -7307,6 +7294,30 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             xticklabels = [f"{float(v):g}" for v in xticks]
         if self._yscale_forward is not None and yticklabels is None and yticks is not None:
             yticklabels = [f"{float(v):g}" for v in yticks]
+        return xticks, xticklabels, yticks, yticklabels
+
+    def _panel(self, dpi=None):
+        (x0, x1), (y0, y1) = self._limits()
+        series, bars, bands, polar_texts = self._panel_series(x0, x1, y0, y1)
+        patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
+        collections = [c for c in (_collection_entry(a) for a in self.artists) if c is not None]
+        texts = polar_texts + [self._resolve_text(t, x0, x1, y0, y1)
+                              for t in self.texts]
+        scatter = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
+                   for e in self.scatter_pts]
+        arrows = [dict(e, colors=[_norm_color(c) for c in e["colors"]])
+                  for e in self.arrows]
+        contours = [(c["x"], c["y"], c["z"], c["levels"], c["linewidths"],
+                     [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"],
+                     c["alpha"])
+                    for c in self.contours]
+        font = float(rcParams.get("font.size", 10.0))
+        legend_font = (float(self.legend_fontsize) if self.legend_fontsize is not None
+                       else float(rcParams.get("legend.fontsize", font)))
+        legend_title = (float(self.legend_title_fontsize)
+                        if self.legend_title_fontsize is not None else legend_font * 1.1)
+        xticks, xticklabels, yticks, yticklabels = self._panel_ticks(
+            x0, x1, y0, y1)
         for payload in [*series, *bars, *bands]:
             payload.pop("_seq", None)
             payload.pop("_container", None)
@@ -7376,27 +7387,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                             for im in self.images])
         return self._apply_axis_scales(panel)
 
-    def _apply_axis_scales(self, panel):
-        """Map panel coordinates through function or registered custom scales."""
-        fx, fy = self._xscale_forward, self._yscale_forward
-        if fx is None and fy is None:
-            return panel
-
-        def scale(forward, values):
-            return (_scale_values(forward, values) if forward is not None
-                    else np.asarray(values, dtype=float))
-
-        def scalar(forward, value):
-            return float(scale(forward, [value])[0])
-
-        def points(flat):
-            pts = np.asarray(flat, dtype=float).reshape(-1, 2)
-            if fx is not None:
-                pts[:, 0] = _scale_values(fx, pts[:, 0])
-            if fy is not None:
-                pts[:, 1] = _scale_values(fy, pts[:, 1])
-            return pts.ravel().tolist()
-
+    def _scale_panel_points(self, panel, fx, fy, scale):
+        """Map ticks, series, bars, bands and scatter through custom scales."""
         ticks = panel["ticks"]
         if fx is not None and ticks["xticks"] is not None:
             ticks["xticks"] = [float(v) for v in scale(fx, ticks["xticks"])]
@@ -7434,6 +7426,9 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                  x=_scale_values(fx, item["x"]) if fx is not None else item["x"],
                  y=_scale_values(fy, item["y"]) if fy is not None else item["y"])
             for item in panel["scatter"]]
+
+    def _scale_panel_geometry(self, panel, fx, fy, scale):
+        """Map vector arrows and error-bar extents through custom scales."""
         scaled_arrows = []
         for item in panel["arrows"]:
             arrow = dict(item)
@@ -7473,6 +7468,9 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                 yhi = _scale_values(fy, y + np.asarray(item[3], dtype=float)) - ny
             scaled_errors.append((nx, ny, ylo, yhi, xlo, xhi, *item[6:]))
         panel["errors"] = scaled_errors
+
+    def _scale_panel_artists(self, panel, fx, fy, scale, scalar, points):
+        """Map contours, images, text, annotations, patches and collections."""
         scaled_contours = []
         for item in panel["contours"]:
             contour = list(item)
@@ -7547,6 +7545,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             scaled_collections.append(collection)
         panel["collections"] = scaled_collections
 
+    def _scale_panel_limits(self, panel, fx, fy, scale):
+        """Reproject limits, falling back to the scaled artist extents."""
         def finite_bounds(key):
             lo, hi = np.inf, -np.inf
 
@@ -7587,6 +7587,32 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             panel["xlim"] = scaled_limits(fx, panel["xlim"], "x")
         if fy is not None:
             panel["ylim"] = scaled_limits(fy, panel["ylim"], "y")
+
+    def _apply_axis_scales(self, panel):
+        """Map panel coordinates through function or registered custom scales."""
+        fx, fy = self._xscale_forward, self._yscale_forward
+        if fx is None and fy is None:
+            return panel
+
+        def scale(forward, values):
+            return (_scale_values(forward, values) if forward is not None
+                    else np.asarray(values, dtype=float))
+
+        def scalar(forward, value):
+            return float(scale(forward, [value])[0])
+
+        def points(flat):
+            pts = np.asarray(flat, dtype=float).reshape(-1, 2)
+            if fx is not None:
+                pts[:, 0] = _scale_values(fx, pts[:, 0])
+            if fy is not None:
+                pts[:, 1] = _scale_values(fy, pts[:, 1])
+            return pts.ravel().tolist()
+
+        self._scale_panel_points(panel, fx, fy, scale)
+        self._scale_panel_geometry(panel, fx, fy, scale)
+        self._scale_panel_artists(panel, fx, fy, scale, scalar, points)
+        self._scale_panel_limits(panel, fx, fy, scale)
         return panel
 
     def _resolve_text(self, t, x0, x1, y0, y1):

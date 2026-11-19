@@ -60,6 +60,9 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Changed
 
+- `Axes` is assembled from plotting, statistics, field and decoration concern
+  mixins, and its panel/custom-scale serializers are split into focused helpers,
+  so the core class owns layout, ticks and lifecycle rather than every plot family.
 - Supply-chain checks now include OpenSSF Scorecard, cargo-deny advisories
   with yanked-crate enforcement, reproducible-wheel verification, and PyPI,
   Python-version, licence, and scorecard badges.

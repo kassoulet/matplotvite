@@ -184,6 +184,12 @@ Rust. Ordinary bar containers sort after other artists, while histogram bars are
 marked as non-containers so they stay in creation order. The renderer therefore
 sees a small, typed ordering contract instead of a parallel Python label list.
 
+`Axes` is assembled from four concern mixins: plotting families, statistical
+summaries, gridded/vector fields, and labels/annotation/legends. The core class
+keeps lifecycle, layout, tick and scale state; panel serialization delegates
+reference/polar data and tick resolution to helpers, while custom-scale mapping
+is split across point, geometry, artist and limit helpers.
+
 ## Caching and concurrency
 
 There are two caches:
@@ -217,7 +223,8 @@ than a full transform stack:
 - `Figure`, `Axes`, `GridSpec`, `SubplotSpec`, and `_SubFigure` hold the
   user-facing state and produce panel dictionaries.
 - `Axes._panel()` resolves axis/figure-fraction text, limits, ticks, bars,
-  collections, and images into the typed records in `crates/matplotvite-core/src/model.rs`.
+  collections, and images into the typed records in `crates/matplotvite-core/src/model.rs`;
+  its concern mixins and panel/scale helpers are described above.
 - `RenderOptions` carries format, DPI, transparency, tight-cropping,
   compression, figure title, and figure-level text.
 - Axis transforms cover linear, log, symlog, logit, asinh, function, and registered
