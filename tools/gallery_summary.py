@@ -24,14 +24,15 @@ REASONS = ("out_of_scope", "harvester", "needs_api", "bug")
 
 
 def load_counts(path: pathlib.Path) -> tuple[collections.Counter[str], int,
-                                             collections.Counter[str]]:
+                                             collections.Counter[str], int]:
     cases = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(cases, list):
         raise ValueError(f"{path} does not contain a gallery manifest list")
     statuses = collections.Counter(str(case["status"]) for case in cases)
     reasons = collections.Counter(
         str(case["reason"]) for case in cases if case.get("reason"))
-    return statuses, len(cases), reasons
+    ignored = sum(int(case.get("ignored", 0) or 0) for case in cases)
+    return statuses, len(cases), reasons, ignored
 
 
 def main() -> int:
@@ -45,23 +46,27 @@ def main() -> int:
     rows = []
     seen: set[str] = set()
     total = 0
+    total_ignored = 0
     reason_rows = []
     for title, directory in GALLERIES:
-        counts, cases, reasons = load_counts(args.out / directory / "manifest.json")
+        counts, cases, reasons, ignored = load_counts(
+            args.out / directory / "manifest.json")
         seen.update(counts)
         total += cases
-        rows.append((title, directory, counts, cases))
+        total_ignored += ignored
+        rows.append((title, directory, counts, cases, ignored))
         if reasons:
             reason_rows.append((title, reasons))
 
     columns = [status for status in STATUS_ORDER if status in seen]
     columns += sorted(seen.difference(STATUS_ORDER))
-    header = ["Gallery", "Cases", *columns, "HTML"]
+    header = ["Gallery", "Cases", "Ignored calls", *columns, "HTML"]
     lines = ["## Comparison galleries", "",
              "| " + " | ".join(header) + " |",
              "| " + " | ".join(["---"] + ["---:"] * (len(header) - 1)) + " |"]
-    for title, directory, counts, cases in rows:
-        cells = [title, str(cases), *(str(counts[status]) for status in columns),
+    for title, directory, counts, cases, ignored in rows:
+        cells = [title, str(cases), str(ignored),
+                 *(str(counts[status]) for status in columns),
                  f"`{directory}/index.html`"]
         lines.append("| " + " | ".join(cells) + " |")
     lines.append("")
@@ -80,7 +85,9 @@ def main() -> int:
         lines.append(f"[Download the galleries artifact]({args.artifact_url}) "
                      "to browse the HTML files in the table.")
         lines.append("")
-    lines.append(f"{total} cases across {len(rows)} galleries.")
+    lines.append(f"{total} cases across {len(rows)} galleries; "
+                 f"{total_ignored} accepted calls were ignored. Rendered/pass "
+                 "counts are an upper bound rather than proof of visual parity.")
     print("\n".join(lines))
     return 0
 

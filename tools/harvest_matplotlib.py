@@ -258,13 +258,16 @@ def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     statuses = [str(case["status"]) for case in cases]
+    ignored_total = sum(int(case.get("ignored", 0) or 0) for case in cases)
     print(f"\n{len(cases)} baseline cases: {rendered} rendered, "
           f"{statuses.count('blank')} blank, {statuses.count('failed')} failed, "
-          f"{statuses.count('unsupported')} unsupported; gallery: {out / 'index.html'}")
+          f"{statuses.count('unsupported')} unsupported, {ignored_total} ignored "
+          f"calls; gallery: {out / 'index.html'}")
     return {"cases": len(cases), "rendered": rendered,
             "blank": statuses.count("blank"),
             "failed": statuses.count("failed"),
-            "unsupported": statuses.count("unsupported")}
+            "unsupported": statuses.count("unsupported"),
+            "ignored": ignored_total}
 
 
 def main() -> int:
@@ -418,12 +421,14 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     unsupported = count("unsupported")
     needs_api, gaps, bugs = (count("needs-api"), count("harvester-gap"),
                              count("bug"))
+    ignored = sum(int(case.get("ignored", 0) or 0) for case in cases)
     reasons = {name: sum(case.get("reason") == name for case in cases)
                for name in ("out_of_scope", "harvester", "needs_api", "bug")}
     (out / "index.html").write_text(
         f"<p>{rendered}/{len(cases)} examples rendered, {blank} blank, "
         f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
-        f"gaps, {bugs} bugs; reasons: {reasons['out_of_scope']} out of scope, "
+        f"gaps, {bugs} bugs, {ignored} ignored calls; reasons: "
+        f"{reasons['out_of_scope']} out of scope, "
         f"{reasons['harvester']} harvester, {reasons['needs_api']} needs API, "
         f"{reasons['bug']} bugs</p><ul>{summary}</ul>"
         "<table border=1 cellpadding=6><tr><th>example</th><th>matplotvite</th>"
@@ -436,7 +441,8 @@ def harvest_examples_gallery(source: pathlib.Path, out: pathlib.Path,
     manifest_path.write_text(json.dumps(cases, indent=2) + "\n", encoding="utf-8")
     print(f"\n{rendered}/{len(cases)} gallery examples rendered, {blank} blank, "
           f"{unsupported} unsupported, {needs_api} needs API, {gaps} harvester "
-          f"gaps, {bugs} bugs; reasons: {reasons['out_of_scope']} out of scope, "
+          f"gaps, {bugs} bugs, {ignored} ignored calls; reasons: "
+          f"{reasons['out_of_scope']} out of scope, "
           f"{reasons['harvester']} harvester, {reasons['needs_api']} needs API, "
           f"{reasons['bug']} bugs; gallery: {out / 'index.html'}")
     return 0

@@ -8,11 +8,13 @@ import pytest
 from tools.gallery_summary import main as gallery_summary
 
 MANIFESTS = {
-    "mpl-corpus": [{"status": "rendered"}, {"status": "rendered"},
+    "mpl-corpus": [{"status": "rendered", "ignored": 2},
+                   {"status": "rendered", "ignored": 1},
                    {"status": "failed"}, {"status": "unsupported"},
                    {"status": "no baseline"}],
     "mpl-examples": [{"status": "rendered"}, {"status": "failed"}],
-    "seaborn-gallery": [{"status": "needs-api"}, {"status": "pass"}],
+    "seaborn-gallery": [{"status": "needs-api"},
+                        {"status": "pass", "ignored": 1}],
 }
 
 
@@ -29,12 +31,13 @@ def test_summary_counts_each_gallery_and_links_the_artifact(tmp_path, monkeypatc
     out = capsys.readouterr().out
 
     assert "## Comparison galleries" in out
-    assert "| Matplotlib baseline images | 5 | 2 | 0 | 1 | 0 | 1 | 1 |" in out
-    assert "| Matplotlib gallery examples | 2 | 1 | 0 | 0 | 0 | 1 | 0 |" in out
-    assert "| Seaborn examples | 2 | 0 | 1 | 0 | 1 | 0 | 0 |" in out
+    assert "| Matplotlib baseline images | 5 | 3 | 2 | 0 | 1 | 0 | 1 | 1 |" in out
+    assert "| Matplotlib gallery examples | 2 | 0 | 1 | 0 | 0 | 0 | 1 | 0 |" in out
+    assert "| Seaborn examples | 2 | 1 | 0 | 1 | 0 | 1 | 0 | 0 |" in out
     assert "`mpl-corpus/index.html`" in out
     assert "[Download the galleries artifact](https://example.test/artifact)" in out
-    assert "9 cases across 3 galleries." in out
+    assert "9 cases across 3 galleries; 4 accepted calls were ignored." in out
+    assert "Rendered/pass counts are an upper bound" in out
 
 
 def test_summary_prints_failure_reasons(tmp_path, monkeypatch, capsys):

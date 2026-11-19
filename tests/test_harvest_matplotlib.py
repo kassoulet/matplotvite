@@ -583,7 +583,7 @@ def test_harvest_gallery_writes_index_and_manifest(tmp_path):
     manifest_path = out / "manifest.json"
     counts = harvest_gallery(root, out, manifest_path)
     assert counts == {"cases": 2, "rendered": 1, "blank": 0, "failed": 0,
-                     "unsupported": 1}
+                     "unsupported": 1, "ignored": 0}
     index = (out / "index.html").read_text(encoding="utf-8")
     assert "test_demo/test_grid" in index and "test_demo_test_grid.png" in index
     assert "parametrised test" in index
