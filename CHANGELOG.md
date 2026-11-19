@@ -11,6 +11,9 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Added
 
+- A Sphinx API reference built in CI and on the Pages site, a public-API
+  docstring coverage gate, `docs`/`test` extras, and a runnable
+  `examples/quickstart.py`.
 - Coverage gates for Python branch coverage and non-Python Rust lines, property
   tests for scales, ticks and polyline decimation, and a cargo-fuzz target for
   the native panel/render path.

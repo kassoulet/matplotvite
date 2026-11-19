@@ -1704,6 +1704,7 @@ class HandlerTuple:
 
 
 class HandlerLineCollection:
+    """Legend handler that draws a line-collection sample."""
     def __init__(self, **kwargs): self.kwargs = kwargs
 
 
@@ -3822,6 +3823,7 @@ _AXES_ARTIST_PROPS = frozenset(
 
 
 class Axes:
+    """Matplotlib-style axes: plotting calls and axis configuration for one panel."""
     def __init__(self, pos=0, *args, **kwargs):
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
         # when one is supplied; normal pyplot paths pass a single index.
@@ -9217,8 +9219,8 @@ class Colorbar:
     def set_clim(self, *args, **kwargs): return None
     def update_normal(self, *args, **kwargs): return None
 
-
 class Figure:
+    """A figure holding one or more axes plus figure-level artists."""
     def __init__(self, figsize=None, dpi=None, facecolor=None, edgecolor=None):
         if figsize is None:
             figsize = rcParams.get("figure.figsize", (6.4, 4.8))
@@ -9922,6 +9924,7 @@ def figure(*args, num=None, figsize=None, dpi=None, facecolor=None,
 
 
 def gcf():
+    """Return the current figure, creating one if none exists."""
     with _figure_lock:
         current = _figures.get(_current_fig)
         if current is not None:
@@ -9929,7 +9932,9 @@ def gcf():
         return figure()
 
 
-def gca(): return gcf().gca()
+def gca():
+    """Return the current axes, creating one if none exists."""
+    return gcf().gca()
 
 
 def close(fig=None):
@@ -9974,6 +9979,7 @@ def fignum_exists(num):
 
 def subplots(nrows=1, ncols=1, *, sharex=False, sharey=False, squeeze=True,
              subplot_kw=None, gridspec_kw=None, **fig_kw):
+    """Create a figure and a grid of axes, returning both."""
     fig = figure(**fig_kw)
     return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey,
                              squeeze=squeeze, subplot_kw=subplot_kw,
@@ -9986,12 +9992,14 @@ def subplot(*args, **kwargs):
 
 
 def subplot2grid(shape, loc, rowspan=1, colspan=1, fig=None, **kwargs):
+    """Create an axes spanning a cell of a regular grid."""
     return (fig or gcf()).subplot2grid(shape, loc, rowspan=rowspan,
                                       colspan=colspan, **kwargs)
 
 
 def subplot_mosaic(mosaic, empty_sentinel=".", figsize=None, dpi=None,
                    facecolor=None, edgecolor=None, **kwargs):
+    """Create a figure from an ASCII or nested mosaic layout."""
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
 class FormatStrFormatter:
@@ -10062,47 +10070,97 @@ def clabel(CS, levels=None, **kwargs):
 
 
 def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
+    """Add a centred title above the current figure."""
     return gcf().suptitle(t, x=x, y=y, fontsize=fontsize, **kwargs)
 def figtext(x, y, s, **kwargs):
+    """Place text in figure coordinates on the current figure."""
     return gcf().text(x, y, s, **kwargs)
-def plot(*args, **kwargs): return gca().plot(*args, **kwargs)
-def polar(*args, **kwargs): return gca().plot(*args, **kwargs)
-def xlabel(text, fontsize=None, **kwargs): gca().set_xlabel(text, fontsize=fontsize)
-def ylabel(text, fontsize=None, **kwargs): gca().set_ylabel(text, fontsize=fontsize)
+def plot(*args, **kwargs):
+    """Call ``Axes.plot`` on the current axes and return its result."""
+    return gca().plot(*args, **kwargs)
+def polar(*args, **kwargs):
+    """Call ``Axes.polar`` on the current axes and return its result."""
+    return gca().plot(*args, **kwargs)
+def xlabel(text, fontsize=None, **kwargs):
+    """Set the x-axis label of the current axes."""
+    gca().set_xlabel(text, fontsize=fontsize)
+def ylabel(text, fontsize=None, **kwargs):
+    """Set the y-axis label of the current axes."""
+    gca().set_ylabel(text, fontsize=fontsize)
 def title(text, fontsize=None, **kwargs):
+    """Set the title of the current axes."""
     return gca().set_title(text, fontsize=fontsize, **kwargs)
-def text(*args, **kwargs): return gca().text(*args, **kwargs)
+def text(*args, **kwargs):
+    """Call ``Axes.text`` on the current axes and return its result."""
+    return gca().text(*args, **kwargs)
 text.Text = Text
 def xticks(ticks=None, labels=None, **kwargs):
+    """Set or query the x ticks and labels of the current axes."""
     return gca().xticks(ticks, labels=labels, **kwargs)
 def yticks(ticks=None, labels=None, **kwargs):
+    """Set or query the y ticks and labels of the current axes."""
     return gca().yticks(ticks, labels=labels, **kwargs)
 def imshow(X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
            interpolation=None, aspect=None, alpha=None, **kwargs):
+    """Call ``Axes.imshow`` on the current axes and return its result."""
     return gca().imshow(X, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin=origin,
                         interpolation=interpolation, aspect=aspect, alpha=alpha, **kwargs)
 
 
-def xscale(*args, **kwargs): return gca().set_xscale(*args, **kwargs)
-def yscale(*args, **kwargs): return gca().set_yscale(*args, **kwargs)
-def semilogx(*args, **kwargs): return gca().semilogx(*args, **kwargs)
-def semilogy(*args, **kwargs): return gca().semilogy(*args, **kwargs)
-def loglog(*args, **kwargs): return gca().loglog(*args, **kwargs)
-def hlines(*args, **kwargs): return gca().hlines(*args, **kwargs)
-def vlines(*args, **kwargs): return gca().vlines(*args, **kwargs)
-def step(*args, **kwargs): return gca().step(*args, **kwargs)
-def stairs(*args, **kwargs): return gca().stairs(*args, **kwargs)
-def tight_layout(*args, **kwargs): return gcf().tight_layout(*args, **kwargs)
-def subplots_adjust(*args, **kwargs): return gcf().subplots_adjust(*args, **kwargs)
-def hist(*args, **kwargs): return gca().hist(*args, **kwargs)
-def fill_between(*args, **kwargs): return gca().fill_between(*args, **kwargs)
-def fill_betweenx(*args, **kwargs): return gca().fill_betweenx(*args, **kwargs)
-def fill(*args, **kwargs): return gca().fill(*args, **kwargs)
-def matshow(A, fignum=None, **kwargs): return gca().matshow(A, **kwargs)
+def xscale(*args, **kwargs):
+    """Call ``Axes.xscale`` on the current axes and return its result."""
+    return gca().set_xscale(*args, **kwargs)
+def yscale(*args, **kwargs):
+    """Call ``Axes.yscale`` on the current axes and return its result."""
+    return gca().set_yscale(*args, **kwargs)
+def semilogx(*args, **kwargs):
+    """Call ``Axes.semilogx`` on the current axes and return its result."""
+    return gca().semilogx(*args, **kwargs)
+def semilogy(*args, **kwargs):
+    """Call ``Axes.semilogy`` on the current axes and return its result."""
+    return gca().semilogy(*args, **kwargs)
+def loglog(*args, **kwargs):
+    """Call ``Axes.loglog`` on the current axes and return its result."""
+    return gca().loglog(*args, **kwargs)
+def hlines(*args, **kwargs):
+    """Call ``Axes.hlines`` on the current axes and return its result."""
+    return gca().hlines(*args, **kwargs)
+def vlines(*args, **kwargs):
+    """Call ``Axes.vlines`` on the current axes and return its result."""
+    return gca().vlines(*args, **kwargs)
+def step(*args, **kwargs):
+    """Call ``Axes.step`` on the current axes and return its result."""
+    return gca().step(*args, **kwargs)
+def stairs(*args, **kwargs):
+    """Call ``Axes.stairs`` on the current axes and return its result."""
+    return gca().stairs(*args, **kwargs)
+def tight_layout(*args, **kwargs):
+    """Call ``Figure.tight_layout`` on the current figure and return its result."""
+    return gcf().tight_layout(*args, **kwargs)
+def subplots_adjust(*args, **kwargs):
+    """Call ``Figure.subplots_adjust`` on the current figure and return its result."""
+    return gcf().subplots_adjust(*args, **kwargs)
+def hist(*args, **kwargs):
+    """Call ``Axes.hist`` on the current axes and return its result."""
+    return gca().hist(*args, **kwargs)
+def fill_between(*args, **kwargs):
+    """Call ``Axes.fill_between`` on the current axes and return its result."""
+    return gca().fill_between(*args, **kwargs)
+def fill_betweenx(*args, **kwargs):
+    """Call ``Axes.fill_betweenx`` on the current axes and return its result."""
+    return gca().fill_betweenx(*args, **kwargs)
+def fill(*args, **kwargs):
+    """Call ``Axes.fill`` on the current axes and return its result."""
+    return gca().fill(*args, **kwargs)
+def matshow(A, fignum=None, **kwargs):
+    """Call ``Axes.matshow`` on the current axes and return its result."""
+    return gca().matshow(A, **kwargs)
 def table(cellText=None, cellColours=None, **kwargs):
+    """Call ``Axes.table`` on the current axes and return its result."""
     return gca().table(cellText=cellText, cellColours=cellColours, **kwargs)
 def spy(Z, precision=0, marker=None, markersize=None, aspect="equal",
         origin="upper", **kwargs):
+    """Call ``Axes.spy`` on the current axes and return its result."""
     return gca().spy(Z, precision=precision, marker=marker,
                      markersize=markersize, aspect=aspect, origin=origin, **kwargs)
 def xkcd(scale=1, length=100, randomness=2):
@@ -10112,34 +10170,72 @@ def xkcd(scale=1, length=100, randomness=2):
     """
     _ignored("xkcd")
     return _NoopContext()
-def get_data_path(): return os.path.dirname(os.path.abspath(__file__))
-def axhline(*args, **kwargs): return gca().axhline(*args, **kwargs)
-def axvline(*args, **kwargs): return gca().axvline(*args, **kwargs)
-def axhspan(*args, **kwargs): return gca().axhspan(*args, **kwargs)
-def axvspan(*args, **kwargs): return gca().axvspan(*args, **kwargs)
-def bar(*args, **kwargs): return gca().bar(*args, **kwargs)
+def get_data_path():
+    """Return the directory that holds the bundled data files."""
+    return os.path.dirname(os.path.abspath(__file__))
+def axhline(*args, **kwargs):
+    """Call ``Axes.axhline`` on the current axes and return its result."""
+    return gca().axhline(*args, **kwargs)
+def axvline(*args, **kwargs):
+    """Call ``Axes.axvline`` on the current axes and return its result."""
+    return gca().axvline(*args, **kwargs)
+def axhspan(*args, **kwargs):
+    """Call ``Axes.axhspan`` on the current axes and return its result."""
+    return gca().axhspan(*args, **kwargs)
+def axvspan(*args, **kwargs):
+    """Call ``Axes.axvspan`` on the current axes and return its result."""
+    return gca().axvspan(*args, **kwargs)
+def bar(*args, **kwargs):
+    """Call ``Axes.bar`` on the current axes and return its result."""
+    return gca().bar(*args, **kwargs)
 def bar_label(container, labels=None, fmt="%g", label_type="edge", padding=0, **kwargs):
+    """Call ``Axes.bar_label`` on the current axes and return its result."""
     return gca().bar_label(container, labels=labels, fmt=fmt, label_type=label_type,
                            padding=padding, **kwargs)
-def barh(*args, **kwargs): return gca().barh(*args, **kwargs)
+def barh(*args, **kwargs):
+    """Call ``Axes.barh`` on the current axes and return its result."""
+    return gca().barh(*args, **kwargs)
 def grouped_bar(*args, **kwargs): return gca().grouped_bar(*args, **kwargs)
-def boxplot(*args, **kwargs): return gca().boxplot(*args, **kwargs)
-def violinplot(*args, **kwargs): return gca().violinplot(*args, **kwargs)
-def pie(*args, **kwargs): return gca().pie(*args, **kwargs)
-def stackplot(*args, **kwargs): return gca().stackplot(*args, **kwargs)
-def stem(*args, **kwargs): return gca().stem(*args, **kwargs)
-def pcolormesh(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
-def pcolor(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
-def pcolorfast(*args, **kwargs): return gca().pcolormesh(*args, **kwargs)
-def hist2d(*args, **kwargs): return gca().hist2d(*args, **kwargs)
-def hexbin(*args, **kwargs): return gca().hexbin(*args, **kwargs)
+def boxplot(*args, **kwargs):
+    """Call ``Axes.boxplot`` on the current axes and return its result."""
+    return gca().boxplot(*args, **kwargs)
+def violinplot(*args, **kwargs):
+    """Call ``Axes.violinplot`` on the current axes and return its result."""
+    return gca().violinplot(*args, **kwargs)
+def pie(*args, **kwargs):
+    """Call ``Axes.pie`` on the current axes and return its result."""
+    return gca().pie(*args, **kwargs)
+def stackplot(*args, **kwargs):
+    """Call ``Axes.stackplot`` on the current axes and return its result."""
+    return gca().stackplot(*args, **kwargs)
+def stem(*args, **kwargs):
+    """Call ``Axes.stem`` on the current axes and return its result."""
+    return gca().stem(*args, **kwargs)
+def pcolormesh(*args, **kwargs):
+    """Call ``Axes.pcolormesh`` on the current axes and return its result."""
+    return gca().pcolormesh(*args, **kwargs)
+def pcolor(*args, **kwargs):
+    """Call ``Axes.pcolor`` on the current axes and return its result."""
+    return gca().pcolormesh(*args, **kwargs)
+def pcolorfast(*args, **kwargs):
+    """Call ``Axes.pcolorfast`` on the current axes and return its result."""
+    return gca().pcolormesh(*args, **kwargs)
+def hist2d(*args, **kwargs):
+    """Call ``Axes.hist2d`` on the current axes and return its result."""
+    return gca().hist2d(*args, **kwargs)
+def hexbin(*args, **kwargs):
+    """Call ``Axes.hexbin`` on the current axes and return its result."""
+    return gca().hexbin(*args, **kwargs)
 
 
-def annotate(*args, **kwargs): return gca().annotate(*args, **kwargs)
+def annotate(*args, **kwargs):
+    """Call ``Axes.annotate`` on the current axes and return its result."""
+    return gca().annotate(*args, **kwargs)
 
 
 def scatter(x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o", vmin=None,
             vmax=None, data=None, norm=None, **kwargs):
+    """Call ``Axes.scatter`` on the current axes and return its result."""
     return gca().scatter(x, y, s=s, c=c, alpha=alpha, cmap=cmap, label=label, marker=marker,
                          vmin=vmin, vmax=vmax, data=data, norm=norm, **kwargs)
 
@@ -10153,15 +10249,25 @@ def axes(*args, **kwargs):
 
 
 
-def show(*args, **kwargs): pass
+def show(*args, **kwargs):
+    """Display figures; Matplotvite has no window backend, so this is a no-op."""
+    pass
 
-def draw(*args, **kwargs): pass
+def draw(*args, **kwargs):
+    """Flush pending drawing work; Matplotvite writes on save, so this is a no-op."""
+    pass
 
-def pause(*args, **kwargs): pass
+def pause(*args, **kwargs):
+    """Pause for an interval; Matplotvite has no interactive backend, so this is a no-op."""
+    pass
 
 
-def ion(*args, **kwargs): pass
-def ioff(*args, **kwargs): pass
+def ion(*args, **kwargs):
+    """Enable interactive mode; Matplotvite always renders statically."""
+    pass
+def ioff(*args, **kwargs):
+    """Disable interactive mode; Matplotvite always renders statically."""
+    pass
 def use(*args, **kwargs): pass
 def connect(*args, **kwargs): return 1
 def figaspect(aspect):
@@ -10172,8 +10278,11 @@ def figaspect(aspect):
     return (4.0 * aspect, 4.0)
 
 
-def streamplot(*args, **kwargs): return gca().streamplot(*args, **kwargs)
+def streamplot(*args, **kwargs):
+    """Call ``Axes.streamplot`` on the current axes and return its result."""
+    return gca().streamplot(*args, **kwargs)
 def quiver(*args, **kwargs):
+    """Call ``Axes.quiver`` on the current axes and return its result."""
     return gca().quiver(*args, **kwargs)
 
 
@@ -10183,21 +10292,25 @@ def quiverkey(*args, **kwargs):
 
 def errorbar(x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None, capsize=None,
              label="", color=None, **kwargs):
+    """Call ``Axes.errorbar`` on the current axes and return its result."""
     return gca().errorbar(x, y, yerr=yerr, xerr=xerr, fmt=fmt, ecolor=ecolor,
                           elinewidth=elinewidth, capsize=capsize, label=label, color=color)
 
 
 def colorbar(mappable=None, ax=None, label="", **kwargs):
+    """Add a colorbar for a mappable to the current figure."""
     return gcf().colorbar(mappable, ax=ax, label=label, **kwargs)
 
 
 def contour(*args, levels=None, colors=None, cmap=None, linewidths=None, alpha=None,
             **kwargs):
+    """Call ``Axes.contour`` on the current axes and return its result."""
     return gca().contour(*args, levels=levels, colors=colors, cmap=cmap,
                          linewidths=linewidths, alpha=alpha, **kwargs)
 
 
 def contourf(*args, levels=None, colors=None, cmap=None, alpha=None, **kwargs):
+    """Call ``Axes.contourf`` on the current axes and return its result."""
     return gca().contourf(*args, levels=levels, colors=colors, cmap=cmap,
                           alpha=alpha, **kwargs)
 
@@ -10228,6 +10341,7 @@ def set_cmap(cmap):
 
 
 def xlim(*args, **kwargs):
+    """Set or query the x limits of the current axes."""
     ax = gca()
     if not args and not kwargs:
         return ax.get_xlim()
@@ -10239,6 +10353,7 @@ def xlim(*args, **kwargs):
 
 
 def ylim(*args, **kwargs):
+    """Set or query the y limits of the current axes."""
     ax = gca()
     if not args and not kwargs:
         return ax.get_ylim()
@@ -10247,11 +10362,21 @@ def ylim(*args, **kwargs):
     else:
         ax.set_ylim(*args, **kwargs)
     return ax.get_ylim()
-def legend(*args, **kwargs): return gca().legend(*args, **kwargs)
-def eventplot(*args, **kwargs): return gca().eventplot(*args, **kwargs)
-def broken_barh(*args, **kwargs): return gca().broken_barh(*args, **kwargs)
-def minorticks_on(): return gca().minorticks_on()
-def minorticks_off(): return gca().minorticks_off()
+def legend(*args, **kwargs):
+    """Call ``Axes.legend`` on the current axes and return its result."""
+    return gca().legend(*args, **kwargs)
+def eventplot(*args, **kwargs):
+    """Call ``Axes.eventplot`` on the current axes and return its result."""
+    return gca().eventplot(*args, **kwargs)
+def broken_barh(*args, **kwargs):
+    """Call ``Axes.broken_barh`` on the current axes and return its result."""
+    return gca().broken_barh(*args, **kwargs)
+def minorticks_on():
+    """Call ``Axes.minorticks_on`` on the current axes and return its result."""
+    return gca().minorticks_on()
+def minorticks_off():
+    """Call ``Axes.minorticks_off`` on the current axes and return its result."""
+    return gca().minorticks_off()
 
 
 def _is_artist_sequence(obj):
@@ -10297,9 +10422,15 @@ def setp(obj, *args, **kwargs):
     if args:
         return getp(obj, *args)
     return None
-def grid(*args, **kwargs): return gca().grid(*args, **kwargs)
-def tick_params(*args, **kwargs): return gca().tick_params(*args, **kwargs)
-def axline(*args, **kwargs): return gca().axline(*args, **kwargs)
+def grid(*args, **kwargs):
+    """Call ``Axes.grid`` on the current axes and return its result."""
+    return gca().grid(*args, **kwargs)
+def tick_params(*args, **kwargs):
+    """Call ``Axes.tick_params`` on the current axes and return its result."""
+    return gca().tick_params(*args, **kwargs)
+def axline(*args, **kwargs):
+    """Call ``Axes.axline`` on the current axes and return its result."""
+    return gca().axline(*args, **kwargs)
 rcParams = {
     "figure.figsize": (6.4, 4.8),
     "figure.dpi": 100.0,
@@ -10778,6 +10909,8 @@ class ScalarMappable:
 
 
 class _NoopLocator:
+    """Locator that deliberately produces no ticks."""
+
     def __init__(self, *args, **kwargs): pass
     def __call__(self): return []
     def tick_values(self, vmin, vmax): return np.array([vmin, vmax], dtype=float)
@@ -12472,6 +12605,7 @@ def rc_context(rc=None, fname=None):
 
 
 def rcdefaults():
+    """Restore `rcParams` to the built-in defaults."""
     rcParams.clear()
     rcParams.update(_RC_DEFAULTS)
 
@@ -12593,6 +12727,7 @@ style = _StyleLibrary()
 def savefig(fname=None, format=None, dpi=None, bbox_inches=None, transparent=None,
             facecolor=None, edgecolor=None, compression=None, pad_inches=None,
             metadata=None, pil_kwargs=None, **kwargs):
+    """Save the current figure, inferring the format from the filename."""
     return gcf().savefig(fname, format=format, dpi=dpi, bbox_inches=bbox_inches,
                          transparent=transparent, facecolor=facecolor, edgecolor=edgecolor,
                          compression=compression, pad_inches=pad_inches,

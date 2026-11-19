@@ -49,6 +49,7 @@ def shared_navbar(current_page: str) -> str:
     comparison_active = " active" if current_page == "comparison" else ""
     benchmarks_active = " active" if current_page == "benchmarks" else ""
     galleries_active = " active" if current_page == "galleries" else ""
+    api_active = " active" if current_page == "api" else ""
     return f"""
   <nav class="topnav">
     <div class="nav-container">
@@ -56,6 +57,7 @@ def shared_navbar(current_page: str) -> str:
       <div class="nav-links">
         <a href="index.html" class="nav-link{gallery_active}">Examples</a>
         <a href="galleries.html" class="nav-link{galleries_active}">Galleries</a>
+        <a href="api/index.html" class="nav-link{api_active}">API</a>
         <a href="karios.html" class="nav-link{karios_active}">KARIOS</a>
         <a href="comparison.html" class="nav-link{comparison_active}">Comparison</a>
         <a href="benchmarks.html" class="nav-link{benchmarks_active}">Performance</a>

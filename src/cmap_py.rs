@@ -48,6 +48,7 @@ mod py {
         custom().lock().ok()?.get(name).cloned()
     }
 
+    /// A named colormap that samples values to RGB(A) tuples.
     #[pyclass(module = "matplotvite._core")]
     #[derive(Clone)]
     pub(crate) struct Colormap {

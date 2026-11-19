@@ -36,6 +36,13 @@ jobs:
           pip install -c .github/requirements-ci.txt maturin numpy pandas "matplotlib==3.11.2" pypdfium2 cairosvg Pillow
           maturin develop --release
 
+      - name: Build the API reference
+        run: |
+          . .venv/bin/activate
+          python -m pip install "sphinx>=8"
+          mkdir -p dist
+          python -m sphinx -W -b html docs dist/api
+
       - name: Fetch the harvested sources
         run: |
           . .venv/bin/activate
