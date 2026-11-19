@@ -3,6 +3,9 @@
 usage:
   python tools/harvest_matplotlib.py [--source PATH] [--out dist/mpl-corpus]
   python tools/harvest_matplotlib.py --examples PATH [--out dist/mpl-examples]
+  python tools/harvest_matplotlib.py --source PATH --write-metadata tests/mpl_corpus.json
+  python tools/harvest_matplotlib.py --source PATH --check-metadata tests/mpl_corpus.json
+  python tools/harvest_matplotlib.py --source PATH --changed-from tests/mpl_corpus.json
 
 In the default mode, each `@image_comparison(...)` test in Matplotlib's test
 suite names a baseline PNG that Matplotlib asserts its renderer reproduces. The
@@ -29,6 +32,13 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 try:
+    from tools.mpl_corpus import (
+        build_metadata,
+        describe_diff,
+        diff_metadata,
+        read_metadata,
+        write_metadata,
+    )
     from tools.mpl_harvest import (
         COMPAT_NAMESPACES,
         GUI_MODULES,
@@ -70,6 +80,13 @@ try:
         render_matplotlib,
     )
 except ModuleNotFoundError:  # `python tools/harvest_matplotlib.py`
+    from mpl_corpus import (
+        build_metadata,
+        describe_diff,
+        diff_metadata,
+        read_metadata,
+        write_metadata,
+    )
     from mpl_harvest import (
         COMPAT_NAMESPACES,
         GUI_MODULES,
@@ -129,7 +146,10 @@ __all__ = [
     "_nonwhite_pixels",
     "_render_snippet_in_process",
     "_resolve_baseline",
+    "build_metadata",
     "compat_name",
+    "describe_diff",
+    "diff_metadata",
     "failure_status",
     "find_examples_root",
     "find_sample_data",
@@ -144,11 +164,13 @@ __all__ = [
     "metrics",
     "prepare_body",
     "prepare_example",
+    "read_metadata",
     "render",
     "render_matplotlib",
     "report_missing_metrics_converters",
     "requires_gui",
     "source_details",
+    "write_metadata",
 ]
 
 
@@ -163,10 +185,20 @@ def _sample_cases(cases: list[dict[str, object]],
 
 def harvest_gallery(tests_root: pathlib.Path, out: pathlib.Path,
                     manifest_path: pathlib.Path,
-                    limit: int | None = None) -> dict[str, int]:
-    """Render every baseline case and write the side-by-side gallery."""
+                    limit: int | None = None,
+                    changed_from: pathlib.Path | None = None) -> dict[str, int]:
+    """Render baseline cases and write the side-by-side gallery.
+
+    With `changed_from`, only cases whose snippet or expected-image hash differs
+    from the checked-in metadata are rendered.
+    """
     report_missing_metrics_converters()
-    cases = _sample_cases(harvest(tests_root), limit)
+    cases = harvest(tests_root)
+    if changed_from is not None:
+        report = diff_metadata(cases, read_metadata(changed_from), tests_root)
+        print(f"Corpus diff against {changed_from}: {describe_diff(report)}")
+        cases = report["cases"]
+    cases = _sample_cases(cases, limit)
     sample_data = find_sample_data(tests_root.parent)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -282,7 +314,17 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=None,
                         help="render an evenly spaced subset of this many cases")
     parser.add_argument("--json", type=pathlib.Path, dest="json_out", default=None)
+    parser.add_argument("--write-metadata", type=pathlib.Path, default=None,
+                        help="write generated corpus metadata and exit")
+    parser.add_argument("--check-metadata", type=pathlib.Path, default=None,
+                        help="fail if generated corpus metadata differs from this file")
+    parser.add_argument("--changed-from", type=pathlib.Path, default=None,
+                        help="render only cases changed from this metadata file")
     args = parser.parse_args()
+    if args.examples and (args.write_metadata is not None
+                          or args.check_metadata is not None
+                          or args.changed_from is not None):
+        parser.error("corpus metadata options are only valid for baseline images")
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be positive")
     default_out = "dist/mpl-examples" if args.examples else "dist/mpl-corpus"
@@ -298,7 +340,23 @@ def main() -> int:
         print("No Matplotlib baseline images found. Point --source at a checkout or "
               "run `pip download --no-binary :all: matplotlib`; the wheel omits them.")
         return 1
-    harvest_gallery(tests_root, args.out, args.json_out, limit=args.limit)
+    if args.write_metadata is not None:
+        metadata = build_metadata(harvest(tests_root), tests_root)
+        write_metadata(args.write_metadata, metadata)
+        print(f"wrote {len(metadata['cases'])} cases to {args.write_metadata}")
+        return 0
+    if args.check_metadata is not None:
+        report = diff_metadata(harvest(tests_root),
+                               read_metadata(args.check_metadata), tests_root)
+        print(f"Corpus metadata: {describe_diff(report)}")
+        if report["clean"]:
+            return 0
+        for kind in ("added", "changed", "removed"):
+            for case_id in report[kind]:
+                print(f"  {kind:8} {case_id}")
+        return 1
+    harvest_gallery(tests_root, args.out, args.json_out, limit=args.limit,
+                    changed_from=args.changed_from)
     return 0
 
 

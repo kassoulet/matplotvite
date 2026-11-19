@@ -11,6 +11,10 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Added
 
+- A checked-in Matplotlib corpus metadata file containing every harvested
+  snippet and SHA-256 baseline hash. The harvester can regenerate it with
+  `--write-metadata`, fail CI when it drifts with `--check-metadata`, and render
+  only changed or new snippets with `--changed-from`.
 - A Cargo workspace split into `matplotvite-core` (renderer with no Python
   dependency by default), `matplotvite` (the native `Figure`/`Axes` builder) and
   `matplotvite-py` (the thin PyO3 extension). CI now tests the core crate without

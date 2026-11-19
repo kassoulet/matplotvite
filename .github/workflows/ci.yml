@@ -391,6 +391,14 @@ jobs:
           git clone --depth 1 --filter=blob:none --sparse -b v0.13.2 \
             https://github.com/mwaskom/seaborn dist/sns-src
           git -C dist/sns-src sparse-checkout set examples
+      - name: Check the checked-in corpus metadata
+        if: matrix.name == 'corpus'
+        env:
+          MPLBACKEND: Agg
+        run: |
+          . .venv/bin/activate
+          python tools/harvest_matplotlib.py --source dist/mpl-sdist \
+            --check-metadata tests/mpl_corpus.json
       - name: Regenerate the baseline gallery
         if: matrix.name == 'corpus'
         env:
