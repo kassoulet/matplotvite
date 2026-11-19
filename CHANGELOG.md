@@ -11,6 +11,13 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Added
 
+- A pandas plotting backend: set `pd.options.plotting.backend = "matplotvite"`
+  to draw line, bar, barh, hist, box, area, scatter and pie charts through
+  `DataFrame.plot()`/`Series.plot()`, with datetime, categorical and MultiIndex
+  index handling.
+- Pixel-diff coverage for the Seaborn wrappers that reduce to current API:
+  lineplot bands, grouped scatter, bar errors, density histograms, box plots
+  and annotated heatmaps, with committed Matplotlib references.
 - A checked-in Matplotlib corpus metadata file containing every harvested
   snippet and SHA-256 baseline hash. The harvester can regenerate it with
   `--write-metadata`, fail CI when it drifts with `--check-metadata`, and render

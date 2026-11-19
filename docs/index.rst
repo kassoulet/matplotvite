@@ -24,4 +24,5 @@ for the module map and data flow.
    :maxdepth: 2
    :caption: Reference
 
+   pandas
    api

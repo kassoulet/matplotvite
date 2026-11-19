@@ -10182,8 +10182,23 @@ def suptitle(t, x=0.5, y=0.98, fontsize=None, **kwargs):
 def figtext(x, y, s, **kwargs):
     """Place text in figure coordinates on the current figure."""
     return gcf().text(x, y, s, **kwargs)
+def _is_pandas_data(value):
+    """Whether `value` is a pandas DataFrame or Series, without importing pandas."""
+    return (type(value).__module__.split(".")[0] == "pandas"
+            and hasattr(value, "index")
+            and (hasattr(value, "columns") or hasattr(value, "name")))
+
+
 def plot(*args, **kwargs):
-    """Call ``Axes.plot`` on the current axes and return its result."""
+    """Call ``Axes.plot`` on the current axes and return its result.
+
+    A pandas DataFrame/Series with a `kind=` keyword is dispatched to the
+    pandas plotting backend, so ``pd.options.plotting.backend = "matplotvite"``
+    works without a separate backend module.
+    """
+    if args and "kind" in kwargs and _is_pandas_data(args[0]):
+        from ._pandas import plot as pandas_plot
+        return pandas_plot(*args, **kwargs)
     return gca().plot(*args, **kwargs)
 def polar(*args, **kwargs):
     """Call ``Axes.polar`` on the current axes and return its result."""

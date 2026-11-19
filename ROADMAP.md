@@ -240,9 +240,9 @@
 - [x] Cover the Seaborn plots that are thin wrappers over API we already have with pixel-diff tests — `tests/test_seaborn_parity.py` renders six shared scenes for `lineplot`, `scatterplot`, `barplot`, `histplot`, `boxplot` and `heatmap`, then diffs them against committed Matplotlib references. The scenes exercise the underlying bands, markers, grouped bars, density bars, box statistics and annotated matrices our API exposes.
 
 ### Pandas `.plot()`
-- [ ] Ship a `pandas` plotting backend module so `pd.options.plotting.backend = "matplotvite"` works, covering `kind=` line, bar, barh, hist, box, area, scatter and pie
-- [ ] Verify `df.plot()` / `Series.plot()` against pandas + Matplotlib for index handling (datetime, categorical, MultiIndex), axis labels, legend and kwarg pass-through
-- [ ] Document the supported pandas version matrix and the behaviour for unimplemented `kind=` values (raise clearly rather than drawing something wrong)
+- [x] Ship a `pandas` plotting backend module so `pd.options.plotting.backend = "matplotvite"` works, covering `kind=` line, bar, barh, hist, box, area, scatter and pie — `_pandas.py` implements the backend protocol and the public `plot` dispatches pandas frames, with grouped/stacked bars, areas, density histograms, boxes, scatter and pies.
+- [x] Verify `df.plot()` / `Series.plot()` against pandas + Matplotlib for index handling (datetime, categorical, MultiIndex), axis labels, legend and kwarg pass-through — `tests/test_pandas_backend.py` covers all kinds, Series/DataFrame defaults, datetime date locators, categorical labels, flattened MultiIndex axes, style/layout keywords and existing axes.
+- [x] Document the supported pandas version matrix and the behaviour for unimplemented `kind=` values (raise clearly rather than drawing something wrong) — `docs/pandas.rst` lists the supported pandas 2.x/3.x matrix, kinds and pandas-matching defaults; unknown kinds raise `ValueError` and `subplots=True` raises `NotImplementedError`.
 
 ---
 
