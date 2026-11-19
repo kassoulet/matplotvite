@@ -8,6 +8,9 @@ pandas==3.1.1; python_version >= "3.12"
 pytest==8.4.2; python_version < "3.10"
 pytest==9.0.3; python_version >= "3.10"
 mypy==1.19.1
+hypothesis==6.100.0; python_version < "3.11"
+hypothesis==6.170.15; python_version >= "3.11"
+pytest-cov==7.1.0
 twine==7.0.0
 matplotlib==3.11.2
 bandit==1.9.4

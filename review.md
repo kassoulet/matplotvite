@@ -64,7 +64,7 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 
 | # | Task |
 |---|------|
-| C14 | **Coverage and robustness:** `pytest-cov` + `cargo-llvm-cov` with a threshold; only 43 Rust unit tests. Add proptest/hypothesis for scales, ticks and decimation, and a cargo-fuzz target for the panel parser. |
+| C14 | **Partly done — coverage and robustness.** `pytest-cov` enforces 75% branch coverage and `cargo-llvm-cov` enforces 45% lines on the non-Python crate. Proptest covers scale round-trips, tick ordering/bounds and polyline decimation; Hypothesis checks the Python scale/tick bindings. `fuzz/panel_render.rs` fuzzes the public panel/render path. The PyO3 dict extraction itself is not fuzzed because it needs a live Python runtime. |
 | C15 | **Docs:** API reference site (mkdocs/sphinx) built in CI, docstring coverage for the ~105 public functions, user-facing `examples/` (current directory holds test fixtures), `test`/`docs` extras. |
 
 ## Suggested order

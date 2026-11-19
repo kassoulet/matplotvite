@@ -323,7 +323,8 @@ pub(super) fn simplify_polyline(
 
 #[cfg(test)]
 mod clip_tests {
-    use super::{clip_polyline, clip_segment};
+    use super::{clip_polyline, clip_segment, simplify_polyline};
+    use proptest::prelude::*;
 
     const RECT: (f64, f64, f64, f64) = (0.0, 100.0, 0.0, 50.0);
 
@@ -358,5 +359,36 @@ mod clip_tests {
         assert_eq!(runs.len(), 2);
         assert_eq!(runs[0], vec![(50, 25), (50, 50)]);
         assert_eq!(runs[1], vec![(60, 50), (60, 25)]);
+    }
+
+    proptest! {
+        #[test]
+        fn simplification_keeps_endpoints_and_order(
+            points in prop::collection::vec((-1000i32..1000, -1000i32..1000), 0..400)
+        ) {
+            let points: Vec<(f64, f64)> = points
+                .iter()
+                .map(|(x, y)| (*x as f64, *y as f64))
+                .collect();
+            let out = simplify_polyline(points.len(), |index| points[index], |point| *point);
+            if points.is_empty() {
+                prop_assert!(out.is_empty());
+            } else {
+                prop_assert_eq!(out.first(), points.first());
+                prop_assert_eq!(out.last(), points.last());
+                let mut cursor = 0usize;
+                for expected in &out {
+                    while cursor < points.len() && points[cursor] != *expected {
+                        cursor += 1;
+                    }
+                    prop_assert!(cursor < points.len());
+                    cursor += 1;
+                }
+                let mut columns: Vec<i32> = points.iter().map(|(x, _)| *x as i32).collect();
+                columns.sort_unstable();
+                columns.dedup();
+                prop_assert!(out.len() <= columns.len() * 4);
+            }
+        }
     }
 }

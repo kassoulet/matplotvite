@@ -320,6 +320,7 @@ pub(crate) fn tick_target(pixels: f64, pixels_per_label: f64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn padded_range_adds_five_percent_on_each_side() {
@@ -417,5 +418,40 @@ mod tests {
         assert!((lo - 4.725).abs() < 1e-12 && (hi - 5.275).abs() < 1e-12);
         let (lo, hi) = padded_range(-5.0, -5.0);
         assert!((lo + 5.275).abs() < 1e-12 && (hi + 4.725).abs() < 1e-12);
+    }
+
+    proptest! {
+        #[test]
+        fn generated_ticks_are_finite_sorted_and_bounded(
+            lo in -1e9f64..1e9f64,
+            span in 1e-6f64..1e9f64,
+            target in 3usize..9,
+        ) {
+            let hi = lo + span;
+            let ticks = nice_ticks(lo, hi, target);
+            let slack = span * 1e-9;
+            prop_assert!(ticks.iter().all(|value| value.is_finite()));
+            prop_assert!(ticks.windows(2).all(|pair| pair[0] < pair[1]));
+            prop_assert!(ticks.iter().all(|value| *value >= lo - slack && *value <= hi + slack));
+            prop_assert!(ticks.len() <= target + 2);
+        }
+
+        #[test]
+        fn log_data_ticks_are_integer_powers(
+            base in 2.0f64..100.0f64,
+            start in -6i32..6,
+            span in 0i32..6,
+        ) {
+            let lo = base.powi(start);
+            let hi = base.powi(start + span);
+            let ticks = data_ticks(lo, hi, true, base, 8);
+            prop_assert!(!ticks.is_empty());
+            prop_assert!(ticks.windows(2).all(|pair| pair[0] < pair[1]));
+            let integer_powers = ticks.iter().all(|tick| {
+                let exponent = tick.log(base);
+                (exponent - exponent.round()).abs() < 1e-6
+            });
+            prop_assert!(integer_powers);
+        }
     }
 }

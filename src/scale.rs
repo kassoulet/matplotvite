@@ -277,6 +277,7 @@ impl<DB: DrawingBackend> DrawingBackend for ScaleBackend<DB> {
 #[cfg(test)]
 mod tests {
     use super::{asinh_inverse, asinh_scale, logit, logit_inverse, symlog, symlog_inverse};
+    use proptest::prelude::*;
 
     #[test]
     fn asinh_is_linear_near_zero_and_inverts() {
@@ -304,5 +305,34 @@ mod tests {
         assert_eq!(logit(0.0), -1000.0);
         assert_eq!(logit(1.0), 1000.0);
         assert!((logit_inverse(logit(0.75)) - 0.75).abs() < 1e-12);
+    }
+
+    proptest! {
+        #[test]
+        fn symlog_round_trips_finite_inputs(
+            value in -1e9f64..1e9f64,
+            linthresh in 1e-6f64..1e6f64,
+            base in 1.1f64..1000.0f64,
+            linscale in 0.01f64..100.0f64,
+        ) {
+            let transformed = symlog(value, linthresh, base, linscale);
+            let restored = symlog_inverse(transformed, linthresh, base, linscale);
+            prop_assert!((restored - value).abs() <= 1e-6 * value.abs().max(1.0));
+        }
+
+        #[test]
+        fn logit_round_trips_interior_probabilities(value in 1e-6f64..0.999999f64) {
+            let restored = logit_inverse(logit(value));
+            prop_assert!((restored - value).abs() <= 1e-9 * value.abs().max(1.0));
+        }
+
+        #[test]
+        fn asinh_round_trips_finite_inputs(
+            value in -1e9f64..1e9f64,
+            width in 1e-6f64..1e6f64,
+        ) {
+            let restored = asinh_inverse(asinh_scale(value, width), width);
+            prop_assert!((restored - value).abs() <= 1e-8 * value.abs().max(1.0));
+        }
     }
 }

@@ -34,7 +34,17 @@ classifiers = [
 dependencies = ["numpy"]  # numpy only; no matplotlib, no Pillow
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff==0.17.5", "mypy==1.19.1", "pandas"]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=6",
+    # Hypothesis 6.170 requires Python 3.11; keep the 3.9/3.10 resolution on
+    # the last release that supports them.
+    "hypothesis==6.100.0; python_version < '3.11'",
+    "hypothesis>=6.100; python_version >= '3.11'",
+    "ruff==0.17.5",
+    "mypy==1.19.1",
+    "pandas",
+]
 
 [project.urls]
 Homepage = "https://kassoulet.github.io/matplotvite/"
@@ -71,6 +81,16 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
+[tool.coverage.run]
+# Branch coverage catches the short-circuit paths in the drawing helpers that
+# line coverage alone would report as exercised.
+branch = true
+source = ["matplotvite"]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+
 [tool.pytest.ini_options]
 # `pytest` inserts only the test directory on sys.path, so bare invocations (CI)
 # could not import the repo-local `tools` and `examples` packages.
@@ -93,6 +113,7 @@ module-name = "matplotvite._core"
 # assets/fonts must stay because src/fonts.rs embeds them with include_bytes!.
 exclude = [
     "benches/**",
+    "fuzz/**",
     "tools/**",
     ".github/**",
     ".jules/**",
