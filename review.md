@@ -1,9 +1,10 @@
 # Review: performance, security and Matplotlib parity
 
-Scope: `main` after the workspace split and Axes refactor. Results on this tree:
-Python suite **529 passed, 5 skipped**; `cargo test --workspace --all-targets`
-passes; `ruff`, `cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings`
-and pre-commit are clean.
+Scope: `main` after the workspace split, Axes refactor and 0.7 corpus work.
+Results on this tree: Python suite **556 passed, 5 skipped**;
+`cargo test --workspace --all-targets` passes; `ruff`, `cargo fmt`,
+`cargo clippy --workspace --all-targets -- -D warnings` and pre-commit are
+clean.
 
 | Gallery | Cases | Rendered | Blank | Failed / needs API | Other |
 |---------|-------|----------|-------|--------------------|-------|
@@ -53,6 +54,7 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 
 ## Suggested order
 
-No review findings remain open. Continue with the uncompleted 0.7 roadmap items:
-checked-in corpus metadata, Seaborn pixel-diff coverage and the pandas plotting
-backend.
+No review findings remain open. The 0.7 follow-ups named in the previous review
+are complete: checked-in corpus metadata with hash-based diffing (`e325be0`),
+Seaborn wrapper pixel-diff coverage (`8e4ce5a`) and the pandas plotting backend
+(`319e11c`).
