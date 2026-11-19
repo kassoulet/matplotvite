@@ -11,6 +11,11 @@ Python; ``matplotvite`` exposes the native ``Figure``/``Axes`` builder; and
 `architecture.md <https://github.com/kassoulet/matplotvite/blob/main/architecture.md>`_
 for the module map and data flow.
 
+The compatibility surface includes a pandas plotting backend, a checked-in
+526-case Matplotlib corpus with SHA-256 image hashes, and pixel-diff coverage for
+six thin Seaborn wrappers. See :doc:`pandas` for dataframe plotting and
+:doc:`parity` for the evidence and regeneration commands.
+
 .. code-block:: python
 
    import numpy as np
@@ -25,4 +30,5 @@ for the module map and data flow.
    :caption: Reference
 
    pandas
+   parity
    api

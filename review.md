@@ -15,6 +15,14 @@ Both totals are from full runs on this tree. The 526-case corpus was rerun after
 the projection, `imread`, and corpus compatibility fixes; the final sample-data
 case was confirmed separately when its harness path was wired through.
 
+## 0.7 delivery
+
+| # | Finding |
+|---|---------|
+| V4 | **Done — corpus metadata is checked in.** `tests/mpl_corpus.json` holds all 526 Matplotlib 3.11.2 cases with rewritten snippets and SHA-256 hashes of every baseline image. `--write-metadata` refreshes it, `--check-metadata` fails CI on drift, and `--changed-from` renders only new or changed cases. |
+| V5 | **Done — Seaborn wrapper parity has pixel diffs.** `tests/test_seaborn_parity.py` renders six shared scenes for `lineplot`, `scatterplot`, `barplot`, `histplot`, `boxplot` and `heatmap` and compares them with committed Matplotlib references using RGBA RMS tolerances. |
+| V6 | **Done — pandas `.plot()` works through the backend hook.** `_pandas.py` implements `line`, `bar`, `barh`, `hist`, `box`, `area`, `scatter` and `pie`; datetime, categorical and MultiIndex indexes are covered, unknown kinds raise `ValueError`, and `docs/pandas.rst` documents the pandas 2.x/3.x matrix. |
+
 ## Corpus and coverage
 
 | # | Finding |
@@ -52,9 +60,10 @@ Architecture is sound (Rust core, thin pyo3 adapter, abi3 wheels, SHA-pinned CI,
 | C14 | **Done — coverage and robustness.** `pytest-cov` enforces 75% branch coverage and `cargo-llvm-cov` enforces 45% lines on the non-Python crate. Proptest covers scale round-trips, tick ordering/bounds and polyline decimation; Hypothesis checks the Python scale/tick bindings. `fuzz/panel_render.rs` fuzzes the public panel/render path, and `fuzz/python/fuzz_panel_extraction.py` runs a live Python runtime against the real PyO3 dict extraction, either through atheris or the deterministic mutation loop that CI's tests exercise. |
 | C15 | **Done — API docs and examples.** Sphinx autodoc builds `docs/` in CI and into `dist/api` on Pages, `tools/check_docstrings.py` gates 100% of the 100 public functions and 90% of public classes, and the `docs`/`test` extras cover those workflows. `examples/quickstart.py` is the runnable user entry point; the remaining files are gallery fixtures. |
 
-## Suggested order
+## Status
 
-No review findings remain open. The 0.7 follow-ups named in the previous review
-are complete: checked-in corpus metadata with hash-based diffing (`e325be0`),
-Seaborn wrapper pixel-diff coverage (`8e4ce5a`) and the pandas plotting backend
-(`319e11c`).
+No review findings remain open. The 0.7 follow-ups are complete: checked-in
+corpus metadata with hash-based diffing (`e325be0`), Seaborn wrapper pixel-diff
+coverage (`8e4ce5a`) and the pandas plotting backend (`319e11c`). The README,
+Sphinx docs, roadmap, architecture and this review now describe the same 0.7
+state.

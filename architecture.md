@@ -65,7 +65,9 @@ its optional `python` feature for the extraction traits.
 
 | Path | Responsibility |
 |---|---|
-| `python/matplotvite/__init__.py` | Public matplotlib-style API, artist state, GridSpec/SubFigure layout, panel serialisation, output-path handling, and the last-result byte cache. |
+| `python/matplotvite/__init__.py` | Public re-export facade: `__all__`, satellite imports and compatibility delegation for private internals. |
+| `python/matplotvite/_plotting.py` | Matplotlib-style implementation: `Figure`, concern-mixin `Axes`, artist state, GridSpec/SubFigure layout, panel serialisation, output-path handling, and the last-result byte cache. |
+| `python/matplotvite/_pandas.py` | pandas plotting backend: translates `DataFrame.plot()`/`Series.plot(kind=...)` into the same `Axes` calls the public API uses. |
 | `python/matplotvite/__init__.pyi` | PEP 561 type surface shipped with the wheel. |
 | `crates/matplotvite-core/src/lib.rs` | Pure renderer crate: model, layout, drawing, rasterisation and export, with no Python dependency by default. |
 | `crates/matplotvite-core/src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
@@ -233,7 +235,10 @@ than a full transform stack:
   projections are compatibility shims that accept their API and draw on the 2-D
   panel.
 - `data=` dictionaries are resolved to their array values before numeric
-  conversion in the main plotting and fill helpers.
+  conversion in the main plotting and fill helpers. pandas DataFrames and
+  Series also work through `pd.options.plotting.backend = "matplotvite"`;
+  `_pandas.py` maps `kind=` and its defaults onto the same panel-producing
+  methods, and pandas remains an optional dependency.
 - The Rust side never imports Python modules or calls back into user code; after
   extraction it works only with copied numeric arrays and strings.
 
@@ -252,7 +257,16 @@ documented in the README.
 
 ## Verification surfaces
 
-- `pytest` covers the Python API, render options, and output formats.
+- `pytest` covers the Python API, render options, output formats, the pandas
+  backend and the rendering galleries; the current suite is **556 passed,
+  5 skipped**.
+- `tests/mpl_corpus.json` checks in 526 Matplotlib 3.11.2 snippets and baseline
+  image hashes; `tools/harvest_matplotlib.py --check-metadata` fails CI when the
+  metadata drifts.
+- `tests/test_seaborn_parity.py` diffs six thin Seaborn wrapper scenes against
+  committed Matplotlib references with RGBA RMS tolerances.
+- `tests/test_pandas_backend.py` exercises pandas' backend dispatch, every
+  supported `kind=`, index handling and the documented failure modes.
 - `cargo test --workspace --all-targets` covers layout, raster, encoding and both native front ends.
 - `cargo test -p matplotvite-core --no-default-features` proves the renderer builds and tests without Python.
 - `tools/trace_unsupported.py --check` tracks calls from matplotlib's own test

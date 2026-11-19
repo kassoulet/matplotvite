@@ -18,6 +18,7 @@ only Python runtime dependency.
 - [KARIOS report figures](https://kassoulet.github.io/matplotvite/karios.html)
 - [Performance measurements](https://kassoulet.github.io/matplotvite/benchmarks.html)
 - [Architecture](architecture.md)
+- [Pandas plotting backend](docs/pandas.rst)
 - [Supported API](#whats-supported)
 
 ## Install
@@ -265,6 +266,26 @@ plt.savefig("contours.png")
   `function`/`functionlog` scales, plus classes registered through `register_scale`;
   positions and limits transform while tick labels stay in data space
 
+### Pandas plotting backend
+
+Matplotvite implements pandas' backend protocol, so pandas frames can use the
+same renderer through their normal plotting API:
+
+```python
+import pandas as pd
+import matplotvite
+
+pd.options.plotting.backend = "matplotvite"
+frame.plot(kind="bar")
+```
+
+`DataFrame.plot()` / `Series.plot()` support `line`, `bar`, `barh`, `hist`,
+`box`, `area`, `scatter` and `pie`, including datetime, categorical and
+MultiIndex indexes. Unknown kinds raise `ValueError` instead of silently drawing
+a different chart, and `subplots=True` is not implemented. See the
+[pandas backend guide](docs/pandas.rst) for the supported version matrix and
+per-kind defaults.
+
 ### Gridded data
 - `imshow(X, cmap=, vmin=, vmax=, extent=, origin=, aspect=, interpolation=, alpha=)` —
   2-D arrays mapped through a colormap, or `(H, W, 3|4)` RGB(A) arrays; supports
@@ -374,7 +395,6 @@ unknown keyword arguments raise `TypeError` instead of being silently ignored.
 
 - true 3-D projection geometry (the `Axes3D` shim accepts the API and draws flat),
   tripcolor/tricontour, and other specialised matplotlib modules
-- a pandas `.plot()` backend (planned for 0.7)
 - interactive display (planned for a future GPUI-based version)
 
 ## Coverage
@@ -437,6 +457,15 @@ The pixel metrics read PNGs through Matplotlib, so without it the corpus gallery
 still renders and records `metrics_error` per case. PDF, SVG, and EPS baselines are
 rasterised at the rendered PNG's size when `pypdfium2`, `cairosvg`, and Ghostscript
 respectively are available. These are gitignored build artifacts under `dist/`.
+
+The baseline corpus is checked in as `tests/mpl_corpus.json`: 526 rewritten
+snippets and SHA-256 hashes of every expected image. Refresh it with
+`--write-metadata`, check it with `--check-metadata` (CI does this), and render
+only added or changed cases with `--changed-from`. Six thin Seaborn wrapper
+scenes (`lineplot`, `scatterplot`, `barplot`, `histplot`, `boxplot`, `heatmap`)
+have committed Matplotlib references and RGBA pixel-RMS tests in
+`tests/test_seaborn_parity.py`.
+
 To regenerate all three as a check:
 
 ```bash
