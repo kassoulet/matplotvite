@@ -24,12 +24,12 @@ mod polyline;
 mod quiver;
 mod series;
 mod text;
-pub(crate) use text::draw_label;
+pub use text::draw_label;
 mod ticks;
 
 /// Plotters' SVG backend divides text sizes by 1.24; matplotlib sizes are
 /// points at `dpi`. Convert once so both land on the same pixel size.
-pub(crate) fn text_px(size: f64, dpi: f64) -> f64 {
+pub fn text_px(size: f64, dpi: f64) -> f64 {
     size * dpi.max(1.0) / 72.0 * 1.24
 }
 
@@ -46,7 +46,7 @@ fn hex_encode(text: &str) -> String {
 /// Mark the start or end of an artist carrying an SVG `gid`. The exporter
 /// turns these text elements into `<g id="...">` / `</g>` after drawing, since
 /// plotters' SVG backend has no hook for raw attributes.
-pub(crate) fn draw_gid_marker<DB: DrawingBackend>(
+pub fn draw_gid_marker<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     gid: &str,
     opening: bool,
@@ -64,7 +64,7 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn draw_panel<DB: DrawingBackend>(
+pub fn draw_panel<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     p: &Panel,
     overlays: &mut Vec<String>,

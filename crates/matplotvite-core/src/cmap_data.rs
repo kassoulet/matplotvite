@@ -2,12 +2,12 @@
 
 use std::sync::OnceLock;
 
-pub(crate) struct CmapDef {
-    pub(crate) name: &'static str,
-    pub(crate) colors: Vec<[u8; 3]>,
+pub struct CmapDef {
+    pub name: &'static str,
+    pub colors: Vec<[u8; 3]>,
 }
 
-pub(crate) fn cmaps() -> &'static [CmapDef] {
+pub fn cmaps() -> &'static [CmapDef] {
     static CMAPS: OnceLock<Vec<CmapDef>> = OnceLock::new();
     CMAPS.get_or_init(|| {
         include_str!("cmaps.txt")
@@ -29,7 +29,7 @@ pub(crate) fn cmaps() -> &'static [CmapDef] {
 }
 
 /// Exact registry lookup first, then a case-insensitive fallback.
-pub(crate) fn lookup(name: &str) -> Option<&'static CmapDef> {
+pub fn lookup(name: &str) -> Option<&'static CmapDef> {
     let all = cmaps();
     all.iter()
         .find(|c| c.name == name)

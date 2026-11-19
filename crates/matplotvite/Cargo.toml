@@ -1,0 +1,26 @@
+[package]
+name = "matplotvite"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Native Rust matplotlib-style figure builder on the matplotvite renderer"
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+keywords = ["matplotlib", "plotting", "charts", "svg"]
+categories = ["visualization"]
+publish = false
+
+[dependencies]
+matplotvite-core = { path = "../matplotvite-core" }
+ndarray = { workspace = true }
+
+[dev-dependencies]
+png = "0.18"
+
+[[test]]
+name = "golden"
+path = "../../tests/golden.rs"
+
+[lints]
+workspace = true

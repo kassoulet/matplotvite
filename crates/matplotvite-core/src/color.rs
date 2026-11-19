@@ -4,14 +4,14 @@ use crate::cmap_data::lookup;
 
 /// A parsed colour. Unknown names use the historical matplotlib-blue fallback.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Color(pub(crate) RGBAColor);
+pub struct Color(pub RGBAColor);
 
 impl Color {
-    pub(crate) fn parse(value: &str) -> Self {
+    pub fn parse(value: &str) -> Self {
         Self(color(value))
     }
 
-    pub(crate) fn rgba(self) -> RGBAColor {
+    pub fn rgba(self) -> RGBAColor {
         self.0
     }
 }
@@ -25,7 +25,7 @@ impl Default for Color {
 /// Parse a normalised colour (`#rgb`, `#rrggbb`, `#rrggbbaa`) or a legacy name.
 /// "none"/"transparent" become fully transparent so callers can draw them
 /// without special-casing.
-pub(crate) fn color(s: &str) -> RGBAColor {
+pub fn color(s: &str) -> RGBAColor {
     let raw = s.trim();
     let lower = raw.to_ascii_lowercase();
     if lower == "none" || lower == "transparent" {
@@ -73,13 +73,13 @@ pub(crate) fn color(s: &str) -> RGBAColor {
 /// Unknown names fall back to viridis, matching the renderer's previous
 /// behaviour for custom Python colormaps the Rust registry does not contain.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Cmap {
+pub struct Cmap {
     name: &'static str,
     reversed: bool,
 }
 
 impl Cmap {
-    pub(crate) fn parse(value: &str) -> Self {
+    pub fn parse(value: &str) -> Self {
         let text = value.trim();
         let (base, reversed) = match text.strip_suffix("_r") {
             Some(base) => (base, true),
@@ -93,7 +93,7 @@ impl Cmap {
     }
 
     /// One matplotlib colormap lookup, clamped to the sampled LUT.
-    pub(crate) fn sample(self, t: f64) -> [u8; 4] {
+    pub fn sample(self, t: f64) -> [u8; 4] {
         // If the registry itself is empty, return opaque black rather than
         // panicking on user input.
         let Some(def) = lookup(self.name) else {

@@ -1,6 +1,6 @@
 #![no_main]
 
-use _core::Figure;
+use matplotvite::Figure;
 use libfuzzer_sys::fuzz_target;
 
 // The Python facade turns a panel into PyO3 records before rendering. This

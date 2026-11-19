@@ -37,7 +37,7 @@ def names():
 
 
 def write_data(registry):
-    """One line per colormap: `name RRGGBB RRGGBB ...`, read by src/cmap_data.rs."""
+    """One line per colormap: `name RRGGBB RRGGBB ...`, read by crates/matplotvite-core/src/cmap_data.rs."""
     lines = [f"# matplotlib {matplotlib.__version__}"]
     for name in names():
         lines.append(name + " " + " ".join("{:02x}{:02x}{:02x}".format(*c) for c in registry[name]))

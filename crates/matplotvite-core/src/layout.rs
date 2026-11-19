@@ -43,7 +43,7 @@ impl Extent {
     }
 }
 
-pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
+pub fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
     let (lo, hi) = raw_range(it);
     if lo < hi {
         (lo, hi)
@@ -58,7 +58,7 @@ pub(crate) fn range(it: impl Iterator<Item = f64>) -> (f64, f64) {
 /// expansion in `Axes.autoscale_view`: a degenerate range is first widened by
 /// 5% of its magnitude (or to `[-0.05, 0.05]` at zero), then the usual 5%
 /// margin is applied to the resulting span.
-pub(crate) fn padded_range(lo: f64, hi: f64) -> (f64, f64) {
+pub fn padded_range(lo: f64, hi: f64) -> (f64, f64) {
     const MARGIN: f64 = 0.05;
     if !lo.is_finite() || !hi.is_finite() {
         return (0.0, 1.0);
@@ -77,7 +77,7 @@ pub(crate) fn padded_range(lo: f64, hi: f64) -> (f64, f64) {
 ///
 /// Explicit limits are used verbatim; otherwise the raw data extent gets
 /// matplotlib's default 5% autoscale margin.
-pub(crate) fn axis_bounds(extent: (f64, f64), explicit: Option<(f64, f64)>) -> (f64, f64) {
+pub fn axis_bounds(extent: (f64, f64), explicit: Option<(f64, f64)>) -> (f64, f64) {
     explicit.unwrap_or_else(|| padded_range(extent.0, extent.1))
 }
 
@@ -88,7 +88,7 @@ pub(crate) fn axis_bounds(extent: (f64, f64), explicit: Option<(f64, f64)>) -> (
 /// is the area in pixels. The axes box is left untouched, which is what
 /// `axis("equal")` does, unlike `set_aspect`, which keeps the data limits and
 /// shrinks the box instead.
-pub(crate) fn aspect_datalim(
+pub fn aspect_datalim(
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
     scale: f64,
@@ -122,7 +122,7 @@ pub(crate) fn aspect_datalim(
 
 /// Raw data ranges for a panel: series values plus image extents. Explicit
 /// limits are applied later by [`axis_bounds`], after any log transform.
-pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
+pub fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
     let mut xs = Extent::new();
     let mut ys = Extent::new();
     for s in &p.series {
@@ -220,7 +220,7 @@ pub(crate) fn panel_ranges(p: &Panel) -> (f64, f64, f64, f64) {
 /// span of 17.6 with eight requested ticks uses 2 rather than 5 and a 1.96
 /// span uses 0.25 rather than 0.2, as Matplotlib's `MaxNLocator` does. Only
 /// steps whose labels fit the budget are considered.
-pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
+pub fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
     if hi <= lo || !lo.is_finite() || !hi.is_finite() {
         return Vec::new();
     }
@@ -254,13 +254,13 @@ pub(crate) fn nice_ticks(lo: f64, hi: f64, target: usize) -> Vec<f64> {
 }
 
 /// Tick positions in chart space (log axes already transformed).
-pub(crate) fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
+pub fn auto_ticks(lo: f64, hi: f64, log: bool) -> Vec<f64> {
     auto_ticks_for(lo, hi, log, 8)
 }
 
 /// Tick positions with an explicit label budget, used to keep small subplots
 /// from crowding their axis labels.
-pub(crate) fn auto_ticks_for(lo: f64, hi: f64, log: bool, target: usize) -> Vec<f64> {
+pub fn auto_ticks_for(lo: f64, hi: f64, log: bool, target: usize) -> Vec<f64> {
     if log {
         let (start, end) = (lo.ceil(), hi.floor());
         if end >= start && end - start <= 12.0 {
@@ -283,7 +283,7 @@ pub(crate) fn auto_ticks_for(lo: f64, hi: f64, log: bool, target: usize) -> Vec<
 /// The renderer maps these values through the active scale, while
 /// [`auto_ticks_for`] receives chart-space limits. Log ticks therefore use
 /// `base^k` here instead of the integer exponent used by the renderer.
-pub(crate) fn data_ticks(lo: f64, hi: f64, log: bool, base: f64, target: usize) -> Vec<f64> {
+pub fn data_ticks(lo: f64, hi: f64, log: bool, base: f64, target: usize) -> Vec<f64> {
     let (lo, hi) = if hi < lo { (hi, lo) } else { (lo, hi) };
     if log {
         let base = if base > 1.0 { base } else { 10.0 };
@@ -310,7 +310,7 @@ pub(crate) fn data_ticks(lo: f64, hi: f64, log: bool, base: f64, target: usize) 
 
 /// Matplotlib's `MaxNLocator` adapts its tick budget to the axis length; keep
 /// roughly one label per `pixels_per_label` pixels, never below three.
-pub(crate) fn tick_target(pixels: f64, pixels_per_label: f64) -> usize {
+pub fn tick_target(pixels: f64, pixels_per_label: f64) -> usize {
     if !pixels.is_finite() || pixels <= 0.0 {
         return 8;
     }

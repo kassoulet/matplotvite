@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use _core::api::{Axes, Figure, GridOptions, LegendOptions, TickParams};
+use matplotvite::{Axes, Figure, GridOptions, LegendOptions, TickParams};
 use ndarray::array;
 
 const MANIFEST: &str = include_str!("golden/scenes.txt");
@@ -175,6 +175,7 @@ fn rms(a: &[u8], b: &[u8]) -> f64 {
 #[test]
 fn native_builder_matches_shared_goldens() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
         .join("tests")
         .join("golden");
     for scene in scenes() {

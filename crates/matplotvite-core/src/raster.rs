@@ -252,7 +252,7 @@ fn has_dense_markers(p: &Panel) -> bool {
 /// Direct bitmap rendering has a fixed oversampling cost, so it pays off on
 /// multi-panel figures and panels with enough primitives to amortise it. Tiny
 /// single-panel plots and marker-heavy panels keep the faster SVG + resvg path.
-pub(crate) fn direct_eligible(panels: &[Panel]) -> bool {
+pub fn direct_eligible(panels: &[Panel]) -> bool {
     // Twin and explicitly positioned panels are overlays, not separate grid
     // cells. The direct path paints each panel opaquely and copies its whole
     // rectangle, so it would erase the primary panel underneath; the SVG path
@@ -285,7 +285,7 @@ pub(crate) fn direct_eligible(panels: &[Panel]) -> bool {
 }
 
 /// Render all panels directly into one opaque RGBA pixmap.
-pub(crate) fn render_png(
+pub fn render_png(
     size: (u32, u32),
     grid: (usize, usize),
     panels: &[Panel],

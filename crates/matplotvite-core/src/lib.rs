@@ -1,26 +1,21 @@
 #![cfg_attr(not(feature = "python"), allow(dead_code))]
 
-pub mod api;
-pub use api::{ApiError, Axes, Figure};
-mod cmap_data;
-mod cmap_py;
-mod color;
-mod draw;
-mod export;
-mod fonts;
-mod image;
-mod layout;
-mod model;
-mod norms;
-mod raster;
-mod render;
-mod scale;
-
 #[doc(hidden)]
 pub mod bench;
+pub mod cmap_data;
+pub mod color;
+mod draw;
+pub mod export;
+pub mod fonts;
+mod image;
+pub mod layout;
+pub mod model;
+mod raster;
+pub mod render;
+pub mod scale;
 
 #[cfg(feature = "python")]
-mod py;
+mod model_py;
 
 #[cfg(test)]
 mod tests {

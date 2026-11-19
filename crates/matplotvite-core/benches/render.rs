@@ -2,8 +2,8 @@ use std::fmt::Write as _;
 use std::hint::black_box;
 use std::time::Duration;
 
-use _core::bench;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use matplotvite_core::bench;
 
 fn svg_fixture(width: u32, height: u32) -> String {
     let mut svg = String::new();

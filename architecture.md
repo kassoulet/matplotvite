@@ -53,11 +53,13 @@ flowchart TB
     ENCODE --> BYTES
 ```
 
-The important boundary is `src/render.rs::render_figure`: Python owns path
-inference and input validation conventions; `src/lib.rs` only wraps the renderer
-for PyO3 and maps its `RenderError` to Python exceptions. Once the NumPy arrays
-have been copied into `model::Panel`, the GIL is released and the native work is
-independent of Python.
+The important boundary is `crates/matplotvite-core/src/render.rs::render_figure`:
+Python owns path inference and input validation conventions;
+`crates/matplotvite-py/src/py.rs` only wraps the renderer for PyO3 and maps its
+`RenderError` to Python exceptions. Once the NumPy arrays have been copied into
+`model::Panel`, the GIL is released and the native work is independent of
+Python. The core crate has no Python dependency by default; the extension enables
+its optional `python` feature for the extraction traits.
 
 ## Repository map
 
@@ -65,19 +67,20 @@ independent of Python.
 |---|---|
 | `python/matplotvite/__init__.py` | Public matplotlib-style API, artist state, GridSpec/SubFigure layout, panel serialisation, output-path handling, and the last-result byte cache. |
 | `python/matplotvite/__init__.pyi` | PEP 561 type surface shipped with the wheel. |
-| `src/lib.rs` | PyO3 adapter: GIL release, error mapping, and module exports. |
-| `src/api.rs` | Native Rust `Figure`/`Axes` builder for the priority plotting methods, rendering through the shared panel pipeline. |
-| `src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
-| `src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
-| `src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |
-| `src/draw.rs`, `src/draw/*` | Panel orchestration, plus the axes, bars, collection, colorbar, contour, image, legend, markers, polyline, quiver, series, text and tick drawing modules. |
-| `src/fonts.rs` | Registration of the embedded DejaVu Sans and Geist faces used by the drawing stack. |
-| `src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
-| `src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP/EPS encoding. |
-| `src/image.rs` | Image scaling, background compositing, and image-to-PNG helpers. |
-| `src/color.rs`, `src/cmap_data.rs`, `src/cmaps.txt` | Colour normalisation and colormap tables. |
-| `src/scale.rs` | Axis scale transforms (`symlog`, `logit`, `asinh`) and the integer-oversampling drawing backend used by the bitmap path. |
-| `bench.rs`, `benches/render.rs` | Criterion-facing output-stage benchmarks. |
+| `crates/matplotvite-core/src/lib.rs` | Pure renderer crate: model, layout, drawing, rasterisation and export, with no Python dependency by default. |
+| `crates/matplotvite-core/src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
+| `crates/matplotvite-core/src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
+| `crates/matplotvite-core/src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |
+| `crates/matplotvite-core/src/draw.rs`, `.../draw/*` | Panel orchestration, plus the axes, bars, collection, colorbar, contour, image, legend, markers, polyline, quiver, series, text and tick drawing modules. |
+| `crates/matplotvite-core/src/fonts.rs` | Registration of the embedded DejaVu Sans and Geist faces used by the drawing stack. |
+| `crates/matplotvite-core/src/raster.rs` | Direct opaque-PNG path: panel rendering at an oversampled resolution and box filtering. |
+| `crates/matplotvite-core/src/export.rs` | SVG assembly, the per-panel fragment cache, PDF conversion, rasterisation, PNG/WebP/EPS encoding. |
+| `crates/matplotvite-core/src/image.rs` | Image scaling, background compositing, and image-to-PNG helpers. |
+| `crates/matplotvite-core/src/color.rs`, `.../cmap_data.rs`, `.../cmaps.txt` | Colour normalisation and colormap tables. |
+| `crates/matplotvite-core/src/scale.rs` | Axis scale transforms (`symlog`, `logit`, `asinh`) and the integer-oversampling drawing backend used by the bitmap path. |
+| `crates/matplotvite/src/api.rs` | Native Rust `Figure`/`Axes` builder for the priority plotting methods, rendering through the shared panel pipeline. |
+| `crates/matplotvite-py/src/lib.rs`, `.../py.rs` | Thin PyO3 extension: GIL release, error mapping, module exports, norms and colormaps. |
+| `crates/matplotvite-core/src/bench.rs`, `.../benches/render.rs` | Criterion-facing output-stage benchmarks. |
 
 ## Save and render flow
 
@@ -214,7 +217,7 @@ than a full transform stack:
 - `Figure`, `Axes`, `GridSpec`, `SubplotSpec`, and `_SubFigure` hold the
   user-facing state and produce panel dictionaries.
 - `Axes._panel()` resolves axis/figure-fraction text, limits, ticks, bars,
-  collections, and images into the typed records in `src/model.rs`.
+  collections, and images into the typed records in `crates/matplotvite-core/src/model.rs`.
 - `RenderOptions` carries format, DPI, transparency, tight-cropping,
   compression, figure title, and figure-level text.
 - Axis transforms cover linear, log, symlog, logit, asinh, function, and registered
@@ -230,8 +233,8 @@ than a full transform stack:
 To add a feature, the usual path is:
 
 1. Add the matplotlib-compatible method or property in the Python facade.
-2. Add or extend a record in `src/model.rs` and populate it from `_panel()`.
-3. Draw it in `src/draw.rs` or a module under `src/draw/` (and, if needed, route it through `src/export.rs`).
+2. Add or extend a record in `crates/matplotvite-core/src/model.rs` and populate it from `_panel()`.
+3. Draw it in `crates/matplotvite-core/src/draw.rs` or a module under `.../draw/` (and, if needed, route it through `.../export.rs`).
 4. Add a Python regression test and, where relevant, a gallery example.
 
 Canvas limits, bin limits, and grid-cell limits are enforced in Python for early
@@ -243,7 +246,8 @@ documented in the README.
 ## Verification surfaces
 
 - `pytest` covers the Python API, render options, and output formats.
-- `cargo test` covers layout, raster, and encoding invariants.
+- `cargo test --workspace --all-targets` covers layout, raster, encoding and both native front ends.
+- `cargo test -p matplotvite-core --no-default-features` proves the renderer builds and tests without Python.
 - `tools/trace_unsupported.py --check` tracks calls from matplotlib's own test
   suite.
 - The comparison galleries exercise pinned matplotlib and seaborn material;

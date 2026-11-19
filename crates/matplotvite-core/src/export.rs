@@ -13,14 +13,14 @@ use crate::image::{base64, image_png_parts};
 use crate::model::{FigureImage, Panel, PngCompression, Suptitle, TextItem};
 
 /// Figure-level marks (title, text and border) drawn after every panel.
-pub(crate) struct FigureDecorations<'a> {
-    pub(crate) suptitle: Option<Suptitle<'a>>,
-    pub(crate) texts: &'a [TextItem],
-    pub(crate) edgecolor: Option<RGBAColor>,
+pub struct FigureDecorations<'a> {
+    pub suptitle: Option<Suptitle<'a>>,
+    pub texts: &'a [TextItem],
+    pub edgecolor: Option<RGBAColor>,
 }
 
 impl FigureDecorations<'_> {
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.suptitle.is_none() && self.edgecolor.is_none() && self.texts.is_empty()
     }
 }
@@ -28,7 +28,7 @@ impl FigureDecorations<'_> {
 /// Convert SVG markup into a single-page vector PDF. `dpi` sets the physical
 /// page size: the SVG's pixel dimensions are treated as `dpi` pixels per inch.
 /// Tight output crops the page in the same parse that builds the content.
-pub(crate) fn render_pdf(
+pub fn render_pdf(
     svg: &str,
     dpi: f64,
     size: (u32, u32),
@@ -65,7 +65,7 @@ pub(crate) fn render_pdf(
 }
 
 /// Build one PDF from several SVG pages, as `PdfPages` needs.
-pub(crate) fn render_pdf_pages(svgs: &[Vec<u8>], dpis: &[f64]) -> Result<Vec<u8>, String> {
+pub fn render_pdf_pages(svgs: &[Vec<u8>], dpis: &[f64]) -> Result<Vec<u8>, String> {
     if svgs.len() != dpis.len() {
         return Err("PDF page count and DPI list differ".into());
     }
@@ -216,10 +216,7 @@ fn pdf_group_bounds(group: &svg2pdf::usvg::Group) -> Option<(f32, f32, f32, f32)
 
 /// The fill used by the rasterised and vector figure background. `None` keeps
 /// the figure transparent.
-pub(crate) fn figure_background(
-    transparent: bool,
-    facecolor: Option<RGBAColor>,
-) -> Option<RGBAColor> {
+pub fn figure_background(transparent: bool, facecolor: Option<RGBAColor>) -> Option<RGBAColor> {
     if transparent {
         None
     } else {
@@ -530,17 +527,17 @@ fn background_fragment(size: (u32, u32), background: Option<RGBAColor>) -> Resul
 
 /// Encoding mode for the figure: DPI scales point-based text, and raster
 /// formats may use raster marker layers.
-pub(crate) struct RenderOutput {
-    pub(crate) dpi: f64,
-    pub(crate) raster: bool,
+pub struct RenderOutput {
+    pub dpi: f64,
+    pub raster: bool,
     /// Compute tight bounds from SVG geometry (vector output) instead of
     /// rasterising the whole figure just to measure it.
-    pub(crate) tight_bounds: bool,
+    pub tight_bounds: bool,
 }
 
 /// Render all panels to an SVG string via plotters. Independent panels are
 /// rasterised/drawn concurrently with Rayon and concatenated in panel order.
-pub(crate) fn render_svg(
+pub fn render_svg(
     size: (u32, u32),
     grid: (usize, usize),
     panels: &[Panel],
@@ -712,7 +709,7 @@ fn svg_bounds(svg: &str, (w, h): (u32, u32)) -> Option<Bbox> {
 
 /// Rasterise an SVG string via resvg + tiny-skia.
 /// Fonts embedded in `build_fontdb()` are used — no system fonts needed.
-pub(crate) fn rasterize(
+pub fn rasterize(
     svg: &str,
     w: u32,
     h: u32,
@@ -744,7 +741,7 @@ pub(crate) fn rasterize(
 /// are then identical, so the buffer is encoded directly instead of being
 /// copied and demultiplied first. That removes a full-frame pass (and a
 /// full-frame allocation) from the common save path.
-pub(crate) fn encode_png(
+pub fn encode_png(
     pixmap: &tiny_skia::Pixmap,
     compression: PngCompression,
     opaque: bool,
@@ -798,7 +795,7 @@ fn encode_png_data(
 }
 
 /// Encode a pixmap as lossless WebP, matching the PNG alpha handling.
-pub(crate) fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String> {
+pub fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String> {
     let rgba = demultiply(pixmap);
     let encoded =
         webp::Encoder::from_rgba(&rgba, pixmap.width(), pixmap.height()).encode_lossless();
@@ -811,7 +808,7 @@ pub(crate) fn encode_webp(pixmap: &tiny_skia::Pixmap) -> Result<Vec<u8>, String>
 /// white. The Level-2 `image` operator paints the raster, written as ASCII
 /// hex so the EPS stays a text file; the page size is the raster at `dpi`
 /// pixels per inch, matching the PDF path's physical size.
-pub(crate) fn encode_eps(pixmap: &tiny_skia::Pixmap, dpi: f64) -> Vec<u8> {
+pub fn encode_eps(pixmap: &tiny_skia::Pixmap, dpi: f64) -> Vec<u8> {
     use std::fmt::Write as _;
 
     let (width, height) = (pixmap.width(), pixmap.height());
@@ -858,11 +855,11 @@ pub(crate) fn encode_eps(pixmap: &tiny_skia::Pixmap, dpi: f64) -> Vec<u8> {
     out.into_bytes()
 }
 
-pub(crate) type Bbox = (u32, u32, u32, u32); // x, y, width, height
+pub type Bbox = (u32, u32, u32, u32); // x, y, width, height
 
 /// The opaque pixel produced by painting `background` over the rasteriser's
 /// white canvas. `None` means the figure is transparent.
-pub(crate) fn background_pixel(background: Option<RGBAColor>) -> Option<[u8; 4]> {
+pub fn background_pixel(background: Option<RGBAColor>) -> Option<[u8; 4]> {
     background.map(|c| {
         let a = c.3.clamp(0.0, 1.0);
         let channel = |v: u8| (v as f64 * a + 255.0 * (1.0 - a)).round() as u8;
@@ -871,10 +868,7 @@ pub(crate) fn background_pixel(background: Option<RGBAColor>) -> Option<[u8; 4]>
 }
 
 /// Smallest rectangle containing drawn pixels, or `None` if the figure is blank.
-pub(crate) fn content_bbox(
-    pixmap: &tiny_skia::Pixmap,
-    background: Option<[u8; 4]>,
-) -> Option<Bbox> {
+pub fn content_bbox(pixmap: &tiny_skia::Pixmap, background: Option<[u8; 4]>) -> Option<Bbox> {
     let (w, h) = (pixmap.width(), pixmap.height());
     let data = pixmap.data();
     let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0u32, 0u32);
@@ -902,7 +896,7 @@ pub(crate) fn content_bbox(
 }
 
 /// Copy `bbox` out of a pixmap — used for `bbox_inches="tight"` PNGs.
-pub(crate) fn crop_pixmap(
+pub fn crop_pixmap(
     pixmap: &tiny_skia::Pixmap,
     (bx, by, bw, bh): Bbox,
 ) -> Result<tiny_skia::Pixmap, String> {
@@ -921,7 +915,7 @@ pub(crate) fn crop_pixmap(
 }
 
 /// Remove `name="..."` from an SVG tag string.
-pub(crate) fn drop_attr(tag: &str, name: &str) -> String {
+pub fn drop_attr(tag: &str, name: &str) -> String {
     let pat = format!("{name}=\"");
     let Some(i) = tag.find(&pat) else {
         return tag.to_string();
@@ -940,7 +934,7 @@ pub(crate) fn drop_attr(tag: &str, name: &str) -> String {
 }
 
 /// Crop an SVG by rewriting its root width/height/viewBox — stays vector.
-pub(crate) fn svg_tight(svg: &str, (bx, by, bw, bh): Bbox) -> Option<String> {
+pub fn svg_tight(svg: &str, (bx, by, bw, bh): Bbox) -> Option<String> {
     let start = svg.find("<svg")?;
     let end = start + svg[start..].find('>')?;
     let mut tag = svg[start..end].to_string();

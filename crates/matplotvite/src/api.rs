@@ -11,13 +11,13 @@ use std::path::Path;
 
 use ndarray::{Array2, ArrayView2};
 
-use crate::color::{Cmap, Color};
-use crate::fonts::SANS_FAMILY;
-use crate::model::{
+use matplotvite_core::color::{Cmap, Color};
+use matplotvite_core::fonts::SANS_FAMILY;
+use matplotvite_core::model::{
     Arrow, ArtistCollection, ArtistPatch, Band, Bar, Grid, Legend, Marker, OwnedArray1,
     OwnedArray2, OwnedArrayD, Panel, QuiverUnits, RenderOptions, Scatter, Series, TickStyle,
 };
-use crate::render::render_figure;
+use matplotvite_core::render::render_figure;
 
 const COLORS: [&str; 10] = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
@@ -758,7 +758,7 @@ impl Axes<'_> {
             linestyle: options
                 .linestyle
                 .as_deref()
-                .and_then(crate::model::LineStyle::parse),
+                .and_then(matplotvite_core::model::LineStyle::parse),
             axis: options.axis.clone(),
             minor_show: options.minor_show,
             minor_color: options.minor_color.as_deref().map(Color::parse),
@@ -1219,7 +1219,7 @@ fn new_panel(pos: usize, dpi: f64) -> Panel {
         y_symlog_linthresh: 1.0,
         x_asinh_linear_width: 1.0,
         y_asinh_linear_width: 1.0,
-        ticks: crate::model::Ticks {
+        ticks: matplotvite_core::model::Ticks {
             xstyle: tick_style(),
             ystyle: tick_style(),
             ..Default::default()

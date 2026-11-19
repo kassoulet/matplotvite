@@ -33,6 +33,7 @@ python -m mypy
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
+cargo test -p matplotvite-core --no-default-features
 cargo deny check licenses bans sources
 ```
 

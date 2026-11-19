@@ -8,16 +8,16 @@ use pyo3::FromPyObject;
 /// Array data copied out of NumPy while the GIL is held. Owning the buffer
 /// makes every panel `Send + Sync`, so rendering can run on Rayon threads (or
 /// under `allow_threads`) without borrowing Python memory.
-pub(crate) struct OwnedArray1(Array1<f64>);
+pub struct OwnedArray1(Array1<f64>);
 
 impl OwnedArray1 {
-    pub(crate) fn from_array(array: Array1<f64>) -> Self {
+    pub fn from_array(array: Array1<f64>) -> Self {
         Self(array)
     }
 }
 
 impl OwnedArray1 {
-    pub(crate) fn as_array(&self) -> ArrayView1<'_, f64> {
+    pub fn as_array(&self) -> ArrayView1<'_, f64> {
         self.0.view()
     }
 }
@@ -42,16 +42,16 @@ impl From<Vec<f64>> for OwnedArray1 {
     }
 }
 
-pub(crate) struct OwnedArray2(Array2<f64>);
+pub struct OwnedArray2(Array2<f64>);
 
 impl OwnedArray2 {
-    pub(crate) fn from_array(array: Array2<f64>) -> Self {
+    pub fn from_array(array: Array2<f64>) -> Self {
         Self(array)
     }
 }
 
 impl OwnedArray2 {
-    pub(crate) fn as_array(&self) -> ArrayView2<'_, f64> {
+    pub fn as_array(&self) -> ArrayView2<'_, f64> {
         self.0.view()
     }
 }
@@ -64,16 +64,16 @@ impl std::ops::Deref for OwnedArray2 {
     }
 }
 
-pub(crate) struct OwnedArrayD(ArrayD<f64>);
+pub struct OwnedArrayD(ArrayD<f64>);
 
 impl OwnedArrayD {
-    pub(crate) fn from_array(array: ArrayD<f64>) -> Self {
+    pub fn from_array(array: ArrayD<f64>) -> Self {
         Self(array)
     }
 }
 
 impl OwnedArrayD {
-    pub(crate) fn as_array(&self) -> ArrayViewD<'_, f64> {
+    pub fn as_array(&self) -> ArrayViewD<'_, f64> {
         self.0.view()
     }
 }
@@ -90,58 +90,58 @@ impl std::ops::Deref for OwnedArrayD {
 /// boundary keeps a short signature.
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct RenderOptions {
+pub struct RenderOptions {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) format: String,
+    pub format: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) transparent: bool,
+    pub transparent: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) tight: bool,
+    pub tight: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) dpi: f64,
+    pub dpi: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<Color>,
+    pub facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<Color>,
+    pub edgecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) compression: Option<String>,
+    pub compression: Option<String>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) suptitle: String,
+    pub suptitle: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) suptitle_family: String,
+    pub suptitle_family: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) suptitle_size: f64,
+    pub suptitle_size: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) suptitle_x: f64,
+    pub suptitle_x: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) suptitle_y: f64,
+    pub suptitle_y: f64,
     /// Figure-fraction text, drawn after the panels so it is never clipped.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) figure_texts: Vec<TextItem>,
+    pub figure_texts: Vec<TextItem>,
     /// Images placed directly in figure pixel space, under every panel.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) figure_images: Vec<FigureImage>,
+    pub figure_images: Vec<FigureImage>,
 }
 
 /// Figure-level title drawn above the panel grid.
-pub(crate) struct Suptitle<'a> {
-    pub(crate) text: &'a str,
-    pub(crate) family: &'a str,
-    pub(crate) size: f64,
-    pub(crate) x: f64,
-    pub(crate) y: f64,
+pub struct Suptitle<'a> {
+    pub text: &'a str,
+    pub family: &'a str,
+    pub size: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 /// PNG compression level selectable through `savefig(compression=...)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PngCompression {
+pub enum PngCompression {
     Fast,
     Default,
     Best,
 }
 
 impl PngCompression {
-    pub(crate) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.to_ascii_lowercase().as_str() {
             "fast" => Some(Self::Fast),
             "default" => Some(Self::Default),
@@ -150,7 +150,7 @@ impl PngCompression {
         }
     }
 
-    pub(crate) fn to_png(self) -> png::Compression {
+    pub fn to_png(self) -> png::Compression {
         match self {
             Self::Fast => png::Compression::Fast,
             Self::Default => png::Compression::Balanced,
@@ -161,7 +161,7 @@ impl PngCompression {
 
 /// How a line connects consecutive data points.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum DrawStyle {
+pub enum DrawStyle {
     #[default]
     Normal,
     StepsPre,
@@ -170,7 +170,7 @@ pub(crate) enum DrawStyle {
 }
 
 impl DrawStyle {
-    pub(crate) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value {
             "default" => Some(Self::Normal),
             "steps-pre" => Some(Self::StepsPre),
@@ -180,14 +180,14 @@ impl DrawStyle {
         }
     }
 
-    pub(crate) fn is_step(self) -> bool {
+    pub fn is_step(self) -> bool {
         !matches!(self, Self::Normal)
     }
 }
 
 /// The stroke pattern used by a line or gridline.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum LineStyle {
+pub enum LineStyle {
     #[default]
     Solid,
     Dashed,
@@ -197,7 +197,7 @@ pub(crate) enum LineStyle {
 }
 
 impl LineStyle {
-    pub(crate) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.trim().to_ascii_lowercase().as_str() {
             "-" | "solid" => Some(Self::Solid),
             "--" | "dashed" => Some(Self::Dashed),
@@ -208,16 +208,16 @@ impl LineStyle {
         }
     }
 
-    pub(crate) fn is_hidden(self) -> bool {
+    pub fn is_hidden(self) -> bool {
         matches!(self, Self::Hidden)
     }
 
-    pub(crate) fn is_dashed(self) -> bool {
+    pub fn is_dashed(self) -> bool {
         matches!(self, Self::Dashed | Self::Dotted | Self::DashDot)
     }
 
     /// Dash and gap lengths in multiples of the line width.
-    pub(crate) fn dash_pattern(self) -> Option<(f64, f64)> {
+    pub fn dash_pattern(self) -> Option<(f64, f64)> {
         match self {
             Self::Dashed => Some((3.7, 1.6)),
             Self::Dotted => Some((1.0, 1.65)),
@@ -229,7 +229,7 @@ impl LineStyle {
 
 /// Marker symbols understood by the raster and vector renderers.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum Marker {
+pub enum Marker {
     #[default]
     None,
     Circle,
@@ -259,7 +259,7 @@ pub(crate) enum Marker {
 }
 
 impl Marker {
-    pub(crate) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value.trim() {
             "" | "none" | "None" => Some(Self::None),
             "o" => Some(Self::Circle),
@@ -290,11 +290,11 @@ impl Marker {
         }
     }
 
-    pub(crate) fn is_none(self) -> bool {
+    pub fn is_none(self) -> bool {
         matches!(self, Self::None)
     }
 
-    pub(crate) fn is_stroked(self) -> bool {
+    pub fn is_stroked(self) -> bool {
         matches!(self, Self::Cross | Self::Plus)
     }
 }
@@ -302,55 +302,55 @@ impl Marker {
 /// One `plot` call, including its styling keywords.
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Series {
+pub struct Series {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x: OwnedArray1,
+    pub x: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y: OwnedArray1,
+    pub y: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) label: String,
+    pub label: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: Color,
+    pub color: Color,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linestyle: LineStyle,
+    pub linestyle: LineStyle,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linewidth: f64,
+    pub linewidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) marker: Marker,
+    pub marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) markersize: f64,
+    pub markersize: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) mfc: Option<Color>,
+    pub mfc: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) mec: Option<Color>,
+    pub mec: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) mew: f64,
+    pub mew: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: Option<f64>,
+    pub alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) drawstyle: DrawStyle,
+    pub drawstyle: DrawStyle,
     /// SVG element id, emitted as a group around this artist's output.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) gid: String,
+    pub gid: String,
 }
 
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct TextBBox {
+pub struct TextBBox {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<Color>,
+    pub facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<Color>,
+    pub edgecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: f64,
+    pub alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) pad: f64,
+    pub pad: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) rounded: bool,
+    pub rounded: bool,
 }
 
 /// (x, y, text, color, font size, horizontal align, vertical align, bbox,
 /// rotation in degrees, font family, offset in points).
-pub(crate) type TextItem = (
+pub type TextItem = (
     f64,
     f64,
     String,
@@ -366,7 +366,7 @@ pub(crate) type TextItem = (
 
 /// (data, colormap, vmin, vmax, (left, right, bottom, top), origin-is-upper,
 /// opacity, interpolation).
-pub(crate) type ImageItem = (
+pub type ImageItem = (
     OwnedArrayD,
     Cmap,
     Option<f64>,
@@ -379,7 +379,7 @@ pub(crate) type ImageItem = (
 
 /// A `Figure.figimage`: its pixel array, colormap, opacity, origin and pixel
 /// offsets from the lower-left corner of the figure.
-pub(crate) type FigureImage = (
+pub type FigureImage = (
     OwnedArrayD,
     Cmap,
     Option<f64>,
@@ -391,10 +391,10 @@ pub(crate) type FigureImage = (
 );
 
 /// (text, xy, xytext, color, font size, font family).
-pub(crate) type Annotation = (String, (f64, f64), Option<(f64, f64)>, Color, f64, String);
+pub type Annotation = (String, (f64, f64), Option<(f64, f64)>, Color, f64, String);
 
 /// (x, y, yerr-lo, yerr-hi, xerr-lo, xerr-hi, color, cap half-width in px).
-pub(crate) type ErrorItem = (
+pub type ErrorItem = (
     OwnedArray1,
     OwnedArray1,
     OwnedArray1,
@@ -408,7 +408,7 @@ pub(crate) type ErrorItem = (
 /// (colormap, vmin, vmax, label, log scale, display limits, log base,
 /// orientation, extend, rectangular extensions, extension fraction): a
 /// gradient strip panel.
-pub(crate) type ColorbarItem = (
+pub type ColorbarItem = (
     Cmap,
     f64,
     f64,
@@ -425,32 +425,32 @@ pub(crate) type ColorbarItem = (
 /// One `scatter` call: per-point sizes and either per-point colours or values
 /// mapped through `cmap`.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Scatter {
+pub struct Scatter {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x: OwnedArray1,
+    pub x: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y: OwnedArray1,
+    pub y: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) sizes: OwnedArray1,
+    pub sizes: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) values: Option<OwnedArray1>,
+    pub values: Option<OwnedArray1>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) cmap: Cmap,
+    pub cmap: Cmap,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) clim: Option<(f64, f64)>,
+    pub clim: Option<(f64, f64)>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<Color>,
+    pub colors: Vec<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) marker: Marker,
+    pub marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: f64,
+    pub alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) label: String,
+    pub label: String,
 }
 
 /// The axes measurement used to turn quiver vector lengths into pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) enum QuiverUnits {
+pub enum QuiverUnits {
     #[default]
     Width,
     Height,
@@ -462,7 +462,7 @@ pub(crate) enum QuiverUnits {
 }
 
 impl QuiverUnits {
-    pub(crate) fn parse(value: &str) -> Option<Self> {
+    pub fn parse(value: &str) -> Option<Self> {
         match value {
             "width" => Some(Self::Width),
             "height" => Some(Self::Height),
@@ -478,39 +478,39 @@ impl QuiverUnits {
 
 /// One `quiver` call: arrow tails, vector components and styling.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Arrow {
+pub struct Arrow {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x: OwnedArray1,
+    pub x: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y: OwnedArray1,
+    pub y: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) u: OwnedArray1,
+    pub u: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) v: OwnedArray1,
+    pub v: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<Color>,
+    pub colors: Vec<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) scale: Option<f64>,
+    pub scale: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) units: QuiverUnits,
+    pub units: QuiverUnits,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) scale_units: Option<QuiverUnits>,
+    pub scale_units: Option<QuiverUnits>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) angles: String,
+    pub angles: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) width: Option<f64>,
+    pub width: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) headwidth: f64,
+    pub headwidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) headlength: f64,
+    pub headlength: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) headaxislength: f64,
+    pub headaxislength: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) pivot: String,
+    pub pivot: String,
 }
 
 /// (x, y, z, levels, linewidths, colors, colormap, filled, opacity).
-pub(crate) type ContourItem = (
+pub type ContourItem = (
     OwnedArray1,
     OwnedArray1,
     OwnedArray2,
@@ -524,49 +524,49 @@ pub(crate) type ContourItem = (
 
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct TickStyle {
+pub struct TickStyle {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) labelsize: f64,
+    pub labelsize: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) length: f64,
+    pub length: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) width: f64,
+    pub width: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: Option<Color>,
+    pub color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) labelcolor: Option<Color>,
+    pub labelcolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) rotation: f64,
+    pub rotation: f64,
 }
 
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Ticks {
+pub struct Ticks {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xticks: Option<Vec<f64>>,
+    pub xticks: Option<Vec<f64>>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xticklabels: Option<Vec<String>>,
+    pub xticklabels: Option<Vec<String>>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) yticks: Option<Vec<f64>>,
+    pub yticks: Option<Vec<f64>>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) yticklabels: Option<Vec<String>>,
+    pub yticklabels: Option<Vec<String>>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xstyle: TickStyle,
+    pub xstyle: TickStyle,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ystyle: TickStyle,
+    pub ystyle: TickStyle,
     /// Shared axes hide the inner tick labels, matching matplotlib.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) hide_xlabels: bool,
+    pub hide_xlabels: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) hide_ylabels: bool,
+    pub hide_ylabels: bool,
     /// `"left"` or `"right"` forces the y tick side; empty keeps the default.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) yside: String,
+    pub yside: String,
 }
 
 /// One collected legend row; icons match the artist that registered it.
 #[derive(Clone)]
-pub(crate) enum LegendSwatch {
+pub enum LegendSwatch {
     Line(RGBAColor, u32),
     LineMarker(RGBAColor, u32, Marker),
     Marker(RGBAColor, Marker),
@@ -575,44 +575,44 @@ pub(crate) enum LegendSwatch {
     Circle(RGBAColor),
 }
 
-pub(crate) struct LegendEntry {
-    pub(crate) label: String,
-    pub(crate) swatch: LegendSwatch,
+pub struct LegendEntry {
+    pub label: String,
+    pub swatch: LegendSwatch,
 }
 
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Legend {
+pub struct Legend {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) family: String,
+    pub family: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) show: bool,
+    pub show: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) loc: String,
+    pub loc: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ncol: usize,
+    pub ncol: usize,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) frameon: bool,
+    pub frameon: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) fontsize: f64,
+    pub fontsize: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) title: String,
+    pub title: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) title_fontsize: f64,
+    pub title_fontsize: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) anchor: Option<(f64, f64)>,
+    pub anchor: Option<(f64, f64)>,
     /// Labels supplied directly to `legend(labels)`; they replace artist labels.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) labels: Vec<String>,
+    pub labels: Vec<String>,
     /// Labels of the drawn artists in creation order, as Matplotlib lists them.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) order: Vec<String>,
+    pub order: Vec<String>,
 }
 
 impl Legend {
     /// The plotters legend only covers the upper-right layout; every placement
     /// (including the scored `"best"` one) goes through the manual renderer.
-    pub(crate) fn is_custom(&self) -> bool {
+    pub fn is_custom(&self) -> bool {
         self.loc == "best"
             || self.ncol > 1
             || !self.frameon
@@ -624,164 +624,164 @@ impl Legend {
 
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Grid {
+pub struct Grid {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) show: bool,
+    pub show: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: Option<Color>,
+    pub color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linewidth: Option<f64>,
+    pub linewidth: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: Option<f64>,
+    pub alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linestyle: Option<LineStyle>,
+    pub linestyle: Option<LineStyle>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) axis: String,
+    pub axis: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) minor_show: bool,
+    pub minor_show: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) minor_color: Option<Color>,
+    pub minor_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) minor_linewidth: Option<f64>,
+    pub minor_linewidth: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) minor_alpha: Option<f64>,
+    pub minor_alpha: Option<f64>,
 }
 
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Panel {
+pub struct Panel {
     /// Fingerprint from the Python layer; empty disables the fragment cache.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) cache_key: String,
+    pub cache_key: String,
     /// Font family for this panel's text, resolved from `rcParams["font.family"]`.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) font_family: String,
+    pub font_family: String,
     /// Per-artist overrides; `None` follows `font_family`.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) title_family: Option<String>,
+    pub title_family: Option<String>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xlabel_family: Option<String>,
+    pub xlabel_family: Option<String>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ylabel_family: Option<String>,
+    pub ylabel_family: Option<String>,
     /// Effective output resolution, used to convert point sizes to pixels.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) dpi: f64,
+    pub dpi: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) pos: usize, // row-major cell index
+    pub pos: usize, // row-major cell index
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) series: Vec<Series>,
+    pub series: Vec<Series>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) title: String,
+    pub title: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xlabel: String,
+    pub xlabel: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ylabel: String,
+    pub ylabel: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) title_size: Option<f64>,
+    pub title_size: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xlabel_size: Option<f64>,
+    pub xlabel_size: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ylabel_size: Option<f64>,
+    pub ylabel_size: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) legend: Legend,
+    pub legend: Legend,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xlim: Option<(f64, f64)>,
+    pub xlim: Option<(f64, f64)>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ylim: Option<(f64, f64)>,
+    pub ylim: Option<(f64, f64)>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) texts: Vec<TextItem>,
+    pub texts: Vec<TextItem>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) images: Vec<ImageItem>,
+    pub images: Vec<ImageItem>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) annotations: Vec<Annotation>,
+    pub annotations: Vec<Annotation>,
     /// `None` is matplotlib's "auto"; a number is the y-unit/x-unit scale
     /// (1.0 == "equal").
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) aspect: Option<f64>,
+    pub aspect: Option<f64>,
     /// `set_adjustable("datalim")`: widen the data limits instead of
     /// shrinking the plot area to reach `aspect`.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) aspect_datalim: bool,
+    pub aspect_datalim: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) contours: Vec<ContourItem>,
+    pub contours: Vec<ContourItem>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) errors: Vec<ErrorItem>,
+    pub errors: Vec<ErrorItem>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) scatter: Vec<Scatter>,
+    pub scatter: Vec<Scatter>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) arrows: Vec<Arrow>,
+    pub arrows: Vec<Arrow>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) bars: Vec<Bar>,
+    pub bars: Vec<Bar>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) bands: Vec<Band>,
+    pub bands: Vec<Band>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) grid: Grid,
+    pub grid: Grid,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ticks: Ticks,
+    pub ticks: Ticks,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x_log: bool,
+    pub x_log: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y_log: bool,
+    pub y_log: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) log_base: f64,
+    pub log_base: f64,
     /// Symmetric-log axes: linear inside `±linthresh`, logarithmic outside.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x_symlog: bool,
+    pub x_symlog: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y_symlog: bool,
+    pub y_symlog: bool,
     /// Logit axes: probabilities mapped through log(p / (1 - p)).
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x_logit: bool,
+    pub x_logit: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y_logit: bool,
+    pub y_logit: bool,
     /// Asinh axes: smooth log-like scaling with a linear width around zero.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x_asinh: bool,
+    pub x_asinh: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y_asinh: bool,
+    pub y_asinh: bool,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x_symlog_linthresh: f64,
+    pub x_symlog_linthresh: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y_symlog_linthresh: f64,
+    pub y_symlog_linthresh: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x_asinh_linear_width: f64,
+    pub x_asinh_linear_width: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y_asinh_linear_width: f64,
+    pub y_asinh_linear_width: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colorbar: Option<ColorbarItem>,
+    pub colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) axis_off: bool,
+    pub axis_off: bool,
     /// Axes background and the colour used for titles, labels and ticks.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<Color>,
+    pub facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) foreground: Option<Color>,
+    pub foreground: Option<Color>,
     /// Figure-fraction `(x, y, width, height)`; `None` uses the grid cell.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) bounds: Option<(f64, f64, f64, f64)>,
+    pub bounds: Option<(f64, f64, f64, f64)>,
     /// The bounds are a precise plotting rectangle (`add_axes`/inset), not a
     /// panel that still needs the roomier label margins.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) axes_bounds: bool,
+    pub axes_bounds: bool,
     /// Empty for a normal axes, `"y"` for `twinx`, `"x"` for `twiny`.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) twin: String,
+    pub twin: String,
     /// Gap reserved for the twin axis labels, as a figure-width fraction.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) twin_gap: f64,
+    pub twin_gap: f64,
     /// Side that reserves label room for a twin axis, on both panels.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) twin_reserve: String,
+    pub twin_reserve: String,
     /// Explicit axis-label colours; `None` follows the axes foreground.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) xlabel_color: Option<Color>,
+    pub xlabel_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) ylabel_color: Option<Color>,
+    pub ylabel_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) patches: Vec<ArtistPatch>,
+    pub patches: Vec<ArtistPatch>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) collections: Vec<ArtistCollection>,
+    pub collections: Vec<ArtistCollection>,
 }
 
 // Panels own their array data, so `Send + Sync` is derived automatically and
@@ -789,97 +789,97 @@ pub(crate) struct Panel {
 
 /// A patch added through `add_patch`, reduced to simple data-space geometry.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct ArtistPatch {
+pub struct ArtistPatch {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) kind: String,
+    pub kind: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x: f64,
+    pub x: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y: f64,
+    pub y: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) width: f64,
+    pub width: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) height: f64,
+    pub height: f64,
     /// Flattened xy pairs for `kind == "polygon"`.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) points: Vec<f64>,
+    pub points: Vec<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) facecolor: Option<Color>,
+    pub facecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<Color>,
+    pub edgecolor: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linewidth: f64,
+    pub linewidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: f64,
+    pub alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) gid: String,
+    pub gid: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) label: String,
+    pub label: String,
 }
 
 /// A collection added through `add_collection`: point offsets and/or polylines.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct ArtistCollection {
+pub struct ArtistCollection {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) points: Vec<f64>,
+    pub points: Vec<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) segments: Vec<Vec<f64>>,
+    pub segments: Vec<Vec<f64>>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) sizes: Vec<f64>,
+    pub sizes: Vec<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<Color>,
+    pub colors: Vec<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) marker: Marker,
+    pub marker: Marker,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: f64,
+    pub alpha: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) linewidth: f64,
+    pub linewidth: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) label: String,
+    pub label: String,
 }
 
 /// One `bar`/`barh` call: axis-aligned rectangles in data coordinates.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Bar {
+pub struct Bar {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) left: OwnedArray1,
+    pub left: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) bottom: OwnedArray1,
+    pub bottom: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) width: OwnedArray1,
+    pub width: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) height: OwnedArray1,
+    pub height: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) colors: Vec<Color>,
+    pub colors: Vec<Color>,
     /// One edge colour per bar; a shorter list cycles.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) edgecolor: Option<Vec<Color>>,
+    pub edgecolor: Option<Vec<Color>>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: Option<f64>,
+    pub alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) label: String,
+    pub label: String,
 }
 
 /// One closed filled area (`fill_between`/`fill`) in data coordinates.
 #[cfg_attr(feature = "python", derive(FromPyObject))]
-pub(crate) struct Band {
+pub struct Band {
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) x: OwnedArray1,
+    pub x: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) y: OwnedArray1,
+    pub y: OwnedArray1,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) color: Color,
+    pub color: Color,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) alpha: Option<f64>,
+    pub alpha: Option<f64>,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) label: String,
+    pub label: String,
     /// Number of closed rings packed into `x`/`y`; zero means one polygon.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) cells: usize,
+    pub cells: usize,
     /// Six hex digits per cell when `cells > 0` (hexbin's per-cell colours).
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) cell_colors: String,
+    pub cell_colors: String,
     /// SVG element id for the filled area (pie wedges use this).
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub(crate) gid: String,
+    pub gid: String,
 }

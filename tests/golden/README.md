@@ -4,7 +4,7 @@ These PNGs are the common reference for both front ends. `scenes.txt` names each
 scene, its pixel size and the maximum RMS error:
 
 - `tests/test_golden_images.py` renders each scene through the Python facade.
-- `tests/golden.rs` renders the same scene through the native Rust builder.
+- `crates/matplotvite/tests` runs `tests/golden.rs` through the native Rust builder.
 
 Both compare against the committed PNG, so a change that updates only one front
 end fails the other suite.

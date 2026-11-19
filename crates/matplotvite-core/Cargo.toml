@@ -1,0 +1,43 @@
+[package]
+name = "matplotvite-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Renderer, layout and drawing model shared by the matplotvite crates"
+license.workspace = true
+repository.workspace = true
+readme = "../../README.md"
+publish = false
+
+[features]
+# Default builds have no Python dependency. The extension enables this feature
+# only to derive the PyO3 extraction traits used at the FFI boundary.
+default = []
+python = ["dep:pyo3", "dep:numpy"]
+
+[dependencies]
+pyo3 = { workspace = true, optional = true }
+numpy = { workspace = true, optional = true }
+ndarray = { workspace = true }
+png = "0.18"
+plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "svg_backend", "line_series", "ab_glyph"] }
+plotters-backend = "0.3"
+resvg = "0.50.0"
+usvg = "0.50.0"
+tiny-skia = "0.12.0"
+svg2pdf = "0.13"
+pdf-writer = "0.12"
+webp = "0.3"
+rayon = "1.10"
+ab_glyph = "0.2"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+proptest = "1"
+
+[[bench]]
+name = "render"
+harness = false
+
+[lints]
+workspace = true

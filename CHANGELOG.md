@@ -11,6 +11,10 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Added
 
+- A Cargo workspace split into `matplotvite-core` (renderer with no Python
+  dependency by default), `matplotvite` (the native `Figure`/`Axes` builder) and
+  `matplotvite-py` (the thin PyO3 extension). CI now tests the core crate without
+  Python features, and the fuzz target builds against the builder crate.
 - A Sphinx API reference built in CI and on the Pages site, a public-API
   docstring coverage gate, `docs`/`test` extras, and a runnable
   `examples/quickstart.py`.

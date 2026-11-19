@@ -12,7 +12,7 @@ mod py {
     use pyo3::prelude::*;
     use pyo3::IntoPyObjectExt;
 
-    use crate::cmap_data;
+    use matplotvite_core::cmap_data;
 
     fn custom() -> &'static Mutex<HashMap<String, Vec<[u8; 3]>>> {
         static CUSTOM: OnceLock<Mutex<HashMap<String, Vec<[u8; 3]>>>> = OnceLock::new();

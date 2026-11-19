@@ -7,7 +7,7 @@ use super::*;
 /// Draw one label. Alignment is approximated: the backend only has a top-left
 /// anchor, so the text width is estimated from the glyph count.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn draw_label<DB: DrawingBackend>(
+pub fn draw_label<DB: DrawingBackend>(
     area: &DrawingArea<DB, plotters::coord::Shift>,
     base: (i32, i32),
     pos: (i32, i32),

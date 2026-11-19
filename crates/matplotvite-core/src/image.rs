@@ -12,7 +12,7 @@ const MAX_IMAGE_PIXELS: usize = 1 << 26;
 /// Below this size, Rayon's scheduling overhead costs more than it saves.
 const PARALLEL_IMAGE_PIXELS: usize = 16_384;
 
-pub(crate) fn base64(data: &[u8]) -> String {
+pub fn base64(data: &[u8]) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
     for chunk in data.chunks(3) {
@@ -101,13 +101,13 @@ fn resample_area(
 }
 
 /// Convert an `imshow` array into premultiplied RGBA pixels.
-pub(crate) fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String> {
+pub fn image_pixmap(item: &ImageItem) -> Result<tiny_skia::Pixmap, String> {
     let (arr, cmap, vmin, vmax, _, _, opacity, _interpolation) = item;
     image_pixmap_parts(arr.as_array(), *cmap, *vmin, *vmax, *opacity)
 }
 
 /// Shared implementation for axes images and `Figure.figimage`.
-pub(crate) fn image_pixmap_parts(
+pub fn image_pixmap_parts(
     a: ArrayViewD<'_, f64>,
     cmap: Cmap,
     vmin: Option<f64>,
@@ -229,11 +229,7 @@ pub(crate) fn image_pixmap_parts(
 
 /// Encode an axes image at the size it will occupy, box-filtering
 /// `antialiased` images that are shrunk by more than 3x.
-pub(crate) fn image_png_for_size(
-    item: &ImageItem,
-    width: u32,
-    height: u32,
-) -> Result<Vec<u8>, String> {
+pub fn image_png_for_size(item: &ImageItem, width: u32, height: u32) -> Result<Vec<u8>, String> {
     let (arr, _, _, _, _, _, opacity, interpolation) = item;
     let shape = arr.as_array().shape().to_vec();
     let opaque = *opacity >= 1.0 && (shape.len() != 3 || shape[2] == 3);
@@ -249,7 +245,7 @@ pub(crate) fn image_png_for_size(
 }
 
 /// Encode an image array for a `figimage` overlay.
-pub(crate) fn image_png_parts(
+pub fn image_png_parts(
     array: ArrayViewD<'_, f64>,
     cmap: Cmap,
     vmin: Option<f64>,
@@ -267,7 +263,7 @@ pub(crate) fn image_png_parts(
 /// Flatten an image into opaque RGB at the requested size, blending its alpha
 /// over the axes background. The direct bitmap path uses this instead of
 /// encoding a PNG and handing it to resvg.
-pub(crate) fn image_rgb(
+pub fn image_rgb(
     item: &ImageItem,
     width: u32,
     height: u32,

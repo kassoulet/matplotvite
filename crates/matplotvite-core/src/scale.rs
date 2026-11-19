@@ -13,7 +13,7 @@ use plotters_backend::{
 ///
 /// Matplotlib's transform is linear inside `±linthresh` (scaled by
 /// `linscale / (1 - 1/base)`) and logarithmic outside it.
-pub(crate) fn symlog(value: f64, linthresh: f64, base: f64, linscale: f64) -> f64 {
+pub fn symlog(value: f64, linthresh: f64, base: f64, linscale: f64) -> f64 {
     let l = if linthresh > 0.0 { linthresh } else { 1.0 };
     let base = if base > 1.0 { base } else { 10.0 };
     let linscale = if linscale > 0.0 { linscale } else { 1.0 };
@@ -25,7 +25,7 @@ pub(crate) fn symlog(value: f64, linthresh: f64, base: f64, linscale: f64) -> f6
     }
 }
 
-pub(crate) fn symlog_inverse(value: f64, linthresh: f64, base: f64, linscale: f64) -> f64 {
+pub fn symlog_inverse(value: f64, linthresh: f64, base: f64, linscale: f64) -> f64 {
     let l = if linthresh > 0.0 { linthresh } else { 1.0 };
     let base = if base > 1.0 { base } else { 10.0 };
     let linscale = if linscale > 0.0 { linscale } else { 1.0 };
@@ -38,7 +38,7 @@ pub(crate) fn symlog_inverse(value: f64, linthresh: f64, base: f64, linscale: f6
 }
 
 /// Base-10 logit transform for probability axes, with Matplotlib's clipping.
-pub(crate) fn logit(value: f64) -> f64 {
+pub fn logit(value: f64) -> f64 {
     if value <= 0.0 {
         -1000.0
     } else if value >= 1.0 {
@@ -48,13 +48,13 @@ pub(crate) fn logit(value: f64) -> f64 {
     }
 }
 
-pub(crate) fn logit_inverse(value: f64) -> f64 {
+pub fn logit_inverse(value: f64) -> f64 {
     let exp = 10f64.powf(-value);
     1.0 / (1.0 + exp)
 }
 
 /// Asinh transform: linear near zero and logarithmic for large magnitudes.
-pub(crate) fn asinh_scale(value: f64, linear_width: f64) -> f64 {
+pub fn asinh_scale(value: f64, linear_width: f64) -> f64 {
     let w = if linear_width > 0.0 {
         linear_width
     } else {
@@ -63,7 +63,7 @@ pub(crate) fn asinh_scale(value: f64, linear_width: f64) -> f64 {
     w * (value / w).asinh()
 }
 
-pub(crate) fn asinh_inverse(value: f64, linear_width: f64) -> f64 {
+pub fn asinh_inverse(value: f64, linear_width: f64) -> f64 {
     let w = if linear_width > 0.0 {
         linear_width
     } else {
@@ -72,13 +72,13 @@ pub(crate) fn asinh_inverse(value: f64, linear_width: f64) -> f64 {
     w * (value / w).sinh()
 }
 
-pub(crate) struct ScaleBackend<DB: DrawingBackend> {
+pub struct ScaleBackend<DB: DrawingBackend> {
     inner: DB,
     scale: u32,
 }
 
 impl<DB: DrawingBackend> ScaleBackend<DB> {
-    pub(crate) fn new(inner: DB, scale: u32) -> Self {
+    pub fn new(inner: DB, scale: u32) -> Self {
         Self {
             inner,
             scale: scale.max(1),

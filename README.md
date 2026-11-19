@@ -108,7 +108,7 @@ times vary with machine load and should be reproduced on the target system.
 The Rust output stages have a separate Criterion suite:
 
 ```bash
-cargo bench --bench render
+cargo bench -p matplotvite-core --bench render
 ```
 
 It measures SVG rasterization at three figure sizes plus dense-line and
@@ -120,7 +120,7 @@ reports it against `benches/criterion_baseline.json` with
 workflow artifacts. Refresh the baseline with:
 
 ```bash
-cargo bench --bench render -- --quick
+cargo bench -p matplotvite-core --bench render -- --quick
 python tools/criterion_guard.py target/criterion benches/criterion_baseline.json --write
 ```
 
@@ -480,6 +480,7 @@ python -m mypy
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
 cargo test --all-targets
+cargo test -p matplotvite-core --no-default-features
 cargo deny check
 ```
 

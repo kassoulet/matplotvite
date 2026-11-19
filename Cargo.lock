@@ -760,6 +760,15 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 name = "matplotvite"
 version = "0.6.1-dev"
 dependencies = [
+ "matplotvite-core",
+ "ndarray",
+ "png 0.18.1",
+]
+
+[[package]]
+name = "matplotvite-core"
+version = "0.6.1-dev"
+dependencies = [
  "ab_glyph",
  "criterion",
  "ndarray",
@@ -776,6 +785,15 @@ dependencies = [
  "tiny-skia 0.12.0",
  "usvg 0.50.0",
  "webp",
+]
+
+[[package]]
+name = "matplotvite-py"
+version = "0.6.1-dev"
+dependencies = [
+ "matplotvite-core",
+ "numpy",
+ "pyo3",
 ]
 
 [[package]]

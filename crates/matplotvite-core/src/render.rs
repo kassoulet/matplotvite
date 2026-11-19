@@ -11,7 +11,7 @@ use crate::raster::{direct_eligible, render_png};
 
 /// Why a figure could not be rendered.
 #[derive(Debug)]
-pub(crate) enum RenderError {
+pub enum RenderError {
     /// A caller-supplied dimension, format or compression was invalid.
     InvalidSize(String),
     UnsupportedFormat(String),
@@ -22,11 +22,11 @@ pub(crate) enum RenderError {
 }
 
 impl RenderError {
-    pub(crate) fn is_value_error(&self) -> bool {
+    pub fn is_value_error(&self) -> bool {
         !matches!(self, Self::Render(_))
     }
 
-    pub(crate) fn into_message(self) -> String {
+    pub fn into_message(self) -> String {
         match self {
             Self::InvalidSize(message)
             | Self::UnsupportedFormat(message)
@@ -49,7 +49,7 @@ impl From<String> for RenderError {
 ///
 /// The Python layer owns path handling and format inference; this function only
 /// validates its inputs, draws, and encodes. `tight` crops to drawn content.
-pub(crate) fn render_figure(
+pub fn render_figure(
     size: (u32, u32),
     grid: (usize, usize),
     panels: &[Panel],

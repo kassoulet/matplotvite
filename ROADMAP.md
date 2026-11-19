@@ -8,7 +8,7 @@
 
 ## Release status
 
-- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, 3-D/skew compatibility shims, `polar=True` axes construction, standard-library PNG `imread`, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`. It also adds musllinux wheels and creation-order legend entries.
+- **Current version: 0.6.1-dev** — milestones 0.1 through 0.6 are complete, and 0.6.0 is on PyPI. The 0.6.1 line clips series to the axes rectangle and closes the remaining Matplotlib gallery API errors: custom and function scales, custom and geographic projections, 3-D/skew compatibility shims, `polar=True` axes construction, standard-library PNG `imread`, polar bar linewidths, `FT2Font` glyph/kerning queries, and `cbook.boxplot_stats`. It also adds musllinux wheels and creation-order legend entries. The Rust code is now a Cargo workspace: `matplotvite-core` builds without Python, `matplotvite` exposes the native builder, and `matplotvite-py` is the thin extension module.
 - **0.7** widens the parity corpus (Matplotlib's own tests and example gallery, Seaborn's gallery) and adds Pandas `.plot()` compatibility.
 - **0.8** turns the Seaborn needs-API ranking into plot families: joint/marginal axes, FacetGrid/PairGrid grids, hue grouping with confidence bands, and the distribution/composition plots.
 - Interactive/GUI work built on **GPUI** is planned for a later version, after 0.6.
@@ -293,13 +293,13 @@
 
 ---
 
-## 🔮 Later — Rust-native matplotlib-compatible crate
+## ✅ Rust-native crate foundation (done)
 
-> Investigate exposing the renderer as a standalone Rust library, not only as a
-> Python extension.
+> The renderer is a standalone Rust library, not only a Python extension.
 
-- [ ] Investigate a crate (for example `matplotvite`) that provides the same matplotlib-compatible `Figure`/`Axes` rendering API directly to Rust programs, reusing `model`, `layout`, `draw` and `export` without a Python interpreter.
-- [ ] Prototype the core surface (`figure`, `subplots`, `plot`, labels, legend, limits, `savefig`) and document how the Python facade and the Rust API share one drawing model.
+- [x] Split the Cargo workspace into `matplotvite-core` (model, layout, draw, raster and export, with no Python dependency by default), `matplotvite` (the builder API) and `matplotvite-py` (the thin PyO3 module).
+- [x] Provide the core surface (`Figure`, `subplots`, `plot`, labels, legend, limits, `savefig`) through `matplotvite::Figure`/`Axes`, and document how the Python facade and the Rust API share one drawing model in `architecture.md`.
+- [x] Keep both front ends aligned with shared golden images and `cargo test -p matplotvite`; CI tests `matplotvite-core` without Python features.
 
 ## Out of scope (forever)
 

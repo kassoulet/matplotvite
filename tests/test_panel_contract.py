@@ -6,12 +6,12 @@ from pathlib import Path
 import matplotvite as plt
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = ROOT / "src" / "model.rs"
+MODEL = ROOT / "crates" / "matplotvite-core" / "src" / "model.rs"
 
 
 def _rust_fields(struct: str) -> set[str]:
     source = MODEL.read_text(encoding="utf-8")
-    marker = f"pub(crate) struct {struct} {{"
+    marker = f"pub struct {struct} {{"
     assert marker in source, f"missing Rust struct {struct}"
     body = source.split(marker, 1)[1].split("\n}", 1)[0]
     fields = set()
