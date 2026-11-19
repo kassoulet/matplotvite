@@ -33,6 +33,9 @@ Before 1.0, a minor release may contain a breaking change; see
   project changelog/issue/documentation URLs.
 - An explicit Python support policy covering the tested 3.9 through 3.14
   interpreters.
+- A shared golden-image suite renders the same scenes through the Python
+  facade and the native Rust builder, so the two front ends cannot drift
+  without one of the two tests failing.
 - A native Rust `Figure`/`Axes` builder covering `plot`, `scatter`, `bar`,
   `barh`, `hist`, `imshow`, `imshow_cmap`, `fill_between`, `contour`/`contourf`,
   `errorbar`, `quiver`, text, annotations, patches, line collections and

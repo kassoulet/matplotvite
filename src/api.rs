@@ -206,6 +206,7 @@ impl Figure {
             panel,
             last: None,
             color: 0,
+            sequence: Vec::new(),
         })
     }
 
@@ -237,6 +238,7 @@ impl Figure {
             panel,
             last: None,
             color: 0,
+            sequence: Vec::new(),
         })
     }
 
@@ -273,6 +275,8 @@ pub struct Axes<'a> {
     panel: &'a mut Panel,
     last: Option<LastArtist>,
     color: usize,
+    /// Artist creation order, so the legend lists handles like matplotlib.
+    sequence: Vec<LastArtist>,
 }
 
 #[derive(Clone, Copy)]
@@ -300,6 +304,8 @@ impl Axes<'_> {
             ..Default::default()
         });
         self.last = Some(LastArtist::Series(self.panel.series.len() - 1));
+        self.sequence
+            .push(LastArtist::Series(self.panel.series.len() - 1));
         Ok(self)
     }
 
@@ -320,6 +326,8 @@ impl Axes<'_> {
             label: String::new(),
         });
         self.last = Some(LastArtist::Scatter(self.panel.scatter.len() - 1));
+        self.sequence
+            .push(LastArtist::Scatter(self.panel.scatter.len() - 1));
         Ok(self)
     }
 
@@ -338,6 +346,8 @@ impl Axes<'_> {
             label: String::new(),
         });
         self.last = Some(LastArtist::Bar(self.panel.bars.len() - 1));
+        self.sequence
+            .push(LastArtist::Bar(self.panel.bars.len() - 1));
         Ok(self)
     }
 
@@ -382,6 +392,8 @@ impl Axes<'_> {
             label: String::new(),
         });
         self.last = Some(LastArtist::Bar(self.panel.bars.len() - 1));
+        self.sequence
+            .push(LastArtist::Bar(self.panel.bars.len() - 1));
         Ok(self)
     }
 
@@ -408,6 +420,8 @@ impl Axes<'_> {
             "nearest".to_string(),
         ));
         self.panel.aspect = Some(1.0);
+        self.panel.xlim = Some((-0.5, cols as f64 - 0.5));
+        self.panel.ylim = Some((rows as f64 - 0.5, -0.5));
         self.last = None;
         Ok(self)
     }
@@ -441,6 +455,8 @@ impl Axes<'_> {
             gid: String::new(),
         });
         self.last = Some(LastArtist::Band(self.panel.bands.len() - 1));
+        self.sequence
+            .push(LastArtist::Band(self.panel.bands.len() - 1));
         Ok(self)
     }
 
@@ -459,6 +475,8 @@ impl Axes<'_> {
             label: String::new(),
         });
         self.last = Some(LastArtist::Bar(self.panel.bars.len() - 1));
+        self.sequence
+            .push(LastArtist::Bar(self.panel.bars.len() - 1));
         Ok(self)
     }
 
@@ -757,6 +775,7 @@ impl Axes<'_> {
         self.panel.legend = Legend {
             show: true,
             loc: options.loc.clone(),
+            family: self.panel.font_family.clone(),
             ncol: options.ncol,
             frameon: options.frameon,
             fontsize,
@@ -870,6 +889,8 @@ impl Axes<'_> {
             label: String::new(),
         });
         self.last = Some(LastArtist::Patch(self.panel.patches.len() - 1));
+        self.sequence
+            .push(LastArtist::Patch(self.panel.patches.len() - 1));
         self
     }
 
@@ -888,6 +909,8 @@ impl Axes<'_> {
             label: String::new(),
         });
         self.last = Some(LastArtist::Collection(self.panel.collections.len() - 1));
+        self.sequence
+            .push(LastArtist::Collection(self.panel.collections.len() - 1));
         self
     }
 
@@ -920,6 +943,8 @@ impl Axes<'_> {
             "nearest".to_string(),
         ));
         self.panel.aspect = Some(1.0);
+        self.panel.xlim = Some((-0.5, cols as f64 - 0.5));
+        self.panel.ylim = Some((rows as f64 - 0.5, -0.5));
         self.last = None;
         Ok(self)
     }
@@ -959,6 +984,11 @@ impl Axes<'_> {
         self.panel.legend = Legend {
             show: true,
             loc: "best".to_string(),
+            family: self.panel.font_family.clone(),
+            fontsize: 10.0,
+            title_fontsize: 11.0,
+            ncol: 1,
+            frameon: true,
             order: self.artist_labels(),
             ..Default::default()
         };
@@ -966,18 +996,48 @@ impl Axes<'_> {
     }
 
     fn artist_labels(&self) -> Vec<String> {
-        self.panel
-            .series
+        let mut entries: Vec<(bool, String)> = self
+            .sequence
             .iter()
-            .map(|artist| &artist.label)
-            .chain(self.panel.scatter.iter().map(|artist| &artist.label))
-            .chain(self.panel.bars.iter().map(|artist| &artist.label))
-            .chain(self.panel.bands.iter().map(|artist| &artist.label))
-            .chain(self.panel.patches.iter().map(|artist| &artist.label))
-            .chain(self.panel.collections.iter().map(|artist| &artist.label))
-            .filter(|label| !label.is_empty())
-            .cloned()
-            .collect()
+            .filter_map(|artist| match *artist {
+                LastArtist::Series(index) => self
+                    .panel
+                    .series
+                    .get(index)
+                    .map(|artist| (false, artist.label.as_str())),
+                LastArtist::Scatter(index) => self
+                    .panel
+                    .scatter
+                    .get(index)
+                    .map(|artist| (false, artist.label.as_str())),
+                LastArtist::Bar(index) => self
+                    .panel
+                    .bars
+                    .get(index)
+                    .map(|artist| (true, artist.label.as_str())),
+                LastArtist::Band(index) => self
+                    .panel
+                    .bands
+                    .get(index)
+                    .map(|artist| (false, artist.label.as_str())),
+                LastArtist::Patch(index) => self
+                    .panel
+                    .patches
+                    .get(index)
+                    .map(|artist| (false, artist.label.as_str())),
+                LastArtist::Collection(index) => self
+                    .panel
+                    .collections
+                    .get(index)
+                    .map(|artist| (false, artist.label.as_str())),
+            })
+            .filter(|(_, label)| !label.is_empty())
+            .map(|(is_bar, label)| (is_bar, label.to_string()))
+            .collect();
+        // Matplotlib lists bar containers after the other artists, even when
+        // the bars were added first.
+        entries.sort_by_key(|(is_bar, _)| *is_bar);
+        entries.into_iter().map(|(_, label)| label).collect()
     }
 
     /// Toggle the grid on both axes.
@@ -1144,6 +1204,12 @@ fn set_scale(panel: &mut Panel, scale: Scale, x: bool) {
 }
 
 fn new_panel(pos: usize, dpi: f64) -> Panel {
+    let tick_style = || TickStyle {
+        labelsize: 10.0,
+        length: 3.5,
+        width: 1.0,
+        ..Default::default()
+    };
     Panel {
         dpi,
         pos,
@@ -1153,6 +1219,16 @@ fn new_panel(pos: usize, dpi: f64) -> Panel {
         y_symlog_linthresh: 1.0,
         x_asinh_linear_width: 1.0,
         y_asinh_linear_width: 1.0,
+        ticks: crate::model::Ticks {
+            xstyle: tick_style(),
+            ystyle: tick_style(),
+            ..Default::default()
+        },
+        legend: Legend {
+            fontsize: 10.0,
+            title_fontsize: 11.0,
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
