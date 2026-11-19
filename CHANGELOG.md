@@ -34,8 +34,10 @@ Before 1.0, a minor release may contain a breaking change; see
 - An explicit Python support policy covering the tested 3.9 through 3.14
   interpreters.
 - A native Rust `Figure`/`Axes` builder covering `plot`, `scatter`, `bar`,
-  `hist`, `imshow`, and `fill_between`, with PNG/SVG/PDF/WebP/EPS output through
-  the same renderer as the Python API.
+  `barh`, `hist`, `imshow`, `imshow_cmap`, `fill_between`, `contour`/`contourf`,
+  `errorbar`, `quiver`, text, annotations, patches, line collections and
+  colorbars, with explicit ticks, scales, grid/legend styling, aspect, `add_axes`
+  and PNG/SVG/PDF/WebP/EPS output through the same renderer as the Python API.
 
 ### Changed
 
