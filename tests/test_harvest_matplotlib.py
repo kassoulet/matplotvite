@@ -462,7 +462,8 @@ def test_render_returns_the_failure_reason(tmp_path):
 
 
 def test_render_times_out_in_a_child_process(tmp_path, monkeypatch):
-    monkeypatch.setattr(harvester, "SNIPPET_TIMEOUT", 0.5)
+    from tools import mpl_render
+    monkeypatch.setattr(mpl_render, "SNIPPET_TIMEOUT", 0.5)
     out = tmp_path / "out.png"
     error = render("import time\ntime.sleep(5)\n", out)
     assert error == "TimeoutError: render did not finish in 0.5s"

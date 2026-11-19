@@ -33,6 +33,9 @@ Before 1.0, a minor release may contain a breaking change; see
   project changelog/issue/documentation URLs.
 - An explicit Python support policy covering the tested 3.9 through 3.14
   interpreters.
+- The Matplotlib harvester is split into harvesting (`mpl_harvest`), isolated
+  rendering (`mpl_render`) and metrics (`mpl_metrics`) modules; the
+  `harvest_matplotlib` CLI keeps the gallery orchestration and re-exports.
 - A shared golden-image suite renders the same scenes through the Python
   facade and the native Rust builder, so the two front ends cannot drift
   without one of the two tests failing.
