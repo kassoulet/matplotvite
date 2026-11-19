@@ -237,7 +237,7 @@
 ### Seaborn gallery
 - [x] Harvest Seaborn's `examples/` gallery — `tools/harvest_seaborn.py` parses every script and classifies each `sns.*` call against our Matplotlib surface. Seaborn's gallery images are docs build artifacts, so statuses are static capability statements rather than image diffs. The current gallery has no theming-only example: 0 pass, 48 needs-API, 1 unsupported (`clustermap`)
 - [x] Report Seaborn compatibility as pass / needs-API / unsupported, and feed the needs-API list back into TRACE priorities — the report ranks the missing capabilities (`jointplot`/`JointGrid` and `FacetGrid`/`PairGrid` at the top, then `relplot`, `displot`, `lmplot`, `lineplot`, `catplot`, `violinplot`), alongside any `plt.*` call we cannot express
-- [ ] Cover the Seaborn plots that are thin wrappers over API we already have with pixel-diff tests
+- [x] Cover the Seaborn plots that are thin wrappers over API we already have with pixel-diff tests — `tests/test_seaborn_parity.py` renders six shared scenes for `lineplot`, `scatterplot`, `barplot`, `histplot`, `boxplot` and `heatmap`, then diffs them against committed Matplotlib references. The scenes exercise the underlying bands, markers, grouped bars, density bars, box statistics and annotated matrices our API exposes.
 
 ### Pandas `.plot()`
 - [ ] Ship a `pandas` plotting backend module so `pd.options.plotting.backend = "matplotvite"` works, covering `kind=` line, bar, barh, hist, box, area, scatter and pie

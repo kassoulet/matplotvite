@@ -1,0 +1,8 @@
+# Seaborn wrapper-parity scenes, rendered by Matplotlib.
+# name width height max_rms wrapper
+lineplot 480 360 25.0 sns.lineplot
+scatterplot 480 360 22.0 sns.scatterplot
+barplot 480 360 30.0 sns.barplot
+histplot 480 360 32.0 sns.histplot
+boxplot 480 360 47.0 sns.boxplot
+heatmap 480 360 56.0 sns.heatmap
