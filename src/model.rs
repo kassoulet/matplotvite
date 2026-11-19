@@ -539,17 +539,6 @@ pub(crate) struct TickStyle {
     pub(crate) rotation: f64,
 }
 
-impl TickStyle {
-    pub(crate) fn is_custom(&self) -> bool {
-        self.rotation != 0.0
-            || self.length != 3.5
-            || self.width != 1.0
-            || self.color.is_some()
-            || self.labelcolor.is_some()
-            || (self.labelsize - 10.0).abs() > 0.01
-    }
-}
-
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
 pub(crate) struct Ticks {

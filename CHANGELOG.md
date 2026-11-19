@@ -33,6 +33,9 @@ Before 1.0, a minor release may contain a breaking change; see
   project changelog/issue/documentation URLs.
 - An explicit Python support policy covering the tested 3.9 through 3.14
   interpreters.
+- Ticks and tick labels always render through the manual path; the plotters
+  mesh now contributes only the axis frame and descriptions, so customised and
+  default axes can no longer diverge.
 - The Matplotlib harvester is split into harvesting (`mpl_harvest`), isolated
   rendering (`mpl_render`) and metrics (`mpl_metrics`) modules; the
   `harvest_matplotlib` CLI keeps the gallery orchestration and re-exports.

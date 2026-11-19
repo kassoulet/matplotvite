@@ -3,6 +3,7 @@
 use super::polyline::draw_dashed;
 use super::text::rotated_style;
 use super::*;
+use crate::layout::auto_ticks_for;
 use crate::scale::{asinh_inverse, asinh_scale, logit, symlog};
 
 /// One label style for every tick on an axis. Using the widest precision in
@@ -126,7 +127,9 @@ where
         .map(|c| c.rgba())
         .unwrap_or_else(|| color("#b0b0b0"));
     let grid_alpha = p.grid.alpha.unwrap_or(1.0).clamp(0.0, 1.0);
-    let grid_w = p.grid.linewidth.unwrap_or(1.0).max(1.0).round() as u32;
+    let grid_w = (p.grid.linewidth.unwrap_or(0.8) * dpi / 72.0)
+        .round()
+        .max(1.0) as u32;
     let grid_style = grid_col.mix(grid_alpha).stroke_width(grid_w);
     let grid_dash = p.grid.linestyle.and_then(|style| style.dash_pattern());
 

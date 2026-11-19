@@ -5,9 +5,7 @@ use plotters::style::IntoFont;
 
 use crate::color::color;
 use crate::image::{base64, image_png_for_size, image_rgb};
-use crate::layout::{
-    aspect_datalim, auto_ticks, auto_ticks_for, axis_bounds, panel_ranges, range, tick_target,
-};
+use crate::layout::{aspect_datalim, auto_ticks, axis_bounds, panel_ranges, range, tick_target};
 use crate::model::{
     DrawStyle, LegendEntry, LegendSwatch, Marker, OwnedArray1, Panel, PngCompression,
 };
@@ -174,7 +172,6 @@ where
                 .collect()
         }
     };
-    let label_size = text_px(p.ticks.xstyle.labelsize.max(6.0), dpi).round() as u32;
     let desc_size = text_px(
         p.xlabel_size
             .unwrap_or(10.0)
@@ -332,7 +329,6 @@ where
         &mut chart,
         p,
         (x0, x1, y0, y1),
-        label_size,
         desc_size,
         &xs_for_grid,
         &ys_for_grid,
