@@ -6,6 +6,8 @@ use pyo3::prelude::*;
 use pyo3::{Borrowed, FromPyObject};
 
 use crate::cmap_data;
+use crate::cmap_py;
+use crate::cmap_py::Colormap;
 use crate::color::{Cmap, Color};
 use crate::export::render_pdf_pages;
 use crate::layout;
@@ -134,6 +136,33 @@ fn render_figure_py(
 }
 
 /// Colormap tables as `{name: bytes}` (packed RGB triples).
+/// Canonical registry name, including the `_r` reversal suffix.
+#[pyfunction]
+#[pyo3(name = "cmap_name")]
+fn cmap_name_py(name: &str) -> PyResult<String> {
+    let text = name.trim();
+    let (base, reversed) = match text.strip_suffix("_r") {
+        Some(base) => (base, true),
+        None => (text, false),
+    };
+    let canonical = if cmap_py::has_custom(base) {
+        base.to_string()
+    } else {
+        cmap_data::lookup(base)
+            .ok_or_else(|| PyValueError::new_err(format!("unsupported colormap: {name:?}")))?
+            .name
+            .to_string()
+    };
+    Ok(format!("{}{}", canonical, if reversed { "_r" } else { "" }))
+}
+
+/// Add a Python-built colormap table to the native registry.
+#[pyfunction]
+#[pyo3(name = "register_colormap")]
+fn register_colormap_py(name: &str, colors: &[u8]) -> PyResult<()> {
+    cmap_py::register(name, colors)
+}
+
 #[pyfunction]
 fn colormaps<'py>(py: Python<'py>) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
     let d = pyo3::types::PyDict::new(py);
@@ -259,6 +288,8 @@ fn asinh_inverse_py<'py>(
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(colormaps, m)?)?;
+    m.add_function(wrap_pyfunction!(cmap_name_py, m)?)?;
+    m.add_function(wrap_pyfunction!(register_colormap_py, m)?)?;
     m.add_function(wrap_pyfunction!(render_figure_py, m)?)?;
     m.add_function(wrap_pyfunction!(render_pdf_pages_py, m)?)?;
     m.add_function(wrap_pyfunction!(auto_ticks_py, m)?)?;
@@ -268,5 +299,13 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(logit_py, m)?)?;
     m.add_function(wrap_pyfunction!(logit_inverse_py, m)?)?;
     m.add_function(wrap_pyfunction!(asinh_py, m)?)?;
-    m.add_function(wrap_pyfunction!(asinh_inverse_py, m)?)
+    m.add_function(wrap_pyfunction!(asinh_inverse_py, m)?)?;
+    m.add_class::<Colormap>()?;
+    m.add_class::<crate::norms::Normalize>()?;
+    m.add_class::<crate::norms::LogNorm>()?;
+    m.add_class::<crate::norms::PowerNorm>()?;
+    m.add_class::<crate::norms::SymLogNorm>()?;
+    m.add_class::<crate::norms::AsinhNorm>()?;
+    m.add_class::<crate::norms::TwoSlopeNorm>()?;
+    m.add_class::<crate::norms::BoundaryNorm>()
 }

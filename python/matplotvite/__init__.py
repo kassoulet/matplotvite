@@ -17,11 +17,49 @@ import numpy as np
 
 from . import scale, tri
 from ._colors import CSS_COLORS as _CSS_COLORS
-from ._core import __version__
-from ._core import auto_ticks as _auto_ticks_core
-from ._core import colormaps as _colormaps
-from ._core import render as _render
-from ._core import tick_target as _tick_target_core
+from ._core import (
+    AsinhNorm as _AsinhNorm,
+)
+from ._core import (
+    BoundaryNorm as _BoundaryNorm,
+)
+from ._core import (
+    Colormap,
+    __version__,
+)
+from ._core import (
+    LogNorm as _LogNorm,
+)
+from ._core import (
+    Normalize as _Normalize,
+)
+from ._core import (
+    PowerNorm as _PowerNorm,
+)
+from ._core import (
+    SymLogNorm as _SymLogNorm,
+)
+from ._core import (
+    TwoSlopeNorm as _TwoSlopeNorm,
+)
+from ._core import (
+    auto_ticks as _auto_ticks_core,
+)
+from ._core import (
+    cmap_name as _core_cmap_name,
+)
+from ._core import (
+    colormaps as _colormaps,
+)
+from ._core import (
+    register_colormap as _register_colormap,
+)
+from ._core import (
+    render as _render,
+)
+from ._core import (
+    tick_target as _tick_target_core,
+)
 
 _CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
@@ -589,21 +627,6 @@ def _mathtext(text, family=None):
     return "".join(out)
 
 
-def _cmap_lookup(name):
-    """Resolve a colormap name to (canonical base, RGB table, reversed?)."""
-    text = str(name).strip()
-    reverse = text.endswith("_r")
-    base = text[:-2] if reverse else text
-    colors = _CMAP_DATA.get(base)
-    if colors is None:
-        canonical = next((key for key in _CMAP_DATA if key.lower() == base.lower()), None)
-        if canonical is None:
-            raise ValueError(f"unsupported colormap: {name!r}")
-        base = canonical
-        colors = _CMAP_DATA[base]
-    return base, np.asarray(colors, dtype=np.uint8), reverse
-
-
 def _register_custom_cmap(cmap):
     """Add a `Colormap` built in Python to the table the renderer reads."""
     name = str(getattr(cmap, "name", "custom"))
@@ -615,7 +638,9 @@ def _register_custom_cmap(cmap):
         samples = np.linspace(0.0, 1.0, 256)
         table = np.stack([np.interp(samples, positions, rgb[:, channel])
                           for channel in range(3)], axis=1)
-        _CMAP_DATA[name] = np.clip(table * 255.0, 0, 255).astype(np.uint8)
+        pixels = np.clip(table * 255.0, 0, 255).astype(np.uint8)
+        _CMAP_DATA[name] = pixels
+        _register_colormap(name, pixels.tobytes())
     return name
 
 
@@ -627,103 +652,14 @@ def _cmap_name(cmap):
         return _register_custom_cmap(cmap)
     if cmap is None:
         cmap = rcParams.get("image.cmap", "viridis")
-    base, _, reverse = _cmap_lookup(cmap)
-    return base + ("_r" if reverse else "")
-
-
-class Colormap:
-    """A registered matplotlib colormap sampled at its native resolution."""
-
-    def __init__(self, name):
-        base, colors, reverse = _cmap_lookup(name)
-        self.name = base + ("_r" if reverse else "")
-        self.N = int(colors.shape[0])
-        self._rgb = colors.astype(np.float64) / 255.0
-        self._reverse = reverse
-        self._bad = "#00000000"
-        self._under = None
-        self._over = None
-        self._alpha = None
-
-    @property
-    def colors(self):
-        return [tuple(float(v) for v in row) for row in self._rgb]
-
-    def __call__(self, X, alpha=None, bytes=False):
-        arr = np.asarray(X, dtype=np.float64)
-        scalar = arr.ndim == 0
-        missing = ~np.isfinite(arr)
-        t = np.clip(np.where(missing, 0.0, arr), 0.0, 1.0)
-        index = np.minimum((t * self.N).astype(int), self.N - 1)
-        if self._reverse:
-            index = self.N - 1 - index
-        rgb = self._rgb[index].copy()
-        # Matplotlib maps non-finite samples to the fully transparent "bad"
-        # colour rather than casting NaN to an out-of-range array index.
-        if np.any(missing):
-            rgb[missing] = 0.0
-        if alpha is None:
-            alpha_arr = np.where(missing, 0.0, 1.0)
-        else:
-            alpha_arr = np.broadcast_to(np.asarray(alpha, dtype=np.float64),
-                                        rgb.shape[:-1]).copy()
-            alpha_arr[missing] = 0.0
-        if self._alpha is not None:
-            alpha_arr = alpha_arr * self._alpha
-        rgba = np.concatenate([rgb, alpha_arr[..., None]], axis=-1)
-        if bytes:
-            rgba = np.round(rgba * 255.0).astype(np.uint8)
-        if scalar:
-            return tuple(rgba.tolist())
-        return rgba
-
-    def reversed(self, name=None):
-        if name is not None:
-            return get_cmap(name)
-        if self.name.endswith("_r"):
-            return get_cmap(self.name[:-2])
-        return get_cmap(self.name + "_r")
-
-    def resampled(self, lut): return get_cmap(self.name, lut)
-    def with_extremes(self, **kwargs): return self
-
-    def with_alpha(self, alpha):
-        """Return a copy whose sampled colours carry the given opacity."""
-        copied = self.copy()
-        copied._alpha = None if alpha is None else float(np.clip(float(alpha), 0.0, 1.0))
-        return copied
-
-    def copy(self):
-        copied = Colormap(self.name)
-        copied._bad, copied._under, copied._over = self._bad, self._under, self._over
-        copied._alpha = self._alpha
-        return copied
-
-    def set_bad(self, color="k", alpha=None):
-        self._bad = (_norm_color(color), alpha)
-
-    def set_under(self, color="k", alpha=None):
-        self._under = (_norm_color(color), alpha)
-
-    def set_over(self, color="k", alpha=None):
-        self._over = (_norm_color(color), alpha)
-
-    def __repr__(self):
-        return f"<Colormap {self.name!r}>"
+    return _core_cmap_name(str(cmap))
 
 
 def get_cmap(name=None, lut=None):
     """Return a `Colormap` by registry name (or the `image.cmap` default)."""
-    cmap = name if isinstance(name, Colormap) else Colormap(
+    cmap = name.copy() if isinstance(name, Colormap) else Colormap(
         name if name is not None else rcParams.get("image.cmap", "viridis"))
-    if lut is not None:
-        count = max(int(lut), 1)
-        index = np.round(np.linspace(0.0, cmap.N - 1, count)).astype(int)
-        if cmap._reverse:
-            index = cmap.N - 1 - index
-        cmap._rgb = cmap._rgb[index]
-        cmap.N = count
-    return cmap
+    return cmap.resampled(lut) if lut is not None else cmap
 
 
 def _colormap_names():
@@ -739,7 +675,7 @@ class _ColormapRegistry:
     def __len__(self): return len(_CMAP_DATA) * 2
     def __contains__(self, name):
         try:
-            _cmap_lookup(name)
+            _core_cmap_name(str(name))
             return True
         except ValueError:
             return False
@@ -8404,14 +8340,9 @@ def _kde(values, points=100, bw_method=None):
 
 def _cmap_colors(cmap, values):
     """Map normalised values through any registered colormap to hex colours."""
-    _, table, reverse = _cmap_lookup(cmap)
     arr = np.asarray(values, dtype=np.float64).ravel()
-    t = np.clip(np.where(np.isfinite(arr), arr, 0.0), 0.0, 1.0)
-    n = table.shape[0]
-    index = np.minimum((t * n).astype(int), n - 1)
-    if reverse:
-        index = n - 1 - index
-    rgb = table[index]
+    clean = np.where(np.isfinite(arr), arr, 0.0)
+    rgb = np.asarray(get_cmap(cmap)(clean, bytes=True))[:, :3]
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
 
 
@@ -10723,141 +10654,6 @@ class _NoopContext:
     def __exit__(self, *exc): return False
 
 
-class _Normalize:
-    def __init__(self, vmin=None, vmax=None, clip=False):
-        self._vmin, self._vmax, self._clip = vmin, vmax, clip
-
-    @property
-    def clip(self): return self._clip
-
-    @clip.setter
-    def clip(self, value): self._clip = value
-
-    @property
-    def vmin(self): return self._vmin
-
-    @vmin.setter
-    def vmin(self, value): self._vmin = value
-
-    @property
-    def vmax(self): return self._vmax
-
-    @vmax.setter
-    def vmax(self, value): self._vmax = value
-
-    def __call__(self, value, clip=None): return value
-    def autoscale(self, A): return None
-    def autoscale_None(self, A): return None
-    def inverse(self, value): return value
-
-
-class _TwoSlopeNorm(_Normalize):
-    def __init__(self, vcenter, vmin=None, vmax=None, clip=False):
-        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
-        self.vcenter = float(vcenter)
-
-    def __call__(self, value, clip=None):
-        vmin = self.vmin
-        vmax = self.vmax
-        center = self.vcenter
-        arr = np.asarray(value, dtype=float)
-        out = np.empty_like(arr, dtype=float)
-        below = arr <= center
-        out[below] = 0.5 * (arr[below] - vmin) / (center - vmin)
-        out[~below] = 0.5 + 0.5 * (arr[~below] - center) / (vmax - center)
-        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
-
-
-class _LogNorm(_Normalize):
-    """Logarithmic normalisation, as `colors.LogNorm`."""
-
-    def __init__(self, vmin=None, vmax=None, clip=False, base=10):
-        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
-        self.base = float(base)
-
-    def __call__(self, value, clip=None):
-        lo = float(self.vmin) if self.vmin not in (None, 0) else 1e-300
-        hi = float(self.vmax) if self.vmax not in (None, 0) else 1.0
-        base = self.base if self.base > 0.0 and self.base != 1.0 else 10.0
-
-        def log(values):
-            return np.log(np.maximum(np.asarray(values, dtype=float), 1e-300)) / _math.log(base)
-
-        span = log(hi) - log(lo)
-        out = (log(value) - log(lo)) / (span if span else 1.0)
-        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
-
-    def inverse(self, value):
-        lo = float(self.vmin) if self.vmin not in (None, 0) else 1e-300
-        hi = float(self.vmax) if self.vmax not in (None, 0) else 1.0
-        log_lo, log_hi = _math.log(lo), _math.log(hi)
-        return np.exp(log_lo + np.asarray(value, dtype=float) * (log_hi - log_lo))
-
-
-class _PowerNorm(_Normalize):
-    """Power-law normalisation, as `colors.PowerNorm`."""
-
-    def __init__(self, gamma, vmin=None, vmax=None, clip=False):
-        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
-        self.gamma = float(gamma)
-
-    def __call__(self, value, clip=None):
-        lo = 0.0 if self.vmin is None else float(self.vmin)
-        hi = 1.0 if self.vmax is None else float(self.vmax)
-        span = hi - lo if hi != lo else 1.0
-        out = np.clip((np.asarray(value, dtype=float) - lo) / span, 0.0, 1.0) ** self.gamma
-        return out
-
-
-class _SymLogNorm(_Normalize):
-    """Symmetric-log normalisation, as `colors.SymLogNorm`."""
-
-    def __init__(self, linthresh, linscale=1.0, vmin=None, vmax=None, clip=False,
-                 *, base=10):
-        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
-        self.linthresh = max(float(linthresh), 1e-300)
-        self.linscale, self.base = float(linscale), float(base)
-
-    def __call__(self, value, clip=None):
-        lo = -1.0 if self.vmin is None else float(self.vmin)
-        hi = 1.0 if self.vmax is None else float(self.vmax)
-
-        def transform(values):
-            arr = np.asarray(values, dtype=float)
-            return np.sign(arr) * np.log1p(np.abs(arr) / self.linthresh)
-
-        span = transform(hi) - transform(lo)
-        out = (transform(value) - transform(lo)) / (span if span else 1.0)
-        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
-
-
-class _AsinhNorm(_Normalize):
-    def __init__(self, linear_width=1.0, vmin=None, vmax=None, clip=False):
-        super().__init__(vmin=vmin, vmax=vmax, clip=clip)
-        self.linear_width = float(linear_width)
-
-    def __call__(self, value, clip=None):
-        arr = np.asarray(value, dtype=float)
-        lo = float(self.vmin) if self.vmin is not None else float(np.nanmin(arr))
-        hi = float(self.vmax) if self.vmax is not None else float(np.nanmax(arr))
-        width = self.linear_width if self.linear_width > 0 else 1.0
-        transformed = np.arcsinh(arr / width)
-        low, high = np.arcsinh(lo / width), np.arcsinh(hi / width)
-        out = (transformed - low) / (high - low if high > low else 1.0)
-        return np.clip(out, 0.0, 1.0) if (clip if clip is not None else self.clip) else out
-
-
-class _BoundaryNorm(_Normalize):
-    def __init__(self, boundaries, ncolors, clip=False, extend=None, **kwargs):
-        super().__init__(clip=clip)
-        self.boundaries = np.asarray(boundaries, dtype=float)
-        self.ncolors = int(ncolors)
-        self.extend = extend
-
-    def __call__(self, value, clip=None):
-        return np.clip(np.digitize(value, self.boundaries) - 1, 0, self.ncolors - 1)
-
-
 class _ListedColormap:
     def __init__(self, colors, name="from_list", over=None, under=None, bad=None):
         self.colors = [_norm_color(c) for c in colors]
@@ -12888,9 +12684,10 @@ class _ColorSequences(dict):
 
 
 def _colormap_sequence(name):
-    _base, table, reverse = _cmap_lookup(name)
-    rows = table[::-1] if reverse else table
-    return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rows]
+    cmap = get_cmap(name)
+    rows = np.asarray(cmap.colors)[::-1] if cmap.name.endswith("_r") else np.asarray(cmap.colors)
+    return [f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}"
+            for r, g, b in rows]
 
 
 _PETROFF = ["#3f90da", "#ffa90e", "#bd1f01", "#94a4a2", "#832db6",

@@ -3,6 +3,7 @@
 pub mod api;
 pub use api::{ApiError, Axes, Figure};
 mod cmap_data;
+mod cmap_py;
 mod color;
 mod draw;
 mod export;
@@ -10,6 +11,7 @@ mod fonts;
 mod image;
 mod layout;
 mod model;
+mod norms;
 mod raster;
 mod render;
 mod scale;
