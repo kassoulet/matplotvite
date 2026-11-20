@@ -336,3 +336,99 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod backend_tests {
+    use super::ScaleBackend;
+    use plotters::backend::{BitMapBackend, SVGBackend};
+    use plotters::prelude::*;
+    use plotters::style::{IntoFont, ShapeStyle};
+    use plotters_backend::BackendColor;
+
+    const RED: BackendColor = BackendColor {
+        alpha: 1.0,
+        rgb: (255, 0, 0),
+    };
+
+    fn style() -> ShapeStyle {
+        ShapeStyle {
+            color: RGBAColor(255, 0, 0, 1.0),
+            filled: true,
+            stroke_width: 1,
+        }
+    }
+
+    #[test]
+    fn a_pixel_becomes_an_oversampled_block() {
+        let mut buf = vec![255u8; 32 * 32 * 3];
+        {
+            let mut backend = ScaleBackend::new(BitMapBackend::with_buffer(&mut buf, (32, 32)), 2);
+            assert_eq!(backend.get_size(), (16, 16));
+            backend.ensure_prepared().unwrap();
+            backend.draw_pixel((1, 1), RED).unwrap();
+            backend.present().unwrap();
+        }
+        for (x, y) in [(2, 2), (3, 2), (2, 3), (3, 3)] {
+            let i = ((y * 32 + x) * 3) as usize;
+            assert_eq!(&buf[i..i + 3], &[255, 0, 0], "pixel ({x}, {y})");
+        }
+        let untouched = (32 + 1) * 3;
+        assert_eq!(&buf[untouched..untouched + 3], &[255, 255, 255]);
+    }
+
+    #[test]
+    fn every_drawing_call_is_forwarded_at_scale_times_the_coordinate() {
+        let mut buf = vec![255u8; 32 * 32 * 3];
+        {
+            let mut backend = ScaleBackend::new(BitMapBackend::with_buffer(&mut buf, (32, 32)), 2);
+            let style = style();
+            backend.draw_line((0, 0), (15, 15), &style).unwrap();
+            backend.draw_rect((2, 2), (6, 6), &style, true).unwrap();
+            backend
+                .draw_path(vec![(1, 14), (8, 8), (14, 1)], &style)
+                .unwrap();
+            backend.draw_circle((8, 8), 3, &style, false).unwrap();
+            backend
+                .fill_polygon(vec![(0, 0), (10, 0), (10, 10)], &style)
+                .unwrap();
+            // A 2x2 source bitmap becomes a 4x4 block: the first two device
+            // columns come from source column 0, the next two from column 1.
+            let src = [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+            backend.blit_bitmap((10, 10), (2, 2), &src).unwrap();
+            backend.present().unwrap();
+        }
+        assert!(buf
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .any(|pixel| *pixel != [255, 255, 255]));
+        let at = |x: usize, y: usize| {
+            let i = (y * 32 + x) * 3;
+            [buf[i], buf[i + 1], buf[i + 2]]
+        };
+        assert_eq!(at(20, 20), [1, 2, 3]);
+        assert_eq!(at(22, 20), [4, 5, 6]);
+        assert_eq!(at(23, 23), [10, 11, 12]);
+    }
+
+    #[test]
+    fn text_is_measured_and_drawn_at_the_scaled_font_size() {
+        let render = |scale: u32| {
+            let mut svg = String::new();
+            {
+                let backend =
+                    ScaleBackend::new(SVGBackend::with_string(&mut svg, (100, 50)), scale);
+                let area = backend.into_drawing_area();
+                area.draw(&Text::new("hi", (5, 5), ("sans-serif", 10u32).into_font()))
+                    .unwrap();
+                area.present().unwrap();
+            }
+            svg
+        };
+        let logical = render(1);
+        let oversampled = render(3);
+        assert!(logical.contains("hi"), "{logical}");
+        assert!(oversampled.contains("hi"), "{oversampled}");
+        assert_ne!(logical, oversampled);
+    }
+}

@@ -119,3 +119,52 @@ impl Cmap {
         [color[0], color[1], color[2], 255]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{color, Cmap, Color};
+    use plotters::prelude::RGBAColor;
+
+    #[test]
+    fn hex_colours_expand_to_rgba() {
+        assert_eq!(color("#f00"), RGBAColor(255, 0, 0, 1.0));
+        assert_eq!(color("#3366CC"), RGBAColor(51, 102, 204, 1.0));
+        assert_eq!(color("#3366cc80"), RGBAColor(51, 102, 204, 128.0 / 255.0));
+    }
+
+    #[test]
+    fn names_transparency_and_malformed_values_are_normalised() {
+        assert_eq!(color("RED"), RGBAColor(255, 0, 0, 1.0));
+        assert_eq!(color(" r "), RGBAColor(255, 0, 0, 1.0));
+        assert_eq!(color("gray"), RGBAColor(128, 128, 128, 1.0));
+        assert_eq!(color("none"), RGBAColor(0, 0, 0, 0.0));
+        assert_eq!(color("transparent"), RGBAColor(0, 0, 0, 0.0));
+        assert_eq!(color("#zzzzzz"), RGBAColor(31, 119, 180, 1.0));
+        assert_eq!(color("#abcd"), RGBAColor(31, 119, 180, 1.0));
+        assert_eq!(color("rebeccapurple"), RGBAColor(31, 119, 180, 1.0));
+    }
+
+    #[test]
+    fn parsed_colours_keep_their_rgba() {
+        assert_eq!(Color::parse("#123456").rgba(), RGBAColor(18, 52, 86, 1.0));
+        assert_eq!(Color::default().rgba(), RGBAColor(31, 119, 180, 1.0));
+    }
+
+    #[test]
+    fn colormaps_reverse_clamp_and_fall_back_to_viridis() {
+        let plain = Cmap::parse("viridis");
+        let reversed = Cmap::parse("viridis_r");
+        let low = plain.sample(0.0);
+        let high = plain.sample(1.0);
+        assert_ne!(low, high);
+        assert_eq!(reversed.sample(0.0), high);
+        assert_eq!(reversed.sample(1.0), low);
+        assert_eq!(plain.sample(-5.0), low);
+        assert_eq!(plain.sample(9.0), high);
+        assert_eq!(plain.sample(f64::NAN), low);
+        // Unknown and empty names fall back to viridis; `_r` survives trimming.
+        assert_eq!(Cmap::parse("no-such-map").sample(0.0), low);
+        assert_eq!(Cmap::parse("").sample(0.0), low);
+        assert_eq!(Cmap::parse(" viridis_r ").sample(1.0), low);
+    }
+}

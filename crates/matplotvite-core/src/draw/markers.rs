@@ -327,3 +327,172 @@ pub(super) fn draw_marker_raster(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use plotters::backend::BitMapBackend;
+
+    const MARKERS: [Marker; 25] = [
+        Marker::None,
+        Marker::Circle,
+        Marker::Square,
+        Marker::TriangleUp,
+        Marker::TriangleDown,
+        Marker::TriangleLeft,
+        Marker::TriangleRight,
+        Marker::Diamond,
+        Marker::ThinDiamond,
+        Marker::Cross,
+        Marker::Plus,
+        Marker::Point,
+        Marker::Star,
+        Marker::Hexagon1,
+        Marker::Hexagon2,
+        Marker::Pentagon,
+        Marker::PlusFilled,
+        Marker::X,
+        Marker::Vline,
+        Marker::Hline,
+        Marker::Tick1,
+        Marker::Tick2,
+        Marker::Tick3,
+        Marker::Tick4,
+        Marker::Octagon,
+    ];
+
+    fn vertices(marker: Marker) -> Vec<(f64, f64)> {
+        match marker_shape(marker) {
+            MarkerShape::Polygon(vertices) => vertices,
+            _ => panic!("{marker:?} is not a polygon"),
+        }
+    }
+
+    fn stroke_count(marker: Marker) -> usize {
+        match marker_shape(marker) {
+            MarkerShape::Strokes(segments) => segments.len(),
+            _ => panic!("{marker:?} is not stroked"),
+        }
+    }
+
+    #[test]
+    fn marker_geometry_stays_inside_matplotlibs_unit_square() {
+        for marker in MARKERS {
+            match marker_shape(marker) {
+                MarkerShape::Polygon(vertices) => {
+                    assert!(vertices.len() >= 3, "{marker:?}");
+                    for (x, y) in vertices {
+                        assert!(x.abs() <= 0.71 && y.abs() <= 0.71, "{marker:?}: ({x}, {y})");
+                    }
+                }
+                MarkerShape::Strokes(segments) => assert!(!segments.is_empty(), "{marker:?}"),
+                MarkerShape::Circle(fraction) => {
+                    assert!(fraction > 0.0 && fraction <= 1.0, "{marker:?}")
+                }
+            }
+        }
+        assert_eq!(vertices(Marker::Square).len(), 4);
+        assert_eq!(vertices(Marker::PlusFilled).len(), 12);
+        assert_eq!(vertices(Marker::Star).len(), 10);
+        assert_eq!(vertices(Marker::Octagon).len(), 8);
+        assert_eq!(vertices(Marker::Pentagon).len(), 5);
+        assert_eq!(vertices(Marker::Hexagon1).len(), 6);
+        assert_eq!(vertices(Marker::TriangleRight).len(), 3);
+        assert_eq!(stroke_count(Marker::Cross), 2);
+        assert_eq!(stroke_count(Marker::Plus), 2);
+        assert_eq!(stroke_count(Marker::Vline), 1);
+        assert_eq!(stroke_count(Marker::Hline), 1);
+        assert_eq!(stroke_count(Marker::Tick1), 3);
+        assert!(
+            matches!(marker_shape(Marker::Point), MarkerShape::Circle(f) if (f - 0.5).abs() < 1e-12)
+        );
+        assert!(
+            matches!(marker_shape(Marker::Circle), MarkerShape::Circle(f) if (f - 1.0).abs() < 1e-12)
+        );
+    }
+
+    #[test]
+    fn marker_radius_converts_area_and_clamps() {
+        assert_eq!(marker_radius(0.0), 1.0);
+        assert_eq!(marker_radius(-4.0), 1.0);
+        assert_eq!(marker_radius(f64::MAX), MAX_MARKER_RADIUS);
+        assert!((marker_radius(36.0) - 4.17).abs() < 1e-12);
+    }
+
+    #[test]
+    fn every_marker_draws_filled_and_hollow() {
+        let mut buf = vec![255u8; 64 * 64 * 3];
+        {
+            let area = BitMapBackend::with_buffer(&mut buf, (64, 64)).into_drawing_area();
+            for marker in MARKERS {
+                for (fill, stroke) in [(color("#3366cc"), 1u32), (color("none"), 2u32)] {
+                    draw_marker(
+                        &area,
+                        (0, 0),
+                        (32, 32),
+                        6.0,
+                        fill,
+                        color("#000000"),
+                        stroke,
+                        marker,
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        assert!(buf
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .any(|pixel| *pixel != [255, 255, 255]));
+    }
+
+    #[test]
+    fn every_marker_paints_into_the_raster_layer() {
+        let mut pixmap = tiny_skia::Pixmap::new(64, 64).unwrap();
+        let painted = |pixmap: &tiny_skia::Pixmap| {
+            pixmap
+                .data()
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .any(|pixel| pixel[3] > 0)
+        };
+        for marker in MARKERS {
+            for (fill, stroke) in [
+                (color("#3366cc"), 1u32),
+                (color("none"), 2u32),
+                (color("#3366cc"), 0u32),
+            ] {
+                pixmap.fill(tiny_skia::Color::TRANSPARENT);
+                draw_marker_raster(
+                    &mut pixmap,
+                    (0, 0),
+                    (32, 32),
+                    6.0,
+                    fill,
+                    color("#000000"),
+                    stroke,
+                    marker,
+                );
+                assert!(
+                    painted(&pixmap),
+                    "{marker:?} with stroke {stroke} painted nothing"
+                );
+            }
+        }
+        // A hollow circle with no outline has nothing to paint.
+        pixmap.fill(tiny_skia::Color::TRANSPARENT);
+        draw_marker_raster(
+            &mut pixmap,
+            (0, 0),
+            (32, 32),
+            6.0,
+            color("none"),
+            color("#000000"),
+            0,
+            Marker::Circle,
+        );
+        assert!(!painted(&pixmap));
+    }
+}
