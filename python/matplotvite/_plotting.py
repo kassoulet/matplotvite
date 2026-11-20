@@ -10,7 +10,7 @@ import threading
 import warnings
 import zlib as _zlib
 from contextlib import contextmanager
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -449,6 +449,9 @@ colormaps = _ColormapRegistry()
 
 class _CmapNamespace:
     """The `plt.cm` namespace, exposing one attribute per colormap."""
+
+    # Attached at module scope once `ScalarMappable` is defined.
+    ScalarMappable: Any
 
     def get_cmap(self, name=None, lut=None):
         return get_cmap(name, lut)
@@ -1863,7 +1866,9 @@ class _StemContainer:
 class _BarContainer(list):
     """List of `_BarHandle`, matching matplotlib's `BarContainer`."""
 
-    __hash__ = object.__hash__
+    # `list` is unhashable; Matplotlib's container is not, so restore the
+    # identity hash while keeping the list behaviour.
+    __hash__: ClassVar[Any] = object.__hash__
 
     def __init__(self, handles, label=""):
         super().__init__(handles)
@@ -2755,7 +2760,14 @@ class StepPatch(Patch):
 
 
 class _PatchesNamespace:
-    pass
+    """The `plt.patches` namespace; members are attached as they are defined."""
+
+    # Set below through the `_patch_name` loop and the style assignments.
+    ArrowStyle: "_FlexibleStyleNamespace"
+    BoxStyle: "_FlexibleStyleNamespace"
+    ConnectionStyle: "_FlexibleStyleNamespace"
+    Arrow: type
+    ConnectionPatch: type
 
 
 patches = _PatchesNamespace()
@@ -3210,12 +3222,25 @@ class ConnectionPatch(FancyArrowPatch):
 patches.ConnectionPatch = ConnectionPatch
 
 
+# Marker characters the renderer understands; keep in sync with
+# `marker_shape` in src/draw.rs and `_STEM_MARKERS` below.
+_MARKERS = set("os^v<>Dx+.*hHpPXd8|_1234")
+
+
 class Line2D:
     """Handle for a plotted series, mirroring Matplotlib's `Line2D` setters.
 
     It mutates the series the axes will draw, so `line, = plot(...)` followed by
     `line.set_color(...)` behaves like Matplotlib.
     """
+
+    # Mirrors Matplotlib's `Line2D.markers`; the source list is `_MARKERS`.
+    markers: ClassVar[dict[str, str]] = {
+        **{marker: "marker" for marker in sorted(_MARKERS)},
+        "None": "nothing", "none": "nothing", " ": "nothing", "": "nothing"}
+    filled_markers: ClassVar[tuple[str, ...]] = tuple("osD^v<>pP*hHX")
+    fillStyles: ClassVar[tuple[str, ...]] = (
+        "full", "left", "right", "bottom", "top", "none")
 
     def __init__(self, series, ydata=None, **kwargs):
         if ydata is not None:
@@ -7896,16 +7921,6 @@ def _plot_args(args, fmt):
     return groups
 
 
-# Marker characters the renderer understands; keep in sync with
-# `marker_shape` in src/draw.rs and `_STEM_MARKERS` below.
-_MARKERS = set("os^v<>Dx+.*hHpPXd8|_1234")
-Line2D.markers: ClassVar[dict[str, str]] = {
-    **{marker: "marker" for marker in sorted(_MARKERS)},
-    "None": "nothing", "none": "nothing", " ": "nothing", "": "nothing"}
-Line2D.filled_markers = tuple("osD^v<>pP*hHX")
-Line2D.fillStyles = ("full", "left", "right", "bottom", "top", "none")
-
-
 class MarkerStyle:
     """Marker descriptor, as `matplotlib.markers.MarkerStyle`."""
 
@@ -9427,7 +9442,8 @@ class Figure:
                                   grid_helper=grid_helper, **options)
         if isinstance(nrows, int) and 111 <= nrows <= 999 and ncols == 1 and index == 1:
             # `subplot(121)` is shorthand for `subplot(1, 2, 1)`.
-            nrows, ncols, index = divmod(nrows, 100)[0], *divmod(nrows % 100, 10)
+            nrows, remainder = divmod(nrows, 100)
+            ncols, index = divmod(remainder, 10)
         nrows, ncols = _validate_grid_shape(nrows, ncols)
         changed = (nrows, ncols) != self.grid
         if changed:
@@ -9939,7 +9955,7 @@ class _SubFigure:
 # The pyplot shims share a process-wide registry. The lock only protects the
 # registry and current-figure selection; Figure objects remain independent, so
 # the object-oriented API is the thread-safe path for concurrent work.
-_figures = {}
+_figures: dict[int, Figure] = {}
 _current_fig = None
 _figure_lock = threading.RLock()
 
@@ -10215,7 +10231,9 @@ def title(text, fontsize=None, **kwargs):
 def text(*args, **kwargs):
     """Call ``Axes.text`` on the current axes and return its result."""
     return gca().text(*args, **kwargs)
-text.Text = Text
+# `text` is a function, so the class hangs off it as Matplotlib does; mypy
+# cannot express attributes on a callable.
+text.Text = Text  # type: ignore[attr-defined]
 def xticks(ticks=None, labels=None, **kwargs):
     """Set or query the x ticks and labels of the current axes."""
     return gca().xticks(ticks, labels=labels, **kwargs)
@@ -10589,7 +10607,12 @@ _RC_DEFAULTS = dict(rcParams)
 
 
 class _Namespace:
+    """Namespace whose members come from keyword arguments at construction."""
+
     def __init__(self, **values): self.__dict__.update(values)
+
+    def __getattr__(self, name: str) -> Any:
+        raise AttributeError(name)
 
 
 class _BivarColormap:
@@ -10826,6 +10849,12 @@ class _MColors:
         name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
     cnames = _CSS_COLORS
+    # Attached at module scope once these helpers are defined below.
+    ScalarMappable: Any
+    LightSource: Any
+    rgb_to_hsv: Any
+    hsv_to_rgb: Any
+    from_levels_and_colors: Any
 
     @staticmethod
     def to_rgb(color): return _rgba_tuple(color)[:3]
@@ -11857,8 +11886,8 @@ mcolors.from_levels_and_colors = from_levels_and_colors
 mcolorbar = _Namespace(Colorbar=Colorbar, ColorbarBase=Colorbar)
 # The gallery binds `matplotlib.colorbar` to this callable, so expose the
 # classes on the function as well as in the standalone namespace.
-colorbar.Colorbar = Colorbar
-colorbar.ColorbarBase = Colorbar
+colorbar.Colorbar = Colorbar  # type: ignore[attr-defined]
+colorbar.ColorbarBase = Colorbar  # type: ignore[attr-defined]
 cm.ScalarMappable = ScalarMappable
 colors = mcolors
 mpatches = patches
