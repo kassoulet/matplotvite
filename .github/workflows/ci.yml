@@ -58,7 +58,14 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - name: Check the non-Python line coverage
-        run: cargo llvm-cov -p matplotvite-core --all-targets --no-default-features --summary-only --fail-under-lines 45
+        # Most renderer lines are exercised by the builder crate's API and
+        # golden-scene tests, which the workspace split moved out of
+        # matplotvite-core. Run both non-Python crates so those tests count,
+        # and report core sources only so the floor still guards the renderer.
+        run: >-
+          cargo llvm-cov -p matplotvite-core -p matplotvite --all-targets
+          --no-default-features --ignore-filename-regex 'crates/matplotvite/src/'
+          --summary-only --fail-under-lines 45
 
   msrv:
     name: MSRV (Rust 1.88)
