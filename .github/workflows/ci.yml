@@ -62,10 +62,18 @@ jobs:
         # golden-scene tests, which the workspace split moved out of
         # matplotvite-core. Run both non-Python crates so those tests count,
         # and report core sources only so the floor still guards the renderer.
-        run: >-
-          cargo llvm-cov -p matplotvite-core -p matplotvite --all-targets
-          --no-default-features --ignore-filename-regex 'crates/matplotvite/src/'
-          --summary-only --fail-under-lines 45
+        env:
+          # A dedicated target dir moves the run off any shared or restored
+          # one, and the clean drops instrumented builds and profraw from an
+          # earlier layout. Merging those adds phantom zero-hit files (the
+          # pre-split `src/*.rs` paths) that inflate the denominator and make
+          # the floor measure stale code instead of this tree.
+          CARGO_TARGET_DIR: target/coverage
+        run: |
+          cargo llvm-cov clean --workspace
+          cargo llvm-cov -p matplotvite-core -p matplotvite --all-targets \
+            --no-default-features --ignore-filename-regex 'crates/matplotvite/src/' \
+            --summary-only --fail-under-lines 45
 
   msrv:
     name: MSRV (Rust 1.88)
