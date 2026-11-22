@@ -41,7 +41,7 @@ dev = [
     # the last release that supports them.
     "hypothesis==6.100.0; python_version < '3.11'",
     "hypothesis>=6.100; python_version >= '3.11'",
-    "ruff==0.17.5",
+    "ruff==0.17.6",
     "mypy==1.19.1",
     "pandas",
 ]
