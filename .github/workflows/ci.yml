@@ -361,7 +361,7 @@ jobs:
           pip install --no-index --no-deps --find-links wheel matplotvite
       - name: Cache the Matplotlib sdist and tests
         if: matrix.name == 'corpus'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             dist/sdist
@@ -369,13 +369,13 @@ jobs:
           key: mpl-sdist-3.11.2
       - name: Cache the Matplotlib examples
         if: matrix.name == 'examples'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: dist/mpl-src
           key: mpl-src-3.11.2
       - name: Cache the Seaborn examples
         if: matrix.name == 'seaborn'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: dist/sns-src
           key: sns-src-0.13.2
