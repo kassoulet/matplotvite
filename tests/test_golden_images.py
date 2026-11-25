@@ -12,6 +12,11 @@ import pathlib
 import golden_scenes
 import pytest
 
+# `tools.visual_compare` imports matplotlib at module level, and the wheel test
+# job installs only the runtime dependency. Skip the module instead of aborting
+# collection for the whole suite when matplotlib is absent.
+pytest.importorskip("matplotlib")
+
 from tools.visual_compare import compare_images
 
 GOLDEN_DIR = pathlib.Path(__file__).resolve().parent / "golden"

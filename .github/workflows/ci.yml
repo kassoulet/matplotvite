@@ -184,6 +184,9 @@ jobs:
           merge-multiple: true
       - name: Install the wheel and Sphinx
         run: |
+          # The wheel install is offline, so numpy must be resolved first or pip
+          # fails on the wheel's only runtime dependency.
+          python -m pip install -c .github/requirements-ci.txt numpy
           python -m pip install --no-index --find-links dist matplotvite
           python -m pip install -c .github/requirements-ci.txt "sphinx>=8"
       - name: Check public docstring coverage
@@ -444,11 +447,20 @@ jobs:
           args=()
           if [ -n "$SAMPLE_LIMIT" ]; then args=(--limit "$SAMPLE_LIMIT"); fi
           python tools/harvest_seaborn.py --out dist/seaborn-gallery "${args[@]}"
+      - name: Stage the gallery for upload
+        # upload-artifact stores a directory path's contents at the artifact
+        # root, so uploading `dist/<gallery>` directly drops the gallery folder
+        # name and the three merged downloads collide in gallery-summary.
+        run: |
+          mkdir -p dist/upload
+          if [ -d "dist/${{ matrix.out }}" ]; then
+            mv "dist/${{ matrix.out }}" dist/upload/
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: gallery-${{ matrix.name }}
-          path: dist/${{ matrix.out }}
+          path: dist/upload
           retention-days: 90
 
   gallery-summary:

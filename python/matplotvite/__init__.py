@@ -252,6 +252,15 @@ def __getattr__(name):
     return getattr(_plotting, name)
 
 
+def __dir__():
+    """List what `__getattr__` forwards, so introspection sees the same names.
+
+    Without this, `dir(matplotvite)` only shows the explicitly imported ones and
+    the compatibility trace reports the forwarded pyplot names as missing.
+    """
+    return sorted(set(globals()) | set(dir(_plotting)))
+
+
 class _FacadeModule(_types.ModuleType):
     """Mirror assignments so patching a facade internal still reaches the code."""
 
