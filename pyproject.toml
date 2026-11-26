@@ -91,6 +91,11 @@ ignore = [
 # Build tools run fixed argument lists (never a shell) and exec repo-owned
 # gallery snippets; bandit is configured the same way in security_audit.py.
 "tools/**" = ["S102", "S603", "S607"]
+# The example gallery execs the same repo-owned snippets, and the fuzz harness
+# seeds its mutator deterministically, so neither is the crypto misuse S102 and
+# S311 exist to catch.
+"examples/**" = ["S102"]
+"fuzz/**" = ["S311"]
 
 [tool.mypy]
 files = ["python/matplotvite"]
