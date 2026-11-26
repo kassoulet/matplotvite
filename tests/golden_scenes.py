@@ -75,11 +75,46 @@ def scene_fill_annotate() -> plt.Figure:
     return fig
 
 
+def scene_violin() -> plt.Figure:
+    coords = np.linspace(0.0, 4.0, 41)
+    wide = np.exp(-((coords - 2.0) / 0.9) ** 2)
+    narrow = np.exp(-((coords - 1.6) / 0.5) ** 2)
+    fig = plt.Figure(figsize=(4.8, 3.6), dpi=100)
+    ax = fig.add_subplot(1, 1, 1)
+    ax.violin(
+        [
+            {"coords": coords, "vals": wide, "min": 0.0, "max": 4.0,
+             "mean": 2.0, "median": 2.0},
+            {"coords": coords, "vals": narrow, "min": 0.0, "max": 4.0,
+             "mean": 1.6, "median": 1.6},
+        ],
+        positions=[1.0, 2.0],
+        widths=[0.8, 0.8],
+    )
+    ax.set_xticks([1.0, 2.0], ["alpha", "beta"])
+    ax.set_yticks([0.0, 1.0, 2.0, 3.0, 4.0])
+    ax.set_title("Violin plots")
+    return fig
+
+
+def scene_autoscale_margins() -> plt.Figure:
+    fig = plt.Figure(figsize=(4.8, 3.6), dpi=100)
+    ax = fig.add_subplot(1, 1, 1)
+    ax.plot([0.0, 1.0, 2.0, 3.0], [1.0, 3.0, 2.0, 4.0], color="#1f77b4")
+    ax.margins(x=0.25, y=0.4)
+    ax.set_xticks([-1.0, 0.0, 1.0, 2.0, 3.0, 4.0])
+    ax.set_yticks([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+    ax.set_title("Autoscaled margins")
+    return fig
+
+
 SCENES = {
     "line_legend": scene_line_legend,
     "bars_scatter": scene_bars_scatter,
     "image_colorbar": scene_image_colorbar,
     "fill_annotate": scene_fill_annotate,
+    "violin": scene_violin,
+    "autoscale_margins": scene_autoscale_margins,
 }
 
 

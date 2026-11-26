@@ -11,6 +11,33 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Added
 
+- `Axes.label_outer`, `Axes.quiverkey` and `Axes.pie_label` (with
+  `pyplot.pie_label`) now draw their artists: inner tick labels are hidden from
+  the subplot position, the quiver key is a scaled arrow with a label, and pie
+  labels accept a sequence or an `{absval}`/`{frac}` format string.
+- `Axes.locator_params`, `Axes.ticklabel_format`, `Axes.relim`,
+  `Axes.get_legend` and `Axes.get_cursor_data` now configure ticks, format
+  labels, refresh autoscaled limits, return the legend handle and read image
+  pixels respectively; `set_xlim`/`set_ylim` accept Matplotlib's `auto` flag.
+- Shared golden-image scenes for violin plots and autoscaled margins, rendered
+  by both the Python facade and the native builder through new `Axes::violin`
+  and `Axes::margins` methods.
+- `pyplot.imsave` writes arrays as PNG natively, JPEG/TIFF through Pillow and
+  vector formats through the renderer. The remaining pyplot entry points exist:
+  `switch_backend`/`get_backend`, `sca`, `get_figlabels`, `box`, `autoscale`,
+  `specgram`, `barbs`, `ecdf`, `figimage`, `draw_all` and
+  `draw_if_interactive`, plus `Normalize` and `FuncFormatter` exports.
+- `Figure.show`, `waitforbuttonpress` and `ginput` are documented no-op shims
+  for the static backend, and `Figure.pick` dispatches pick events to its axes.
+- `Axes.violin` draws from pre-computed `cbook.violin_stats` dictionaries, and
+  the remaining `Axes` compatibility APIs exist: stored autoscale margins and
+  their getters, gridline handles backed by the grid state, clip-path access,
+  pick dispatch and the `start_pan`/`drag_pan`/`end_pan` view shifting.
+- `Figure` and `Axes` state accessors for the remaining artist properties
+  (figure size, DPI and linewidth setters, suptitle/label getters, autoscale
+  flags, gid, url, anchor, picker, clip box, transforms, callbacks), plus
+  `contains`/`contains_point` hit testing and Matplotlib's cursor formatting.
+  The package facade also exposes its lazily delegated names through `dir()`.
 - A pandas plotting backend: set `pd.options.plotting.backend = "matplotvite"`
   to draw line, bar, barh, hist, box, area, scatter and pie charts through
   `DataFrame.plot()`/`Series.plot()`, with datetime, categorical and MultiIndex
@@ -76,7 +103,9 @@ Before 1.0, a minor release may contain a breaking change; see
   so the core class owns layout, ticks and lifecycle rather than every plot family.
 - Supply-chain checks now include OpenSSF Scorecard, cargo-deny advisories
   with yanked-crate enforcement, reproducible-wheel verification, and PyPI,
-  Python-version, licence, and scorecard badges.
+  Python-version, licence, and scorecard badges. The Scorecard workflow also
+  renders its SARIF results into a readable HTML page and a per-check run
+  summary instead of leaving only the machine-readable file.
 - Wheel builds from the sdist are byte-for-byte reproducible. The generated
   wheel-level Rust SBOM is disabled because it embedded pip's temporary build
   path; release artifacts still carry an SPDX SBOM.
@@ -108,6 +137,14 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ### Fixed
 
+- `Axes.autoscale`/`autoscale_view` recompute the view from the data and the
+  stored margins instead of being no-ops: `autoscale(False)` freezes the current
+  view, `autoscale(True)` restores data-driven limits, and `tight=True` zeroes
+  the margins. Shared axes and `axis=` validation follow Matplotlib.
+- `Normalize` now applies Matplotlib's linear `(value - vmin) / (vmax - vmin)`
+  mapping and its inverse, instead of returning the input unchanged.
+- `Axes.specgram` treats `Fs=None` as the default 2 Hz sampling rate, as
+  Matplotlib's pyplot wrapper does.
 - `savefig`, `plot`, `hist`, `legend`, and `subplots` now match Matplotlib's
   signatures and validation, including `fname`, transparent defaults,
   metadata/pil_kwargs acceptance, length and location checks, error types, and

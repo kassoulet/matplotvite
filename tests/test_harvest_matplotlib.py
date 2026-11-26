@@ -528,10 +528,10 @@ def test_render_records_ignored_shim_calls(tmp_path):
     out = tmp_path / "out.png"
     ignored = []
     snippet = ("plt.plot([0, 1], [1, 0])\n"
-               "plt.gca().set_frame_on(False)\n"
+               "plt.gca().secondary_xaxis('bottom')\n"
                "plt.savefig(OUT, dpi=100)\n")
     assert render(snippet, out, ignored=ignored) is None
-    assert "Axes.set_frame_on" in ignored
+    assert "Axes.secondary_xaxis" in ignored
 
 
 def test_render_exposes_local_example_modules(tmp_path, monkeypatch):

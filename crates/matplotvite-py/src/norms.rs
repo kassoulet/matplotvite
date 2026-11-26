@@ -15,6 +15,12 @@ pub(crate) fn log_norm(value: f64, lo: f64, hi: f64, base: f64) -> f64 {
     (log(value) - log(lo)) / if span == 0.0 { 1.0 } else { span }
 }
 
+/// Matplotlib's `Normalize`: a plain linear mapping.
+pub(crate) fn linear_norm(value: f64, lo: f64, hi: f64) -> f64 {
+    let span = if hi != lo { hi - lo } else { 1.0 };
+    (value - lo) / span
+}
+
 /// Matplotlib's `TwoSlopeNorm`: two linear spans meeting at `center`.
 pub(crate) fn two_slope(value: f64, center: f64, lo: f64, hi: f64) -> f64 {
     if value <= center {
@@ -61,7 +67,9 @@ mod py {
     use pyo3::prelude::*;
     use pyo3::IntoPyObjectExt;
 
-    use super::{asinh_norm, boundary_norm, log_norm, power_norm, symlog_norm, two_slope};
+    use super::{
+        asinh_norm, boundary_norm, linear_norm, log_norm, power_norm, symlog_norm, two_slope,
+    };
 
     /// Convert any array-like input through `numpy.asarray`.
     fn as_array<'py>(
@@ -136,8 +144,9 @@ mod py {
             value: &Bound<'py, PyAny>,
             clip: Option<bool>,
         ) -> PyResult<Py<PyAny>> {
-            let _ = clip;
-            map_f64(py, value, |v| v)
+            let (lo, hi) = bounds(self.vmin, self.vmax, (0.0, 1.0));
+            let clip = clip.unwrap_or(self.clip);
+            map_f64(py, value, move |v| clipped(linear_norm(v, lo, hi), clip))
         }
 
         fn autoscale(&self, _values: &Bound<'_, PyAny>) {}
@@ -147,7 +156,8 @@ mod py {
 
         #[pyo3(signature = (value))]
         fn inverse<'py>(&self, py: Python<'py>, value: &Bound<'py, PyAny>) -> PyResult<Py<PyAny>> {
-            map_f64(py, value, |v| v)
+            let (lo, hi) = bounds(self.vmin, self.vmax, (0.0, 1.0));
+            map_f64(py, value, move |v| v * (hi - lo) + lo)
         }
     }
 
@@ -463,7 +473,16 @@ pub(crate) use py::{
 
 #[cfg(test)]
 mod tests {
-    use super::{asinh_norm, boundary_norm, log_norm, power_norm, symlog_norm, two_slope};
+    use super::{
+        asinh_norm, boundary_norm, linear_norm, log_norm, power_norm, symlog_norm, two_slope,
+    };
+
+    #[test]
+    fn linear_norm_maps_the_bounds() {
+        assert!((linear_norm(1.0, 0.0, 2.0) - 0.5).abs() < 1e-12);
+        assert!((linear_norm(0.0, 0.0, 2.0)).abs() < 1e-12);
+        assert!((linear_norm(2.0, 0.0, 2.0) - 1.0).abs() < 1e-12);
+    }
 
     #[test]
     fn log_norm_matches_hand_values() {

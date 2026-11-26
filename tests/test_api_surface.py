@@ -45,6 +45,23 @@ def test_exported_callables_have_stubs():
     assert not missing, f"exported callables missing from the stub: {missing}"
 
 
+def test_lazy_delegated_callables_are_discoverable():
+    """`__getattr__` names must also show up in `dir()`, as tools inspect it."""
+    from matplotvite import _plotting
+
+    excluded = {"Any", "ClassVar", "contextmanager"}
+    missing = sorted(
+        name for name in dir(_plotting)
+        if not name.startswith("_")
+        and name not in excluded
+        and callable(getattr(_plotting, name, None))
+        and name not in dir(plt)
+    )
+    assert not missing, f"delegated callables hidden from dir(): {missing}"
+    for name in ("Line2D", "Text", "CirclePolygon", "figaspect", "tricontour"):
+        assert name in dir(plt)
+
+
 def test_deprecated_helper_emits_future_warning():
     with pytest.warns(FutureWarning) as caught:
         plt._deprecated("old_api", since="0.7", alternative="new_api", removal="0.8")

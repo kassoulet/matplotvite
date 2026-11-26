@@ -1,4 +1,5 @@
 import datetime
+import io
 import os
 import re
 import struct
@@ -1558,7 +1559,7 @@ def test_axes_artists_transform_and_noops():
     assert ax.get_transform().transform([[1.0, 2.0]])[0].tolist() == [1.0, 2.0]
     assert ax.get_transform().inverted() is not None
     assert ax.update() is None and ax.draw() is None
-    assert ax.margins(0.1) is None and ax.autoscale() is None
+    assert ax.margins(0.1) == (0.1, 0.1) and ax.autoscale() is None
     assert ax.set_clip_on(False) is None and ax.set_path_effects([]) is None
 
 
@@ -1612,6 +1613,484 @@ def test_figure_introspection_and_add_axes(tmp_path):
     fig.savefig(p)
     b = p.read_bytes()
     assert (int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")) == (600, 300)
+
+
+def test_figure_state_accessors(tmp_path):
+    fig = plt.figure((4, 3))
+    ax = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+    assert fig.get_figwidth() == 4.0 and fig.get_figheight() == 3.0
+    fig.set_figwidth(5)
+    fig.set_figheight(2.5)
+    assert fig.get_size_inches() == pytest.approx((5.0, 2.5))
+    assert fig.get_linewidth() == 0.0
+    fig.set_linewidth(2.0)
+    assert fig.get_linewidth() == 2.0
+    with pytest.raises(ValueError):
+        fig.set_linewidth(-1)
+    fig.set_edgecolor("red")
+    assert fig.get_edgecolor()
+    fig.suptitle("Top")
+    fig.supxlabel("X")
+    fig.supylabel("Y")
+    assert fig.get_suptitle() == "Top"
+    assert fig.get_supxlabel() == "X" and fig.get_supylabel() == "Y"
+    assert fig.get_constrained_layout_pads() == (None, None, None, None)
+    assert fig.sca(ax) is ax
+    fig.set_dpi(120)
+    assert fig.get_dpi() == 120
+    p = tmp_path / "state.png"
+    fig.savefig(p)
+    b = p.read_bytes()
+    assert (int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")) == (600, 300)
+
+    other = fig.add_axes([0.0, 0.0, 0.5, 0.5])
+    fig.delaxes(other)
+    assert other not in fig.get_axes()
+    fig.clf()
+    assert fig.get_axes() == [] and fig.get_suptitle() == ""
+    assert fig.get_supxlabel() == "" and fig.get_supylabel() == ""
+
+
+def test_axes_state_accessors():
+    fig, ax = plt.subplots()
+    assert ax.get_autoscale_on() and ax.get_autoscalex_on() and ax.get_autoscaley_on()
+    ax.set_autoscale_on(False)
+    ax.set_autoscalex_on(False)
+    ax.set_autoscaley_on(False)
+    assert not (ax.get_autoscale_on() or ax.get_autoscalex_on() or ax.get_autoscaley_on())
+    assert ax.get_navigate() is True and ax.get_navigate_mode() is None
+    ax.set_navigate(False)
+    assert ax.get_navigate() is False
+    ax.set_gid("group")
+    ax.set_url("https://example.test/plot")
+    ax.set_rasterized(True)
+    ax.set_animated(True)
+    ax.set_anchor("SW")
+    ax.set_axisbelow("line")
+    ax.set_picker(5)
+    ax.set_clip_box("box")
+    ax.set_agg_filter("filter")
+    assert ax.get_gid() == "group"
+    assert ax.get_url() == "https://example.test/plot"
+    assert ax.get_rasterized() is True and ax.get_animated() is True
+    assert ax.get_anchor() == "SW" and ax.get_axisbelow() == "line"
+    assert ax.get_picker() == 5 and ax.get_clip_box() == "box"
+    assert ax.get_agg_filter() == "filter"
+    assert ax.get_path_effects() == []
+    assert not ax.is_transform_set()
+    ax.set_transform(ax.transData)
+    assert ax.is_transform_set() and ax.get_transform() is ax.transData
+    assert ax.apply_aspect() is None
+    line = ax.plot([0, 1], [0, 1])[0]
+    assert len(ax.get_lines()) == 1 and ax.get_images() == []
+    ax.xaxis_date()
+    ax.yaxis_date()
+    assert ax._x_date and ax._y_date
+    assert ax.format_xdata(1.5) == "1.5"
+    assert ax.format_ydata(2.0) == "2"
+    assert ax.add_callback(lambda: None) == 1
+    ax.remove_callback(None)
+    ax.draw_artist(line)
+    ax.set_figure(fig)
+    assert ax.get_figure() is fig
+    assert ax.findobj()[0] is ax
+    props = ax.properties()
+    assert props["gid"] == "group" and props["lines"]
+    ax.update_from(ax)
+    assert ax.pchanged() is None
+
+
+def test_axes_hit_testing_and_cursor_formatting():
+    from types import SimpleNamespace
+
+    fig, ax = plt.subplots()
+    box = ax.get_position()
+    width, height = fig.get_size_inches()
+    dpi = fig.get_dpi()
+    center = ((box.x0 + box.x1) / 2 * width * dpi,
+              (box.y0 + box.y1) / 2 * height * dpi)
+    assert ax.contains_point(center)
+    assert not ax.contains_point((-1.0, -1.0))
+    assert ax.contains(SimpleNamespace(x=center[0], y=center[1])) == (True, {})
+    assert ax.contains() == (False, {})
+    assert ax.get_cursor_data(None) is None
+    assert ax.format_cursor_data(3.14159) == "[3.14]"
+    assert ax.format_cursor_data(None) == "[]"
+    assert ax.format_coord(1.5, 2.0) == "(x, y) = (1.5, 2)"
+
+
+def test_axes_margins_and_gridline_handles():
+    fig, ax = plt.subplots()
+    ax.plot([1, 2], [3, 4])
+    assert ax.get_xmargin() == pytest.approx(0.05)
+    assert ax.get_ymargin() == pytest.approx(0.05)
+    assert ax.margins(0.2, 0.3) == (0.2, 0.3)
+    assert ax.get_xlim() == pytest.approx((0.8, 2.2))
+    assert ax.get_ylim() == pytest.approx((2.7, 4.3))
+    assert ax.margins() == (0.2, 0.3)
+    ax.set_xmargin(0.1)
+    ax.set_ymargin(0.1)
+    assert (ax.get_xmargin(), ax.get_ymargin()) == (0.1, 0.1)
+    assert ax.margins(0.2) == (0.2, 0.2)
+    assert ax.margins(y=0.4) == (0.2, 0.4)
+    with pytest.raises(TypeError):
+        ax.margins(0.1, 0.2, 0.3)
+    with pytest.raises(TypeError):
+        ax.margins(0.1, y=0.2)
+
+    lines = ax.get_xgridlines()
+    assert len(lines) == 2 and not lines[0].get_visible()
+    ax.grid(True)
+    assert lines[0].get_visible() and not lines[1].get_visible()
+    lines[0].set_visible(False)
+    assert not ax.show_grid
+    lines[0].set_color("red")
+    lines[0].set_linewidth(2)
+    lines[0].set_alpha(0.5)
+    assert lines[0].get_color()
+    assert lines[0].get_linewidth() == 2 and lines[0].get_alpha() == 0.5
+    assert len(ax.get_ygridlines()) == 2
+
+    path = ax.get_clip_path()
+    assert path.get_vertices().shape == (5, 2)
+    sentinel = object()
+    ax.set_clip_path(sentinel)
+    assert ax.get_clip_path() is sentinel
+    ax.redraw_in_frame()
+
+
+def test_axes_violin_draws_from_precomputed_stats():
+    fig, ax = plt.subplots()
+    stats = [dict(coords=np.linspace(0.0, 1.0, 21),
+                  vals=np.linspace(1.0, 0.0, 21),
+                  mean=0.5, median=0.5, min=0.0, max=1.0,
+                  quantiles=[0.25, 0.75])]
+    out = ax.violin(stats, widths=0.5, showmeans=True, showmedians=True)
+    assert set(out) == {"bodies", "cmeans", "cmaxes", "cmins", "cbars",
+                        "cmedians", "cquantiles"}
+    assert len(out["bodies"]) == 1 and len(out["cquantiles"]) == 2
+    body = out["bodies"][0].get_paths()[0]
+    assert max(body["x"]) <= 1.25 + 1e-9 and min(body["x"]) >= 0.75 - 1e-9
+    assert out["bodies"][0].get_facecolor()
+
+    horizontal = ax.violin(stats, orientation="horizontal", side="low",
+                           showextrema=False)
+    assert set(horizontal) == {"bodies", "cquantiles"}
+    assert len(horizontal["bodies"]) == 1 and len(horizontal["cquantiles"]) == 2
+
+    with pytest.raises(ValueError):
+        ax.violin(stats, positions=[1, 2])
+    with pytest.raises(ValueError):
+        ax.violin(stats, widths=[0.5, 0.5])
+    with pytest.raises(ValueError):
+        ax.violin(stats, orientation="sideways")
+    with pytest.raises(ValueError):
+        ax.violin(stats, side="up")
+    with pytest.raises(TypeError, match=r"np\.datetime64"):
+        ax.violin(stats, positions=[np.datetime64("2020-01-01")], widths=[0.5])
+    with pytest.raises(TypeError, match="timedelta"):
+        ax.violin(stats, positions=[datetime.datetime(2020, 1, 1)], widths=0.75)
+
+
+def test_axes_violin_accepts_datetime_coordinates():
+    fig, ax = plt.subplots()
+    coords = [datetime.datetime(2023, 2, 10), datetime.datetime(2023, 5, 18),
+              datetime.datetime(2023, 6, 6)]
+    ax.violin([dict(coords=coords, vals=[0.1, 0.5, 0.2], mean=coords[1],
+                    median=coords[1], min=coords[0], max=coords[-1],
+                    quantiles=coords)])
+    lo, hi = ax.get_ylim()
+    assert lo < hi
+
+
+def test_axes_pan_and_pick_dispatch():
+    fig, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1])
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 10)
+    before = ax.get_xlim()
+    ax.start_pan(100, 100, 1)
+    ax.drag_pan(1, None, 200, 100)
+    ax.end_pan()
+    assert ax.get_xlim()[0] < before[0]
+    dragged = ax.get_xlim()
+    ax.drag_pan(1, None, 300, 100)
+    assert ax.get_xlim() == dragged
+    assert ax.pick(None) == []
+
+
+def test_pyplot_backend_registry_and_sca():
+    fig, ax = plt.subplots()
+    assert plt.get_backend() == "agg"
+    plt.switch_backend("svg")
+    assert plt.get_backend() == "svg"
+    plt.switch_backend("agg")
+    labels = plt.get_figlabels()
+    assert fig.get_label() in labels
+    other = plt.figure()
+    assert len(plt.get_figlabels()) == len(labels) + 1
+    plt.sca(ax)
+    assert plt.gcf() is fig
+    assert plt.gcf().gca() is ax
+    plt.close(other)
+    with pytest.raises(ValueError):
+        plt.sca(object())
+
+
+def test_pyplot_box_toggles_frame_state():
+    fig, ax = plt.subplots()
+    assert ax.get_frame_on()
+    plt.box(False)
+    assert ax.get_frame_on() is False
+    plt.box()
+    assert ax.get_frame_on() is True
+    plt.box(False)
+    assert ax.get_frame_on() is False
+
+
+def test_pyplot_imsave_png_roundtrip():
+    data = np.array([[0.0, 0.5], [1.0, 0.25]])
+    buf = io.BytesIO()
+    plt.imsave(buf, data, format="png", cmap="viridis")
+    decoded = plt.imread(io.BytesIO(buf.getvalue()))
+    assert decoded.shape == (2, 2, 4)
+    assert np.allclose(decoded[..., 3], 1.0)
+    assert not np.allclose(decoded[0, 0, :3], decoded[1, 0, :3])
+
+    rgb = np.array([[[255, 0, 0], [0, 255, 0]]], dtype=np.uint8)
+    buf = io.BytesIO()
+    plt.imsave(buf, rgb, format="png")
+    decoded = plt.imread(io.BytesIO(buf.getvalue()))
+    assert decoded.shape == (1, 2, 3)
+    assert np.allclose(decoded[0, 0], [1.0, 0.0, 0.0])
+
+    flipped = np.array([[0.0, 1.0], [0.5, 0.25]])
+    buf = io.BytesIO()
+    plt.imsave(buf, flipped, format="png", origin="lower")
+    decoded = plt.imread(io.BytesIO(buf.getvalue()))
+    assert not np.allclose(decoded[0, 0], decoded[0, 1])
+    with pytest.raises(ValueError):
+        plt.imsave(io.BytesIO(), np.zeros((2, 2, 2)), format="png")
+
+    for fmt in ("pdf", "svg", "eps"):
+        target = io.BytesIO()
+        plt.imsave(target, np.array([[0.0, 1.0]]), format=fmt)
+        assert target.getvalue()
+
+
+def test_imsave_png_writes_exact_pixels():
+    gray = np.array([[0, 255], [64, 128]], dtype=np.uint8)
+    rgba = np.dstack([gray, gray, gray, np.full_like(gray, 255)])
+    buf = io.BytesIO()
+    plt.imsave(buf, rgba, format="png")
+    decoded = np.round(plt.imread(io.BytesIO(buf.getvalue())) * 255).astype(np.uint8)
+    assert np.array_equal(decoded, rgba)
+
+    values = np.array([[0.0, 0.5], [0.25, 1.0]])
+    expected = np.round(
+        plt.get_cmap("gray")(values) * 255).astype(np.uint8)
+    buf = io.BytesIO()
+    plt.imsave(buf, values, format="png", cmap="gray", vmin=0.0, vmax=1.0)
+    decoded = np.round(plt.imread(io.BytesIO(buf.getvalue())) * 255).astype(np.uint8)
+    assert np.array_equal(decoded, expected)
+
+    buf = io.BytesIO()
+    plt.imsave(buf, values, format="png", cmap="gray", vmin=0.0, vmax=1.0,
+               origin="lower")
+    flipped = np.round(plt.imread(io.BytesIO(buf.getvalue())) * 255).astype(np.uint8)
+    assert np.array_equal(flipped, expected[::-1])
+
+
+def test_pyplot_imsave_pillow_formats(tmp_path):
+    pytest.importorskip("PIL")
+    exact = np.array([[[255, 0, 0, 255], [0, 0, 255, 128]]], dtype=np.uint8)
+    target = tmp_path / "image.tiff"
+    plt.imsave(target, exact, format="tiff")
+    decoded = np.round(plt.imread(target) * 255).astype(np.uint8)
+    assert np.array_equal(decoded, exact)
+
+    target = tmp_path / "image.jpg"
+    plt.imsave(target, np.broadcast_to(np.array([200, 30, 40], np.uint8),
+                                       (8, 8, 3)), format="jpg")
+    decoded = plt.imread(target)
+    assert decoded.shape == (8, 8, 3)
+    mean = decoded.reshape(-1, 3).mean(axis=0) * 255
+    assert mean[0] > 180 and mean[1] < 60 and mean[2] < 70
+
+
+def test_axes_violin_renders_pixels():
+    # A density skewed towards the low end: the body is widest at coord 2, so
+    # the pixel geometry tells vertical (widest row near the bottom) from
+    # horizontal (widest column near the left) without reading axis ticks.
+    coords = np.linspace(0.0, 10.0, 41)
+    stats = [dict(coords=coords, vals=np.exp(-((coords - 2.0) ** 2)),
+                  mean=2.0, median=2.0, min=0.0, max=10.0)]
+
+    def red_mask(fig):
+        width, height, rows = decode_png_rgba(fig.savefig(format="png"))
+        image = np.frombuffer(b"".join(rows), dtype=np.uint8).reshape(height, width, 4)
+        red = ((image[..., 0] > 200) & (image[..., 1] < 80)
+               & (image[..., 2] < 80) & (image[..., 3] > 0))
+        assert red.sum() > 500, "violin body did not render"
+        return image, red
+
+    fig, ax = plt.subplots()
+    ax.violin(stats, widths=0.5, facecolor="red", showextrema=False)
+    image, red = red_mask(fig)
+    assert np.argmax(red.sum(axis=1)) > 0.5 * image.shape[0]
+    ys, xs = np.nonzero(red)
+    assert xs.min() > 0 and xs.max() < image.shape[1] - 1
+
+    fig, ax = plt.subplots()
+    ax.violin(stats, widths=0.5, facecolor="red", showextrema=False,
+              orientation="horizontal")
+    image, red = red_mask(fig)
+    assert np.argmax(red.sum(axis=0)) < 0.5 * image.shape[1]
+
+    fig, ax = plt.subplots()
+    ax.violin(stats, widths=0.5, facecolor="red", linecolor="black",
+              showmedians=True, showextrema=False)
+    image, red = red_mask(fig)
+    ys, xs = np.nonzero(red)
+    body = image[ys.min():ys.max() + 1, xs.min():xs.max() + 1, :3]
+    assert ((body < 60).all(axis=2)).sum() > 5, "median line missing inside body"
+
+
+def test_axes_autoscale_uses_stored_margins():
+    fig, ax = plt.subplots()
+    ax.plot([0.0, 1.0], [0.0, 1.0])
+    ax.margins(0.5)
+    ax.autoscale(True)
+    assert ax.get_xlim() == pytest.approx((-0.5, 1.5))
+    assert ax.get_ylim() == pytest.approx((-0.5, 1.5))
+
+    ax.set_xlim(0.0, 10.0)
+    ax.autoscale(False)
+    ax.plot([100.0, 200.0], [100.0, 200.0])
+    assert ax.get_xlim() == (0.0, 10.0)
+    assert ax.get_autoscalex_on() is False
+
+    ax.autoscale(True)
+    assert ax.get_xlim() == pytest.approx((-100.0, 300.0))
+    assert ax.get_autoscalex_on() is True
+
+    ax.autoscale(tight=True)
+    assert ax.get_xlim() == pytest.approx((0.0, 200.0))
+    assert ax.get_xmargin() == 0.0
+
+    ax.margins(0.2)
+    ax.autoscale_view(tight=False)
+    assert ax.get_xlim() == pytest.approx((-40.0, 240.0))
+    with pytest.raises(ValueError):
+        ax.autoscale(axis="z")
+
+
+def test_axes_label_outer_hides_inner_tick_labels():
+    fig, axs = plt.subplots(2, 2)
+    for ax in axs.ravel():
+        ax.label_outer()
+    flags = [(ax.hide_xticklabels, ax.hide_yticklabels) for ax in axs.ravel()]
+    assert flags == [(True, False), (True, True), (False, False), (False, True)]
+    plt.close(fig)
+
+
+def test_axes_quiverkey_draws_an_arrow_and_label():
+    fig, ax = plt.subplots()
+    quiver = ax.quiver([0.0, 1.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0])
+    assert ax.quiverkey(quiver, 0.5, 0.9, 1.0, "1 m/s") is None
+    assert len(ax.patches) == 1
+    assert [text.get_text() for text in ax.texts] == ["1 m/s"]
+    with pytest.raises(TypeError):
+        ax.quiverkey(object(), 0.5, 0.9, 1.0, "bad")
+    plt.close(fig)
+
+
+def test_axes_pie_label_formats_and_appends_texts():
+    fig, ax = plt.subplots()
+    pie = ax.pie([1.0, 2.0, 3.0])
+    texts = ax.pie_label(pie, "{absval:g} ({frac:.0%})")
+    assert [text.get_text() for text in texts] == ["1 (17%)", "2 (33%)", "3 (50%)"]
+    assert pie.texts == texts
+    assert plt.pie_label(pie, ["a", "b", "c"])[-1].get_text() == "c"
+    with pytest.raises(ValueError, match="must match the number of wedges"):
+        ax.pie_label(pie, ["only one"])
+    with pytest.raises(ValueError, match="alignment must be"):
+        ax.pie_label(pie, ["a", "b", "c"], alignment="bogus")
+    plt.close(fig)
+
+
+def test_axes_locator_params_and_ticklabel_format():
+    fig, ax = plt.subplots()
+    ax.plot([0.0, 1000.0], [0.0, 1.0])
+    ax.locator_params(axis="x", nbins=3)
+    assert ax.get_xticks().tolist() == [0.0, 500.0, 1000.0]
+    ax.ticklabel_format(style="sci", scilimits=(0, 0), axis="x")
+    labels = [text.get_text() for text in ax.get_xticklabels()]
+    assert labels == ["0.00e+00", "5.00e+02", "1.00e+03"]
+    with pytest.raises(ValueError, match="scilimits must be a sequence"):
+        ax.ticklabel_format(scilimits=1)
+    with pytest.raises(ValueError, match="axis must be"):
+        ax.locator_params(axis="z")
+    plt.close(fig)
+
+
+def test_axes_relim_and_legend_state():
+    fig, ax = plt.subplots()
+    assert ax.get_legend() is None
+    ax.plot([0.0, 1.0], [0.0, 1.0], label="line")
+    ax.legend()
+    assert ax.get_legend() is not None
+    assert ax.get_forward_navigation_events() == "auto"
+    ax.set_forward_navigation_events(False)
+    assert ax.get_forward_navigation_events() is False
+
+    ax.set_xlim(0.0, 10.0)
+    assert ax.get_autoscalex_on() is False
+    ax.relim()
+    assert ax.get_xlim() == (0.0, 10.0)
+    ax.set_xlim(0.0, 10.0, auto=True)
+    ax.relim()
+    assert ax.get_xlim() == pytest.approx((-0.05, 1.05))
+    plt.close(fig)
+
+
+def test_axes_get_cursor_data_reads_images():
+    fig, ax = plt.subplots()
+    ax.imshow(np.arange(12).reshape(3, 4))
+
+    class Inside:
+        xdata, ydata = 1.0, 1.0
+
+    class Outside:
+        xdata, ydata = 99.0, 99.0
+
+    assert ax.get_cursor_data(Inside()) == 5.0
+    assert ax.get_cursor_data(Outside()) is None
+    plt.close(fig)
+
+
+def test_pyplot_wrappers_and_formatters():
+    fig, ax = plt.subplots()
+    spectrum, freqs, bins, image = plt.specgram(np.ones(300), Fs=None)
+    assert spectrum.shape[0] == freqs.size and image is not None
+    assert plt.barbs(np.zeros(2), np.zeros(2), np.ones(2), np.ones(2)) is not None
+    assert len(plt.ecdf(np.array([1.0, 2.0, 3.0]))) == 3
+    assert plt.figimage(np.zeros((2, 2, 3), dtype=np.uint8)) is not None
+    assert plt.autoscale(True) is None
+    formatter = plt.FuncFormatter(lambda value, pos: f"{value:.0f}")
+    assert formatter(2.6) == "3" and formatter.format_data_short(2.6) == "3"
+    with pytest.raises(TypeError):
+        plt.FuncFormatter(3)
+    assert plt.Normalize(0.0, 2.0)(1.0) == pytest.approx(0.5)
+
+
+def test_figure_interactive_stubs_and_pick():
+    fig, ax = plt.subplots()
+    assert fig.show() is None
+    assert fig.waitforbuttonpress() is None
+    with pytest.warns(RuntimeWarning, match="ginput"):
+        assert fig.ginput() is None
+    assert fig.pick(None) == []
 
 
 def test_add_axes_rectangle_is_the_plotting_area(tmp_path):
@@ -4551,7 +5030,7 @@ def test_gallery_subplot2grid_and_gridspec_updates():
     assert wide.get_position()[2] > tall.get_position()[2]
 
     fig.axes[0].set_forward_navigation_events(False)
-    assert fig.axes[0].get_forward_navigation_events() == "auto"
+    assert fig.axes[0].get_forward_navigation_events() is False
 
     gs = fig.add_gridspec(3, 1)
     gs.update(top=0.8)

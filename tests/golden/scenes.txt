@@ -4,3 +4,5 @@ line_legend 480 360 2.0
 bars_scatter 480 360 2.0
 image_colorbar 480 360 2.0
 fill_annotate 480 360 2.0
+violin 480 360 0.3
+autoscale_margins 480 360 0.3

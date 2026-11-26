@@ -322,6 +322,8 @@ def pcolormesh(*args: Any, **kwargs: Any) -> Any: ...
 
 def pie(*args: Any, **kwargs: Any) -> Any: ...
 
+def pie_label(*args: Any, **kwargs: Any) -> Any: ...
+
 def plot(*args: Any, **kwargs: Any) -> Any: ...
 
 def quiver(*args: Any, **kwargs: Any) -> Any: ...
@@ -438,6 +440,7 @@ FixedFormatter: Any
 FixedLocator: Any
 FontProperties: Any
 FormatStrFormatter: Any
+FuncFormatter: Any
 HOURLY: Any
 HPacker: Any
 HandlerLineCollection: Any
@@ -460,6 +463,7 @@ MonthLocator: Any
 MouseEvent: Any
 MultipleLocator: Any
 NonUniformImage: Any
+Normalize: Any
 NullLocator: Any
 OffsetFrom: Any
 OffsetImage: Any

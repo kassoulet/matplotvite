@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use matplotvite::{Axes, Figure, GridOptions, LegendOptions, TickParams};
+use matplotvite::{Axes, Figure, GridOptions, LegendOptions, TickParams, ViolinStat};
 use ndarray::array;
 
 const MANIFEST: &str = include_str!("golden/scenes.txt");
@@ -62,6 +62,14 @@ fn build(scene: &Scene) -> Figure {
         "fill_annotate" => {
             let mut axes = figure.subplot(1, 1, 0).unwrap();
             fill_annotate(&mut axes);
+        }
+        "violin" => {
+            let mut axes = figure.subplot(1, 1, 0).unwrap();
+            violin(&mut axes);
+        }
+        "autoscale_margins" => {
+            let mut axes = figure.subplot(1, 1, 0).unwrap();
+            autoscale_margins(&mut axes);
         }
         other => panic!("no Rust builder for golden scene {other}"),
     }
@@ -146,6 +154,51 @@ fn fill_annotate(axes: &mut Axes<'_>) {
         loc: "lower right".to_string(),
         ..Default::default()
     });
+}
+
+fn violin(axes: &mut Axes<'_>) {
+    let coords: Vec<f64> = (0..41).map(|i| f64::from(i) / 10.0).collect();
+    let wide: Vec<f64> = coords
+        .iter()
+        .map(|c| (-(((c - 2.0) / 0.9).powi(2))).exp())
+        .collect();
+    let narrow: Vec<f64> = coords
+        .iter()
+        .map(|c| (-(((c - 1.6) / 0.5).powi(2))).exp())
+        .collect();
+    axes.violin(&[
+        ViolinStat {
+            position: 1.0,
+            width: 0.8,
+            coords: coords.clone(),
+            vals: wide,
+            min: 0.0,
+            max: 4.0,
+        },
+        ViolinStat {
+            position: 2.0,
+            width: 0.8,
+            coords,
+            vals: narrow,
+            min: 0.0,
+            max: 4.0,
+        },
+    ])
+    .unwrap();
+    axes.xticks_with_labels(&[1.0, 2.0], &["alpha", "beta"])
+        .unwrap();
+    axes.yticks(&[0.0, 1.0, 2.0, 3.0, 4.0]);
+    axes.title("Violin plots");
+}
+
+fn autoscale_margins(axes: &mut Axes<'_>) {
+    axes.plot(&[0.0, 1.0, 2.0, 3.0], &[1.0, 3.0, 2.0, 4.0])
+        .unwrap()
+        .color("#1f77b4");
+    axes.margins(0.25, 0.4);
+    axes.xticks(&[-1.0, 0.0, 1.0, 2.0, 3.0, 4.0]);
+    axes.yticks(&[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+    axes.title("Autoscaled margins");
 }
 
 fn decode_rgba(bytes: &[u8]) -> (u32, u32, Vec<u8>) {

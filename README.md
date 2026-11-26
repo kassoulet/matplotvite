@@ -400,8 +400,8 @@ unknown keyword arguments raise `TypeError` instead of being silently ignored.
 ## Coverage
 
 `TRACE.md` splits call sites from matplotlib's own test suite into implemented,
-accepted-and-ignored, and missing APIs — currently **9 178 / 10 098 (90%) implemented**,
-with 632 accepted-and-ignored and 288 missing. CI re-runs the trace against
+accepted-and-ignored, and missing APIs — currently **9 558 / 10 098 (95%) implemented**,
+with 540 accepted-and-ignored and none missing. CI re-runs the trace against
 matplotlib 3.11.2 and fails if implementation coverage drops
 (`tools/trace_unsupported.py --check`).
 
