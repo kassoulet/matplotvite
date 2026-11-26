@@ -81,9 +81,41 @@ and R15 then closed the remaining call-site gaps named by R11–R13.
 | R18 | **Done — violin and autoscale-margin golden scenes.** The shared manifest gains `violin` and `autoscale_margins`, each rendered by both the Python facade and the native builder. `Axes::violin` draws bodies plus extrema bars from precomputed statistics, and `Axes::margins` expands the data span, so both front ends compare the same committed PNGs; both scenes match within an RMS of 0.3. |
 | R16 | **Done — autoscale honors the stored margins.** `Axes.autoscale`/`autoscale_view` enable, disable or leave autoscaling per axis, recompute the view from the data plus `margins()` (with `tight=True` zeroing the margins and `autoscale(False)` freezing the current view), update shared-axis limits, and validate `axis`; `pyplot.autoscale` delegates to it. Pixel tests decode the rendered PNGs for the violin body, its median line and `imsave` PNG/JPEG/TIFF output. TRACE reaches 9497/10098 implemented with 601 accepted and ignored and no missing call sites. |
 
+## Refactoring analysis (26 Nov)
+
+Measured on `main` at `a1cb087`. Behaviour is covered by 590 Python tests, the
+Rust suites, the shared golden scenes and the TRACE gate, so every task below
+is a pure move or simplification: **no task may change rendered output or the
+public surface** (`dir(matplotvite)`, `__all__`, TRACE counts and golden
+images stay identical). Q2 split `Axes` by concern but left everything in one
+13.9k-line module, which is the root of most items here.
+
+Hot spots: `_plotting.py` is 13.9k lines with 433 top-level definitions
+(254 module functions); `Axes` alone is 2126 lines and 238 methods; the Rust
+`Panel` record has 57 public fields, 22 of them x/y pairs; `api.rs` is 1493
+lines and 61 public functions; `tests/test_plt.py` is 5.8k lines and 345 tests.
+
+| # | Task |
+|---|------|
+| F1 | **Open — split `_plotting.py` into modules.** Move leaf code first, then the mixins: `_png.py` (decoder and encoder, ~150 lines, no dependencies), date/unit helpers, tick and locator classes, `_axes_plot.py`, `_axes_stats.py`, `_axes_field.py`, `_axes_decor.py`, `_figure.py`, `_pyplot.py`. Each step keeps `_plotting` re-exporting the moved names. Done when no module exceeds ~2.5k lines, `dir(matplotvite)` and `__all__` are unchanged, `import matplotvite` is not slower, and the TRACE gate and golden scenes pass. |
+| F2 | **Open — replace the mixin typing shim with a real contract.** `_AxesMixinBase.__getattr__` (added with `check_untyped_defs`) makes every mixin attribute typecheck as `Any`, and the `type: ignore[code]` markers from that change hide the rest. Declare the shared surface (`_next_color`, `_append_series`, `_append_band`, `_append_bar`, `_xdate`, `set_xticks`, ...) as a `Protocol` or abstract base, remove the `__getattr__`, then burn the ignores down per module. Turn on `disallow_untyped_defs` for the new F1 modules from day one. |
+| F3 | **Open — generate the pyplot wrappers.** 75 module functions are `return gca().<name>(*args, **kwargs)` or the `gcf()` equivalent, 65 with the same `(*args, **kwargs)` shape. Drive them from one name table (as `_data_method` already does for `data=`), keeping signatures and docstrings for the docs and stubs checks. |
+| F4 | **Open — table-drive the compatibility shims.** 125 one-line `return None` methods and 120 trivial `set_x(self, v): self._x = v` accessors repeat one pattern. Use a small descriptor or declaration table, and have it also feed the "accepted but ignored" warning and the TRACE accepted list so the three cannot drift apart. |
+| F5 | **Open — break up the long functions.** `streamplot` (169 lines), `boxplot` (158 lines, 27 parameters), `violin` (128), `hist` (128), `violinplot` (115), `hexbin` (112), `savefig` (106), `bxp` (99). Split each into pure validation, pure geometry and drawing. The pure geometry functions can be unit-tested without a figure and are candidates for F6. |
+| F6 | **Open — one source for violin and margins geometry.** `Axes.violin` in Python (128 lines) and `Axes::violin` in Rust each build the mirrored outline and the extrema bars, and the golden scene is the only thing keeping them equal. Put the geometry in `matplotvite-core` (for example `stats::violin_outline`) and call it from both front ends; do the same for the margin arithmetic. Python and Rust validation rules (finite, non-negative, equal lengths) should come from the same function. |
+| F7 | **Open — slim the Rust builder and the `Panel` record.** Split `api.rs` by artist family (plot, field, axis, figure); add private `push_series`/`push_band` helpers for the 18 repeated `OwnedArray1::from(x.to_vec())` blocks and the `Series { ..Default::default() }` literals. Group the 22 paired x/y fields of `Panel` into an `AxisSpec` held twice, which also removes the copy-paste between `set_xlim`/`set_ylim`-style methods. |
+| F8 | **Open — mirror the module split in the tests.** Split `tests/test_plt.py` (5.8k lines, 345 tests) by area to match F1, share fixtures, and keep the golden, TRACE, API-surface and PNG fuzz tests as they are. |
+| F9 | **Open — one sandbox runner for the tools.** `mpl_render.py`, `gallery_render.py` and `visual_compare.py` each `exec` repository snippets with their own `# nosec`, and only `mpl_render.py` isolates them in a child process with a timeout. Extract that runner into one module and use it in all three, so the security-sensitive pattern lives in one reviewed place. Also split the three 680 to 1200 line tools (`build_pages.py`, `pages_assets.py`, `benchmark.py`) the way Q8 split the harvester. |
+| F10 | **Open — finish the coercion helpers.** `_as_f64` exists (35 uses) but 78 call sites still spell `np.asarray(..., dtype=float).ravel()`, and 81 `ValueError(f"...")` sites word the same argument errors differently. Migrate the call sites to `_as_f64`, add a shared `_check_same_length`-style helper, and keep the Rust-side messages aligned. |
+| F11 | **Open — ratchet the lint exceptions.** Ruff ignores `PERF401`, `PERF203` and `SIM108`; mypy is not `strict`. As F1 produces smaller modules, remove those ignores and enable stricter mypy options module by module, so the exceptions shrink instead of persisting. |
+
+Suggested order: F10 and F4 (low risk, shrink the surface), F1 with F2 and F3
+(the structural change), then F6 and F7 (Rust and Python together), F5, F8,
+F9 and F11.
+
 ## Status
 
-No review findings remain open. The 23 Nov re-audit is complete: the facade
+No security or parity findings remain open; the F1–F11 refactoring tasks above are proposals. The 23 Nov re-audit is complete: the facade
 introspection fix (R10), Figure state accessors (R11), Axes state accessors
 (R12), Axes hit-testing/cursor formatting (R13), the remaining Axes APIs (R14)
 and the Figure/pyplot coverage (R15) lift the TRACE report from 9178/10098 to
