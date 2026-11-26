@@ -36,3 +36,34 @@ jobs:
       - uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           sarif_file: results.sarif
+
+  report:
+    name: Scorecard report
+    needs: analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: scorecard-results
+          path: scorecard
+      # SARIF is a machine format, so render a page people can open and put a
+      # per-check table on the run page as well.
+      - name: Render the readable report
+        run: |
+          python tools/scorecard_report.py scorecard/results.sarif \
+            --out dist/scorecard --repository "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          cp scorecard/results.sarif dist/scorecard/results.sarif
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-report
+          path: dist/scorecard
+          retention-days: 30
