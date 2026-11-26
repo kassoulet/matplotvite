@@ -174,7 +174,7 @@ def _norm_color(c):
             and not all(isinstance(v, (int, float, np.number)) for v in c)):
         return _with_alpha(_norm_color(c[0]), c[1])
     if isinstance(c, (tuple, list, np.ndarray)):
-        vals = [float(v) for v in np.asarray(c, dtype=float).ravel()]
+        vals = [float(v) for v in _as_f64(c)]
         if len(vals) not in (3, 4):
             raise ValueError("a colour tuple needs 3 (RGB) or 4 (RGBA) values")
         if any(not 0.0 <= v <= 1.0 for v in vals):
@@ -1192,7 +1192,7 @@ def _update_extent(ext, values):
     if isinstance(values, np.ndarray) and values.dtype.kind == "f" and values.ndim == 1:
         arr = values
     else:
-        arr = np.asarray(values, dtype=float).ravel()
+        arr = _as_f64(values)
     if arr.size:
         fin = arr[np.isfinite(arr)]
         if fin.size:
@@ -1899,7 +1899,7 @@ class _ScatterHandle:
     def get_sizes(self): return self._e["sizes"]
 
     def set_sizes(self, sizes):
-        self._e["sizes"] = np.ascontiguousarray(np.asarray(sizes, dtype=np.float64).ravel())
+        self._e["sizes"] = np.ascontiguousarray(_as_f64(sizes))
         return self
 
     def set_markerfacecolor(self, color):
@@ -1931,7 +1931,7 @@ class _ScatterHandle:
         values = self._e["values"] if prop == "colors" else self._e["sizes"]
         if values is None:
             values = np.arange(np.asarray(self._e["x"]).size)
-        vals = np.asarray(values, dtype=float).ravel()
+        vals = _as_f64(values)
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
             return [], []
@@ -1955,7 +1955,7 @@ class _ScatterHandle:
         values = self._e["values"]
         if values is None:
             raise ValueError("scatter needs numeric c values for a colorbar")
-        vals = np.asarray(values, dtype=float).ravel()
+        vals = _as_f64(values)
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
             raise ValueError("scatter has no finite c values for a colorbar")
@@ -2232,7 +2232,7 @@ def _numbers(value):
     if isinstance(value, (int, float, np.number)):
         return [float(value)]
     try:
-        return [float(v) for v in np.asarray(value, dtype=float).ravel()]
+        return [float(v) for v in _as_f64(value)]
     except (TypeError, ValueError):
         return []
 
@@ -2730,9 +2730,9 @@ class Annulus(Patch):
     def __init__(self, xy, r, width, angle=0.0, **kwargs):
         super().__init__(**kwargs)
         self._center = (float(xy[0]), float(xy[1]))
-        self._r = max(float(v) for v in np.asarray(r, dtype=float).ravel())
+        self._r = max(float(v) for v in _as_f64(r))
         self._semiminor = None
-        self._width = max(float(v) for v in np.asarray(width, dtype=float).ravel())
+        self._width = max(float(v) for v in _as_f64(width))
         self.angle = float(angle)
 
     @property
@@ -2770,8 +2770,8 @@ class StepPatch(Patch):
 
     def __init__(self, values, edges, orientation="vertical", baseline=0.0, **kwargs):
         super().__init__(**kwargs)
-        self._values = np.asarray(values, dtype=float).ravel()
-        self._edges = np.asarray(edges, dtype=float).ravel()
+        self._values = _as_f64(values)
+        self._edges = _as_f64(edges)
         if self._edges.size != self._values.size + 1:
             raise ValueError("edges must have len(values) + 1 entries")
         self._orientation, self._baseline = str(orientation), float(baseline)
@@ -2973,7 +2973,7 @@ class Collection:
         values = self._array
         if values is None:
             raise ValueError("collection needs an array for a colorbar")
-        vals = np.asarray(values, dtype=float).ravel()
+        vals = _as_f64(values)
         vals = vals[np.isfinite(vals)]
         if not vals.size:
             raise ValueError("collection has no finite values for a colorbar")
@@ -3000,7 +3000,7 @@ class Collection:
 class LineCollection(Collection):
     def __init__(self, segments, colors=None, linewidths=None, label="", **kwargs):
         if colors is None and kwargs.get("array") is not None:
-            values = np.asarray(kwargs["array"], dtype=float).ravel()
+            values = _as_f64(kwargs["array"])
             finite = values[np.isfinite(values)]
             lo = float(finite.min()) if finite.size else 0.0
             hi = float(finite.max()) if finite.size else 1.0
@@ -3060,7 +3060,7 @@ class RegularPolyCollection(LineCollection):
         for i, offset in enumerate(offsets):
             size = float(sizes[i % len(sizes)]) if sizes else 1.0
             radius = max(np.sqrt(abs(size)) / 100.0, 0.01)
-            points = base * radius + np.asarray(offset, dtype=float).ravel()[:2]
+            points = base * radius + _as_f64(offset)[:2]
             segments.append(np.vstack([points, points[:1]]))
         super().__init__(segments, **kwargs)
 
@@ -3161,7 +3161,7 @@ class PatchCollection(LineCollection):
 
 class EventCollection(LineCollection):
     def __init__(self, positions, orientation="horizontal", lineoffset=0, linelength=1, **kwargs):
-        self._positions = np.asarray(positions, dtype=float).ravel().copy()
+        self._positions = _as_f64(positions).copy()
         self._orientation = orientation
         self._lineoffset = float(lineoffset)
         self._linelength = float(linelength)
@@ -3217,10 +3217,10 @@ class EventCollection(LineCollection):
         return self
     def add_positions(self, positions): return self.append_positions(positions)
     def set_positions(self, positions):
-        self._positions = np.asarray(positions, dtype=float).ravel().copy()
+        self._positions = _as_f64(positions).copy()
         return self._refresh()
     def append_positions(self, positions):
-        self._positions = np.append(self._positions, np.asarray(positions, dtype=float).ravel())
+        self._positions = np.append(self._positions, _as_f64(positions))
         return self._refresh()
     def extend_positions(self, positions): return self.append_positions(positions)
     def set_orientation(self, orientation):
@@ -3332,8 +3332,8 @@ class Line2D:
     def get_transform(self): return getattr(self, "_transform", _Transform())
     def get_path(self):
         return Path(np.column_stack([
-            np.asarray(self._series["x"], dtype=float).ravel(),
-            np.asarray(self._series["y"], dtype=float).ravel()]))
+            _as_f64(self._series["x"]),
+            _as_f64(self._series["y"])]))
     def set_transform(self, transform): self._transform = transform; return self
     def set_agg_filter(self, value): return self
     def set_rasterized(self, value): return self
@@ -3844,7 +3844,7 @@ class _GroupedBarResult:
 def _spectral_estimates(x, y=None, NFFT=256, Fs=2.0, Fc=0.0, window=None,
                         noverlap=None, pad_to=None):
     """One-sided periodogram estimates used by the signal-processing helpers."""
-    x = np.asarray(x, dtype=np.float64).ravel()
+    x = _as_f64(x)
     nfft = max(int(NFFT), 2)
     if x.size < nfft:
         raise ValueError("the signal must be at least NFFT samples long")
@@ -3861,9 +3861,8 @@ def _spectral_estimates(x, y=None, NFFT=256, Fs=2.0, Fc=0.0, window=None,
     pxx = np.mean(np.abs(fx) ** 2, axis=0) / norm
     if y is None:
         return pxx, freqs
-    y = np.asarray(y, dtype=np.float64).ravel()
-    if y.size != x.size:
-        raise ValueError("x and y must have the same length")
+    y = _as_f64(y)
+    _check_same_length(y, x)
     py = np.stack([y[i:i + nfft] * taper
                    for i in range(0, y.size - nfft + 1, step)])
     fy = np.fft.rfft(py, n=size, axis=1)
@@ -3964,7 +3963,7 @@ class _PlotAxes(_AxesMixinBase):
                  scale_by_freq=None, mode=None, scale=None, vmin=None, vmax=None,
                  **kwargs):
         """Windowed FFT magnitude, drawn as an image; returns (Pxx, freqs, bins, image)."""
-        data = np.asarray(x, dtype=np.float64).ravel()
+        data = _as_f64(x)
         fs = 2.0 if Fs is None else float(Fs)
         nfft = max(int(NFFT), 2)
         step = nfft - (nfft // 2 if noverlap is None else int(noverlap))
@@ -4033,7 +4032,7 @@ class _PlotAxes(_AxesMixinBase):
     def angle_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
                        sides="default", **kwargs):
         """Plot the wrapped phase spectrum of a signal."""
-        x = np.asarray(x, dtype=np.float64).ravel()
+        x = _as_f64(x)
         taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
         spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
         freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
@@ -4044,7 +4043,7 @@ class _PlotAxes(_AxesMixinBase):
     def phase_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
                        sides="default", **kwargs):
         """Plot the unwrapped phase spectrum of a signal."""
-        x = np.asarray(x, dtype=np.float64).ravel()
+        x = _as_f64(x)
         taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
         spectrum = np.fft.rfft(x * taper, n=max(int(pad_to or x.size), x.size))
         freqs = np.fft.rfftfreq(spectrum.size * 2 - 1, d=1.0 / float(Fs)) + float(Fc)
@@ -4054,10 +4053,9 @@ class _PlotAxes(_AxesMixinBase):
 
     def xcorr(self, x, y, normed=False, maxlags=10, usevlines=True, **kwargs):
         """Plot the cross-correlation of two signals."""
-        x = np.asarray(x, dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
+        x = _as_f64(x)
+        y = _as_f64(y)
+        _check_same_length(x, y)
         maxlags = x.size - 1 if maxlags is None else max(int(maxlags), 0)
         corr = np.correlate(x, y, mode="full")[x.size - 1 - maxlags:
                                                 x.size + maxlags]
@@ -4078,11 +4076,11 @@ class _PlotAxes(_AxesMixinBase):
     def ecdf(self, x, weights=None, complementary=False, orientation="vertical",
              **kwargs):
         """Plot the empirical cumulative distribution function of a sample."""
-        x = np.sort(np.asarray(x, dtype=np.float64).ravel())
+        x = np.sort(_as_f64(x))
         if weights is None:
             y = np.arange(1, x.size + 1) / max(x.size, 1)
         else:
-            w = np.asarray(weights, dtype=np.float64).ravel()
+            w = _as_f64(weights)
             if w.size != x.size:
                 raise ValueError("weights must match the sample size")
             y = np.cumsum(w) / max(w.sum(), 1e-20)
@@ -4125,7 +4123,7 @@ class _PlotAxes(_AxesMixinBase):
                     datasets = [candidate]
             except (TypeError, ValueError):
                 # Ragged sample sizes are the usual multi-histogram input.
-                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
+                datasets = [_as_f64(item) for item in x]
         elif isinstance(x, np.ndarray) and x.ndim == 2:
             datasets = list(x)
         if datasets is not None and len(datasets) > 1 and not stacked:
@@ -4184,7 +4182,7 @@ class _PlotAxes(_AxesMixinBase):
                 running = running + count
             return counts_list, edges, handles
         data = (datasets[0] if datasets is not None and len(datasets) == 1
-                else np.asarray(x, dtype=np.float64).ravel())
+                else _as_f64(x))
         counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
                                      density=bool(density))
         if cumulative:
@@ -4357,7 +4355,7 @@ class _PlotAxes(_AxesMixinBase):
     def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
                      alpha=None, label="", step=None, **kwargs):
         """Fill between two curves; `where` masks split the area into runs."""
-        x = np.asarray(self._xdate(x), dtype=np.float64).ravel()
+        x = _as_f64(self._xdate(x))
         a, b = _fill(y1, x.size), _fill(y2, x.size)
         c = color if color is not None else self._next_color(patch=True)
         for xs, ya, yb in _runs(x, a, b, where):
@@ -4435,8 +4433,7 @@ class _PlotAxes(_AxesMixinBase):
             x, y, s, c = column(x), column(y), column(s), column(c)
         x = _as_f64(self._xdate(x))
         y = _as_f64(self._ydate(y))
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
+        _check_same_length(x, y)
         n = y.size
         values, colors = _scatter_colors(c if c is not None else self._next_color(patch=True), n)
         if norm is not None and values is not None:
@@ -4456,8 +4453,7 @@ class _PlotAxes(_AxesMixinBase):
         error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
         x = _as_f64(self._xdate(x))
         y = _as_f64(y)
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
+        _check_same_length(x, y)
         n = y.size
         ylo, yhi = _err_pair(yerr, n, "yerr")
         xlo, xhi = _err_pair(xerr, n, "xerr")
@@ -4489,7 +4485,7 @@ class _PlotAxes(_AxesMixinBase):
             rows = list(rows)
         elif not isinstance(rows, (list, tuple)) or (len(rows) and np.isscalar(rows[0])):
             rows = [rows]
-        rows = [np.asarray(r, dtype=np.float64).ravel() for r in rows]
+        rows = [_as_f64(r) for r in rows]
         if not rows:
             return None
         n = len(rows)
@@ -4558,7 +4554,7 @@ class _PlotAxes(_AxesMixinBase):
     def hlines(self, y, xmin, xmax, colors=None, linestyles=None, linewidths=None,
                label="", **kwargs):
         """Horizontal segments from `xmin` to `xmax` at every `y`."""
-        ys = np.asarray(y, dtype=np.float64).ravel()
+        ys = _as_f64(y)
         lo, hi = _fill(self._xdate(xmin), ys.size), _fill(self._xdate(xmax), ys.size)
         cols, styles = _line_colors(colors, ys.size), _line_styles(linestyles, ys.size)
         widths = _fill(linewidths, ys.size) if linewidths is not None else None
@@ -4573,7 +4569,7 @@ class _PlotAxes(_AxesMixinBase):
     def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
                label="", **kwargs):
         """Vertical segments from `ymin` to `ymax` at every `x`."""
-        xs = np.asarray(self._xdate(x), dtype=np.float64).ravel()
+        xs = _as_f64(self._xdate(x))
         lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
         cols, styles = _line_colors(colors, xs.size), _line_styles(linestyles, xs.size)
         widths = _fill(linewidths, xs.size) if linewidths is not None else None
@@ -4589,15 +4585,14 @@ class _PlotAxes(_AxesMixinBase):
              orientation="vertical", **kwargs):
         """Stem plot: one segment per point plus a marker at the tip."""
         if len(args) == 1:
-            y = np.asarray(args[0], dtype=np.float64).ravel()
+            y = _as_f64(args[0])
             x = np.arange(y.size, dtype=np.float64)
         elif len(args) == 2:
-            x = np.asarray(self._xdate(args[0]), dtype=np.float64).ravel()
-            y = np.asarray(args[1], dtype=np.float64).ravel()
+            x = _as_f64(self._xdate(args[0]))
+            y = _as_f64(args[1])
         else:
             raise TypeError("stem expects y or x, y")
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
+        _check_same_length(x, y)
         if orientation not in ("vertical", "horizontal"):
             raise ValueError(f"unsupported orientation: {orientation!r}")
         colour, style, _ = _stem_fmt(linefmt)
@@ -4631,7 +4626,7 @@ class _PlotAxes(_AxesMixinBase):
     def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
             normalize=True, shadow=False, **kwargs):
         """Pie chart drawn as filled wedges; returns `(wedges, texts, autotexts)`."""
-        values = np.asarray(x, dtype=np.float64).ravel()
+        values = _as_f64(x)
         if values.size == 0 or np.any(values < 0):
             raise ValueError("pie values must be non-negative")
         total = float(values.sum())
@@ -4679,7 +4674,7 @@ class _PlotAxes(_AxesMixinBase):
         if baseline not in ("zero", "sym", "wiggle", "weighted_wiggle"):
             raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
         wiggle = baseline in ("wiggle", "weighted_wiggle")
-        x = np.asarray(x, dtype=np.float64).ravel()
+        x = _as_f64(x)
         layers = []  # type: ignore[var-annotated]
         for y in ys:
             a = np.asarray(_as_list(y), dtype=np.float64)
@@ -4708,8 +4703,7 @@ class _PlotAxes(_AxesMixinBase):
             cum = np.zeros(x.size)
         data_lo = data_hi = 0.0
         for i, layer in enumerate(layers):
-            if layer.size != x.size:
-                raise ValueError("x and y must have the same length")
+            _check_same_length(layer, x)
             colour = cols[i % len(cols)] if cols else _CYCLE[i % len(_CYCLE)]
             lab = str(labels[i]) if i < len(labels) else ""
             self.fill_between(x, cum, cum + layer, color=colour, alpha=alpha, label=lab)
@@ -4743,11 +4737,11 @@ class _PlotAxes(_AxesMixinBase):
     def stairs(self, values, edges=None, baseline=0.0, orientation="vertical", fill=False,
                color=None, label="", **kwargs):
         """Step chart from bin `values` and `edges` (one longer than `values`)."""
-        v = np.asarray(values, dtype=np.float64).ravel()
+        v = _as_f64(values)
         if edges is None:
             e = np.arange(v.size + 1.0)
         else:
-            e = np.asarray(edges, dtype=np.float64).ravel()
+            e = _as_f64(edges)
             if e.size != v.size + 1:
                 raise ValueError("edges must have len(values) + 1 entries")
         if orientation not in ("vertical", "horizontal"):
@@ -4770,7 +4764,7 @@ class _PlotAxes(_AxesMixinBase):
         face = kwargs.pop("facecolor", kwargs.pop("fc", None)) or color
         base = baseline
         if not np.isscalar(baseline):
-            base = np.repeat(np.asarray(baseline, dtype=float).ravel(), 2)
+            base = np.repeat(_as_f64(baseline), 2)
         if orientation == "vertical":
             self.fill_between(xs, ys, base, color=face, alpha=alpha, label=label)
         else:
@@ -4844,7 +4838,7 @@ class _StatsAxes(_AxesMixinBase):
             labels = tick_labels
         out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])  # type: ignore[var-annotated]
         for i, raw in enumerate(groups):
-            vals = np.asarray(raw, dtype=np.float64).ravel()
+            vals = _as_f64(raw)
             vals = vals[np.isfinite(vals)]
             if vals.size == 0:
                 raise ValueError("boxplot datasets must not be empty")
@@ -5022,7 +5016,7 @@ class _StatsAxes(_AxesMixinBase):
                 else:
                     out["means"].append(self._stats_line(
                         [mean, mean], [loc - half, loc + half], mean_color))
-            fliers = np.asarray(stat.get("fliers", []), dtype=float).ravel()
+            fliers = _as_f64(stat.get("fliers", []))
             if showfliers and fliers.size:
                 if orientation == "vertical":
                     self.scatter(np.full(fliers.size, loc), fliers, s=36,
@@ -5091,7 +5085,7 @@ class _StatsAxes(_AxesMixinBase):
                 for q in quantiles
             ]
         for i, raw in enumerate(groups):
-            vals = np.asarray(raw, dtype=np.float64).ravel()
+            vals = _as_f64(raw)
             vals = vals[np.isfinite(vals)]
             if vals.size == 0:
                 raise ValueError("violinplot datasets must not be empty")
@@ -5237,8 +5231,8 @@ class _StatsAxes(_AxesMixinBase):
             if _looks_like_dates(coords):
                 coords = np.atleast_1d(_date_to_num(coords)).astype(float)
             else:
-                coords = np.asarray(coords, dtype=float).ravel()
-            vals = np.asarray(stat["vals"], dtype=float).ravel()
+                coords = _as_f64(coords)
+            vals = _as_f64(stat["vals"])
             if vals.size != coords.size:
                 raise ValueError("violin `coords` and `vals` must have the same length")
             if vals.size and vals.max() > 0.0:
@@ -5453,10 +5447,9 @@ class _FieldAxes(_AxesMixinBase):
         if data is not None:
             x = data[x] if isinstance(x, str) else x
             y = data[y] if isinstance(y, str) else y
-        x = np.asarray(x, dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
+        x = _as_f64(x)
+        y = _as_f64(y)
+        _check_same_length(x, y)
         bins = _validate_bins(bins, max_cells=_MAX_BIN_CELLS)
         counts, xedges, yedges = np.histogram2d(
             x, y, bins=bins, range=range, density=bool(density), weights=weights)
@@ -5476,10 +5469,9 @@ class _FieldAxes(_AxesMixinBase):
             x = data[x] if isinstance(x, str) else x
             y = data[y] if isinstance(y, str) else y
             C = data[C] if isinstance(C, str) else C
-        x = np.asarray(x, dtype=np.float64).ravel()
-        y = np.asarray(y, dtype=np.float64).ravel()
-        if x.size != y.size:
-            raise ValueError("x and y must have the same length")
+        x = _as_f64(x)
+        y = _as_f64(y)
+        _check_same_length(x, y)
         if x.size == 0:
             handle = Collection(colors=[])
             self.add_collection(handle)
@@ -5540,7 +5532,7 @@ class _FieldAxes(_AxesMixinBase):
         if C is None:
             values = counts.copy()
         else:
-            weights = np.asarray(C, dtype=np.float64).ravel()
+            weights = _as_f64(C)
             if weights.size != x.size:
                 raise ValueError("C must have one value per point")
             sums = np.bincount(cell, weights=weights[valid], minlength=total)
@@ -5615,7 +5607,7 @@ class _FieldAxes(_AxesMixinBase):
                 seeds = seeds.T
             seeds = seeds[:, :2]
         else:
-            dens = np.asarray(density, dtype=float).ravel()
+            dens = _as_f64(density)
             if dens.size == 1:
                 dens = np.repeat(dens, 2)
             nx = max(2, int(round((xs.size - 1) / 10.0 * dens[0])))
@@ -5959,7 +5951,7 @@ class _FieldAxes(_AxesMixinBase):
         """Pseudocolour of an unstructured triangular grid."""
         triangulation, z, _ = _tri_args(args)
         if z is None and facecolors is not None:
-            values = np.asarray(facecolors, dtype=float).ravel()
+            values = _as_f64(facecolors)
             totals = np.zeros(len(triangulation.x))
             counts = np.zeros(len(triangulation.x))
             for tri, value in zip(triangulation.get_masked_triangles(), values):
@@ -5985,7 +5977,7 @@ class _FieldAxes(_AxesMixinBase):
         elif np.isscalar(linewidths):
             widths = [float(linewidths)]
         else:
-            widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
+            widths = [float(v) for v in _as_f64(linewidths)]
         if widths and len(widths) not in (1, len(levels)):
             # Matplotlib cycles the sequence across levels.
             widths = [widths[i % len(widths)] for i in range(len(levels))]
@@ -7403,7 +7395,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return None
         lo, hi = self.get_xlim() if axis == "x" else self.get_ylim()
         try:
-            ticks = np.asarray(locator.tick_values(lo, hi), dtype=float).ravel()
+            ticks = _as_f64(locator.tick_values(lo, hi))
         except (AttributeError, TypeError, ValueError):
             return None
         ticks = ticks[np.isfinite(ticks)]
@@ -8704,6 +8696,12 @@ def _line_styles(styles, n):
     return vals
 
 
+def _check_same_length(a, b, message="x and y must have the same length"):
+    """Raise the axis-length error shared by the plotting helpers."""
+    if a.size != b.size:
+        raise ValueError(message)
+
+
 def _as_f64(v):
     arr = np.asarray(_as_list(v))
     if arr.dtype.kind == "O":
@@ -8738,10 +8736,9 @@ def _band(xs, ys, color, alpha, label=""):
 
 def _mid_steps(x, y):
     """Expand a line into matplotlib's `steps-mid` vertex sequence."""
-    x_arr = np.asarray(x, dtype=np.float64).ravel()
-    y_arr = np.asarray(y, dtype=np.float64).ravel()
-    if x_arr.size != y_arr.size:
-        raise ValueError("x and y must have the same length")
+    x_arr = _as_f64(x)
+    y_arr = _as_f64(y)
+    _check_same_length(x_arr, y_arr)
     if x_arr.size < 2:
         return x_arr, y_arr
     x_mid = (x_arr[:-1] + x_arr[1:]) / 2.0
@@ -8788,14 +8785,14 @@ def _box_datasets(x):
     if isinstance(x, np.ndarray):
         if x.ndim == 2:
             return [x[:, i].astype(np.float64) for i in range(x.shape[1])]
-        return [np.asarray(x, dtype=np.float64).ravel()]
+        return [_as_f64(x)]
     if isinstance(x, (list, tuple)):
         if len(x) == 0:
             return []
         if np.asarray(x[0]).ndim == 0:
-            return [np.asarray(x, dtype=np.float64).ravel()]
-        return [np.asarray(v, dtype=np.float64).ravel() for v in x]
-    return [np.asarray(x, dtype=np.float64).ravel()]
+            return [_as_f64(x)]
+        return [_as_f64(v) for v in x]
+    return [_as_f64(x)]
 
 
 def _boxplot_stats(x, whis=1.5, bootstrap=None, labels=None, autorange=False):
@@ -8809,7 +8806,7 @@ def _boxplot_stats(x, whis=1.5, bootstrap=None, labels=None, autorange=False):
         names = [str(v) for v in labels]
     stats = []
     for index, raw in enumerate(groups):
-        vals = np.asarray(raw, dtype=np.float64).ravel()
+        vals = _as_f64(raw)
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
             raise ValueError("boxplot datasets must not be empty")
@@ -8836,7 +8833,7 @@ def _boxplot_stats(x, whis=1.5, bootstrap=None, labels=None, autorange=False):
 
 def _kde(values, points=100, bw_method=None):
     """Gaussian KDE on a regular grid, with Scott/Silverman or scalar bandwidth."""
-    vals = np.asarray(values, dtype=np.float64).ravel()
+    vals = _as_f64(values)
     vals = vals[np.isfinite(vals)]
     if vals.size == 0:
         raise ValueError("a KDE needs at least one finite value")
@@ -8867,7 +8864,7 @@ def _kde(values, points=100, bw_method=None):
 
 def _cmap_colors(cmap, values):
     """Map normalised values through any registered colormap to hex colours."""
-    arr = np.asarray(values, dtype=np.float64).ravel()
+    arr = _as_f64(values)
     clean = np.where(np.isfinite(arr), arr, 0.0)
     rgb = np.asarray(get_cmap(cmap)(clean, bytes=True))[:, :3]
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
@@ -8921,7 +8918,7 @@ def _scatter_colors(c, n):
         return None, [_norm_color(seq[i % len(seq)]) for i in range(n)]
     a = np.asarray(c)
     if a.dtype.kind in "fiu":
-        v = np.asarray(a, dtype=np.float64).ravel()
+        v = _as_f64(a)
         if v.size == 1:
             v = np.full(n, float(v[0]))
         if v.size != n:
@@ -9004,7 +9001,7 @@ def _levels(z, levels, allow_single=False, locator=None):
     if not hi > lo:
         hi = lo + 1.0
     if locator is not None and levels is None:
-        values = np.asarray(locator.tick_values(lo, hi), dtype=float).ravel()
+        values = _as_f64(locator.tick_values(lo, hi))
         values = values[np.isfinite(values)]
         if isinstance(locator, _LogLocator) and values.size:
             base = locator.base if locator.base > 1.0 else 10.0
@@ -9059,7 +9056,7 @@ def _tri_args(args):
 
 def _tri_field(triangulation, z, resolution=100):
     """Sample a triangular field on a rectilinear grid for the contour path."""
-    values = np.asarray(z, dtype=float).ravel()
+    values = _as_f64(z)
     if values.size != len(triangulation.x):
         raise ValueError("z must have one value per triangulation point")
     xi = np.linspace(float(np.min(triangulation.x)),
@@ -9167,7 +9164,7 @@ def _contour_label_colour(entry, index, level):
     levels = entry["levels"]
     lo, hi = float(levels[0]), float(levels[-1])
     t = (level - lo) / (hi - lo) if hi > lo else 0.5
-    rgb = np.asarray(get_cmap(entry.get("cmap"))(t), dtype=float).ravel()[:3]
+    rgb = _as_f64(get_cmap(entry.get("cmap"))(t))[:3]
     return "#{:02x}{:02x}{:02x}".format(*tuple(int(round(float(v) * 255)) for v in rgb))
 
 
@@ -9227,7 +9224,7 @@ class ContourSet:
         if levels is None or segments is None:
             raise TypeError("ContourSet needs levels and paths")
         allkinds = args[0] if args else kwargs.pop("allkinds", None)
-        levels = [float(v) for v in np.asarray(levels, dtype=float).ravel()]
+        levels = [float(v) for v in _as_f64(levels)]
         filled = bool(kwargs.get("filled", False))
         if not levels or (len(levels) < 2 and filled):
             raise ValueError("ContourSet needs at least two levels when filled")
@@ -9260,7 +9257,7 @@ class ContourSet:
             value = levels[min(index, len(levels) - 1)]
         lo, hi = levels[0], levels[-1]
         t = (value - lo) / (hi - lo) if hi > lo else 0.5
-        rgb = np.asarray(get_cmap(self._e["cmap"])(t), dtype=float).ravel()[:3]
+        rgb = _as_f64(get_cmap(self._e["cmap"])(t))[:3]
         return "#{:02x}{:02x}{:02x}".format(*tuple(int(round(float(v) * 255)) for v in rgb))
 
     def _manual_linewidth(self, index):
@@ -9497,8 +9494,8 @@ class NonUniformImage:
         self._data = None
 
     def set_data(self, x, y, z):
-        self._x = np.asarray(x, dtype=float).ravel()
-        self._y = np.asarray(y, dtype=float).ravel()
+        self._x = _as_f64(x)
+        self._y = _as_f64(y)
         self._data = np.asarray(z, dtype=float)
         if self._data.shape != (self._y.size, self._x.size):
             raise ValueError("z must have shape (len(y), len(x))")
@@ -9820,7 +9817,7 @@ class _ColorbarAxes:
         low = kwargs.pop(f"{axis}min", low)
         high = kwargs.pop(f"{axis}max", high)
         if high is None and low is not None:
-            candidate = np.asarray(low, dtype=float).ravel()
+            candidate = _as_f64(low)
             if candidate.size == 2:
                 low, high = candidate
         current = self.get_xlim() if axis == "x" else self.get_ylim()
@@ -9896,7 +9893,7 @@ def _resolve_colorbar_extendfrac(value, boundaries, extend):
             raise ValueError(f"invalid extendfrac: {value!r}")
         if boundaries is None:
             return 0.05
-        bounds = np.asarray(boundaries, dtype=float).ravel()
+        bounds = _as_f64(boundaries)
         bounds = bounds[np.isfinite(bounds)]
         if bounds.size < 2:
             return 0.05
@@ -9953,7 +9950,7 @@ class Colorbar:
         if bounds is None and hasattr(norm, "boundaries"):
             bounds = norm.boundaries
         if bounds is not None:
-            values_arr = np.asarray(bounds, dtype=float).ravel()
+            values_arr = _as_f64(bounds)
             values_arr = values_arr[np.isfinite(values_arr)]
         else:
             values_arr = np.array([], dtype=float)
@@ -11575,7 +11572,7 @@ class _ListedColormap:
 
 def from_levels_and_colors(levels, colors, extend="neither"):
     """A `(cmap, norm)` pair for discrete levels, as `colors.from_levels_and_colors`."""
-    boundaries = np.asarray(levels, dtype=float).ravel()
+    boundaries = _as_f64(levels)
     if boundaries.size < 2:
         raise ValueError("levels needs at least two boundaries")
     palette = [_norm_color(c) for c in colors]
@@ -12075,7 +12072,7 @@ class _FixedLocator(_Locator):
     """Ticks exactly at `locs`."""
 
     def __init__(self, locs, **kwargs):
-        self.locs = np.asarray(locs, dtype=float).ravel()
+        self.locs = _as_f64(locs)
 
     def tick_values(self, vmin, vmax): return self.locs
     def __call__(self, vmin=None, vmax=None): return self.locs
@@ -13054,8 +13051,8 @@ class PolarAxes(Axes):
                     values.append(args[i])
                     i += 1
                     continue
-                x = np.asarray(args[i], dtype=float).ravel()
-                y = np.asarray(args[i + 1], dtype=float).ravel()
+                x = _as_f64(args[i])
+                y = _as_f64(args[i + 1])
                 if x.size and (x[0] != x[-1] or y[0] != y[-1]):
                     x, y = np.append(x, x[0]), np.append(y, y[0])
                 values.extend((x, y))
@@ -13136,8 +13133,8 @@ class PolarAxes(Axes):
 
     def _polar_segments(self, theta, radius):
         """Split a theta/r path into the pieces inside the theta limits."""
-        theta = np.asarray(theta, dtype=float).ravel()
-        radius = np.asarray(radius, dtype=float).ravel()
+        theta = _as_f64(theta)
+        radius = _as_f64(radius)
         if theta.size != radius.size:
             theta, radius = np.broadcast_arrays(theta, radius)
             theta, radius = theta.ravel(), radius.ravel()
@@ -13222,7 +13219,7 @@ class PolarAxes(Axes):
 
     def set_rlim(self, bottom=None, top=None, **kwargs):
         if top is None and bottom is not None:
-            values = np.asarray(bottom, dtype=float).ravel()
+            values = _as_f64(bottom)
             if values.size == 2:
                 bottom, top = values
         if bottom is not None:
@@ -13250,7 +13247,7 @@ class PolarAxes(Axes):
     def get_rscale(self): return self.yscale
 
     def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kwargs):
-        radii = [float(v) for v in np.asarray(radii, dtype=float).ravel()]
+        radii = [float(v) for v in _as_f64(radii)]
         if labels is None and fmt is not None:
             labels = [fmt % r for r in radii]
         self._polar_rgrids = radii
@@ -13264,7 +13261,7 @@ class PolarAxes(Axes):
         return self.set_rgrids(ticks, labels=labels)
 
     def set_thetagrids(self, angles, labels=None, fmt=None, **kwargs):
-        angles = [float(v) for v in np.asarray(angles, dtype=float).ravel()]
+        angles = [float(v) for v in _as_f64(angles)]
         if labels is None and fmt is not None:
             labels = [fmt % a for a in angles]
         self._polar_thetagrids = angles
@@ -13368,7 +13365,7 @@ class Axes3D(Axes):
     def set_ylim3d(self, *args, **kwargs): return self.set_ylim(*args, **kwargs)
     def set_zlim3d(self, bottom=None, top=None, **kwargs):
         if top is None and bottom is not None:
-            values = np.asarray(bottom, dtype=float).ravel()
+            values = _as_f64(bottom)
             if values.size == 2:
                 bottom, top = values
         self._zlim = (0.0 if bottom is None else float(bottom),
