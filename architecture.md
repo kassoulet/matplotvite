@@ -66,7 +66,8 @@ its optional `python` feature for the extraction traits.
 | Path | Responsibility |
 |---|---|
 | `python/matplotvite/__init__.py` | Public re-export facade: `__all__`, satellite imports and compatibility delegation for private internals. |
-| `python/matplotvite/_plotting.py` | Matplotlib-style implementation: `Figure`, concern-mixin `Axes`, artist state, GridSpec/SubFigure layout, panel serialisation, output-path handling, and the last-result byte cache. |
+| `python/matplotvite/_plotting.py` | Re-export facade for the split implementation modules: binds the names a module only needs once called, mirrors facade patches to the owning module, and keeps `dir()` unchanged. |
+| `python/matplotvite/_helpers.py`, `_containers.py`, `_artists.py`, `_axes_plot.py`, `_axes_stats.py`, `_axes_field.py`, `_axes_decor.py`, `_axes.py`, `_plot_helpers.py`, `_images.py`, `_figure.py`, `_pyplot.py`, `_config.py`, `_cm.py`, `_ticker.py`, `_png.py`, `_misc.py`, `_projections.py`, `_fonts.py` | Matplotlib-style implementation by concern: shared helpers and shim declarations, artist containers and artists, the `Axes` mixins and core class, `Figure`, the stateful pyplot facade, images/contours/colorbars, colormaps, locators/formatters, PNG I/O, projections and fonts. |
 | `python/matplotvite/_pandas.py` | pandas plotting backend: translates `DataFrame.plot()`/`Series.plot(kind=...)` into the same `Axes` calls the public API uses. |
 | `python/matplotvite/__init__.pyi` | PEP 561 type surface shipped with the wheel. |
 | `crates/matplotvite-core/src/lib.rs` | Pure renderer crate: model, layout, drawing, rasterisation and export, with no Python dependency by default. |

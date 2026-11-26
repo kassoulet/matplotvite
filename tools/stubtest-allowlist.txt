@@ -1,7 +1,6 @@
-# `matplotvite._plotting` is private and has no stub of its own, so stubtest
-# compares it against its source. `Any` is `typing.Any`, whose metaclass cannot
-# be compared, and `_AxesMixinBase` is an `object` alias at runtime whose
-# `__getattr__` exists only under `TYPE_CHECKING`.
-matplotvite\._plotting\.Any
-matplotvite\._plotting\.Any\.__new__
-matplotvite\._plotting\._AxesMixinBase\.__getattr__
+    # `matplotvite._plotting` and its split submodules are private and have no
+    # stub of their own, so stubtest compares them against their source. `Any`
+    # is `typing.Any`, whose metaclass cannot be compared, and each implementation
+    # module imports it for its annotations.
+    matplotvite\..+\.Any
+    matplotvite\..+\.Any\.__new__

@@ -35,6 +35,7 @@ import matplotlib.pyplot as mpl_plt
 import matplotvite
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+from matplotvite import _pyplot
 
 argv = sys.argv[1:]
 check = "--check" in argv
@@ -122,6 +123,12 @@ def _delegated_target(kind, name):
     """Resolve `plt.foo` wrappers such as `return gca().foo(...)`."""
     if kind != "pyplot":
         return None
+    # The wrappers behind `_PYPLOT_DELEGATES` are built at import time, so the
+    # table is the source of truth for what they call.
+    entry = _pyplot._PYPLOT_DELEGATES.get(name)
+    if entry is not None:
+        target = "Axes" if entry[0] == "axes" else "Figure"
+        return target, entry[1]
     node = _function_node(getattr(matplotvite, name, None))
     if node is None:
         return None
@@ -140,6 +147,13 @@ def _delegated_target(kind, name):
     return target_kind, call.func.attr
 
 
+def _declared_noop(kind, name):
+    """True for the shims `_noop_method` builds from a class declaration."""
+    if kind == "pyplot":
+        return False
+    return bool(getattr(getattr(OURS[kind], name, None), "_matplotvite_noop", False))
+
+
 def status(kind, name):
     """Return 'implemented', 'ignored', or 'missing' for one public callable."""
     key = (kind, name)
@@ -151,6 +165,8 @@ def status(kind, name):
         target = _delegated_target(kind, name)
         if target is not None:
             result = status(*target)
+        elif _declared_noop(kind, name):
+            result = "ignored"
         else:
             node = _function_node(getattr(OURS[kind], name))
             result = "ignored" if node is not None and _is_noop(node) else "implemented"
