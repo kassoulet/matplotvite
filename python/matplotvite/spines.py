@@ -65,7 +65,7 @@ class Spine(_Spine):
     def get_patch(self):
         return self._patch
 
-    def _adjust_location(self):
+    def _adjust_location(self):  # noqa: V105 (Matplotlib hook, called by name)
         return None
 
 

@@ -118,8 +118,29 @@ jobs:
           python-version: "3.13"
       - name: Run dependency and static security checks
         run: |
-          python -m pip install -c .github/requirements-ci.txt "pip-audit>=2.9" bandit
+          python -m pip install -c .github/requirements-ci.txt "pip-audit>=2.9" bandit vulture
           python tools/security_audit.py
+      - name: Check for dead code
+        run: python tools/dead_code.py
+
+  trivy:
+    name: trivy scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Lockfiles (Cargo.lock, Python pins), committed secrets and workflow or
+      # container misconfigurations; complements cargo-audit and pip-audit.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          skip-dirs: fuzz/target,target,.venv
+          exit-code: "1"
 
   wheels:
     name: wheel (${{ matrix.name }})

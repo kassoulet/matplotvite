@@ -85,7 +85,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     try:
         # `import PIL` alone does not expose the Image submodule on all
         # Pillow versions; load it so gallery snippets can use PIL.Image.
-        from PIL import Image as _pil_image
+        from PIL import Image as _pil_image  # noqa: V104 (loaded for snippets)
     except Exception:
         _pil_image = None
     try:
@@ -113,7 +113,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
     mpl_namespace = (_MplProxy() if (mpl_cbook is not None or sample_cbook is not None)
                      else matplotvite)
     if sample_data is not None and mpl_namespace is not matplotvite:
-        mpl_namespace.get_data_path = lambda: str(sample_data.parent)
+        mpl_namespace.get_data_path = lambda: str(sample_data.parent)  # noqa: V101 (read by gallery snippets)
     namespace = {"plt": matplotvite, "mpl": mpl_namespace, "matplotlib": mpl_namespace,
                  "np": np, "OUT": str(out_path)}
     if filename is not None:

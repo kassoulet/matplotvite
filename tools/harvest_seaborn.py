@@ -70,7 +70,6 @@ UNSUPPORTED = {
 }
 # Data loading is not a plotting capability: it needs pandas plus a download.
 DATA_HELPERS = {"load_dataset", "get_dataset"}
-IGNORED = {"set_config", "reset_defaults"}
 
 
 def find_examples_root(source: pathlib.Path | None) -> pathlib.Path | None:

@@ -14,6 +14,7 @@ pytest-cov==7.1.0
 twine==7.0.0
 matplotlib==3.11.2
 bandit==1.9.4
+vulture==2.16
 pip-audit==2.10.1
 pypdfium2==4.30.0
 cairosvg==2.9.1

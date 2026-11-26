@@ -66,6 +66,8 @@ Changelog = "https://github.com/kassoulet/matplotvite/blob/main/CHANGELOG.md"
 target-version = "py39"
 
 [tool.ruff.lint]
+# Vulture owns the V1xx codes used in `# noqa: V105` dead-code exceptions.
+external = ["V"]
 # Pyflakes, syntax/runtime errors, import sorting, bugbear, pyupgrade and the
 # Ruff-specific correctness rules. The drawing code uses a deliberately
 # compact one-statement-per-line style, so formatting rules are not enforced.

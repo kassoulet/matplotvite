@@ -1208,15 +1208,6 @@ def _span_extent(ext):
     return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 
 
-def _span(values):
-    """A flat series is widened so its extent is never degenerate.
-
-    `Axes.get_xlim`/`get_ylim` add Matplotlib's autoscale margin on top of this.
-    """
-    ext = _update_extent((float("inf"), float("-inf")), values)
-    return _span_extent(ext)
-
-
 def _as_list(values):
     """Materialise dict views and other one-shot iterables as a list."""
     if isinstance(values, (str, bytes)) or np.isscalar(values):
@@ -3773,7 +3764,7 @@ class MouseEvent:
         self.dblclick, self.guiEvent = bool(dblclick), guiEvent
         self.inaxes = None
 
-    def _process(self):
+    def _process(self):  # noqa: V105 (Matplotlib callback hook)
         return None
 
 
@@ -13012,7 +13003,7 @@ class PolarAxes(Axes):
         self._update_polar_limits()
 
     def _gen_axes_patch(self): return Circle((0.5, 0.5), 0.5)
-    def _gen_axes_spines(self): return {}
+    def _gen_axes_spines(self): return {}  # noqa: V105 (Matplotlib hook, called by name)
 
     def _polar_rmax_value(self):
         if self._polar_rmax is not None:
