@@ -1,6 +1,4 @@
-from typing import Any
-
-import numpy as np
+from typing import Any, final
 
 __all__: list[str]
 __version__: str
@@ -20,10 +18,13 @@ def logit_inverse(values: Any) -> Any: ...
 def asinh(values: Any, linear_width: float) -> Any: ...
 def asinh_inverse(values: Any, linear_width: float) -> Any: ...
 
+# Rust classes cannot be subclassed and take their constructor arguments in
+# `__new__`.
+@final
 class Colormap:
     name: str
     N: int
-    def __init__(self, name: str) -> None: ...
+    def __new__(cls, name: str) -> Colormap: ...
     @property
     def colors(self) -> list[tuple[float, float, float]]: ...
     def __call__(self, value: Any, alpha: Any = None, bytes: bool = False) -> Any: ...
@@ -37,46 +38,81 @@ class Colormap:
     def set_under(self, color: str = "k", alpha: float | None = None) -> None: ...
     def set_over(self, color: str = "k", alpha: float | None = None) -> None: ...
 
+# The Rust normalization classes are independent types at runtime (none of them
+# inherits another), so the stubs mirror that instead of inventing a hierarchy.
+@final
 class Normalize:
     vmin: float | None
     vmax: float | None
     clip: bool
-    def __init__(self, vmin: Any = None, vmax: Any = None, clip: bool = False) -> None: ...
+    def __new__(cls, vmin: Any = None, vmax: Any = None,
+                clip: bool = False) -> Normalize: ...
     def __call__(self, value: Any, clip: bool | None = None) -> Any: ...
-    def autoscale(self, values: Any) -> None: ...
-    def autoscale_None(self, values: Any) -> None: ...
+    def autoscale(self, _values: Any) -> None: ...
+    def autoscale_None(self, _values: Any) -> None: ...
     def inverse(self, value: Any) -> Any: ...
 
-class LogNorm(Normalize):
-    base: float
-    def __init__(self, vmin: Any = None, vmax: Any = None, clip: bool = False,
-                 base: float = 10.0) -> None: ...
+@final
+class LogNorm:
+    base: float | None
+    vmin: float | None
+    vmax: float | None
+    clip: bool
+    def __new__(cls, vmin: Any = None, vmax: Any = None, clip: bool = False,
+                base: float = 10.0) -> LogNorm: ...
+    def __call__(self, value: Any, clip: bool | None = None) -> Any: ...
 
-class PowerNorm(Normalize):
+@final
+class PowerNorm:
     gamma: float
-    def __init__(self, gamma: float, vmin: Any = None, vmax: Any = None,
-                 clip: bool = False) -> None: ...
+    vmin: float | None
+    vmax: float | None
+    clip: bool
+    def __new__(cls, gamma: float, vmin: Any = None, vmax: Any = None,
+                clip: bool = False) -> PowerNorm: ...
+    def __call__(self, value: Any, clip: bool | None = None) -> Any: ...
 
-class SymLogNorm(Normalize):
+@final
+class SymLogNorm:
     linthresh: float
     linscale: float
-    base: float
-    def __init__(self, linthresh: float, linscale: float = 1.0, vmin: Any = None,
-                 vmax: Any = None, clip: bool = False, *, base: float = 10.0) -> None: ...
+    base: float | None
+    vmin: float | None
+    vmax: float | None
+    clip: bool
+    def __new__(cls, linthresh: float, linscale: float = 1.0, vmin: Any = None,
+                vmax: Any = None, clip: bool = False, *,
+                base: float = 10.0) -> SymLogNorm: ...
+    def __call__(self, value: Any, clip: bool | None = None) -> Any: ...
 
-class AsinhNorm(Normalize):
+@final
+class AsinhNorm:
     linear_width: float
-    def __init__(self, linear_width: float = 1.0, vmin: Any = None, vmax: Any = None,
-                 clip: bool = False) -> None: ...
+    vmin: float | None
+    vmax: float | None
+    clip: bool
+    def __new__(cls, linear_width: float = 1.0, vmin: Any = None,
+                vmax: Any = None, clip: bool = False) -> AsinhNorm: ...
+    def __call__(self, value: Any, clip: bool | None = None) -> Any: ...
 
-class TwoSlopeNorm(Normalize):
+@final
+class TwoSlopeNorm:
     vcenter: float
-    def __init__(self, vcenter: float, vmin: Any = None, vmax: Any = None,
-                 clip: bool = False) -> None: ...
+    vmin: float | None
+    vmax: float | None
+    clip: bool
+    def __new__(cls, vcenter: float, vmin: Any = None, vmax: Any = None,
+                clip: bool = False) -> TwoSlopeNorm: ...
+    def __call__(self, value: Any, clip: bool | None = None) -> Any: ...
 
-class BoundaryNorm(Normalize):
-    boundaries: np.ndarray
+@final
+class BoundaryNorm:
+    boundaries: Any
     ncolors: int
     extend: str | None
-    def __init__(self, boundaries: Any, ncolors: int, clip: bool = False,
-                 extend: str | None = None) -> None: ...
+    vmin: float | None
+    vmax: float | None
+    clip: bool
+    def __new__(cls, boundaries: Any, ncolors: int, clip: bool = False,
+                extend: str | None = None) -> BoundaryNorm: ...
+    def __call__(self, value: Any, clip: bool | None = None) -> Any: ...

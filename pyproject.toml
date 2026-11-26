@@ -101,6 +101,11 @@ ignore = [
 files = ["python/matplotvite"]
 python_version = "3.9"
 mypy_path = "python"
+# Ignore whatever happens to be installed: numpy's stubs need a newer
+# python_version than the floor above, so a developer with numpy in their venv
+# would otherwise type-check a different program than CI and `warn_unused_ignores`
+# would flip on packages the run is not meant to see.
+no_site_packages = true
 ignore_missing_imports = true
 warn_unused_configs = true
 warn_redundant_casts = true

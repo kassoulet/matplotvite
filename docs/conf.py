@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "python"))
-
+# Autodoc imports the installed package: a source checkout has no compiled
+# `_core` extension, so putting `python/` on sys.path would shadow the wheel and
+# make the build fail in CI. `pip install -e .` or `maturin develop` covers
+# local builds.
 project = "Matplotvite"
 author = "Gautier Portet"
 copyright = "2026, Gautier Portet"
