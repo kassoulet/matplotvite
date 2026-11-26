@@ -61,6 +61,9 @@ from ._core import (
 
 _CMAP_DATA = {k: np.frombuffer(v, np.uint8).reshape(-1, 3) for k, v in _colormaps().items()}
 
+# `matplotlib.pyplot.Normalize` is Matplotlib's norm class, re-exported here.
+Normalize = _Normalize
+
 
 # matplotlib's tab10 cycle; also the targets of the C0-C9 shorthand.
 _CYCLE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
@@ -1174,16 +1177,17 @@ class _TextLabel:
     def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
 
 
-def _margin(lo, hi, scale, sticky=()):
-    """Matplotlib's default 5% autoscale margin (in log space for log axes).
+def _margin(lo, hi, scale, sticky=(), fraction=0.05):
+    """Matplotlib's autoscale margin (in log space for log axes).
 
+    `fraction` is the axes' stored margin (`Axes.margins`), 5% by default.
     `sticky` edges (images, hexbin) swallow the margin on their side, like
     Matplotlib's `sticky_edges`.
     """
     f = np.log10 if scale == "log" else float
     lo, hi = f(lo), f(hi)
     sticky = [f(e) for e in sticky if e > 0 or scale != "log"]
-    pad = (hi - lo) * 0.05
+    pad = (hi - lo) * float(fraction)
     plo, phi = lo - pad, hi + pad
     below = [e for e in sticky if plo < e <= lo]
     above = [e for e in sticky if hi <= e < phi]
@@ -1714,10 +1718,17 @@ class HandlerLineCollection:
 class _PieResult:
     """Matplotlib's PieResult: unpackable and attribute-accessible."""
 
-    def __init__(self, wedges, texts, autotexts):
+    def __init__(self, wedges, texts, autotexts, values=None, fracs=None):
         self.wedges, self.texts, self.autotexts = wedges, texts, autotexts
+        self.values = np.asarray([] if values is None else values, dtype=float)
+        self.fracs = np.asarray([] if fracs is None else fracs, dtype=float)
 
     def __iter__(self): return iter((self.wedges, self.texts, self.autotexts))
+
+    def add_texts(self, texts):
+        """Append label `.Text` instances to the container."""
+        self.texts.extend(texts)
+        return None
 
 
 class _LegendHandle:
@@ -2039,6 +2050,50 @@ class _ViolinBody:
         return self
 
     def get_paths(self): return [self._e]
+
+
+class _GridLine:
+    """One axis gridline handle, backed by the axes' grid state."""
+
+    def __init__(self, axes, axis, which):
+        self.axes = axes
+        self._axis = axis
+        self._which = which
+
+    def _prefix(self):
+        return "grid_" if self._which == "major" else "grid_minor_"
+
+    def _visible_attr(self):
+        return "show_grid" if self._which == "major" else "grid_minor_show"
+
+    def get_visible(self):
+        return bool(getattr(self.axes, self._visible_attr(), False))
+
+    def set_visible(self, visible):
+        setattr(self.axes, self._visible_attr(), bool(visible))
+        return self
+
+    def get_color(self):
+        return getattr(self.axes, f"{self._prefix()}color", None)
+
+    def set_color(self, color):
+        setattr(self.axes, f"{self._prefix()}color", _norm_color(color))
+        return self
+
+    def get_linewidth(self):
+        return getattr(self.axes, f"{self._prefix()}linewidth", None)
+
+    def set_linewidth(self, width):
+        setattr(self.axes, f"{self._prefix()}linewidth", float(width))
+        return self
+
+    def get_alpha(self):
+        return getattr(self.axes, f"{self._prefix()}alpha", None)
+
+    def set_alpha(self, alpha):
+        setattr(self.axes, f"{self._prefix()}alpha",
+                None if alpha is None else float(alpha))
+        return self
 
 
 class _LineHandle:
@@ -3686,8 +3741,14 @@ class _LocatorHandle:
 
 
 class _Callbacks:
+    def __init__(self): self.callbacks = []
     def connect(self, *args, **kwargs): return 1
     def disconnect(self, *args, **kwargs): return None
+    def add_callback(self, func, *args, **kwargs):
+        self.callbacks.append((func, args, kwargs))
+        return len(self.callbacks)
+    def remove_callback(self, func):
+        self.callbacks = [item for item in self.callbacks if item[0] is not func]
 
 
 class _Timer:
@@ -3924,6 +3985,7 @@ class _PlotAxes:
                  **kwargs):
         """Windowed FFT magnitude, drawn as an image; returns (Pxx, freqs, bins, image)."""
         data = np.asarray(x, dtype=np.float64).ravel()
+        fs = 2.0 if Fs is None else float(Fs)
         nfft = max(int(NFFT), 2)
         step = nfft - (nfft // 2 if noverlap is None else int(noverlap))
         if step <= 0:
@@ -3934,9 +3996,9 @@ class _PlotAxes:
         frames = np.stack([data[i:i + nfft] * taper
                            for i in range(0, data.size - nfft + 1, step)])
         spectrum = np.abs(np.fft.rfft(frames, n=nfft, axis=1)) ** 2
-        pxx = spectrum.T / max(float(Fs), 1e-12)
-        freqs = np.fft.rfftfreq(nfft, d=1.0 / float(Fs)) + float(Fc)
-        bins = np.arange(frames.shape[0]) * step / float(Fs)
+        pxx = spectrum.T / max(fs, 1e-12)
+        freqs = np.fft.rfftfreq(nfft, d=1.0 / fs) + float(Fc)
+        bins = np.arange(frames.shape[0]) * step / fs
         decibels = 10.0 * np.log10(np.maximum(pxx, 1e-20))
         image = self.imshow(decibels, aspect="auto", origin="lower", cmap=cmap,
                             vmin=vmin, vmax=vmax,
@@ -4629,7 +4691,7 @@ class _PlotAxes:
                           ha="center", va="center")
                 autotexts.append(_TextLabel(shown))
         self.set_axis_off()
-        return _PieResult(wedges, texts, autotexts)
+        return _PieResult(wedges, texts, autotexts, values=values, fracs=fracs)
 
     def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
                   **kwargs):
@@ -5122,6 +5184,136 @@ class _StatsAxes:
                         if horizontal else self._stats_line(
                         [loc - half, loc + half], [value, value], line_color))
         return out
+
+    def violin(self, vpstats, positions=None, vert=None, orientation="vertical",
+               widths=0.5, showmeans=False, showextrema=True, showmedians=False,
+               side="both", facecolor=None, linecolor=None):
+        """Draw violins from pre-computed statistics, as `Axes.violin`.
+
+        Each entry in `vpstats` carries `coords` and `vals` for the density
+        outline plus `mean`, `median`, `min`, `max` and optional `quantiles`.
+        Returns the same artist dictionary as Matplotlib (`bodies`, `cmeans`,
+        `cmaxes`, `cmins`, `cbars`, plus `cmedians`/`cquantiles`)."""
+        if vert is not None:
+            orientation = "vertical" if vert else "horizontal"
+        if orientation not in ("vertical", "horizontal"):
+            raise ValueError(f"unsupported orientation: {orientation!r}")
+        if side not in ("both", "low", "high"):
+            raise ValueError(f"unsupported side: {side!r}")
+        stats = list(vpstats)
+        n = len(stats)
+        message = "List of violinplot statistics and `%s` values must have the same length"
+        if positions is None:
+            positions = list(range(1, n + 1))
+        elif len(positions) != n:
+            raise ValueError(message % "positions")
+        if np.isscalar(widths):
+            widths = [widths] * n
+        elif len(widths) != n:
+            raise ValueError(message % "widths")
+        if n:
+            pos0, width0 = positions[0], widths[0]
+            if isinstance(pos0, np.datetime64):
+                if not isinstance(width0, np.timedelta64):
+                    raise TypeError(
+                        "np.datetime64 'position' values require np.timedelta64 'widths'")
+            elif isinstance(pos0, (_datetime.datetime, _datetime.date)):
+                if not isinstance(width0, _datetime.timedelta):
+                    raise TypeError(
+                        "datetime/date 'position' values require timedelta 'widths'")
+        if n and isinstance(positions[0], (np.datetime64, _datetime.datetime,
+                                           _datetime.date)):
+            pos_num = np.atleast_1d(_date_to_num(positions)).astype(float)
+            width_num = np.asarray([
+                (w / np.timedelta64(1, "D"))
+                if isinstance(w, np.timedelta64) else w.total_seconds() / 86400.0
+                for w in widths], dtype=float)
+        else:
+            pos_num = np.asarray(positions, dtype=float)
+            width_num = np.asarray(widths, dtype=float)
+
+        facecolors = _colors(facecolor) if facecolor is not None else [self._next_color()]
+        body_alpha = None if facecolor is not None else 0.3
+        linecolors = _colors(linecolor) if linecolor is not None else list(facecolors)
+        line_ends = np.array([[-0.25 if side in ("both", "low") else 0.0],
+                              [0.25 if side in ("both", "high") else 0.0]]) \
+            * width_num + pos_num
+        horizontal = orientation == "horizontal"
+
+        def number(value):
+            if isinstance(value, (np.datetime64, _datetime.datetime, _datetime.date)):
+                return float(_datetime_to_num(value))
+            return float(value)
+
+        out = {"bodies": []}
+        if showmeans:
+            out["cmeans"] = []
+        if showextrema:
+            out["cmaxes"], out["cmins"], out["cbars"] = [], [], []
+        if showmedians:
+            out["cmedians"] = []
+        quantile_lines = []
+        for i, stat in enumerate(stats):
+            coords = np.asarray(stat["coords"])
+            if _looks_like_dates(coords):
+                coords = np.atleast_1d(_date_to_num(coords)).astype(float)
+            else:
+                coords = np.asarray(coords, dtype=float).ravel()
+            vals = np.asarray(stat["vals"], dtype=float).ravel()
+            if vals.size != coords.size:
+                raise ValueError("violin `coords` and `vals` must have the same length")
+            if vals.size and vals.max() > 0.0:
+                vals = 0.5 * width_num[i] * vals / vals.max()
+            pos = float(pos_num[i])
+            color = facecolors[i] if i < len(facecolors) else facecolors[0]
+            line_color = linecolors[i] if i < len(linecolors) else linecolors[0]
+            if coords.size:
+                if horizontal:
+                    xs = np.concatenate([coords, coords[::-1]])
+                    ys = np.concatenate([pos - vals, (pos + vals)[::-1]])
+                    if side == "low":
+                        xs = np.concatenate([[coords[0]], coords, [coords[-1]]])
+                        ys = np.concatenate([[pos], pos - vals, [pos]])
+                    elif side == "high":
+                        xs = np.concatenate([[coords[0]], coords, [coords[-1]]])
+                        ys = np.concatenate([[pos], pos + vals, [pos]])
+                else:
+                    xs = np.concatenate([pos - vals, (pos + vals)[::-1]])
+                    ys = np.concatenate([coords, coords[::-1]])
+                    if side == "low":
+                        xs = np.concatenate([[pos], pos - vals, [pos]])
+                        ys = np.concatenate([[coords[0]], coords, [coords[-1]]])
+                    elif side == "high":
+                        xs = np.concatenate([[pos], pos + vals, [pos]])
+                        ys = np.concatenate([[coords[0]], coords, [coords[-1]]])
+                entry = _band(xs, ys, color, body_alpha)
+                self._append_band(entry)
+                out["bodies"].append(_ViolinBody(entry, color))
+            lo_end, hi_end = float(line_ends[0, i]), float(line_ends[1, i])
+
+            def perp(value, lo=lo_end, hi=hi_end, color=line_color):
+                if horizontal:
+                    return self._stats_line([value, value], [lo, hi], color)
+                return self._stats_line([lo, hi], [value, value], color)
+
+            if showmeans:
+                out["cmeans"].append(perp(number(stat["mean"])))
+            if showextrema:
+                out["cmaxes"].append(perp(number(stat["max"])))
+                out["cmins"].append(perp(number(stat["min"])))
+                minimum, maximum = number(stat["min"]), number(stat["max"])
+                out["cbars"].append(
+                    self._stats_line([minimum, maximum], [pos, pos], line_color)
+                    if horizontal else
+                    self._stats_line([pos, pos], [minimum, maximum], line_color))
+            if showmedians:
+                out["cmedians"].append(perp(number(stat["median"])))
+            for q in stat.get("quantiles") or ():
+                quantile_lines.append(perp(number(q)))
+        if quantile_lines:
+            out["cquantiles"] = quantile_lines
+        return out
+
 
 class _FieldAxes:
     """Gridded and vector fields: images, contours, quiver and hexbin."""
@@ -5675,8 +5867,59 @@ class _FieldAxes:
         self.arrows.append(entry)
         return _QuiverHandle(entry)
 
-    def quiverkey(self, Q, X, Y, U, label, **kwargs):
-        """Accept the quiver-key annotation; keys are not drawn yet."""
+    def quiverkey(self, Q, X, Y, U, label, *, angle=0.0, coordinates="axes",
+                  color=None, labelsep=0.1, labelpos="E", fontproperties=None,
+                  **kwargs):
+        """Draw a labelled reference arrow for a quiver, as `Axes.quiverkey`.
+
+        `(X, Y)` and `U` follow Matplotlib's axes-fraction placement and arrow
+        scaling; `labelpos` places the label to the east, west, north or south
+        of the arrow. `fontproperties` and artist kwargs are accepted and
+        ignored.
+        """
+        entry = getattr(Q, "_e", None)
+        if entry is None:
+            raise TypeError("quiverkey needs the handle returned by quiver")
+        if coordinates != "axes":
+            raise ValueError(f"unsupported quiverkey coordinates: {coordinates!r}")
+        if labelpos not in ("E", "W", "N", "S"):
+            raise ValueError(f"unsupported quiverkey labelpos: {labelpos!r}")
+        xlo, xhi = self.get_xlim()
+        ylo, yhi = self.get_ylim()
+        span_x = xhi - xlo
+        if span_x == 0.0:
+            return None
+        scale = entry.get("scale")
+        if scale is None:
+            mags = np.hypot(entry["u"], entry["v"])
+            mean = float(mags.mean()) if mags.size else 0.0
+            sn = min(max(_math.sqrt(mags.size), 8.0), 25.0)
+            scale = 1.8 * mean * sn if mean > 0.0 else 1.0
+        length = float(U) * span_x / float(scale)
+        theta = _math.radians(float(angle))
+        x0 = xlo + float(X) * span_x
+        y0 = ylo + float(Y) * (yhi - ylo)
+        y_ratio = (yhi - ylo) / span_x
+        dx = length * _math.cos(theta)
+        dy = length * _math.sin(theta) * y_ratio
+        arrow_color = _norm_color(color) if color is not None else entry["colors"][0]
+        width = 0.01 * abs(length) * abs(y_ratio)
+        patch = FancyArrow(x0, y0, dx, dy, width=width,
+                           head_width=3.0 * width, head_length=3.0 * width,
+                           facecolor=arrow_color, edgecolor=arrow_color)
+        self.add_patch(patch)
+        gap = float(labelsep) * abs(length)
+        if labelpos == "E":
+            tx, ty, ha, va = x0 + dx + gap, y0 + dy, "left", "center"
+        elif labelpos == "W":
+            tx, ty, ha, va = x0 - gap, y0, "right", "center"
+        elif labelpos == "N":
+            tx, ty, ha, va = (x0 + 0.5 * dx, y0 + dy + gap * abs(y_ratio),
+                              "center", "bottom")
+        else:
+            tx, ty, ha, va = (x0 + 0.5 * dx, y0 - gap * abs(y_ratio),
+                              "center", "top")
+        self.text(tx, ty, label, ha=ha, va=va, color=arrow_color)
         return None
 
     def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
@@ -6047,6 +6290,31 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._x_date = False
         self._categories = []
         self._inverted = [False, False]
+        self._autoscale_on = True
+        self._autoscalex_on = True
+        self._autoscaley_on = True
+        self._navigate = True
+        self._navigate_mode = None
+        self._animated = False
+        self._rasterized = False
+        self._gid = None
+        self._url = None
+        self._picker = None
+        self._sketch = (None, None, None)
+        self._clip_box = None
+        self._agg_filter = None
+        self._path_effects = []
+        self._anchor = "C"
+        self._axisbelow = rcParams.get("axes.axisbelow", "line")
+        self._transform = None
+        self._transform_set = False
+        self._xmargin = float(rcParams.get("axes.xmargin", 0.05))
+        self._ymargin = float(rcParams.get("axes.ymargin", 0.05))
+        self._tight_x = self._tight_y = False
+        self._frame_on = True
+        self._clip_path = None
+        self._pan_start = None
+        self._forward_navigation_events = "auto"
         self._pos_override = None
         if rect_arg is not None and len(rect_arg) == 4:
             self._pos_override = tuple(float(v) for v in rect_arg)
@@ -6132,9 +6400,17 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     def get_adjustable(self): return self._adjustable
 
-    def set_forward_navigation_events(self, visible): return None
-    def get_forward_navigation_events(self): return "auto"
-    def set_navigate(self, visible): return None
+    def set_forward_navigation_events(self, visible):
+        """Store whether navigation events pass through this axes."""
+        self._forward_navigation_events = visible
+        return None
+
+    def get_forward_navigation_events(self):
+        """The stored navigation-event policy, `"auto"` by default."""
+        return self._forward_navigation_events
+    def set_navigate(self, visible): self._navigate = bool(visible)
+    def get_navigate(self): return self._navigate
+    def get_navigate_mode(self): return self._navigate_mode
 
     def get_aspect(self): return self.aspect
 
@@ -6399,6 +6675,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             lo, hi, self.xscale,
             [e for im in self.images for e in (im._e["extent"][0], im._e["extent"][1])]
             + self._sticky_x + [float(c["x"][k]) for c in self.contours for k in (0, -1)],
+            fraction=0.0 if self._tight_x else self._xmargin,
         )
         if self._xscale_obj is not None:
             lo, hi = self._xscale_obj.limit_range_for_scale(bounds[0], bounds[1], 0.0)
@@ -6422,6 +6699,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             lo, hi, self.yscale,
             [e for im in self.images for e in (im._e["extent"][2], im._e["extent"][3])]
             + self._sticky_y + [float(c["y"][k]) for c in self.contours for k in (0, -1)],
+            fraction=0.0 if self._tight_y else self._ymargin,
         )
         if self._yscale_obj is not None:
             lo, hi = self._yscale_obj.limit_range_for_scale(bounds[0], bounds[1], 0.0)
@@ -6490,7 +6768,178 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def get_alpha(self): return self.alpha
     def set_alpha(self, alpha): self.alpha = None if alpha is None else float(alpha)
 
-    def get_transform(self): return _Transform()
+    def get_transform(self): return self._transform or _Transform()
+
+    def set_transform(self, transform):
+        self._transform = transform
+        self._transform_set = True
+        return self
+
+    def is_transform_set(self): return self._transform_set
+    def apply_aspect(self, position=None): return None
+    def set_figure(self, figure): self._fig = figure
+    def get_lines(self): return [Line2D(entry) for entry in self.lines]
+    def get_images(self): return list(self.images)
+    def set_gid(self, gid): self._gid = gid
+    def get_gid(self): return self._gid
+    def set_url(self, url): self._url = url
+    def get_url(self): return self._url
+    def set_rasterized(self, value): self._rasterized = bool(value)
+    def get_rasterized(self): return self._rasterized
+    def set_sketch_params(self, scale=None, length=None, randomness=None):
+        self._sketch = (scale, length, randomness)
+    def set_picker(self, value): self._picker = value
+    def get_picker(self): return self._picker
+    def set_clip_box(self, box): self._clip_box = box
+    def get_clip_box(self): return self._clip_box
+    def set_agg_filter(self, value): self._agg_filter = value
+    def get_agg_filter(self): return self._agg_filter
+    def get_path_effects(self): return list(self._path_effects)
+    def set_animated(self, value): self._animated = bool(value)
+    def get_animated(self): return self._animated
+    def get_anchor(self): return self._anchor
+    def set_axisbelow(self, value): self._axisbelow = value
+    def get_axisbelow(self): return self._axisbelow
+    def add_callback(self, func, *args, **kwargs):
+        return self.callbacks.add_callback(func, *args, **kwargs)
+    def remove_callback(self, func): self.callbacks.remove_callback(func)
+
+    def draw_artist(self, artist):
+        renderer = self._fig.canvas.get_renderer() if self._fig is not None else None
+        draw = getattr(artist, "draw", None)
+        if draw is not None:
+            draw(renderer)
+
+    def xaxis_date(self, tz=None): self._x_date = True
+    def yaxis_date(self, tz=None): self._y_date = True
+
+    def format_xdata(self, x):
+        formatter = self.xaxis.get_major_formatter()
+        if formatter is not None and hasattr(formatter, "format_data_short"):
+            return formatter.format_data_short(x)
+        return f"{x:g}"
+
+    def format_ydata(self, y):
+        formatter = self.yaxis.get_major_formatter()
+        if formatter is not None and hasattr(formatter, "format_data_short"):
+            return formatter.format_data_short(y)
+        return f"{y:g}"
+
+    def format_coord(self, x, y):
+        """Human-readable data coordinates for pointer readouts."""
+        return f"(x, y) = ({self.format_xdata(x)}, {self.format_ydata(y)})"
+
+    def format_cursor_data(self, data):
+        """Format one data value the way Matplotlib's status bar does."""
+        try:
+            return f"[{data:0.3g}]"
+        except (TypeError, ValueError):
+            return "[]"
+
+    def get_cursor_data(self, event):
+        """The image value under `event`, or None when no image is hit."""
+        x = getattr(event, "xdata", None)
+        y = getattr(event, "ydata", None)
+        if x is None or y is None:
+            return None
+        for image in reversed(self.images):
+            extent = image.get_extent()
+            data = image.get_array()
+            if extent is None or data is None:
+                continue
+            left, right, bottom, top = (float(v) for v in extent)
+            if not (min(left, right) <= x <= max(left, right)
+                    and min(bottom, top) <= y <= max(bottom, top)):
+                continue
+            rows, cols = np.asarray(data).shape[:2]
+            if rows == 0 or cols == 0:
+                continue
+            col = int((x - left) / (right - left) * cols) if right != left else 0
+            row = int((y - top) / (bottom - top) * rows) if top != bottom else 0
+            col = min(max(col, 0), cols - 1)
+            row = min(max(row, 0), rows - 1)
+            return np.asarray(data)[row, col]
+        return None
+
+    def _axes_display_bbox(self):
+        if self._fig is None:
+            return _Bbox(0.0, 0.0, 1.0, 1.0)
+        box = self.get_position()
+        width, height = self._fig.figsize
+        dpi = self._fig.get_dpi()
+        return _Bbox(box.x0 * width * dpi, box.y0 * height * dpi,
+                     box.x1 * width * dpi, box.y1 * height * dpi)
+
+    def contains_point(self, point):
+        x, y = point
+        return self._axes_display_bbox().contains(x, y)
+
+    def contains(self, mouseevent=None):
+        if mouseevent is None:
+            return False, {}
+        return self.contains_point((mouseevent.x, mouseevent.y)), {}
+
+    def update_from(self, other):
+        for name in ("_autoscale_on", "_autoscalex_on", "_autoscaley_on",
+                     "_navigate", "_navigate_mode", "_animated", "_rasterized",
+                     "_gid", "_url", "_picker", "_sketch", "_clip_box",
+                     "_agg_filter", "_path_effects", "_anchor", "_axisbelow",
+                     "_transform", "_transform_set"):
+            if hasattr(other, name):
+                setattr(self, name, getattr(other, name))
+
+    def properties(self):
+        """Current public state, mirroring `Artist.properties()`."""
+        return {
+            "adjustable": self.get_adjustable(),
+            "agg_filter": self.get_agg_filter(),
+            "alpha": self.get_alpha(),
+            "anchor": self.get_anchor(),
+            "animated": self.get_animated(),
+            "aspect": self.get_aspect(),
+            "autoscale_on": self.get_autoscale_on(),
+            "autoscalex_on": self.get_autoscalex_on(),
+            "autoscaley_on": self.get_autoscaley_on(),
+            "axisbelow": self.get_axisbelow(),
+            "box_aspect": self.get_box_aspect(),
+            "facecolor": self.get_facecolor(),
+            "figure": self._fig,
+            "frame_on": self.get_frame_on(),
+            "gid": self.get_gid(),
+            "images": self.get_images(),
+            "label": self.get_label(),
+            "lines": self.get_lines(),
+            "navigate": self.get_navigate(),
+            "navigate_mode": self.get_navigate_mode(),
+            "path_effects": self.get_path_effects(),
+            "picker": self.get_picker(),
+            "position": self.get_position(),
+            "rasterized": self.get_rasterized(),
+            "title": self.get_title(),
+            "url": self.get_url(),
+            "visible": self.get_visible(),
+            "xlabel": self.get_xlabel(),
+            "xlim": self.get_xlim(),
+            "xscale": self.get_xscale(),
+            "ylabel": self.get_ylabel(),
+            "ylim": self.get_ylim(),
+            "yscale": self.get_yscale(),
+            "zorder": self.get_zorder(),
+        }
+
+    def pchanged(self): return None
+
+    def findobj(self, match=None, include_self=True):
+        candidates = ([self] if include_self else []) + [
+            *self.get_lines(), *self.images, *self.patches, *self.collections,
+            *self.texts, *self.artists,
+        ]
+        if match is None:
+            return candidates
+        if isinstance(match, type):
+            return [item for item in candidates if isinstance(item, match)]
+        return [item for item in candidates if match(item)]
+
     @property
     def bbox(self): return self.get_window_extent()
 
@@ -6502,7 +6951,9 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     def get_xticklines(self): return []
     def get_yticklines(self): return []
-    def get_legend(self): return None
+    def get_legend(self):
+        """The legend handle when a legend is shown, otherwise None."""
+        return _LegendHandle() if self.show_legend else None
     def get_legend_handles_labels(self):
         handles, labels = [], []
         for entry in self.lines:
@@ -6528,7 +6979,47 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def set_theta_offset(self, offset): return None
     def set_thetamin(self, value): return None
     def set_thetamax(self, value): return None
-    def pie_label(self, *args, **kwargs): return None
+    def pie_label(self, container, labels, *, distance=0.6, textprops=None,
+                  rotate=False, alignment="auto"):
+        """Label the wedges of a `pie` container, as Matplotlib 3.11.
+
+        `labels` is a sequence of strings or a format string using the
+        `absval` and `frac` placeholders. When `rotate` is true each label
+        follows its wedge; `alignment` is `"center"`, `"outer"` or `"auto"`.
+        """
+        if alignment not in ("center", "outer", "auto"):
+            raise ValueError(
+                f"alignment must be 'center', 'outer' or 'auto', not {alignment!r}")
+        if alignment == "auto":
+            alignment = "outer" if distance > 1 else "center"
+        wedges = list(container.wedges)
+        if isinstance(labels, str):
+            labels = [labels.format(absval=absval, frac=frac) for absval, frac in
+                      zip(container.values, container.fracs)]
+        elif len(wedges) != len(labels):
+            raise ValueError(
+                f"The number of labels ({len(labels)}) must match the number "
+                f"of wedges ({len(wedges)})")
+        props = dict(textprops or {})
+        texts = []
+        for wedge, label in zip(wedges, labels):
+            theta = 2.0 * _math.pi * 0.5 * (wedge.theta1 + wedge.theta2) / 360.0
+            xt = wedge.center[0] + float(distance) * wedge.r * _math.cos(theta)
+            yt = wedge.center[1] + float(distance) * wedge.r * _math.sin(theta)
+            ha = ("left" if xt > 0 else "right") if alignment == "outer" else "center"
+            va = "center"
+            rotation = 0.0
+            if rotate:
+                if alignment == "outer":
+                    va = "bottom" if yt > 0 else "top"
+                rotation = float(np.rad2deg(theta)) + (0.0 if xt > 0 else 180.0)
+            item_props = dict(props)
+            item_props.setdefault("ha", ha)
+            item_props.setdefault("va", va)
+            item_props.setdefault("rotation", rotation)
+            texts.append(self.text(xt, yt, label, **item_props))
+        container.add_texts(texts)
+        return texts
 
     def set_rticks(self, ticks, labels=None, **kwargs):
         """Set the radial tick positions, as PolarAxes.set_rticks."""
@@ -6584,16 +7075,68 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             locator.apply(self)
         return self
     def get_axes_locator(self): return self._axes_locator
-    def set_autoscale_on(self, value): _ignored("Axes.set_autoscale_on")
-    def set_autoscalex_on(self, value): _ignored("Axes.set_autoscalex_on")
-    def set_autoscaley_on(self, value): _ignored("Axes.set_autoscaley_on")
-    def set_axisbelow(self, value): _ignored("Axes.set_axisbelow")
-    def set_frame_on(self, value): _ignored("Axes.set_frame_on")
-    def set_xmargin(self, value): _ignored("Axes.set_xmargin")
-    def set_ymargin(self, value): _ignored("Axes.set_ymargin")
-    def get_frame_on(self): return True
-    def label_outer(self, **kwargs): _ignored("Axes.label_outer")
-    def locator_params(self, *args, **kwargs): _ignored("Axes.locator_params")
+    def set_autoscale_on(self, value): self._autoscale_on = bool(value)
+    def get_autoscale_on(self): return self._autoscale_on
+    def set_autoscalex_on(self, value): self._autoscalex_on = bool(value)
+    def get_autoscalex_on(self): return self._autoscalex_on
+    def set_autoscaley_on(self, value): self._autoscaley_on = bool(value)
+    def get_autoscaley_on(self): return self._autoscaley_on
+    def set_frame_on(self, value): self._frame_on = bool(value)
+    def set_xmargin(self, value): self._xmargin = float(value)
+    def set_ymargin(self, value): self._ymargin = float(value)
+
+    def margins(self, *margins, x=None, y=None, tight=True):
+        """Set the autoscale margins and return the current `(x, y)` values.
+
+        One positional value applies to both axes; two set x and y. The
+        margins feed `get_xlim`/`get_ylim` the next time they autoscale.
+        """
+        if len(margins) > 2:
+            raise TypeError("margins() takes at most 2 positional arguments")
+        if margins:
+            if x is not None or y is not None:
+                raise TypeError("Cannot pass both positional and keyword arguments")
+            if len(margins) == 1:
+                x = y = margins[0]
+            else:
+                x, y = margins
+        if x is not None:
+            self._xmargin = float(x)
+        if y is not None:
+            self._ymargin = float(y)
+        return (self._xmargin, self._ymargin)
+
+    def get_xmargin(self): return self._xmargin
+    def get_ymargin(self): return self._ymargin
+    def get_frame_on(self): return self._frame_on
+    def label_outer(self, remove_inner_ticks=False):
+        """Hide tick labels on non-outer axes of a subplot grid.
+
+        x labels stay on the last row and y labels on the first column. Inner
+        tick marks are kept (`remove_inner_ticks` only changes labels here).
+        """
+        spec = self.get_subplotspec()
+        self.hide_xticklabels = spec is None or not spec.is_last_row()
+        self.hide_yticklabels = spec is None or not spec.is_first_col()
+        self._label_outer = True
+        return None
+
+    def locator_params(self, axis="both", tight=None, **kwargs):
+        """Configure the major locator's tick budget (`nbins`, `steps`, ...).
+
+        Installs a `MaxNLocator` on axes that do not have an explicit locator.
+        """
+        if axis not in ("both", "x", "y"):
+            raise ValueError(f"axis must be 'both', 'x', or 'y', not {axis!r}")
+        for name in (("x", "y") if axis == "both" else (axis,)):
+            axis_obj = self.xaxis if name == "x" else self.yaxis
+            locator = axis_obj.get_major_locator()
+            if isinstance(locator, _LocatorHandle):
+                locator = _MaxNLocator()
+                axis_obj.set_major_locator(locator)
+            if hasattr(locator, "set_params"):
+                locator.set_params(**kwargs)
+        return None
     def set_rmax(self, value): return None
     def set_rmin(self, value): return None
     def set_rlim(self, *args, **kwargs): return None
@@ -6660,13 +7203,118 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def set_zorder(self, zorder): self.zorder = int(zorder)
 
     # Accepted for compatibility; custom artists are not rendered yet.
-    def set_clip_path(self, path, transform=None): return None
+    def set_clip_path(self, path, transform=None):
+        self._clip_path = path
+        return None
+    def get_clip_path(self):
+        """The stored clip path, or the axes rectangle in data coordinates."""
+        if self._clip_path is not None:
+            return self._clip_path
+        (x0, x1), (y0, y1) = self.get_xlim(), self.get_ylim()
+        vertices = np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]],
+                            dtype=float)
+        codes = np.array([Path.MOVETO, Path.LINETO, Path.LINETO, Path.LINETO,
+                          Path.CLOSEPOLY], dtype=np.uint8)
+        return Path(vertices, codes)
     def set_clip_on(self, clip): return None
     def set_path_effects(self, effects): return None
-    def margins(self, *args, **kwargs): return None
-    def relim(self, visible_only=True): return None
-    def autoscale(self, enable=True, axis="both", tight=None): return None
-    def autoscale_view(self, tight=None, scalex=True, scaley=True): return None
+    def get_xgridlines(self):
+        """Major and minor x gridline handles, as Matplotlib returns."""
+        return [_GridLine(self, "x", "major"), _GridLine(self, "x", "minor")]
+    def get_ygridlines(self):
+        """Major and minor y gridline handles, as Matplotlib returns."""
+        return [_GridLine(self, "y", "major"), _GridLine(self, "y", "minor")]
+    def redraw_in_frame(self): return None
+    def pick(self, mouseevent):
+        """Dispatch a pick event to children that implement `pick`."""
+        picked = []
+        for artist in self.get_children():
+            if artist is self:
+                continue
+            handler = getattr(artist, "pick", None)
+            if handler is not None and handler(mouseevent):
+                picked.append(artist)
+        return picked
+    def start_pan(self, x, y, button=None):
+        """Record the anchor for a pan gesture in display coordinates."""
+        self._pan_start = dict(x=float(x), y=float(y), button=button,
+                               xlim=self.get_xlim(), ylim=self.get_ylim())
+    def end_pan(self):
+        self._pan_start = None
+    def drag_pan(self, button, key, x, y):
+        """Shift the view by the display-space drag since `start_pan`."""
+        start = self._pan_start
+        if start is None:
+            return None
+        box = self._axes_display_bbox()
+        width, height = box.x1 - box.x0, box.y1 - box.y0
+        if width <= 0.0 or height <= 0.0:
+            return None
+        (xmin, xmax), (ymin, ymax) = start["xlim"], start["ylim"]
+        dx = (float(x) - start["x"]) / width * (xmax - xmin)
+        dy = (float(y) - start["y"]) / height * (ymax - ymin)
+        self.set_xlim(xmin - dx, xmax - dx)
+        self.set_ylim(ymin - dy, ymax - dy)
+        return None
+    def relim(self, visible_only=True):
+        """Recompute the data limits from the current artists.
+
+        Matplotvite derives extents from the artists on every access, so this
+        only drops explicit limits on axes that still autoscale, mirroring the
+        `relim` + redraw cycle.
+        """
+        for name in ("x", "y"):
+            if not getattr(self, f"_autoscale{name}_on"):
+                continue
+            group = getattr(self, f"_share_{name}")
+            if group is not None:
+                group.limits = None
+            setattr(self, f"{name}lim", None)
+        return None
+
+    def autoscale(self, enable=True, axis="both", tight=None):
+        """Autoscale the view to the data, honoring the stored margins.
+
+        `enable=True` re-enables autoscaling and recomputes the view from the
+        data plus `margins`; `False` freezes the current view; `None` leaves
+        the flags alone. `tight=True` zeroes the margins first, as Matplotlib
+        does.
+        """
+        if axis not in ("both", "x", "y"):
+            raise ValueError(f"axis must be 'both', 'x', or 'y', got {axis!r}")
+        targets = ("x", "y") if axis == "both" else (axis,)
+        for name in targets:
+            if enable is not None:
+                setattr(self, f"_autoscale{name}_on", bool(enable))
+            if tight:
+                setattr(self, f"_{name}margin", 0.0)
+            group = getattr(self, f"_share_{name}")
+            if getattr(self, f"_autoscale{name}_on"):
+                if group is not None:
+                    group.limits = None
+                setattr(self, f"{name}lim", None)
+            else:
+                fixed = self.get_xlim() if name == "x" else self.get_ylim()
+                if group is not None:
+                    group.limits = fixed
+                setattr(self, f"{name}lim", fixed)
+        self.autoscale_view(tight=tight, scalex="x" in targets, scaley="y" in targets)
+        return None
+
+    def autoscale_view(self, tight=None, scalex=True, scaley=True):
+        """Recompute the view from the data for every autoscaled axis."""
+        for name, enabled in (("x", scalex), ("y", scaley)):
+            if not enabled:
+                continue
+            if tight is not None:
+                setattr(self, f"_tight_{name}", bool(tight))
+            if not getattr(self, f"_autoscale{name}_on"):
+                continue
+            group = getattr(self, f"_share_{name}")
+            if group is not None:
+                group.limits = None
+            setattr(self, f"{name}lim", None)
+        return None
 
     def clear(self):
         self.lines.clear()
@@ -7103,7 +7751,12 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
 
     def set_xlim(self, left=None, right=None, **kwargs):
-        """Set the x limits; accepts `left`/`right` or Matplotlib's `xmin`/`xmax`."""
+        """Set the x limits; accepts `left`/`right` or Matplotlib's `xmin`/`xmax`.
+
+        `auto` turns x autoscaling on (`True`), off (`False`, the default), or
+        leaves it unchanged (`None`), as Matplotlib does.
+        """
+        auto = kwargs.pop("auto", False)
         left = kwargs.pop("xmin", left)
         right = kwargs.pop("xmax", right)
         if right is None and left is not None:
@@ -7116,13 +7769,19 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         values = _as_f64(self._xdate((left, right)))
         lo, hi = sorted((float(values[0]), float(values[1])))
         limits = self.xlim = (lo, hi)
+        if auto is not None:
+            self._autoscalex_on = bool(auto)
         self._inverted[0] = float(values[0]) > float(values[1])
         if self._share_x is not None:
             self._share_x.limits = limits
         return self.get_xlim()
 
     def set_ylim(self, bottom=None, top=None, **kwargs):
-        """Set the y limits; accepts `bottom`/`top` or `ymin`/`ymax`."""
+        """Set the y limits; accepts `bottom`/`top` or `ymin`/`ymax`.
+
+        `auto` behaves like `set_xlim(auto=...)`.
+        """
+        auto = kwargs.pop("auto", False)
         bottom = kwargs.pop("ymin", bottom)
         top = kwargs.pop("ymax", top)
         if top is None and bottom is not None:
@@ -7135,6 +7794,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         values = _as_f64((bottom, top))
         lo, hi = sorted((float(values[0]), float(values[1])))
         limits = self.ylim = (lo, hi)
+        if auto is not None:
+            self._autoscaley_on = bool(auto)
         self._inverted[1] = float(values[0]) > float(values[1])
         if self._share_y is not None:
             self._share_y.limits = limits
@@ -7143,7 +7804,25 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     def minorticks_on(self): self.minor_ticks = True
     def minorticks_off(self): self.minor_ticks = False
-    def ticklabel_format(self, **kwargs): return None
+    def ticklabel_format(self, *, axis="both", style=None, scilimits=None,
+                         useOffset=None, useLocale=None, useMathText=None):
+        """Switch an axis between plain and scientific tick labels.
+
+        `style` is `'plain'`, `'sci'` or None; `scilimits` must be a pair of
+        exponents, as Matplotlib requires. The formatter writes each label in
+        the requested style; there is no separate offset text yet.
+        """
+        if axis not in ("both", "x", "y"):
+            raise ValueError(f"axis must be 'both', 'x', or 'y', not {axis!r}")
+        if scilimits is not None and (
+                not isinstance(scilimits, (tuple, list)) or len(scilimits) != 2):
+            raise ValueError("scilimits must be a sequence of 2 integers")
+        formatter = _ScalarFormatter(style=style, scilimits=scilimits,
+                                     useOffset=useOffset, useLocale=useLocale,
+                                     useMathText=useMathText)
+        for name in (("x", "y") if axis == "both" else (axis,)):
+            (self.xaxis if name == "x" else self.yaxis).set_major_formatter(formatter)
+        return None
     def set_rasterization_zorder(self, zorder):
         self._rasterization_zorder = None if zorder is None else float(zorder)
 
@@ -9356,7 +10035,10 @@ class Figure:
         self.facecolor = _norm_color(
             facecolor if facecolor is not None else rcParams.get("figure.facecolor"))
         self.edgecolor = _norm_color(edgecolor)
+        self._linewidth = 0.0
         self._suptitle = None
+        self._supxlabel = ""
+        self._supylabel = ""
         self._figure_texts = []
         self._figure_images = []
         self.artists = []
@@ -9377,18 +10059,20 @@ class Figure:
         """Draw a figure-level title above the panel grid."""
         size = _font_size(fontsize, rcParams.get("figure.titlesize", 12.0))
         family = _family_override(kwargs)
-        self._suptitle = dict(text=_mathtext(t, family), size=size, x=float(x),
-                              y=float(y), family=family)
+        self._suptitle = dict(text=_mathtext(t, family), raw=str(t), size=size,
+                              x=float(x), y=float(y), family=family)
         return None
 
     def supxlabel(self, t, x=0.5, y=0.01, fontsize=None, **kwargs):
         """Draw a figure-level x label below the panel grid."""
+        self._supxlabel = str(t)
         kwargs.setdefault("ha", "center")
         kwargs.setdefault("va", "bottom")
         return self.text(x, y, t, fontsize=fontsize, **kwargs)
 
     def supylabel(self, t, x=0.02, y=0.5, fontsize=None, **kwargs):
         """Draw a figure-level y label left of the panel grid."""
+        self._supylabel = str(t)
         kwargs.setdefault("ha", "center")
         kwargs.setdefault("va", "bottom")
         kwargs.setdefault("rotation", 90)
@@ -9591,6 +10275,58 @@ class Figure:
     def get_layout_engine(self): return getattr(self, "layout_engine", None)
     def get_axes(self): return list(self.axes)
     def get_dpi(self): return self.dpi or DPI
+    def get_figwidth(self): return self.figsize[0]
+    def get_figheight(self): return self.figsize[1]
+    def get_linewidth(self): return self._linewidth
+    def get_suptitle(self): return self._suptitle["raw"] if self._suptitle else ""
+    def get_supxlabel(self): return self._supxlabel
+    def get_supylabel(self): return self._supylabel
+
+    def set_figwidth(self, width, forward=True):
+        self.figsize = (_validate_dimension(width, "figwidth"), self.figsize[1])
+
+    def set_figheight(self, height, forward=True):
+        self.figsize = (self.figsize[0], _validate_dimension(height, "figheight"))
+
+    def set_linewidth(self, width):
+        value = float(width)
+        if not _math.isfinite(value) or value < 0.0:
+            raise ValueError(f"linewidth must be finite and non-negative, got {width!r}")
+        self._linewidth = value
+
+    def set_dpi(self, value):
+        self.dpi = _validate_dimension(value, "dpi")
+
+    def get_constrained_layout_pads(self, which=None, **kwargs):
+        return (None, None, None, None)
+
+    def sca(self, ax):
+        if ax not in self.axes:
+            raise ValueError("Axes has not been added yet")
+        self._cur = ax
+        return ax
+
+    def clf(self, keep_observers=False):
+        """Clear every axes and figure-level artist, keeping the figure itself."""
+        for ax in self.axes:
+            ax._fig = None
+        self.axes.clear()
+        self._cur = None
+        self._colorbar = None
+        self._suptitle = None
+        self._supxlabel = self._supylabel = ""
+        self._figure_texts = []
+        self._figure_images = []
+        self.artists = []
+        self.patches = []
+        self._render_cache = None
+
+    def delaxes(self, ax):
+        if ax in self.axes:
+            self.axes.remove(ax)
+            if self._cur is ax:
+                self._cur = None
+            ax._fig = None
 
     @property
     def dpi_scale_trans(self): return _Transform()
@@ -9605,6 +10341,29 @@ class Figure:
         if getattr(self, "patch", None) is not None:
             self.patch.set_facecolor(self.facecolor)
         return self
+
+    def set_edgecolor(self, color):
+        self.edgecolor = _norm_color(color)
+        if getattr(self, "patch", None) is not None:
+            self.patch.set_edgecolor(self.edgecolor)
+        return self
+
+    def show(self, warn=True):
+        """Display the figure; there is no window backend, so this is a no-op."""
+        return None
+
+    def waitforbuttonpress(self, timeout=-1):
+        """Block for a key press; there is no interactive backend, so this is a no-op."""
+        return None
+
+    def ginput(self, n=1, timeout=30, show_clicks=True, mouse_add=1,
+               mouse_pick=2, mouse_pop=3, mouse_stop=4):
+        """Collect clicks; without an interactive backend this records a no-op."""
+        _ignored("Figure.ginput")
+
+    def pick(self, mouseevent):
+        """Dispatch a pick event to every axes, as `Figure.pick`."""
+        return [artist for ax in self.axes for artist in ax.pick(mouseevent)]
 
     def legend(self, *args, **kwargs): return _LegendHandle()
     def figimage(self, X, xo=0, yo=0, alpha=None, norm=None, cmap=None,
@@ -9957,6 +10716,7 @@ class _SubFigure:
 # the object-oriented API is the thread-safe path for concurrent work.
 _figures: dict[int, Figure] = {}
 _current_fig = None
+_backend = "agg"
 _figure_lock = threading.RLock()
 
 
@@ -10125,6 +10885,37 @@ def subplot_mosaic(mosaic, empty_sentinel=".", figsize=None, dpi=None,
     """Create a figure from an ASCII or nested mosaic layout."""
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
+class _ScalarFormatter:
+    """Compact `ScalarFormatter` used by `Axes.ticklabel_format`."""
+
+    def __init__(self, style=None, scilimits=None, useOffset=None,
+                 useLocale=None, useMathText=None):
+        if style not in (None, "plain", "sci"):
+            raise ValueError(f"style must be 'sci', 'plain' or None, not {style!r}")
+        self.style = style
+        self.scilimits = None if scilimits is None else tuple(scilimits)
+        self.useOffset = True if useOffset is None else bool(useOffset)
+        self.useLocale = bool(useLocale)
+        self.useMathText = False if useMathText is None else bool(useMathText)
+        self.locs = None
+
+    def set_locs(self, locs): self.locs = locs
+
+    def _scientific(self, value):
+        if self.scilimits is None:
+            return False
+        magnitude = abs(value)
+        return magnitude != 0.0 and not 10.0 ** self.scilimits[0] <= magnitude < 10.0 ** self.scilimits[1]
+
+    def __call__(self, x, pos=None):
+        value = float(x)
+        if self.style == "sci" or (self.style is None and self._scientific(value)):
+            return f"{value:.2e}"
+        return f"{value:g}"
+
+    def format_data_short(self, value): return self(value)
+
+
 class FormatStrFormatter:
     """Old-style `%` formatter used by `FormatStrFormatter`."""
 
@@ -10133,6 +10924,25 @@ class FormatStrFormatter:
 
     def __call__(self, x, pos=None):
         return self.fmt % x
+
+
+class FuncFormatter:
+    """Formatter backed by a user function, as `matplotlib.ticker.FuncFormatter`."""
+
+    def __init__(self, func):
+        if not callable(func):
+            raise TypeError("FuncFormatter needs a callable")
+        self.func = func
+        self.locs = None
+
+    def __call__(self, x, pos=None):
+        return str(self.func(x, pos))
+
+    def format_data_short(self, value):
+        return str(self.func(value, None))
+
+    def set_locs(self, locs):
+        self.locs = locs
 
 
 class _Epoch(float):
@@ -10345,6 +11155,9 @@ def violinplot(*args, **kwargs):
 def pie(*args, **kwargs):
     """Call ``Axes.pie`` on the current axes and return its result."""
     return gca().pie(*args, **kwargs)
+def pie_label(*args, **kwargs):
+    """Call ``Axes.pie_label`` on the current axes and return its result."""
+    return gca().pie_label(*args, **kwargs)
 def stackplot(*args, **kwargs):
     """Call ``Axes.stackplot`` on the current axes and return its result."""
     return gca().stackplot(*args, **kwargs)
@@ -10389,6 +11202,27 @@ def axes(*args, **kwargs):
 
 
 
+def get_backend():
+    """Return the active backend name; matplotvite always renders statically."""
+    return _backend
+
+
+def switch_backend(newbackend):
+    """Record a backend name; the renderer and encoded formats do not change."""
+    global _backend
+    _backend = str(newbackend).lower()
+
+
+def draw_if_interactive(*args, **kwargs):
+    """Draw pending figures in interactive mode; matplotvite draws on save."""
+    pass
+
+
+def draw_all(*args, **kwargs):
+    """Draw every open figure; matplotvite draws on save, so this is a no-op."""
+    pass
+
+
 def show(*args, **kwargs):
     """Display figures; Matplotvite has no window backend, so this is a no-op."""
     pass
@@ -10416,6 +11250,63 @@ def figaspect(aspect):
     if aspect < 1.0:
         return (4.0, 4.0 * aspect)
     return (4.0 * aspect, 4.0)
+
+
+def get_figlabels():
+    """Return the labels of all open figures, in figure-number order."""
+    with _figure_lock:
+        return [_figures[number].get_label() for number in sorted(_figures)]
+
+
+def sca(ax):
+    """Set the current axes, switching to its figure when needed."""
+    if not isinstance(ax, Axes):
+        raise ValueError("sca() requires an Axes instance")
+    fig = ax._fig
+    if fig is None:
+        raise ValueError("sca() requires an Axes that belongs to a figure")
+    global _current_fig
+    with _figure_lock:
+        number = _find_figure_locked(fig)
+        if number is None:
+            number = max(_figures, default=0) + 1
+            fig.number = number
+            _figures[number] = fig
+        _current_fig = number
+    fig.sca(ax)
+
+
+def box(on=None):
+    """Turn the current axes' frame on or off, toggling when `on` is None."""
+    ax = gca()
+    if on is None:
+        on = not ax.get_frame_on()
+    ax.set_frame_on(on)
+
+
+def autoscale(enable=True, axis="both", tight=None):
+    """Call `Axes.autoscale` on the current axes."""
+    return gca().autoscale(enable=enable, axis=axis, tight=tight)
+
+
+def specgram(*args, **kwargs):
+    """Call ``Axes.specgram`` on the current axes and return its result."""
+    return gca().specgram(*args, **kwargs)
+
+
+def barbs(*args, **kwargs):
+    """Call ``Axes.barbs`` on the current axes and return its result."""
+    return gca().barbs(*args, **kwargs)
+
+
+def ecdf(*args, **kwargs):
+    """Call ``Axes.ecdf`` on the current axes and return its result."""
+    return gca().ecdf(*args, **kwargs)
+
+
+def figimage(*args, **kwargs):
+    """Place an image on the current figure with `Figure.figimage`."""
+    return gcf().figimage(*args, **kwargs)
 
 
 def streamplot(*args, **kwargs):
@@ -10590,6 +11481,8 @@ rcParams = {
     "axes.facecolor": "#ffffff",
     "axes.edgecolor": "#000000",
     "axes.grid": False,
+    "axes.xmargin": 0.05,
+    "axes.ymargin": 0.05,
     "axes.labelcolor": "#000000",
     "xtick.color": "#000000",
     "ytick.color": "#000000",
@@ -11818,6 +12711,104 @@ def _decode_png(data):
         mask = np.all(image == key, axis=2)
         return np.concatenate([image, (~mask)[..., None].astype(np.float64)], axis=2)
     return image
+
+
+def _write_png_image(fname, rgba):
+    """Write an HxW(x1/2/3/4) uint8 image as PNG without Pillow."""
+    rgba = np.ascontiguousarray(np.asarray(rgba, dtype=np.uint8))
+    if rgba.ndim == 2:
+        rgba = rgba[:, :, None]
+    if rgba.ndim != 3 or rgba.shape[2] not in (1, 2, 3, 4):
+        raise ValueError("PNG image must be HxW or HxWx1/2/3/4")
+    height, width = rgba.shape[:2]
+    color_type = {1: 0, 2: 4, 3: 2, 4: 6}[rgba.shape[2]]
+    raw = b"".join(b"\x00" + rgba[row].tobytes() for row in range(height))
+
+    def chunk(tag, payload):
+        crc = _zlib.crc32(tag + payload) & 0xFFFFFFFF
+        return (_struct.pack(">I", len(payload)) + tag + payload
+                + _struct.pack(">I", crc))
+
+    png = (_PNG_SIGNATURE
+           + chunk(b"IHDR", _struct.pack(">IIBBBBB", width, height, 8,
+                                          color_type, 0, 0, 0))
+           + chunk(b"IDAT", _zlib.compress(raw))
+           + chunk(b"IEND", b""))
+    if hasattr(fname, "write"):
+        fname.write(png)
+        return
+    with open(os.fspath(fname), "wb") as stream:
+        stream.write(png)
+
+
+def imsave(fname, arr, vmin=None, vmax=None, cmap=None, format=None, origin=None,
+           dpi=100, *, metadata=None, pil_kwargs=None):
+    """Save an array as an image file, as `matplotlib.pyplot.imsave`.
+
+    A 2-D array is mapped through `cmap`; an HxWx3/HxWx4 array is written as
+    colour. PNG is encoded natively, other formats go through Pillow (and
+    vector formats through the renderer).
+    """
+    data = np.asarray(arr)
+    if data.ndim == 2:
+        lo = float(vmin) if vmin is not None else None
+        hi = float(vmax) if vmax is not None else None
+        if lo is None or hi is None:
+            finite = data[np.isfinite(data)]
+            lo = float(finite.min()) if lo is None and finite.size else lo
+            hi = float(finite.max()) if hi is None and finite.size else hi
+        if lo is None or hi is None or not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
+            lo, hi = 0.0, 1.0
+        normalized = np.clip((data - lo) / (hi - lo), 0.0, 1.0)
+        name = cmap if cmap is not None else rcParams.get("image.cmap", "viridis")
+        rgba = np.asarray(get_cmap(name)(normalized), dtype=float)
+        rgba = np.clip(rgba * 255.0, 0.0, 255.0).astype(np.uint8)
+    elif data.ndim == 3 and data.shape[2] in (3, 4):
+        rgba = (data if data.dtype == np.uint8 else
+                np.clip(np.asarray(data, dtype=float) * 255.0, 0.0, 255.0).astype(np.uint8))
+    else:
+        raise ValueError("imsave expects a 2-D array or an HxWx3/HxWx4 array")
+    if origin == "lower":
+        rgba = rgba[::-1]
+    height, width = rgba.shape[:2]
+
+    if format is None:
+        name = (fname if isinstance(fname, (str, bytes, os.PathLike))
+                else getattr(fname, "name", ""))
+        fmt = os.path.splitext(os.fsdecode(name))[1].lower().lstrip(".") or "png"
+    else:
+        fmt = str(format).lower().lstrip(".")
+    fmt = {"jpeg": "jpg", "tif": "tiff", "ps": "eps"}.get(fmt, fmt)
+
+    if fmt == "png" and not pil_kwargs and metadata is None:
+        _write_png_image(fname, rgba)
+        return
+    if fmt in ("png", "jpg", "tiff"):
+        try:
+            from PIL import Image
+        except ImportError as exc:
+            raise ImportError(
+                "this imsave format needs Pillow; PNG is the only native format"
+            ) from exc
+        image = Image.fromarray(rgba)
+        if fmt == "jpg":
+            image = image.convert("RGB")
+        kwargs = dict(pil_kwargs or {})
+        kwargs.setdefault("format", {"png": "PNG", "jpg": "JPEG",
+                                     "tiff": "TIFF"}[fmt])
+        if dpi is not None:
+            kwargs.setdefault("dpi", (float(dpi), float(dpi)))
+        image.save(fname, **kwargs)
+        return
+    if fmt not in _FORMATS:
+        raise ValueError(f"unsupported format: {fmt!r}")
+    fig = Figure(figsize=(max(width, 1) / float(dpi or 100),
+                          max(height, 1) / float(dpi or 100)),
+                 dpi=dpi or 100)
+    ax = fig.add_axes([0.0, 0.0, 1.0, 1.0])
+    ax.imshow(rgba, aspect="auto", interpolation="nearest", origin="upper")
+    ax.set_axis_off()
+    fig.savefig(fname, format=fmt, dpi=dpi or 100)
 
 
 def _imread(fname, format=None):
