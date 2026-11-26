@@ -94,7 +94,7 @@ fn resample_area(
                     (sums[2] / count) as u8,
                     (sums[3] / count) as u8,
                 )
-                .expect("averaged channels are in range");
+                .unwrap_or(tiny_skia::PremultipliedColorU8::TRANSPARENT);
             }
         });
     Ok(out)

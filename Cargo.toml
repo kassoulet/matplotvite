@@ -32,3 +32,6 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
+# Library code reports errors instead of panicking; tests may unwrap.
+unwrap_used = "deny"
+expect_used = "deny"

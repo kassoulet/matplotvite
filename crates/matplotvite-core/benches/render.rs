@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)] // benches abort on setup failure
 use std::fmt::Write as _;
 use std::hint::black_box;
 use std::time::Duration;

@@ -3,6 +3,7 @@
 //! The scenes and tolerance live in `tests/golden/scenes.txt`, which the Python
 //! suite reads too; both render the same names and compare against the committed
 //! PNGs.
+#![allow(clippy::unwrap_used, clippy::expect_used)] // test helpers fail loudly
 
 use std::path::{Path, PathBuf};
 

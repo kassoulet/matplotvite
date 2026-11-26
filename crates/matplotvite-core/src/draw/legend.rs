@@ -41,7 +41,9 @@ impl LegendObstacles {
         }
         if pts.len() > LEGEND_SCORE_VERTICES {
             let stride = pts.len().div_ceil(LEGEND_SCORE_VERTICES);
-            let last = *pts.last().expect("non-empty polyline");
+            let Some(&last) = pts.last() else {
+                return;
+            };
             let mut thinned = Vec::with_capacity(LEGEND_SCORE_VERTICES + 1);
             thinned.extend(pts.iter().step_by(stride).copied());
             thinned.push(last);

@@ -201,7 +201,8 @@ impl Figure {
         panel.bounds = Some((x, y, width, height));
         panel.axes_bounds = true;
         self.panels.push(panel);
-        let panel = self.panels.last_mut().expect("just pushed a panel");
+        let index = self.panels.len() - 1;
+        let panel = &mut self.panels[index];
         Ok(Axes {
             panel,
             last: None,
@@ -233,7 +234,8 @@ impl Figure {
         }
         self.grid = (rows, cols);
         self.panels.push(new_panel(index, self.dpi));
-        let panel = self.panels.last_mut().expect("just pushed a panel");
+        let slot = self.panels.len() - 1;
+        let panel = &mut self.panels[slot];
         Ok(Axes {
             panel,
             last: None,
@@ -424,7 +426,7 @@ impl Axes<'_> {
         self.panel.images.push((
             OwnedArrayD::from_array(
                 Array2::from_shape_vec((rows, cols), values.iter().copied().collect())
-                    .expect("shape and length agree")
+                    .map_err(|e| ApiError::InvalidArgument(e.to_string()))?
                     .into_dyn(),
             ),
             Cmap::parse("viridis"),
@@ -720,7 +722,7 @@ impl Axes<'_> {
             OwnedArray1::from(y.to_vec()),
             OwnedArray2::from_array(
                 Array2::from_shape_vec((rows, cols), z.iter().copied().collect())
-                    .expect("shape and length agree"),
+                    .map_err(|e| ApiError::InvalidArgument(e.to_string()))?,
             ),
             levels.clone(),
             vec![1.5; levels.len()],
@@ -1054,7 +1056,7 @@ impl Axes<'_> {
         self.panel.images.push((
             OwnedArrayD::from_array(
                 Array2::from_shape_vec((rows, cols), values.iter().copied().collect())
-                    .expect("shape and length agree")
+                    .map_err(|e| ApiError::InvalidArgument(e.to_string()))?
                     .into_dyn(),
             ),
             Cmap::parse(cmap),
