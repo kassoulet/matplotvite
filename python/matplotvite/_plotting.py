@@ -2830,7 +2830,7 @@ def _patch_entry(artist):
     """Reduce a Rectangle/Circle/Polygon-like object, or return None."""
     kind = None
     x = y = w = h = 0.0
-    points = []  # type: ignore[var-annotated]
+    points = []
     if not getattr(artist, "get_visible", lambda: True)():
         return None
     # `Shadow` wraps an artist and offsets it; for pie wedges the wrapped
@@ -2840,10 +2840,10 @@ def _patch_entry(artist):
     if band is not None:
         shift = (float(getattr(artist, "ox", 0.0)),
                  float(getattr(artist, "oy", 0.0)))
-        points = np.column_stack((np.asarray(band["x"], dtype=float) + shift[0],  # type: ignore[assignment]
+        points = np.column_stack((np.asarray(band["x"], dtype=float) + shift[0],
                                   np.asarray(band["y"], dtype=float) + shift[1]))
         return dict(kind="polygon", x=0.0, y=0.0, width=0.0, height=0.0,
-                    points=points.ravel().tolist(),  # type: ignore[attr-defined]
+                    points=points.ravel().tolist(),
                     facecolor=_single_color(_call(wrapped, "get_facecolor")),
                     edgecolor=_single_color(_call(wrapped, "get_edgecolor")),
                     linewidth=_number(_call(artist, "get_linewidth"), 1.0),
@@ -4122,10 +4122,10 @@ class _PlotAxes(_AxesMixinBase):
                 if candidate.ndim == 2:
                     datasets = list(candidate)
                 elif candidate.ndim == 1:
-                    datasets = [candidate]  # type: ignore[list-item]
+                    datasets = [candidate]
             except (TypeError, ValueError):
                 # Ragged sample sizes are the usual multi-histogram input.
-                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]  # type: ignore[misc]
+                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
         elif isinstance(x, np.ndarray) and x.ndim == 2:
             datasets = list(x)
         if datasets is not None and len(datasets) > 1 and not stacked:
@@ -4149,7 +4149,7 @@ class _PlotAxes(_AxesMixinBase):
             edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
             counts_list = []
             for dataset in datasets:
-                count, _ = np.histogram(dataset, bins=edges, density=bool(density))  # type: ignore[call-overload]
+                count, _ = np.histogram(dataset, bins=edges, density=bool(density))
                 if cumulative:
                     count = np.cumsum(count)
                 counts_list.append(np.asarray(count, dtype=np.float64))
@@ -4185,7 +4185,7 @@ class _PlotAxes(_AxesMixinBase):
             return counts_list, edges, handles
         data = (datasets[0] if datasets is not None and len(datasets) == 1
                 else np.asarray(x, dtype=np.float64).ravel())
-        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,  # type: ignore[call-overload]
+        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
                                      density=bool(density))
         if cumulative:
             counts = np.cumsum(counts)
@@ -4494,7 +4494,7 @@ class _PlotAxes(_AxesMixinBase):
             return None
         n = len(rows)
         if np.isscalar(lineoffsets):
-            offsets = np.full(n, float(lineoffsets)) + np.arange(n)  # type: ignore[arg-type]
+            offsets = np.full(n, float(lineoffsets)) + np.arange(n)
         else:
             offsets = _fill(lineoffsets, n)
         lengths = _fill(linelengths, n)
@@ -5798,7 +5798,7 @@ class _FieldAxes(_AxesMixinBase):
                 raise ValueError("U and V must have the same shape")
             if ua.ndim == 2:
                 rows, cols = ua.shape
-                x, y = np.meshgrid(np.arange(cols, dtype=float),  # type: ignore[assignment]
+                x, y = np.meshgrid(np.arange(cols, dtype=float),
                                    np.arange(rows, dtype=float))
                 x, y = x.ravel(), y.ravel()
             else:
@@ -5983,7 +5983,7 @@ class _FieldAxes(_AxesMixinBase):
         if linewidths is None:
             widths = []
         elif np.isscalar(linewidths):
-            widths = [float(linewidths)]  # type: ignore[arg-type]
+            widths = [float(linewidths)]
         else:
             widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
         if widths and len(widths) not in (1, len(levels)):
@@ -8719,7 +8719,7 @@ def _as_f64(v):
             if hasattr(item, "get_value"):
                 value = item.get_value()
                 if np.isscalar(value):
-                    return float(value)  # type: ignore[arg-type]
+                    return float(value)
             if hasattr(item, "_value"):
                 return float(item._value)
             if hasattr(item, "value"):
@@ -12030,7 +12030,7 @@ class _LogLocator(_Locator):
         if self.subs is None:
             subs = (1.0,)
         elif np.isscalar(self.subs):
-            subs = (float(self.subs),)  # type: ignore[arg-type]
+            subs = (float(self.subs),)
         else:
             subs = tuple(float(s) for s in np.ravel(self.subs))  # type: ignore[assignment]
         values = [sub * base ** exp
@@ -12631,7 +12631,7 @@ def _decode_png(data):
         raise ValueError("PNG image data is larger than its header declares")
     if len(raw) < height * (stride + 1):
         raise ValueError("truncated PNG image data")
-    lines = np.frombuffer(raw, dtype=np.uint8, count=expected).reshape(height, stride + 1)  # type: ignore[arg-type]
+    lines = np.frombuffer(raw, dtype=np.uint8, count=expected).reshape(height, stride + 1)
     data = lines[:, 1:].copy()
     previous = np.zeros(stride, dtype=np.uint8)
     for y in range(height):  # type: ignore[arg-type]
@@ -12654,7 +12654,7 @@ def _decode_png(data):
     elif depth == 16:
         samples = np.ascontiguousarray(data[:, :count * 2]).view(">u2")
     else:
-        bits = np.unpackbits(data, axis=1).reshape(height, -1, depth)  # type: ignore[arg-type]
+        bits = np.unpackbits(data, axis=1).reshape(height, -1, depth)
         samples = (bits * (1 << np.arange(depth - 1, -1, -1))).sum(axis=2)[:, :count]
     scale = (float((1 << depth) - 1) if color == 0 and depth < 8
              else 255.0 if depth <= 8 else 65535.0)
@@ -12675,8 +12675,8 @@ def _decode_png(data):
 
     array = np.asarray(samples, dtype=np.float64) / scale
     if color == 0:
-        return array.reshape(height, width)  # type: ignore[arg-type]
-    image = array.reshape(height, width, channels)  # type: ignore[arg-type]
+        return array.reshape(height, width)
+    image = array.reshape(height, width, channels)
     if color == 4:
         gray = image[..., 0:1]
         return np.concatenate([np.repeat(gray, 3, axis=2), image[..., 1:2]], axis=2)
@@ -13301,7 +13301,7 @@ class PolarAxes(Axes):
                 x, y = self._polar_arc(radius)
                 lines.append(_series(x, y, "", grid, linewidth=0.8))
 
-        angles = self._polar_thetagrids or list(np.arange(0.0, 360.0, 45.0))  # type: ignore[assignment]
+        angles = self._polar_thetagrids or list(np.arange(0.0, 360.0, 45.0))
         for degrees in angles:
             radians = np.deg2rad(float(degrees))
             if limits is not None and not (limits[0] - 1e-12 <= radians <= limits[1] + 1e-12):
@@ -13415,7 +13415,7 @@ class GeoAxes(PolarAxes):
                     np.sin(longitude) * np.cos(latitude),
                     self._geo_height * np.sin(latitude),
                     "", grid, linewidth=0.5))
-            longitude = np.linspace(-np.pi, np.pi, 181)  # type: ignore[assignment]
+            longitude = np.linspace(-np.pi, np.pi, 181)
             for lat in np.deg2rad([-60.0, -30.0, 0.0, 30.0, 60.0]):
                 lines.append(_series(
                     np.sin(longitude) * np.cos(lat),
