@@ -49,7 +49,7 @@ def _delaunay(x, y):
         bad = [tri_index for tri_index, tri in enumerate(triangles)
                if _circumcircle_contains(vertices[tri[0]], vertices[tri[1]],
                                          vertices[tri[2]], point)]
-        edges = {}
+        edges = {}  # type: ignore[var-annotated]
         for tri_index in bad:
             a, b, c = triangles[tri_index]
             for edge in ((a, b), (b, c), (c, a)):
@@ -83,7 +83,7 @@ class _TriangleIndex:
             self.size = 1
             self.minx = self.miny = 0.0
             self.maxx = self.maxy = 1.0
-            self.buckets = {}
+            self.buckets = {}  # type: ignore[var-annotated]
             return
         xs = x[triangles]
         ys = y[triangles]
@@ -246,7 +246,7 @@ class UniformTriRefiner:
         mask = triangulation.mask.copy()
         for _ in range(int(subdiv)):
             midpoints = {}
-            new_triangles, new_mask = [], []
+            new_triangles, new_mask = [], []  # type: ignore[var-annotated]
             for tri, masked in zip(triangles, mask):
                 corners = []
                 for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):

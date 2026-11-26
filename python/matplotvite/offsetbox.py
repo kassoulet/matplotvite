@@ -295,7 +295,7 @@ class OffsetImage:
     def get_data(self): return self._arr
 
     def _add_to_axes(self, ax):
-        self.image.axes = ax
+        self.image.axes = ax  # type: ignore[attr-defined]
         return self
 
 

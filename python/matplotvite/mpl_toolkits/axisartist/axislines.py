@@ -12,5 +12,5 @@ class AxesZero(_Axes):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.axis["xzero"].set_visible(False)
-        self.axis["yzero"].set_visible(False)
+        self.axis["xzero"].set_visible(False)  # type: ignore[index]
+        self.axis["yzero"].set_visible(False)  # type: ignore[index]

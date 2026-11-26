@@ -180,7 +180,7 @@ class Sankey:
         if orientations is None:
             orientations = np.ones(n, dtype=int)
         elif np.isscalar(orientations):
-            orientations = np.full(n, int(orientations))
+            orientations = np.full(n, int(orientations))  # type: ignore[arg-type]
         else:
             orientations = np.asarray(orientations, dtype=int).reshape(-1)
             if orientations.size == 1:
@@ -206,7 +206,7 @@ class Sankey:
                 f"{np.asarray(labels).shape} do not match.")
 
         if np.isscalar(pathlengths):
-            pathlengths = np.full(n, float(pathlengths))
+            pathlengths = np.full(n, float(pathlengths))  # type: ignore[arg-type]
         else:
             pathlengths = np.asarray(pathlengths, dtype=float).reshape(-1)
             if pathlengths.size != n:

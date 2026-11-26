@@ -85,7 +85,7 @@ class ImageGrid:
         cell_h = (height - pad_y * (nrows - 1)) / nrows
         if cell_w <= 0 or cell_h <= 0:
             raise ValueError("axes_pad leaves no room for the grid")
-        self._axes = []
+        self._axes = []  # type: ignore[var-annotated]
         for r in range(nrows):
             for c in range(ncols):
                 if direction == "column":

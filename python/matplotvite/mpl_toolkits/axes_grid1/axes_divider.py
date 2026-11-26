@@ -71,10 +71,10 @@ class Divider:
                  aspect=False, anchor="C", **kwargs):
         if isinstance(ax_or_fig, Axes) and rect is None:
             self._ax = ax_or_fig
-            self._fig = ax_or_fig._fig
+            self._fig = ax_or_fig._fig  # type: ignore[attr-defined]
             self._mode = "append"
             return
-        self._ax = None
+        self._ax = None  # type: ignore[assignment]
         self._mode = "grid"
         self._fig = ax_or_fig
         if rect is None:
@@ -121,21 +121,21 @@ class Divider:
 
     def _share(self, new, sharex=None, sharey=None):
         if sharex:
-            group = self._ax._share_x
+            group = self._ax._share_x  # type: ignore[attr-defined]
             if group is None:
                 group = _Share()
                 group.axes.append(self._ax)
-                group.limits = self._ax.xlim
-                self._ax._share_x = group
+                group.limits = self._ax.xlim  # type: ignore[attr-defined]
+                self._ax._share_x = group  # type: ignore[attr-defined]
             new._share_x = group
             group.axes.append(new)
         if sharey:
-            group = self._ax._share_y
+            group = self._ax._share_y  # type: ignore[attr-defined]
             if group is None:
                 group = _Share()
                 group.axes.append(self._ax)
-                group.limits = self._ax.ylim
-                self._ax._share_y = group
+                group.limits = self._ax.ylim  # type: ignore[attr-defined]
+                self._ax._share_y = group  # type: ignore[attr-defined]
             new._share_y = group
             group.axes.append(new)
 
@@ -169,7 +169,7 @@ class Divider:
     def _resolve(self, sizes, available):
         if not sizes:
             return [available]
-        values = []
+        values = []  # type: ignore[var-annotated]
         scaled = []
         for index, size in enumerate(sizes):
             if isinstance(size, Size.Scaled):

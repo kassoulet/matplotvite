@@ -10,7 +10,7 @@ import threading
 import warnings
 import zlib as _zlib
 from contextlib import contextmanager, suppress
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
@@ -387,7 +387,7 @@ def _cmap_name(cmap):
 def get_cmap(name=None, lut=None):
     """Return a `Colormap` by registry name (or the `image.cmap` default)."""
     cmap = name.copy() if isinstance(name, Colormap) else Colormap(
-        name if name is not None else rcParams.get("image.cmap", "viridis"))
+        name if name is not None else rcParams.get("image.cmap", "viridis"))  # type: ignore[arg-type]
     return cmap.resampled(lut) if lut is not None else cmap
 
 
@@ -493,7 +493,7 @@ def _share_axes(axs, shape, sharex, sharey):
         if kind in (True, "all"):
             def key(_a):
                 return 0
-        groups = {}
+        groups = {}  # type: ignore[var-annotated]
         for ax in axs:
             group = groups.setdefault(key(ax), _Share())
             group.axes.append(ax)
@@ -1423,7 +1423,7 @@ def _date_ticks(lo, hi):
                                            microsecond=0)
         if _datetime_to_num(start) < lo:
             start = _add_months(start, 1)
-        ticks, labels = [], []
+        ticks, labels = [], []  # type: ignore[var-annotated]
         current = start
         while len(ticks) < 20:
             value = _datetime_to_num(current)
@@ -2184,7 +2184,7 @@ _FONT_SCALINGS = {
 
 def _font_size(value, default=10.0):
     """Resolve numeric and named font sizes relative to `font.size`."""
-    base = float(rcParams.get("font.size", 10.0))
+    base = float(rcParams.get("font.size", 10.0))  # type: ignore[arg-type]
     if value is None:
         value = default
     if isinstance(value, str):
@@ -2340,8 +2340,8 @@ class Patch:
         if hasattr(self, "_xy"):
             return Path(self._xy)
         if hasattr(self, "_x"):
-            x, y = self._x, self._y
-            w, h = self._width, self._height
+            x, y = self._x, self._y  # type: ignore[attr-defined]
+            w, h = self._width, self._height  # type: ignore[attr-defined]
             return Path([(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)])
         return Path(np.empty((0, 2)))
     def add_callback(self, func, *args, **kwargs): return 1
@@ -2839,7 +2839,7 @@ def _patch_entry(artist):
     """Reduce a Rectangle/Circle/Polygon-like object, or return None."""
     kind = None
     x = y = w = h = 0.0
-    points = []
+    points = []  # type: ignore[var-annotated]
     if not getattr(artist, "get_visible", lambda: True)():
         return None
     # `Shadow` wraps an artist and offsets it; for pie wedges the wrapped
@@ -2849,10 +2849,10 @@ def _patch_entry(artist):
     if band is not None:
         shift = (float(getattr(artist, "ox", 0.0)),
                  float(getattr(artist, "oy", 0.0)))
-        points = np.column_stack((np.asarray(band["x"], dtype=float) + shift[0],
+        points = np.column_stack((np.asarray(band["x"], dtype=float) + shift[0],  # type: ignore[assignment]
                                   np.asarray(band["y"], dtype=float) + shift[1]))
         return dict(kind="polygon", x=0.0, y=0.0, width=0.0, height=0.0,
-                    points=points.ravel().tolist(),
+                    points=points.ravel().tolist(),  # type: ignore[attr-defined]
                     facecolor=_single_color(_call(wrapped, "get_facecolor")),
                     edgecolor=_single_color(_call(wrapped, "get_edgecolor")),
                     linewidth=_number(_call(artist, "get_linewidth"), 1.0),
@@ -3888,7 +3888,16 @@ _AXES_ARTIST_PROPS = frozenset(
 )
 
 
-class _PlotAxes:
+if TYPE_CHECKING:
+    class _AxesMixinBase:
+        """The mixins below run inside `Axes`; type-check their `self` loosely."""
+
+        def __getattr__(self, name: str) -> Any: ...
+else:
+    _AxesMixinBase = object
+
+
+class _PlotAxes(_AxesMixinBase):
     """Plot families: lines, points, bars, fills and categorical plots."""
 
     def plot(self, *args, label="", color=None, c=None, linestyle=None, ls=None,
@@ -4122,10 +4131,10 @@ class _PlotAxes:
                 if candidate.ndim == 2:
                     datasets = list(candidate)
                 elif candidate.ndim == 1:
-                    datasets = [candidate]
+                    datasets = [candidate]  # type: ignore[list-item]
             except (TypeError, ValueError):
                 # Ragged sample sizes are the usual multi-histogram input.
-                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]
+                datasets = [np.asarray(item, dtype=np.float64).ravel() for item in x]  # type: ignore[misc]
         elif isinstance(x, np.ndarray) and x.ndim == 2:
             datasets = list(x)
         if datasets is not None and len(datasets) > 1 and not stacked:
@@ -4149,7 +4158,7 @@ class _PlotAxes:
             edges = np.histogram_bin_edges(np.concatenate(datasets), bins=bins, range=range)
             counts_list = []
             for dataset in datasets:
-                count, _ = np.histogram(dataset, bins=edges, density=bool(density))
+                count, _ = np.histogram(dataset, bins=edges, density=bool(density))  # type: ignore[call-overload]
                 if cumulative:
                     count = np.cumsum(count)
                 counts_list.append(np.asarray(count, dtype=np.float64))
@@ -4185,7 +4194,7 @@ class _PlotAxes:
             return counts_list, edges, handles
         data = (datasets[0] if datasets is not None and len(datasets) == 1
                 else np.asarray(x, dtype=np.float64).ravel())
-        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,
+        counts, edges = np.histogram(data, bins=bins, range=range, weights=weights,  # type: ignore[call-overload]
                                      density=bool(density))
         if cumulative:
             counts = np.cumsum(counts)
@@ -4241,7 +4250,7 @@ class _PlotAxes:
             raise ValueError(f"unsupported align: {align!r}")
         left = x - w / 2.0 if align == "center" else x
         # Matplotlib pins each bar's baseline so autoscaling keeps it on the axis.
-        self._sticky_y += [float(v) for v in np.asarray(b).ravel()]
+        self._sticky_y += [float(v) for v in np.asarray(b).ravel()]  # type: ignore[attr-defined]
         colors = _bar_colors(color if color is not None else self._next_color(patch=True), n)
         self._append_bar(dict(
             left=np.ascontiguousarray(left), bottom=b, width=w, height=h,
@@ -4315,7 +4324,7 @@ class _PlotAxes:
         if align not in ("center", "edge"):
             raise ValueError(f"unsupported align: {align!r}")
         bottom = y - h / 2.0 if align == "center" else y
-        self._sticky_x += [float(v) for v in np.asarray(l).ravel()]
+        self._sticky_x += [float(v) for v in np.asarray(l).ravel()]  # type: ignore[attr-defined]
         self._append_bar(dict(
             left=l, bottom=np.ascontiguousarray(bottom), width=w, height=h,
             colors=_bar_colors(color if color is not None else self._next_color(patch=True), n),
@@ -4377,12 +4386,12 @@ class _PlotAxes:
         """Filled polygons: every `x, y` pair is one polygon, optionally
         followed by its own colour, as in Matplotlib (`fill(x, y, x2, y2)`
         draws two polygons, not one polygon through both)."""
-        groups, pair = [], []
+        groups, pair = [], []  # type: ignore[var-annotated]
         for arg in args:
             if isinstance(arg, str):
                 if not groups or groups[-1][1] is not None:
                     raise TypeError("fill expects x, y pairs, optionally followed by a colour")
-                groups[-1] = (groups[-1][0], arg)
+                groups[-1] = (groups[-1][0], arg)  # type: ignore[assignment]
                 continue
             pair.append(arg)
             if len(pair) == 2:
@@ -4494,7 +4503,7 @@ class _PlotAxes:
             return None
         n = len(rows)
         if np.isscalar(lineoffsets):
-            offsets = np.full(n, float(lineoffsets)) + np.arange(n)
+            offsets = np.full(n, float(lineoffsets)) + np.arange(n)  # type: ignore[arg-type]
         else:
             offsets = _fill(lineoffsets, n)
         lengths = _fill(linelengths, n)
@@ -4680,7 +4689,7 @@ class _PlotAxes:
             raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
         wiggle = baseline in ("wiggle", "weighted_wiggle")
         x = np.asarray(x, dtype=np.float64).ravel()
-        layers = []
+        layers = []  # type: ignore[var-annotated]
         for y in ys:
             a = np.asarray(_as_list(y), dtype=np.float64)
             if a.ndim == 2 and a.shape[0] == x.size:
@@ -4780,7 +4789,7 @@ class _PlotAxes:
                       linewidth=linewidth if linewidth is not None else 1.0)
         return None
 
-class _StatsAxes:
+class _StatsAxes(_AxesMixinBase):
     """Statistical plots: box, whisker and violin summaries."""
 
     def boxplot(self, x, notch=None, sym=None, vert=None, whis=None, positions=None,
@@ -4842,7 +4851,7 @@ class _StatsAxes:
         draw_fliers = True if showfliers is None else bool(showfliers)
         if labels is None:
             labels = tick_labels
-        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
+        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])  # type: ignore[var-annotated]
         for i, raw in enumerate(groups):
             vals = np.asarray(raw, dtype=np.float64).ravel()
             vals = vals[np.isfinite(vals)]
@@ -4975,7 +4984,7 @@ class _StatsAxes:
                              flier_style.get("color", flier_style.get("c")))),
             "black")
         flier_marker = str(flier_style.get("marker", "o"))
-        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])
+        out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])  # type: ignore[var-annotated]
         for i, stat in enumerate(stats):
             q1 = float(stat.get("q1", 0.0))
             q3 = float(stat.get("q3", q1))
@@ -5080,7 +5089,7 @@ class _StatsAxes:
         # fill_between path; an explicit edge colour is the only thing drawn.
         edge = kwargs.get("linecolor", kwargs.get("edgecolor"))
         line_color = _single_color(edge, colors[0])
-        out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])
+        out = dict(bodies=[], cmeans=[], cmaxes=[], cmins=[], cbars=[])  # type: ignore[var-annotated]
         if quantiles is not None:
             out["cquantiles"] = []
         per_group_quantiles = None
@@ -5224,7 +5233,7 @@ class _StatsAxes:
                 return float(_datetime_to_num(value))
             return float(value)
 
-        out = {"bodies": []}
+        out = {"bodies": []}  # type: ignore[var-annotated]
         if showmeans:
             out["cmeans"] = []
         if showextrema:
@@ -5294,7 +5303,7 @@ class _StatsAxes:
         return out
 
 
-class _FieldAxes:
+class _FieldAxes(_AxesMixinBase):
     """Gridded and vector fields: images, contours, quiver and hexbin."""
 
     def clabel(self, *args, **kwargs):
@@ -5576,8 +5585,8 @@ class _FieldAxes:
             cells=int(shown.size),
             cell_colors="".join(c[1:] for c in colors), gid="",
         ))
-        self._sticky_x += [ex0, ex1]
-        self._sticky_y += [ey0, ey1]
+        self._sticky_x += [ex0, ex1]  # type: ignore[attr-defined]
+        self._sticky_y += [ey0, ey1]  # type: ignore[attr-defined]
         return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
     def streamplot(self, x, y, u, v, density=1, linewidth=None, color=None,
@@ -5739,7 +5748,7 @@ class _FieldAxes:
         colors.extend(arrow_colors)
         lines = LineCollection(segments, colors=colors, linewidths=line_width,
                                label=kwargs.get("label", ""))
-        lines.axes = self
+        lines.axes = self  # type: ignore[attr-defined]
         lines._array = np.asarray(shown_values) if shown_values else None
         lines._cmap = _cmap_name(cmap) if color_values is not None else None
         if color_values is not None:
@@ -5798,7 +5807,7 @@ class _FieldAxes:
                 raise ValueError("U and V must have the same shape")
             if ua.ndim == 2:
                 rows, cols = ua.shape
-                x, y = np.meshgrid(np.arange(cols, dtype=float),
+                x, y = np.meshgrid(np.arange(cols, dtype=float),  # type: ignore[assignment]
                                    np.arange(rows, dtype=float))
                 x, y = x.ravel(), y.ravel()
             else:
@@ -5925,7 +5934,7 @@ class _FieldAxes:
         edges = triangulation.get_masked_triangles()
         if len(edges) == 0:
             return []
-        ex, ey = [], []
+        ex, ey = [], []  # type: ignore[var-annotated]
         for a, b, c in edges:
             for i, j in ((a, b), (b, c), (c, a)):
                 ex.extend((triangulation.x[i], triangulation.x[j], np.nan))
@@ -5983,7 +5992,7 @@ class _FieldAxes:
         if linewidths is None:
             widths = []
         elif np.isscalar(linewidths):
-            widths = [float(linewidths)]
+            widths = [float(linewidths)]  # type: ignore[arg-type]
         else:
             widths = [float(v) for v in np.asarray(linewidths, dtype=np.float64).ravel()]
         if widths and len(widths) not in (1, len(levels)):
@@ -5998,7 +6007,7 @@ class _FieldAxes:
         self.contours.append(entry)
         return ContourSet(entry, axes=self)
 
-class _DecorAxes:
+class _DecorAxes(_AxesMixinBase):
     """Labels, annotation, legends and axis decoration."""
 
     def arrow(self, x, y, dx, dy, **kwargs):
@@ -6050,7 +6059,7 @@ class _DecorAxes:
                                  None if xytext is None else (float(xytext[0]), float(xytext[1])),
                                  _norm_color(color), size, family or ""))
         art = _TextArt(str(text))
-        art.arrow_patch = _TextArt()
+        art.arrow_patch = _TextArt()  # type: ignore[attr-defined]
         return art
 
     def set_title(self, t, fontsize=None, **kwargs):
@@ -6143,10 +6152,10 @@ class _DecorAxes:
         self.grid_axis = axis
         for target in targets:
             if target == "major":
-                self.show_grid = (not self.show_grid) if visible is None else bool(visible)
+                self.show_grid = (not self.show_grid) if visible is None else bool(visible)  # type: ignore[has-type]
                 prefix, active = "grid_", self.show_grid
             else:
-                self.grid_minor_show = ((not self.grid_minor_show)
+                self.grid_minor_show = ((not self.grid_minor_show)  # type: ignore[has-type]
                                         if visible is None else bool(visible))
                 prefix, active = "grid_minor_", self.grid_minor_show
             if "color" in kwargs or "c" in kwargs:
@@ -6154,7 +6163,7 @@ class _DecorAxes:
                         _norm_color(kwargs.get("color", kwargs.get("c"))))
             if "linewidth" in kwargs or "lw" in kwargs:
                 setattr(self, f"{prefix}linewidth",
-                        float(kwargs.get("linewidth", kwargs.get("lw"))))
+                        float(kwargs.get("linewidth", kwargs.get("lw"))))  # type: ignore[arg-type]
             if "linestyle" in kwargs or "ls" in kwargs:
                 setattr(self, f"{prefix}linestyle",
                         str(kwargs.get("linestyle", kwargs.get("ls"))))
@@ -6223,7 +6232,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._adjustable = "box"
         self.title = self.xlabel = self.ylabel = ""
         self.show_legend, self.xlim, self.ylim = False, None, None
-        self.legend_labels = None
+        self.legend_labels = None  # type: ignore[assignment]
         self._sticky_x, self._sticky_y = [], []
         self.visible, self._removed, self._axis_off = True, False, False
         self.artists, self.label, self.zorder = [], "", 0
@@ -6252,7 +6261,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.legend_fontsize = None
         self.legend_title = ""
         self.legend_title_fontsize = None
-        self.legend_anchor = None
+        self.legend_anchor = None  # type: ignore[assignment]
         self.legend_family = None
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.title_family = self.xlabel_family = self.ylabel_family = None
@@ -6287,8 +6296,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._axisbelow = rcParams.get("axes.axisbelow", "line")
         self._transform = None
         self._transform_set = False
-        self._xmargin = float(rcParams.get("axes.xmargin", 0.05))
-        self._ymargin = float(rcParams.get("axes.ymargin", 0.05))
+        self._xmargin = float(rcParams.get("axes.xmargin", 0.05))  # type: ignore[arg-type]
+        self._ymargin = float(rcParams.get("axes.ymargin", 0.05))  # type: ignore[arg-type]
         self._tight_x = self._tight_y = False
         self._frame_on = True
         self._clip_path = None
@@ -6311,7 +6320,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.xaxis = _Axis(self, "x")
         self.yaxis = _Axis(self, "y")
         self.spines = _Spines()
-        self.axis = _AxisAccessor(self)
+        self.axis = _AxisAccessor(self)  # type: ignore[method-assign]
         self.patches = []
         self.collections = []
         self.callbacks = _Callbacks()
@@ -7317,7 +7326,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.title = self.xlabel = self.ylabel = ""
         self.title_size = self.xlabel_size = self.ylabel_size = None
         self.show_legend, self.xlim, self.ylim = False, None, None
-        self.legend_labels = None
+        self.legend_labels = None  # type: ignore[assignment]
         self._xticks = self._yticks = None
         self._xlocator = self._ylocator = None
         self.xaxis._locator = self.yaxis._locator = None
@@ -7333,7 +7342,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.legend_loc, self.legend_ncol = "best", 1
         self.legend_frameon, self.legend_fontsize = True, None
         self.legend_title, self.legend_title_fontsize = "", None
-        self.legend_anchor = None
+        self.legend_anchor = None  # type: ignore[assignment]
         self._axlines.clear()
 
     cla = clear
@@ -7480,7 +7489,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def get_xticklabels(self, minor=False, which=None):
         labels = self._xticklabels
         if labels is None and self.xscale == "logit":
-            labels = _logit_ticks(*self.get_xlim(), self.logit_one_half,
+            labels = _logit_ticks(*self.get_xlim(), self.logit_one_half,  # type: ignore[call-arg]
                                   self.logit_use_overline)[1]
         if labels is None:
             labels = _format_ticklabels(self.xaxis._formatter, self.get_xticks())
@@ -7492,7 +7501,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def get_yticklabels(self, minor=False, which=None):
         labels = self._yticklabels
         if labels is None and self.yscale == "logit":
-            labels = _logit_ticks(*self.get_ylim(), self.logit_one_half,
+            labels = _logit_ticks(*self.get_ylim(), self.logit_one_half,  # type: ignore[call-arg]
                                   self.logit_use_overline)[1]
         if labels is None:
             labels = _format_ticklabels(self.yaxis._formatter, self.get_yticks())
@@ -7541,7 +7550,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             scale_obj.set_default_locators_and_formatters(axis_obj)
         else:
             from .scale import _SCALES
-            cls = _SCALES.get(name)
+            cls = _SCALES.get(name)  # type: ignore[assignment]
             if cls is None:
                 raise NotImplementedError(f"unsupported {axis} scale: {value!r}")
             scale_obj = cls(axis_obj, **kwargs)
@@ -7994,9 +8003,9 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                      [_norm_color(v) for v in c["colors"]], c["cmap"], c["filled"],
                      c["alpha"])
                     for c in self.contours]
-        font = float(rcParams.get("font.size", 10.0))
+        font = float(rcParams.get("font.size", 10.0))  # type: ignore[arg-type]
         legend_font = (float(self.legend_fontsize) if self.legend_fontsize is not None
-                       else float(rcParams.get("legend.fontsize", font)))
+                       else float(rcParams.get("legend.fontsize", font)))  # type: ignore[arg-type]
         legend_title = (float(self.legend_title_fontsize)
                         if self.legend_title_fontsize is not None else legend_font * 1.1)
         xticks, xticklabels, yticks, yticklabels = self._panel_ticks(
@@ -8313,7 +8322,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     def _tick_style_dict(self, axis):
         style = self.tick_params_x if axis == "x" else self.tick_params_y
-        font = float(rcParams.get("font.size", 10.0))
+        font = float(rcParams.get("font.size", 10.0))  # type: ignore[arg-type]
         default = rcParams.get(f"{axis}tick.labelsize", font)
         rotation = style.get("rotation", 0.0)
         rotation = 0.0 if rotation == "auto" else float(rotation)
@@ -8534,7 +8543,7 @@ def _resolve_data_args(args, data, x, y):
     if data is None:
         return args
 
-    def pick(name):
+    def pick(name):  # type: ignore[no-redef]
         try:
             return data[name]
         except (KeyError, IndexError, TypeError):
@@ -8719,7 +8728,7 @@ def _as_f64(v):
             if hasattr(item, "get_value"):
                 value = item.get_value()
                 if np.isscalar(value):
-                    return float(value)
+                    return float(value)  # type: ignore[arg-type]
             if hasattr(item, "_value"):
                 return float(item._value)
             if hasattr(item, "value"):
@@ -9433,8 +9442,8 @@ class ContourSet:
         if self._manual is not None:
             out = []
             for index, group in enumerate(self._manual):
-                level_kinds = (self._manual_kinds[index]
-                               if index < len(self._manual_kinds) else None)
+                level_kinds = (self._manual_kinds[index]  # type: ignore[index]
+                               if index < len(self._manual_kinds) else None)  # type: ignore[arg-type]
                 for path_index, vertices in enumerate(group):
                     codes = (level_kinds[path_index] if level_kinds is not None
                              and path_index < len(level_kinds) else None)
@@ -10162,7 +10171,7 @@ class Figure:
         if any(len(row) != ncols for row in rows):
             raise ValueError("all mosaic rows must have the same length")
         gs = self.add_gridspec(len(rows), ncols)
-        cells = {}
+        cells = {}  # type: ignore[var-annotated]
         for r, row in enumerate(rows):
             for c, label in enumerate(row):
                 if label == empty_sentinel:
@@ -10699,7 +10708,7 @@ def _find_figure_locked(fig):
         for number, candidate in _figures.items():
             if candidate is fig:
                 return number
-        number = getattr(fig, "number", None)
+        number = getattr(fig, "number", None)  # type: ignore[assignment]
         return number if isinstance(number, int) and _figures.get(number) is fig else None
     if isinstance(fig, str):
         return next((number for number, candidate in sorted(_figures.items())
@@ -11846,7 +11855,7 @@ class LightSource:
         lookup = {"hsv": self.blend_hsv, "soft": self.blend_soft_light,
                   "overlay": self.blend_overlay}
         if blend_mode in lookup:
-            return lookup[blend_mode](rgb, intensity, **kwargs)
+            return lookup[blend_mode](rgb, intensity, **kwargs)  # type: ignore[operator]
         if callable(blend_mode):
             return blend_mode(rgb, intensity, **kwargs)
         raise ValueError(f'"blend_mode" must be callable or one of {tuple(lookup)}')
@@ -11955,7 +11964,7 @@ class _Locator:
     def __call__(self, vmin=None, vmax=None):
         if vmin is None or vmax is None:
             raise ValueError("a locator needs the axis limits")
-        return self.tick_values(vmin, vmax)
+        return self.tick_values(vmin, vmax)  # type: ignore[attr-defined]
 
 
 def _locator_span(vmin, vmax):
@@ -11973,7 +11982,7 @@ class _MultipleLocator(_Locator):
     def __init__(self, base=1.0, offset=0.0):
         self.base, self.offset = float(base), float(offset)
 
-    def set_params(self, base=None, offset=None):
+    def set_params(self, base=None, offset=None):  # type: ignore[override]
         if base is not None:
             self.base = float(base)
         if offset is not None:
@@ -12011,7 +12020,7 @@ class _LogLocator(_Locator):
         self.subs = subs
         self.numticks = numticks
 
-    def set_params(self, base=None, subs=None, numticks=None):
+    def set_params(self, base=None, subs=None, numticks=None):  # type: ignore[override]
         if base is not None:
             self.base = float(base)
         if subs is not None:
@@ -12030,9 +12039,9 @@ class _LogLocator(_Locator):
         if self.subs is None:
             subs = (1.0,)
         elif np.isscalar(self.subs):
-            subs = (float(self.subs),)
+            subs = (float(self.subs),)  # type: ignore[arg-type]
         else:
-            subs = tuple(float(s) for s in np.ravel(self.subs))
+            subs = tuple(float(s) for s in np.ravel(self.subs))  # type: ignore[assignment]
         values = [sub * base ** exp
                   for exp in range(first, last + 1) for sub in subs]
         values = [v for v in values if lo * (1 - 1e-9) <= v <= hi * (1 + 1e-9)]
@@ -12187,13 +12196,13 @@ class FontProperties:
 class _StyleValue(str):
     def __new__(cls, value, name):
         obj = super().__new__(cls, value)
-        obj.name = name
+        obj.name = name  # type: ignore[attr-defined]
         return obj
 
 
 class _StyleMeta(type):
-    def __iter__(cls): return iter(cls._members())
-    def __len__(cls): return len(cls._members())
+    def __iter__(cls): return iter(cls._members())  # type: ignore[attr-defined]
+    def __len__(cls): return len(cls._members())  # type: ignore[attr-defined]
 
 
 class CapStyle(str, metaclass=_StyleMeta):
@@ -12607,7 +12616,7 @@ def _decode_png(data):
         raise ValueError("PNG has no IHDR chunk")
     if interlace:
         raise NotImplementedError("interlaced PNG files are not supported")
-    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)  # type: ignore[arg-type]
     if channels is None:
         raise ValueError(f"unsupported PNG colour type {color}")
     if depth not in (1, 2, 4, 8, 16) or (depth < 8 and color not in (0, 3)):
@@ -12631,10 +12640,10 @@ def _decode_png(data):
         raise ValueError("PNG image data is larger than its header declares")
     if len(raw) < height * (stride + 1):
         raise ValueError("truncated PNG image data")
-    lines = np.frombuffer(raw, dtype=np.uint8, count=expected).reshape(height, stride + 1)
+    lines = np.frombuffer(raw, dtype=np.uint8, count=expected).reshape(height, stride + 1)  # type: ignore[arg-type]
     data = lines[:, 1:].copy()
     previous = np.zeros(stride, dtype=np.uint8)
-    for y in range(height):
+    for y in range(height):  # type: ignore[arg-type]
         filter_type = int(lines[y, 0])
         row = data[y]
         if filter_type == 1:
@@ -12654,12 +12663,12 @@ def _decode_png(data):
     elif depth == 16:
         samples = np.ascontiguousarray(data[:, :count * 2]).view(">u2")
     else:
-        bits = np.unpackbits(data, axis=1).reshape(height, -1, depth)
+        bits = np.unpackbits(data, axis=1).reshape(height, -1, depth)  # type: ignore[arg-type]
         samples = (bits * (1 << np.arange(depth - 1, -1, -1))).sum(axis=2)[:, :count]
     scale = (float((1 << depth) - 1) if color == 0 and depth < 8
              else 255.0 if depth <= 8 else 65535.0)
     if color == 3:
-        entries = np.frombuffer(bytes(palette[:len(palette) // 3 * 3]),
+        entries = np.frombuffer(bytes(palette[:len(palette) // 3 * 3]),  # type: ignore[arg-type,index]
                                 dtype=np.uint8).reshape(-1, 3)
         if samples.size and int(samples.max()) >= len(entries):
             raise ValueError("PNG palette index out of range")
@@ -12675,8 +12684,8 @@ def _decode_png(data):
 
     array = np.asarray(samples, dtype=np.float64) / scale
     if color == 0:
-        return array.reshape(height, width)
-    image = array.reshape(height, width, channels)
+        return array.reshape(height, width)  # type: ignore[arg-type]
+    image = array.reshape(height, width, channels)  # type: ignore[arg-type]
     if color == 4:
         gray = image[..., 0:1]
         return np.concatenate([np.repeat(gray, 3, axis=2), image[..., 1:2]], axis=2)
@@ -13048,7 +13057,7 @@ class PolarAxes(Axes):
         """Polar fill, closing the polygon at the first theta by default."""
         if closed:
             values, i = [], 0
-            args = list(args)
+            args = list(args)  # type: ignore[assignment]
             while i < len(args):
                 if isinstance(args[i], str) or i + 1 >= len(args):
                     values.append(args[i])
@@ -13060,7 +13069,7 @@ class PolarAxes(Axes):
                     x, y = np.append(x, x[0]), np.append(y, y[0])
                 values.extend((x, y))
                 i += 2
-            args = values
+            args = values  # type: ignore[assignment]
         return super().fill(*args, **kwargs)
 
     def set_theta_zero_location(self, loc, offset=0.0):
@@ -13146,7 +13155,7 @@ class PolarAxes(Axes):
             return [(theta, radius)]
         lo, hi = limits
         inside = (theta >= lo - 1e-12) & (theta <= hi + 1e-12)
-        segments, current_t, current_r = [], [], []
+        segments, current_t, current_r = [], [], []  # type: ignore[var-annotated]
 
         def crossing(i, j, boundary):
             span = theta[j] - theta[i]
@@ -13189,7 +13198,7 @@ class PolarAxes(Axes):
         edges = _bar_colors(edgecolor, n) if edgecolor is not None else None
         line_widths = None if linewidth is None else _fill(linewidth, n)
         limits = self._polar_theta_limits()
-        wedges = []
+        wedges = []  # type: ignore[var-annotated]
         for i in range(n):
             start, end = float(starts[i]), float(ends[i])
             if limits is not None:
@@ -13279,7 +13288,7 @@ class PolarAxes(Axes):
         offset, direction = self._polar_theta_offset, self._polar_theta_direction
         edge = rcParams.get("axes.edgecolor", "black")
         grid = rcParams.get("grid.color", "#b0b0b0")
-        lines, texts = [], []
+        lines, texts = [], []  # type: ignore[var-annotated]
 
         if limits is None and self._polar_frame == "polygon" and self._polar_num_vertices >= 3:
             angles = (offset + direction * np.arange(self._polar_num_vertices + 1)
@@ -13301,7 +13310,7 @@ class PolarAxes(Axes):
                 x, y = self._polar_arc(radius)
                 lines.append(_series(x, y, "", grid, linewidth=0.8))
 
-        angles = self._polar_thetagrids or list(np.arange(0.0, 360.0, 45.0))
+        angles = self._polar_thetagrids or list(np.arange(0.0, 360.0, 45.0))  # type: ignore[assignment]
         for degrees in angles:
             radians = np.deg2rad(float(degrees))
             if limits is not None and not (limits[0] - 1e-12 <= radians <= limits[1] + 1e-12):
@@ -13415,7 +13424,7 @@ class GeoAxes(PolarAxes):
                     np.sin(longitude) * np.cos(latitude),
                     self._geo_height * np.sin(latitude),
                     "", grid, linewidth=0.5))
-            longitude = np.linspace(-np.pi, np.pi, 181)
+            longitude = np.linspace(-np.pi, np.pi, 181)  # type: ignore[assignment]
             for lat in np.deg2rad([-60.0, -30.0, 0.0, 30.0, 60.0]):
                 lines.append(_series(
                     np.sin(longitude) * np.cos(lat),
@@ -13552,8 +13561,8 @@ class _FontFlagSet:
 
 
 class _FontFlagsMeta(type):
-    def __iter__(cls): return iter(cls._members())
-    def __len__(cls): return len(cls._members())
+    def __iter__(cls): return iter(cls._members())  # type: ignore[attr-defined]
+    def __len__(cls): return len(cls._members())  # type: ignore[attr-defined]
 
 
 class StyleFlags(metaclass=_FontFlagsMeta):
