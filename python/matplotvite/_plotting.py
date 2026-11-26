@@ -11700,6 +11700,9 @@ def _png_samples(row, count, channels, depth):
     return values
 
 
+_PNG_MAX_BYTES = 1 << 29  # 512 MiB of inflated scanlines
+
+
 def _decode_png(data):
     """Decode a non-interlaced PNG into a float array in the range 0-1.
 
@@ -11719,6 +11722,8 @@ def _decode_png(data):
         body = data[pos + 8:pos + 8 + length]
         pos += 12 + length
         if kind == b"IHDR":
+            if len(body) < 13:
+                raise ValueError("truncated PNG IHDR chunk")
             width, height, depth, color, compression, filter_method, interlace = \
                 _struct.unpack(">IIBBBBB", body[:13])
             if compression != 0 or filter_method != 0:
@@ -11742,10 +11747,21 @@ def _decode_png(data):
         raise ValueError(f"unsupported PNG bit depth {depth}")
     if color == 3 and palette is None:
         raise ValueError("palette PNG has no PLTE chunk")
-    raw = _zlib.decompress(bytes(compressed))
     bits_per_pixel = channels * depth
     stride = (width * bits_per_pixel + 7) // 8
     bpp = max(1, (bits_per_pixel + 7) // 8)
+    # Cap the inflated size at what the header promises, so a small crafted
+    # file cannot expand into gigabytes (decompression bomb).
+    expected = height * (stride + 1)
+    if expected > _PNG_MAX_BYTES:
+        raise ValueError("PNG image is too large to decode")
+    try:
+        inflater = _zlib.decompressobj()
+        raw = inflater.decompress(bytes(compressed), expected + 1)
+    except _zlib.error as exc:
+        raise ValueError(f"corrupt PNG image data: {exc}") from exc
+    if inflater.unconsumed_tail or len(raw) > expected:
+        raise ValueError("PNG image data is larger than its header declares")
     if len(raw) < height * (stride + 1):
         raise ValueError("truncated PNG image data")
     rows, previous, offset = [], bytearray(stride), 0

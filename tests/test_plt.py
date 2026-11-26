@@ -5337,3 +5337,20 @@ def test_imread_decodes_png_without_pillow(tmp_path):
     assert np.allclose(data[..., 3], 1.0)
     with path.open("rb") as stream:
         assert plt.imread(stream).shape == data.shape
+
+
+def test_decode_png_rejects_decompression_bomb():
+    import struct
+    import zlib
+
+    from matplotvite import _plotting as p
+
+    def chunk(kind, body):
+        return (struct.pack(">I", len(body)) + kind + body
+                + struct.pack(">I", zlib.crc32(kind + body)))
+
+    header = chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 0, 0, 0, 0))
+    data = (p._PNG_SIGNATURE + header
+            + chunk(b"IDAT", zlib.compress(b"\x00" * 10**7)) + chunk(b"IEND", b""))
+    with pytest.raises(ValueError):
+        p._decode_png(data)
