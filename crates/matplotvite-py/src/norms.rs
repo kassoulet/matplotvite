@@ -118,6 +118,7 @@ mod py {
         }
     }
 
+    /// A linear normalization that maps data values into the 0-1 range.
     #[pyclass(module = "matplotvite._core")]
     #[derive(Default)]
     pub(crate) struct Normalize {
