@@ -11683,21 +11683,21 @@ class _FixedFormatter:
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
-def _png_samples(row, count, channels, depth):
-    """Unpack one unfiltered PNG scanline into integer samples."""
-    total = count * channels
-    if depth == 8:
-        return list(row[:total])
-    if depth == 16:
-        return [_struct.unpack(">H", row[i:i + 2])[0]
-                for i in range(0, total * 2, 2)]
-    mask, values = (1 << depth) - 1, []
-    for byte in row:
-        for shift in range(8 - depth, -1, -depth):
-            values.append((byte >> shift) & mask)
-            if len(values) == total:
-                return values
-    return values
+def _png_unfilter_serial(row, previous, bpp, filter_type):
+    """Undo PNG filter 3 (average) or 4 (Paeth) in place; both depend on the left byte."""
+    cur, up = row.tolist(), previous.tolist()
+    for i in range(len(cur)):
+        left = cur[i - bpp] if i >= bpp else 0
+        above = up[i]
+        if filter_type == 3:
+            predictor = (left + above) // 2
+        else:
+            upper_left = up[i - bpp] if i >= bpp else 0
+            p = left + above - upper_left
+            pa, pb, pc = abs(p - left), abs(p - above), abs(p - upper_left)
+            predictor = left if pa <= pb and pa <= pc else above if pb <= pc else upper_left
+        cur[i] = (cur[i] + predictor) & 255
+    row[:] = cur
 
 
 _PNG_MAX_BYTES = 1 << 29  # 512 MiB of inflated scanlines
@@ -11764,51 +11764,47 @@ def _decode_png(data):
         raise ValueError("PNG image data is larger than its header declares")
     if len(raw) < height * (stride + 1):
         raise ValueError("truncated PNG image data")
-    rows, previous, offset = [], bytearray(stride), 0
-    for _ in range(height):
-        filter_type = raw[offset]
-        offset += 1
-        row = bytearray(raw[offset:offset + stride])
-        offset += stride
-        for i in range(stride):
-            left = row[i - bpp] if i >= bpp else 0
-            above = previous[i]
-            upper_left = previous[i - bpp] if i >= bpp else 0
-            if filter_type == 1:
-                predictor = left
-            elif filter_type == 2:
-                predictor = above
-            elif filter_type == 3:
-                predictor = (left + above) // 2
-            elif filter_type == 4:
-                p = left + above - upper_left
-                pa, pb, pc = abs(p - left), abs(p - above), abs(p - upper_left)
-                predictor = left if pa <= pb and pa <= pc else above if pb <= pc else upper_left
-            elif filter_type == 0:
-                predictor = 0
-            else:
-                raise ValueError(f"unsupported PNG filter type {filter_type}")
-            row[i] = (row[i] + predictor) & 255
-        rows.append(row)
+    lines = np.frombuffer(raw, dtype=np.uint8, count=expected).reshape(height, stride + 1)
+    data = lines[:, 1:].copy()
+    previous = np.zeros(stride, dtype=np.uint8)
+    for y in range(height):
+        filter_type = int(lines[y, 0])
+        row = data[y]
+        if filter_type == 1:
+            row[:] = row.reshape(-1, bpp).cumsum(axis=0, dtype=np.uint64).astype(
+                np.uint8).reshape(-1)
+        elif filter_type == 2:
+            row += previous
+        elif filter_type in (3, 4):
+            _png_unfilter_serial(row, previous, bpp, filter_type)
+        elif filter_type != 0:
+            raise ValueError(f"unsupported PNG filter type {filter_type}")
         previous = row
 
-    samples = [_png_samples(row, width, channels, depth) for row in rows]
+    count = width * channels
+    if depth == 8:
+        samples = data[:, :count]
+    elif depth == 16:
+        samples = np.ascontiguousarray(data[:, :count * 2]).view(">u2")
+    else:
+        bits = np.unpackbits(data, axis=1).reshape(height, -1, depth)
+        samples = (bits * (1 << np.arange(depth - 1, -1, -1))).sum(axis=2)[:, :count]
     scale = (float((1 << depth) - 1) if color == 0 and depth < 8
              else 255.0 if depth <= 8 else 65535.0)
     if color == 3:
-        entries = [tuple(palette[i:i + 3]) for i in range(0, len(palette), 3)]
-        alpha = (list(transparency) if transparency else [])
-        has_alpha = any(value != 255 for value in alpha)
-        out = np.empty((height, width, 4 if has_alpha else 3), dtype=np.float64)
-        for y, row in enumerate(samples):
-            for x, index in enumerate(row):
-                if index >= len(entries):
-                    raise ValueError("PNG palette index out of range")
-                rgb = entries[index]
-                out[y, x, :3] = np.asarray(rgb, dtype=np.float64) / 255.0
-                if has_alpha:
-                    out[y, x, 3] = (alpha[index] if index < len(alpha) else 255) / 255.0
-        return out
+        entries = np.frombuffer(bytes(palette[:len(palette) // 3 * 3]),
+                                dtype=np.uint8).reshape(-1, 3)
+        if samples.size and int(samples.max()) >= len(entries):
+            raise ValueError("PNG palette index out of range")
+        alpha = np.full(len(entries), 255, dtype=np.uint8)
+        if transparency:
+            keep = min(len(transparency), len(entries))
+            alpha[:keep] = np.frombuffer(bytes(transparency[:keep]), dtype=np.uint8)
+        rgb = entries[samples].astype(np.float64) / 255.0
+        if (alpha != 255).any():
+            return np.concatenate(
+                [rgb, (alpha[samples].astype(np.float64) / 255.0)[..., None]], axis=2)
+        return rgb
 
     array = np.asarray(samples, dtype=np.float64) / scale
     if color == 0:
