@@ -88,7 +88,7 @@ def _baseline_list(node: ast.AST) -> list[str] | None:
         if not _safe_baseline_expr(node):
             return None
         try:
-            value = eval(  # nosec
+            value = eval(  # nosec  # noqa: S307
                          compile(ast.Expression(node), "<baseline>", "eval"),
                          {"__builtins__": {}}, {"range": range})
         except Exception:
@@ -196,9 +196,7 @@ def _comparison_prefix(options: dict[str, object] | None) -> str:
     # plus a hinting patch that only exists inside Matplotlib; render with the
     # nearest style matplotvite ships. Only classic uses the 8x6 test figure:
     # default and mpl20 baselines are the 6.4x4.8 rc default.
-    if isinstance(style, str) and style == "_classic_test":
-        style = "classic"
-    elif isinstance(style, (list, tuple)) and "_classic_test" in style:
+    if (isinstance(style, str) and style == "_classic_test") or (isinstance(style, (list, tuple)) and "_classic_test" in style):
         style = "classic"
     if style:
         lines.append(f"plt.style.use({style!r})")

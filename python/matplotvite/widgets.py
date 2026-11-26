@@ -53,9 +53,7 @@ class RadioButtons:
         ax.set_axis_off()
         for index, x, y, rows, cols in _cells(layout, len(self.labels)):
             radius = min(0.07, 0.32 / max(rows, cols))
-            if layout == "horizontal":
-                x -= radius
-            elif layout not in ("horizontal", None, "vertical"):
+            if layout == "horizontal" or layout not in ("horizontal", None, "vertical"):
                 x -= radius
             edge = _lookup(radio_props, "edgecolor", index, "black")
             face = _lookup(radio_props, "facecolor", index, "white")
@@ -107,9 +105,7 @@ class CheckButtons:
         ax.set_axis_off()
         for index, x, y, rows, cols in _cells(layout, len(self.labels)):
             size = min(0.16, 0.55 / max(rows, cols))
-            if layout == "horizontal":
-                x -= size
-            elif layout not in ("horizontal", None, "vertical"):
+            if layout == "horizontal" or layout not in ("horizontal", None, "vertical"):
                 x -= size
             if index >= len(self.actives):
                 self.actives.append(False)

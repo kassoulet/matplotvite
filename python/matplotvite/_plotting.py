@@ -9,7 +9,7 @@ import struct as _struct
 import threading
 import warnings
 import zlib as _zlib
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from typing import Any, ClassVar
 
 import numpy as np
@@ -98,46 +98,32 @@ def _ignored(name):
 # not model. They stay accepted, but are recorded as ignored instead of being
 # treated as silently supported. Unknown names raise TypeError, as in Matplotlib.
 _ARTIST_KWARGS = frozenset(
-    "agg_filter alpha animated clip_box clip_on clip_path figure gid in_layout label "
-    "mouseover path_effects picker rasterized sketch_params snap transform url visible "
-    "zorder".split()
+    ["agg_filter", "alpha", "animated", "clip_box", "clip_on", "clip_path", "figure", "gid", "in_layout", "label", "mouseover", "path_effects", "picker", "rasterized", "sketch_params", "snap", "transform", "url", "visible", "zorder"]
 )
 _LINE2D_KWARGS = _ARTIST_KWARGS | frozenset(
-    "antialiased color dash_capstyle dash_joinstyle dashes data drawstyle ds fillstyle "
-    "gapcolor linestyle linewidth ls lw marker markeredgecolor markeredgewidth "
-    "markerfacecolor markerfacecoloralt markersize markevery mec mfc mew ms pickradius "
-    "solid_capstyle solid_joinstyle xdata ydata".split()
+    ["antialiased", "color", "dash_capstyle", "dash_joinstyle", "dashes", "data", "drawstyle", "ds", "fillstyle", "gapcolor", "linestyle", "linewidth", "ls", "lw", "marker", "markeredgecolor", "markeredgewidth", "markerfacecolor", "markerfacecoloralt", "markersize", "markevery", "mec", "mfc", "mew", "ms", "pickradius", "solid_capstyle", "solid_joinstyle", "xdata", "ydata"]
 )
 _COLLECTION_KWARGS = _ARTIST_KWARGS | frozenset(
-    "antialiased array capstyle clim cmap color edgecolor edgecolors ec facecolor "
-    "facecolors fc hatch hatch_linewidth hatchcolor joinstyle linestyle linewidth "
-    "linewidths ls norm offset_transform offsets paths pickradius urls".split()
+    ["antialiased", "array", "capstyle", "clim", "cmap", "color", "edgecolor", "edgecolors", "ec", "facecolor", "facecolors", "fc", "hatch", "hatch_linewidth", "hatchcolor", "joinstyle", "linestyle", "linewidth", "linewidths", "ls", "norm", "offset_transform", "offsets", "paths", "pickradius", "urls"]
 )
 _PATCH_KWARGS = _ARTIST_KWARGS | frozenset(
-    "antialiased capstyle color ec edgecolor edgegapcolor facecolor fc fill hatch "
-    "hatch_linewidth hatchcolor joinstyle linestyle linewidth ls lw".split()
+    ["antialiased", "capstyle", "color", "ec", "edgecolor", "edgegapcolor", "facecolor", "fc", "fill", "hatch", "hatch_linewidth", "hatchcolor", "joinstyle", "linestyle", "linewidth", "ls", "lw"]
 )
 _IMAGE_KWARGS = _ARTIST_KWARGS | frozenset(
-    "array clim cmap data extent filternorm filterrad interpolation "
-    "interpolation_stage norm resample".split()
+    ["array", "clim", "cmap", "data", "extent", "filternorm", "filterrad", "interpolation", "interpolation_stage", "norm", "resample"]
 )
 _LEGEND_KWARGS = _ARTIST_KWARGS | frozenset(
-    "alignment bbox_to_anchor borderaxespad borderpad columnspacing draggable facecolor "
-    "fancybox frame_on framealpha frameon handleheight handlelength handletextpad "
-    "handler_map labelcolor labelspacing markerfirst markerscale mode ncol ncols "
-    "numpoints reverse shadow title title_fontproperties".split()
+    ["alignment", "bbox_to_anchor", "borderaxespad", "borderpad", "columnspacing", "draggable", "facecolor", "fancybox", "frame_on", "framealpha", "frameon", "handleheight", "handlelength", "handletextpad", "handler_map", "labelcolor", "labelspacing", "markerfirst", "markerscale", "mode", "ncol", "ncols", "numpoints", "reverse", "shadow", "title", "title_fontproperties"]
 )
 _FIGURE_KWARGS = _ARTIST_KWARGS | frozenset(
-    "canvas clear constrained_layout constrained_layout_pads dpi edgecolor facecolor "
-    "figheight figsize figwidth frameon layout layout_engine linewidth num size_inches "
-    "tight_layout".split()
+    ["canvas", "clear", "constrained_layout", "constrained_layout_pads", "dpi", "edgecolor", "facecolor", "figheight", "figsize", "figwidth", "frameon", "layout", "layout_engine", "linewidth", "num", "size_inches", "tight_layout"]
 )
 _BAR_KWARGS = _PATCH_KWARGS | frozenset(
-    "capsize data error_kw log tick_label xerr".split()
+    ["capsize", "data", "error_kw", "log", "tick_label", "xerr"]
 )
-_HIST_KWARGS = _BAR_KWARGS | frozenset("ec fc fill log".split())
+_HIST_KWARGS = _BAR_KWARGS | frozenset(["ec", "fc", "fill", "log"])
 _SCATTER_KWARGS = _COLLECTION_KWARGS | frozenset(
-    "clim color colorizer plotnonfinite".split()
+    ["clim", "color", "colorizer", "plotnonfinite"]
 )
 
 
@@ -277,12 +263,7 @@ def _math_script(body, table, marker):
 # accepted so Matplotlib code runs unchanged; size, colour, alignment and
 # transform are the ones that actually change the output.
 _IGNORED_TEXT_KWARGS = frozenset(
-    "alpha antialiased antialiasing backgroundcolor bbox clip_box clip_on clip_path "
-    "family figure font fontfamily fontname fontfeatures fontproperties font_properties "
-    "fontstretch fontstyle fontvariant variant fontweight gid in_layout language linespacing ma "
-    "math_fontfamily multialignment parse_math path_effects picker rasterized "
-    "rotation_mode sketch_params snap style transform_rotates_text url usetex verticalalignment "
-    "visible weight wrap zorder".split()
+    ["alpha", "antialiased", "antialiasing", "backgroundcolor", "bbox", "clip_box", "clip_on", "clip_path", "family", "figure", "font", "fontfamily", "fontname", "fontfeatures", "fontproperties", "font_properties", "fontstretch", "fontstyle", "fontvariant", "variant", "fontweight", "gid", "in_layout", "language", "linespacing", "ma", "math_fontfamily", "multialignment", "parse_math", "path_effects", "picker", "rasterized", "rotation_mode", "sketch_params", "snap", "style", "transform_rotates_text", "url", "usetex", "verticalalignment", "visible", "weight", "wrap", "zorder"]
 )
 
 
@@ -2708,7 +2689,7 @@ class FancyArrowPatch(Patch):
             return np.empty((0, 2))
         a = np.asarray(self.posA, dtype=float)
         b = np.asarray(self.posB, dtype=float)
-        if "-" == str(self.arrowstyle):
+        if str(self.arrowstyle) == "-":
             return np.vstack([a, b])
         return FancyArrow(a[0], a[1], b[0] - a[0], b[1] - a[1],
                           width=self.mutation_scale * 0.002,
@@ -3903,8 +3884,7 @@ def _spectral_estimates(x, y=None, NFFT=256, Fs=2.0, Fc=0.0, window=None,
 # so an Artist property without a dedicated setter is still accepted (and, for
 # the ones the renderer has no model for, recorded as an ignored shim).
 _AXES_ARTIST_PROPS = frozenset(
-    "agg_filter alpha animated clip_box clip_on clip_path gid in_layout label "
-    "path_effects picker rasterized sketch_params snap url visible zorder".split()
+    ["agg_filter", "alpha", "animated", "clip_box", "clip_on", "clip_path", "gid", "in_layout", "label", "path_effects", "picker", "rasterized", "sketch_params", "snap", "url", "visible", "zorder"]
 )
 
 
@@ -5104,13 +5084,12 @@ class _StatsAxes:
         if quantiles is not None:
             out["cquantiles"] = []
         per_group_quantiles = None
-        if quantiles is not None and isinstance(quantiles, (list, tuple)):
-            if len(quantiles) == n and any(
-                    isinstance(q, (list, tuple, np.ndarray)) for q in quantiles):
-                per_group_quantiles = [
-                    np.atleast_1d(np.asarray(q, dtype=np.float64)).ravel()
-                    for q in quantiles
-                ]
+        if (isinstance(quantiles, (list, tuple)) and len(quantiles) == n and any(
+                isinstance(q, (list, tuple, np.ndarray)) for q in quantiles)):
+            per_group_quantiles = [
+                np.atleast_1d(np.asarray(q, dtype=np.float64)).ravel()
+                for q in quantiles
+            ]
         for i, raw in enumerate(groups):
             vals = np.asarray(raw, dtype=np.float64).ravel()
             vals = vals[np.isfinite(vals)]
@@ -5217,10 +5196,10 @@ class _StatsAxes:
                 if not isinstance(width0, np.timedelta64):
                     raise TypeError(
                         "np.datetime64 'position' values require np.timedelta64 'widths'")
-            elif isinstance(pos0, (_datetime.datetime, _datetime.date)):
-                if not isinstance(width0, _datetime.timedelta):
-                    raise TypeError(
-                        "datetime/date 'position' values require timedelta 'widths'")
+            elif (isinstance(pos0, (_datetime.datetime, _datetime.date))
+                  and not isinstance(width0, _datetime.timedelta)):
+                raise TypeError(
+                    "datetime/date 'position' values require timedelta 'widths'")
         if n and isinstance(positions[0], (np.datetime64, _datetime.datetime,
                                            _datetime.date)):
             pos_num = np.atleast_1d(_date_to_num(positions)).astype(float)
@@ -5548,8 +5527,8 @@ class _FieldAxes:
         iy1 = np.rint(iy).astype(int)
         ix2 = np.floor(ix).astype(int)
         iy2 = np.floor(iy).astype(int)
-        valid1 = (0 <= ix1) & (ix1 < nx1) & (0 <= iy1) & (iy1 < ny1)
-        valid2 = (0 <= ix2) & (ix2 < nx2) & (0 <= iy2) & (iy2 < ny2)
+        valid1 = (ix1 >= 0) & (ix1 < nx1) & (iy1 >= 0) & (iy1 < ny1)
+        valid2 = (ix2 >= 0) & (ix2 < nx2) & (iy2 >= 0) & (iy2 < ny2)
         d1 = (ix - ix1) ** 2 + 3.0 * (iy - iy1) ** 2
         d2 = (ix - ix2 - 0.5) ** 2 + 3.0 * (iy - iy2 - 0.5) ** 2
         use1 = valid1 & (~valid2 | (d1 <= d2))
@@ -8979,12 +8958,7 @@ def _mesh_args(args):
     if x.ndim == 2 or y.ndim == 2:
         if x.ndim != 2 or y.ndim != 2 or x.shape != y.shape:
             raise ValueError("pcolormesh 2-D X and Y must have the same shape")
-        if x.shape == (rows + 1, cols + 1):
-            if not (np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1])):
-                return (np.array([float(x.min()), float(x.max())]),
-                        np.array([float(y.min()), float(y.max())]), z, True)
-            x, y = x[0, :], y[:, 0]
-        elif x.shape == z.shape:
+        if x.shape == (rows + 1, cols + 1) or x.shape == z.shape:
             if not (np.allclose(x, x[0:1, :]) and np.allclose(y, y[:, 0:1])):
                 return (np.array([float(x.min()), float(x.max())]),
                         np.array([float(y.min()), float(y.max())]), z, True)
@@ -13729,10 +13703,8 @@ color_sequences = _ColorSequences(
     petroff8=_PETROFF[:8], petroff10=list(_PETROFF))
 for _sequence in ("tab10", "tab20", "tab20b", "tab20c", "Pastel1", "Pastel2",
                   "Paired", "Accent", "Dark2", "Set1", "Set2", "Set3", "okabe_ito"):
-    try:
+    with suppress(ValueError):
         color_sequences[_sequence] = _colormap_sequence(_sequence)
-    except ValueError:
-        pass
 
 
 def rc(group=None, **kwargs):

@@ -1,6 +1,8 @@
 """A compact, dependency-free implementation of `matplotlib.sankey`."""
 from __future__ import annotations
 
+from contextlib import suppress
+
 import numpy as np
 
 from . import PathPatch, Polygon
@@ -272,8 +274,6 @@ class Sankey:
 
     def finish(self):
         self._axes()
-        try:
+        with suppress(AttributeError):
             self.ax.autoscale_view()
-        except AttributeError:
-            pass
         return self.diagrams
