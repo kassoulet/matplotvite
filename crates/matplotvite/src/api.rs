@@ -289,6 +289,22 @@ enum LastArtist {
     Collection(usize),
 }
 
+/// One violin body built from precomputed density statistics.
+pub struct ViolinStat {
+    /// Centre of the violin on the categorical axis.
+    pub position: f64,
+    /// Total width assigned to the body.
+    pub width: f64,
+    /// Coordinates of the density outline (the vertical axis).
+    pub coords: Vec<f64>,
+    /// Density at each `coords` entry, normalised to the body's peak.
+    pub vals: Vec<f64>,
+    /// Low end of the extrema bar.
+    pub min: f64,
+    /// High end of the extrema bar.
+    pub max: f64,
+}
+
 impl Axes<'_> {
     /// Draw a line series. `x` and `y` must be non-empty and the same length.
     pub fn plot(&mut self, x: &[f64], y: &[f64]) -> Result<&mut Self, ApiError> {
@@ -458,6 +474,113 @@ impl Axes<'_> {
         self.sequence
             .push(LastArtist::Band(self.panel.bands.len() - 1));
         Ok(self)
+    }
+
+    /// Draw violins from precomputed statistics, as `Axes.violin`.
+    ///
+    /// Each body spans half its width in density units, mirrors the outline
+    /// around `position`, and draws the min/max/centre extrema bars. All
+    /// bodies in one call share the next cycle colour, like Matplotlib.
+    pub fn violin(&mut self, stats: &[ViolinStat]) -> Result<&mut Self, ApiError> {
+        for stat in stats {
+            if stat.coords.is_empty() || stat.coords.len() != stat.vals.len() {
+                return Err(ApiError::InvalidArgument(
+                    "violin coords and vals must be non-empty and the same length".into(),
+                ));
+            }
+            if !(stat.position.is_finite() && stat.width.is_finite()) {
+                return Err(ApiError::InvalidArgument(
+                    "violin position and width must be finite".into(),
+                ));
+            }
+            if !(stat.min.is_finite() && stat.max.is_finite()) {
+                return Err(ApiError::InvalidArgument(
+                    "violin min and max must be finite".into(),
+                ));
+            }
+            if !stat.coords.iter().all(|c| c.is_finite())
+                || !stat.vals.iter().all(|v| v.is_finite() && *v >= 0.0)
+            {
+                return Err(ApiError::InvalidArgument(
+                    "violin coords must be finite and vals finite and non-negative".into(),
+                ));
+            }
+        }
+        let color = self.next_color();
+        for stat in stats {
+            let peak = stat.vals.iter().copied().fold(0.0_f64, f64::max);
+            let scale = if peak > 0.0 {
+                0.5 * stat.width / peak
+            } else {
+                0.0
+            };
+            let mut xs = Vec::with_capacity(stat.coords.len() * 2);
+            let mut ys = Vec::with_capacity(stat.coords.len() * 2);
+            for (coord, value) in stat.coords.iter().zip(&stat.vals) {
+                xs.push(stat.position - value * scale);
+                ys.push(*coord);
+            }
+            for (coord, value) in stat.coords.iter().zip(&stat.vals).rev() {
+                xs.push(stat.position + value * scale);
+                ys.push(*coord);
+            }
+            self.panel.bands.push(Band {
+                x: OwnedArray1::from(xs),
+                y: OwnedArray1::from(ys),
+                color,
+                alpha: Some(0.3),
+                label: String::new(),
+                cells: 0,
+                cell_colors: String::new(),
+                gid: String::new(),
+            });
+            self.sequence
+                .push(LastArtist::Band(self.panel.bands.len() - 1));
+            let half = 0.25 * stat.width;
+            let span = [stat.position - half, stat.position + half];
+            self.stat_line(&span, &[stat.max, stat.max], color);
+            self.stat_line(&span, &[stat.min, stat.min], color);
+            self.stat_line(
+                &[stat.position, stat.position],
+                &[stat.min, stat.max],
+                color,
+            );
+        }
+        self.last = None;
+        Ok(self)
+    }
+
+    /// Expand the autoscaled limits by a fraction of the data span.
+    ///
+    /// Applies to the artists added so far; call it after plotting, like the
+    /// view limits `savefig` renders.
+    pub fn margins(&mut self, x: f64, y: f64) -> &mut Self {
+        let (x0, x1, y0, y1) = matplotvite_core::layout::panel_ranges(self.panel);
+        let (x0, x1) = (x0.min(x1), x0.max(x1));
+        let (y0, y1) = (y0.min(y1), y0.max(y1));
+        if !(x0.is_finite() && x1.is_finite() && y0.is_finite() && y1.is_finite()) {
+            return self;
+        }
+        let pad_x = (x1 - x0) * x;
+        let pad_y = (y1 - y0) * y;
+        self.panel.xlim = Some((x0 - pad_x, x1 + pad_x));
+        self.panel.ylim = Some((y0 - pad_y, y1 + pad_y));
+        self
+    }
+
+    fn stat_line(&mut self, x: &[f64], y: &[f64], color: Color) {
+        self.panel.series.push(Series {
+            x: OwnedArray1::from(x.to_vec()),
+            y: OwnedArray1::from(y.to_vec()),
+            color,
+            linewidth: 1.5,
+            markersize: 6.0,
+            mew: 1.0,
+            ..Default::default()
+        });
+        self.last = Some(LastArtist::Series(self.panel.series.len() - 1));
+        self.sequence
+            .push(LastArtist::Series(self.panel.series.len() - 1));
     }
 
     /// Draw horizontal bars centred on `y`, with lengths from `width`.
