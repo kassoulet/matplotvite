@@ -22,3 +22,13 @@ path = "fuzz_targets/panel_render.rs"
 test = false
 doc = false
 bench = false
+
+[dependencies.ndarray]
+version = "0.17"
+
+[[bin]]
+name = "figure_formats"
+path = "fuzz_targets/figure_formats.rs"
+test = false
+doc = false
+bench = false
