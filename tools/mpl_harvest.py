@@ -57,11 +57,36 @@ def find_tests_root(source: pathlib.Path | None) -> pathlib.Path | None:
     return None
 
 
+_BASELINE_NODES = (
+    ast.Expression, ast.ListComp, ast.comprehension, ast.Name, ast.Load, ast.Store,
+    ast.Call, ast.Constant, ast.JoinedStr, ast.FormattedValue, ast.BinOp, ast.Add,
+    ast.Mult, ast.Mod, ast.List, ast.Tuple,
+)
+
+
+def _safe_baseline_expr(node: ast.AST) -> bool:
+    """Accept only list comprehensions over a small `range(...)` of literals."""
+    for child in ast.walk(node):
+        if not isinstance(child, _BASELINE_NODES):
+            return False
+        if isinstance(child, ast.Call):
+            if not (isinstance(child.func, ast.Name) and child.func.id == "range"
+                    and not child.keywords):
+                return False
+            for arg in child.args:
+                if not (isinstance(arg, ast.Constant) and isinstance(arg.value, int)
+                        and abs(arg.value) <= 10_000):
+                    return False
+    return True
+
+
 def _baseline_list(node: ast.AST) -> list[str] | None:
     """Evaluate a baseline list, including the `[f"x_{i}.png" for i in range(n)]` form."""
     try:
         value = ast.literal_eval(node)
     except ValueError:
+        if not _safe_baseline_expr(node):
+            return None
         try:
             value = eval(  # nosec
                          compile(ast.Expression(node), "<baseline>", "eval"),
