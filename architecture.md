@@ -258,7 +258,7 @@ documented in the README.
 ## Verification surfaces
 
 - `pytest` covers the Python API, render options, output formats, the pandas
-  backend and the rendering galleries; the current suite is **556 passed,
+  backend and the rendering galleries; the current suite is **590 passed,
   5 skipped**.
 - `tests/mpl_corpus.json` checks in 526 Matplotlib 3.11.2 snippets and baseline
   image hashes; `tools/harvest_matplotlib.py --check-metadata` fails CI when the
