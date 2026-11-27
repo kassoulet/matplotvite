@@ -141,7 +141,7 @@ def _check_kwargs(kwargs: dict[str, Any], name: str, allowed: Any) -> None:
         _ignored(f"{name}({key}=...)")
 
 
-def _deprecated(name, *, since, alternative=None, removal=None):
+def _deprecated(name: Any, *, since: Any, alternative: Any = None, removal: Any = None) -> Any:
     """Warn that a public API is deprecated.
 
     ``stacklevel=3`` points the warning at the caller of the public function
@@ -212,7 +212,7 @@ def _norm_color(c: Any) -> Optional[str]:
     raise ValueError(f"invalid colour: {c!r}")
 
 
-def _is_rgb(c):
+def _is_rgb(c: Any) -> Any:
     """True for a tuple/list of 3 or 4 numeric channel values."""
     return (isinstance(c, (tuple, list)) and len(c) in (3, 4)
             and all(isinstance(v, (int, float, np.number)) for v in c))
@@ -256,7 +256,7 @@ _MATH_SUBSCRIPTS = str.maketrans({
 })
 
 
-def _math_script(body, table, marker):
+def _math_script(body: Any, table: Any, marker: Any) -> Any:
     """Translate a script that the bundled font can show, else keep it readable."""
     if all(ord(ch) in table for ch in body):
         return body.translate(table)
@@ -271,7 +271,7 @@ _IGNORED_TEXT_KWARGS = frozenset(
 )
 
 
-def _text_bbox(value):
+def _text_bbox(value: Any) -> Any:
     """Normalise the common `bbox=dict(...)` text frame options."""
     if not isinstance(value, dict):
         return None
@@ -284,7 +284,7 @@ def _text_bbox(value):
                 rounded="round" in style.lower() or "circle" in style.lower())
 
 
-def _rotation_value(value):
+def _rotation_value(value: Any) -> Any:
     """Degrees for a text rotation, accepting Matplotlib's string aliases."""
     if value is None:
         return 0.0
@@ -328,7 +328,7 @@ def _mathtext(text: Any, family: Any = None) -> str:
         return value
     full_scripts = _font_family(family).startswith("DejaVu")
 
-    def segment(body):
+    def segment(body: Any) -> Any:
         body = _re.sub(r"\\frac\{([^{}]*)\}\{([^{}]*)\}", r"\1/\2", body)
         body = _re.sub(
             r"\\([A-Za-z]+)",
@@ -367,7 +367,7 @@ def _mathtext(text: Any, family: Any = None) -> str:
 _AUTO_CMAP_KEYS: set[str] = set()
 
 
-def _register_custom_cmap(cmap, name=None, anonymous=False):
+def _register_custom_cmap(cmap: Any, name: Any = None, anonymous: Any = False) -> Any:
     """Add a `Colormap` built in Python to the table the renderer reads."""
     base = str(name or getattr(cmap, "name", "custom"))
     rgb = np.asarray(cmap._rgb, dtype=np.float64)
@@ -411,7 +411,7 @@ def get_cmap(name: Any = None, lut: Any = None) -> Colormap:
     return cmap.resampled(lut) if lut is not None else cmap
 
 
-def _colormap_names():
+def _colormap_names() -> Any:
     names = [name for name in _CMAP_DATA if name not in _AUTO_CMAP_KEYS]
     return sorted([*names, *(f"{name}_r" for name in names)])
 
@@ -419,26 +419,26 @@ def _colormap_names():
 class _ColormapRegistry:
     """Matplotlib's colormap registry: iterable, callable and name-indexable."""
 
-    def __call__(self): return _colormap_names()
-    def __getitem__(self, name): return get_cmap(name)
-    def __iter__(self): return iter(_colormap_names())
-    def __len__(self): return len(_colormap_names())
-    def __contains__(self, name):
+    def __call__(self) -> Any: return _colormap_names()
+    def __getitem__(self, name: Any) -> Any: return get_cmap(name)
+    def __iter__(self) -> Any: return iter(_colormap_names())
+    def __len__(self) -> Any: return len(_colormap_names())
+    def __contains__(self, name: Any) -> Any:
         try:
             _core_cmap_name(str(name))
             return True
         except ValueError:
             return False
-    def keys(self): return _colormap_names()
-    def values(self): return [get_cmap(name) for name in self]
-    def items(self): return [(name, get_cmap(name)) for name in self]
-    def get(self, name, default=None):
+    def keys(self) -> Any: return _colormap_names()
+    def values(self) -> Any: return [get_cmap(name) for name in self]
+    def items(self) -> Any: return [(name, get_cmap(name)) for name in self]
+    def get(self, name: Any, default: Any = None) -> Any:
         try:
             return get_cmap(name)
         except ValueError:
             return default
 
-    def register(self, cmap, name=None, force=False):
+    def register(self, cmap: Any, name: Any = None, force: Any = False) -> Any:
         """Register a colormap so `get_cmap`/`colormaps[name]` find it."""
         cmap_name = str(name or getattr(cmap, "name", ""))
         if not cmap_name:
@@ -459,10 +459,10 @@ class _CmapNamespace:
     # Attached at module scope once `ScalarMappable` is defined.
     ScalarMappable: Any
 
-    def get_cmap(self, name=None, lut=None):
+    def get_cmap(self, name: Any = None, lut: Any = None) -> Any:
         return get_cmap(name, lut)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: Any) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
         if name == "colors":
@@ -482,16 +482,16 @@ class _Share:
     """Limit group behind `sharex`/`sharey`: explicit limits win, otherwise the
     union of every member's data extent."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.limits = None
-        self.axes = []
+        self.axes: list[Any] = []
 
-    def union(self, axis):
+    def union(self, axis: Any) -> Any:
         spans = [(a._extent_x() if axis == "x" else a._extent_y()) for a in self.axes]
         return (min(s[0] for s in spans), max(s[1] for s in spans))
 
 
-def _validate_share(value, name):
+def _validate_share(value: Any, name: Any) -> Any:
     """Validate Matplotlib's share flags before building limit groups."""
     if value in (False, None, "none"):
         return False
@@ -502,18 +502,18 @@ def _validate_share(value, name):
         "Supported values are 'all', 'row', 'col', 'none', False, True")
 
 
-def _share_axes(axs, shape, sharex, sharey):
+def _share_axes(axs: Any, shape: Any, sharex: Any, sharey: Any) -> Any:
     """Join axes into limit groups and hide duplicate inner tick labels."""
     sharex = _validate_share(sharex, "sharex")
     sharey = _validate_share(sharey, "sharey")
     rows, cols = shape
     grid = np.array(axs, dtype=object).reshape(rows, cols)
 
-    def attach(kind, attr, key):
+    def attach(kind: Any, attr: Any, key: Any) -> Any:
         if not kind:
             return
         if kind in (True, "all"):
-            def key(_a):
+            def key(_a: Any) -> Any:
                 return 0
         groups = {}  # type: ignore[var-annotated]
         for ax in axs:
@@ -540,19 +540,19 @@ def _share_axes(axs, shape, sharex, sharey):
 class _PropCycler:
     """Small stand-in for matplotlib's Cycler, enough for `get_prop_cycle`."""
 
-    def __init__(self, colors):
+    def __init__(self, colors: Any) -> None:
         self._colors = list(colors)
 
-    def by_key(self):
+    def by_key(self) -> Any:
         return {"color": list(self._colors)}
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self._colors)
 
-    def __len__(self):
+    def __len__(self) -> Any:
         return len(self._colors)
 
-    def __repr__(self):
+    def __repr__(self) -> Any:
         return f"Cycler(color={self._colors!r})"
 
 
@@ -568,7 +568,7 @@ class _CycleList(list[dict[str, object]]):
     def __call__(self) -> Iterator[dict[str, object]]: return iter(self)
 
 
-def cycler(*args, **kwargs):
+def cycler(*args: Any, **kwargs: Any) -> Any:
     """Build a colour property cycle, as `matplotlib.cycler`."""
     if len(args) == 2:
         kwargs = {**kwargs, args[0]: args[1]}
@@ -589,7 +589,7 @@ def cycler(*args, **kwargs):
     return _CycleList(list(colors) if not isinstance(colors, str) else [colors])
 
 
-def _cycle_colors(value):
+def _cycle_colors(value: Any) -> Any:
     """Plain colour list from a Cycler, a dict or a list of either."""
     if value is None:
         return []
@@ -613,27 +613,27 @@ class _CoordTransform:
     def __init__(self, kind: Any) -> None:
         self.kind = kind
 
-    def transform(self, points): return np.asarray(points, dtype=np.float64)
-    def inverted(self): return self
-    def __add__(self, other): return self
-    def __radd__(self, other): return self
-    def translate(self, *args, **kwargs): return self
-    def rotate_deg(self, *args, **kwargs): return self
-    def scale(self, *args, **kwargs): return self
-    def skew_deg(self, *args, **kwargs): return self
-    def clear(self): return self
+    def transform(self, points: Any) -> Any: return np.asarray(points, dtype=np.float64)
+    def inverted(self) -> Any: return self
+    def __add__(self, other: Any) -> Any: return self
+    def __radd__(self, other: Any) -> Any: return self
+    def translate(self, *args: Any, **kwargs: Any) -> Any: return self
+    def rotate_deg(self, *args: Any, **kwargs: Any) -> Any: return self
+    def scale(self, *args: Any, **kwargs: Any) -> Any: return self
+    def skew_deg(self, *args: Any, **kwargs: Any) -> Any: return self
+    def clear(self) -> Any: return self
 
 
 class Affine2D:
     """No-op affine transform accepted by annotation and locator helpers."""
 
-    def __init__(self, *args, **kwargs): pass
-    def transform(self, points): _ignored("Affine2D.transform"); return np.asarray(points, dtype=np.float64)
+    def __init__(self, *args: Any, **kwargs: Any) -> None: pass
+    def transform(self, points: Any) -> Any: _ignored("Affine2D.transform"); return np.asarray(points, dtype=np.float64)
     rotate_around = _noop_method(
         "rotate_around", 'self, x, y, theta', warn='Affine2D.rotate_around', returns_self=True)
-    def inverted(self): return self
-    def __add__(self, other): return self
-    def __radd__(self, other): return self
+    def inverted(self) -> Any: return self
+    def __add__(self, other: Any) -> Any: return self
+    def __radd__(self, other: Any) -> Any: return self
     translate = _noop_method(
         "translate", 'self, *args, **kwargs', warn='Affine2D.translate', returns_self=True)
     rotate_deg = _noop_method(
@@ -642,8 +642,8 @@ class Affine2D:
         "scale", 'self, *args, **kwargs', warn='Affine2D.scale', returns_self=True)
     skew_deg = _noop_method(
         "skew_deg", 'self, *args, **kwargs', warn='Affine2D.skew_deg', returns_self=True)
-    def clear(self): return self
-    def get_matrix(self): return np.eye(3)
+    def clear(self) -> Any: return self
+    def get_matrix(self) -> Any: return np.eye(3)
 
 
 class Path:
@@ -662,27 +662,27 @@ class Path:
         self.vertices = np.asarray(vertices, dtype=float).reshape(-1, 2)
         self.codes = codes
 
-    def get_vertices(self): return self.vertices
-    def get_codes(self): return self.codes
+    def get_vertices(self) -> Any: return self.vertices
+    def get_codes(self) -> Any: return self.codes
     transformed = _noop_method(
         "transformed", 'self, transform', warn='Path.transformed', returns_self=True)
-    def deepcopy(self): return copy.deepcopy(self)
-    def cleaned(self, transform=None, simplify=False, **kwargs): return self
-    def clip_to_bbox(self, bbox, inside=True): return self
-    def __iter__(self): return iter((self.vertices, self.codes))
+    def deepcopy(self) -> Any: return copy.deepcopy(self)
+    def cleaned(self, transform: Any = None, simplify: Any = False, **kwargs: Any) -> Any: return self
+    def clip_to_bbox(self, bbox: Any, inside: Any = True) -> Any: return self
+    def __iter__(self) -> Any: return iter((self.vertices, self.codes))
 
-    def get_extents(self, transform=None, **kwargs):
+    def get_extents(self, transform: Any = None, **kwargs: Any) -> Any:
         if len(self.vertices) == 0:
             return _Bbox(0.0, 0.0, 0.0, 0.0)
         return _Bbox(self.vertices[:, 0].min(), self.vertices[:, 1].min(),
                      self.vertices[:, 0].max(), self.vertices[:, 1].max())
 
-    def to_polygons(self, transform=None, **kwargs):
+    def to_polygons(self, transform: Any = None, **kwargs: Any) -> Any:
         if len(self.vertices) == 0:
             return []
         return [np.asarray(self.vertices, dtype=float)]
 
-    def intersects_bbox(self, bbox, filled=True):
+    def intersects_bbox(self, bbox: Any, filled: Any = True) -> Any:
         """Whether any segment of the path touches `bbox`."""
         points = self.vertices
         if len(points) == 0:
@@ -696,7 +696,7 @@ class Path:
         return False
 
     @classmethod
-    def unit_rectangle(cls):
+    def unit_rectangle(cls: Any) -> Any:
         vertices = np.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0],
                              [0.0, 1.0], [0.0, 0.0]], dtype=float)
         codes = np.array([cls.MOVETO, cls.LINETO, cls.LINETO, cls.LINETO,
@@ -704,7 +704,7 @@ class Path:
         return cls(vertices, codes)
 
     @classmethod
-    def make_compound_path(cls, *paths):
+    def make_compound_path(cls: Any, *paths: Any) -> Any:
         if not paths:
             return cls(np.empty((0, 2)), np.empty(0, dtype=np.uint8))
         vertices, codes = [], []
@@ -720,7 +720,7 @@ class Path:
         return cls(np.vstack(vertices), np.concatenate(codes))
 
     @classmethod
-    def make_compound_path_from_polys(cls, XY):
+    def make_compound_path_from_polys(cls: Any, XY: Any) -> Any:
         """Build a compound path from an array of polygons, `(n, sides, 2)`."""
         polys = np.asarray(XY, dtype=float)
         if polys.ndim != 3 or polys.shape[2] != 2:
@@ -734,12 +734,12 @@ class Path:
         return cls(np.asarray(vertices, dtype=float),
                    np.asarray(codes, dtype=np.uint8))
 
-    def __copy__(self):
+    def __copy__(self) -> Any:
         clone = object.__new__(type(self))
         clone.__dict__.update(self.__dict__)
         return clone
 
-    def __deepcopy__(self, memo):
+    def __deepcopy__(self, memo: Any) -> Any:
         clone = object.__new__(type(self))
         memo[id(self)] = clone
         for key, value in self.__dict__.items():
@@ -747,7 +747,7 @@ class Path:
         return clone
 
     @classmethod
-    def unit_regular_polygon(cls, numVertices):
+    def unit_regular_polygon(cls: Any, numVertices: Any) -> Any:
         n = int(numVertices)
         angles = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False) + np.pi / 2.0
         vertices = np.column_stack([np.cos(angles), np.sin(angles)])
@@ -757,7 +757,7 @@ class Path:
         return cls(vertices, codes)
 
     @classmethod
-    def unit_circle(cls):
+    def unit_circle(cls: Any) -> Any:
         angles = np.linspace(0.0, 2.0 * np.pi, 65)
         vertices = np.column_stack([np.cos(angles), np.sin(angles)])
         codes = np.full(vertices.shape[0], cls.LINETO, dtype=np.uint8)
@@ -766,7 +766,7 @@ class Path:
         return cls(vertices, codes)
 
     @classmethod
-    def unit_regular_star(cls, numVertices, innerCircle=0.5):
+    def unit_regular_star(cls: Any, numVertices: Any, innerCircle: Any = 0.5) -> Any:
         n = int(numVertices)
         angles = np.linspace(0.0, 2.0 * np.pi, 2 * n, endpoint=False) + np.pi / 2.0
         radii = np.empty(2 * n)
@@ -782,12 +782,12 @@ class Path:
 class TransformedPath:
     """Path plus the transform that produced it."""
 
-    def __init__(self, path, transform):
+    def __init__(self, path: Any, transform: Any) -> None:
         self._path = path
         self._transform = transform
 
-    def get_path(self): return self._path
-    def get_fully_transformed_path(self): return self._path
+    def get_path(self) -> Any: return self._path
+    def get_fully_transformed_path(self) -> Any: return self._path
 
 
 class TextPath(Path):
@@ -798,7 +798,7 @@ class TextPath(Path):
     a real `Path`, so `PathPatch`, markers, clipping and transforms all work.
     """
 
-    def __init__(self, xy, s, size=None, prop=None, usetex=False, **kwargs):
+    def __init__(self, xy: Any, s: Any, size: Any = None, prop: Any = None, usetex: Any = False, **kwargs: Any) -> None:
         s = str(s)
         fontsize = size
         if fontsize is None and prop is not None:
@@ -826,9 +826,9 @@ class TextPath(Path):
         self._size = fontsize
         self._usetex = bool(usetex)
 
-    def get_text(self): return self._s
-    def get_size(self): return self._size
-    def get_extents(self, transform=None, **kwargs):
+    def get_text(self) -> Any: return self._s
+    def get_size(self) -> Any: return self._size
+    def get_extents(self, transform: Any = None, **kwargs: Any) -> Any:
         return _Bbox(self.vertices[:, 0].min(), self.vertices[:, 1].min(),
                      self.vertices[:, 0].max(), self.vertices[:, 1].max())
 
@@ -836,7 +836,7 @@ class TextPath(Path):
 class _Bbox:
     """Minimal Bbox with the attribute names matplotlib tests reach for."""
 
-    def __init__(self, x0=0.0, y0=0.0, x1=None, y1=None):
+    def __init__(self, x0: Any = 0.0, y0: Any = 0.0, x1: Any = None, y1: Any = None) -> None:
         if x1 is None and y1 is None and not np.isscalar(x0):
             points = np.asarray(x0, dtype=float).reshape(-1, 2)
             x0, y0 = points[:, 0].min(), points[:, 1].min()
@@ -844,66 +844,66 @@ class _Bbox:
         self.x0, self.y0, self.x1, self.y1 = float(x0), float(y0), float(x1), float(y1)
 
     @classmethod
-    def from_bounds(cls, x0, y0, width, height):
+    def from_bounds(cls: Any, x0: Any, y0: Any, width: Any, height: Any) -> Any:
         return cls(x0, y0, x0 + width, y0 + height)
 
     @classmethod
-    def from_extents(cls, *args):
+    def from_extents(cls: Any, *args: Any) -> Any:
         vals = [float(v) for v in args]
         return cls(min(vals[0::2]), min(vals[1::2]), max(vals[0::2]), max(vals[1::2]))
 
     @classmethod
-    def union(cls, boxes):
+    def union(cls: Any, boxes: Any) -> Any:
         boxes = list(boxes)
         return cls(min(b.x0 for b in boxes), min(b.y0 for b in boxes),
                    max(b.x1 for b in boxes), max(b.y1 for b in boxes))
 
     @property
-    def width(self): return self.x1 - self.x0
+    def width(self) -> Any: return self.x1 - self.x0
 
     @property
-    def height(self): return self.y1 - self.y0
+    def height(self) -> Any: return self.y1 - self.y0
 
     @property
-    def bounds(self): return (self.x0, self.y0, self.width, self.height)
+    def bounds(self) -> Any: return (self.x0, self.y0, self.width, self.height)
 
     @property
-    def p0(self): return (self.x0, self.y0)
+    def p0(self) -> Any: return (self.x0, self.y0)
 
     @property
-    def p1(self): return (self.x1, self.y1)
+    def p1(self) -> Any: return (self.x1, self.y1)
 
     @property
-    def size(self): return (self.width, self.height)
+    def size(self) -> Any: return (self.width, self.height)
 
     @property
-    def intervalx(self): return (self.x0, self.x1)
+    def intervalx(self) -> Any: return (self.x0, self.x1)
 
     @property
-    def intervaly(self): return (self.y0, self.y1)
+    def intervaly(self) -> Any: return (self.y0, self.y1)
 
-    def get_points(self): return [[self.x0, self.y0], [self.x1, self.y1]]
-    def get_extents(self): return (self.x0, self.y0, self.x1, self.y1)
-    def expanded(self, sw, sh):
+    def get_points(self) -> Any: return [[self.x0, self.y0], [self.x1, self.y1]]
+    def get_extents(self) -> Any: return (self.x0, self.y0, self.x1, self.y1)
+    def expanded(self, sw: Any, sh: Any) -> Any:
         return _Bbox(self.x0 - sw, self.y0 - sh, self.x1 + sw, self.y1 + sh)
     transformed = _noop_method(
         "transformed", 'self, transform', warn='Bbox.transformed', returns_self=True)
-    def contains(self, x, y): return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
-    def containsx(self, x): return self.x0 <= x <= self.x1
-    def containsy(self, y): return self.y0 <= y <= self.y1
-    def __len__(self): return 4
-    def frozen(self): return _Bbox(self.x0, self.y0, self.x1, self.y1)
-    def set(self, other):
+    def contains(self, x: Any, y: Any) -> Any: return self.x0 <= x <= self.x1 and self.y0 <= y <= self.y1
+    def containsx(self, x: Any) -> Any: return self.x0 <= x <= self.x1
+    def containsy(self, y: Any) -> Any: return self.y0 <= y <= self.y1
+    def __len__(self) -> Any: return 4
+    def frozen(self) -> Any: return _Bbox(self.x0, self.y0, self.x1, self.y1)
+    def set(self, other: Any) -> Any:
         if hasattr(other, "x0"):
             self.x0, self.y0 = float(other.x0), float(other.y0)
             self.x1, self.y1 = float(other.x1), float(other.y1)
         else:
             self.x0, self.y0, self.x1, self.y1 = (float(v) for v in other)
         return self
-    def __iter__(self): return iter(self.bounds)
-    def __getitem__(self, index): return self.bounds[index]
+    def __iter__(self) -> Any: return iter(self.bounds)
+    def __getitem__(self, index: Any) -> Any: return self.bounds[index]
 
-    def __repr__(self):
+    def __repr__(self) -> Any:
         return f"Bbox({self.x0:g}, {self.y0:g}, {self.x1:g}, {self.y1:g})"
 
 
@@ -919,15 +919,15 @@ class _Transform:
     linthresh = 1.0
     linscale = 1.0
 
-    def transform(self, points): return np.asarray(points, dtype=np.float64)
-    def transform_path(self, path): return path
+    def transform(self, points: Any) -> Any: return np.asarray(points, dtype=np.float64)
+    def transform_path(self, path: Any) -> Any: return path
 
-    def __add__(self, other): return self
-    def __radd__(self, other): return self
-    def translate(self, *args, **kwargs): return self
-    def rotate_deg(self, *args, **kwargs): return self
-    def scale(self, *args, **kwargs): return self
-    def inverted(self): return self
+    def __add__(self, other: Any) -> Any: return self
+    def __radd__(self, other: Any) -> Any: return self
+    def translate(self, *args: Any, **kwargs: Any) -> Any: return self
+    def rotate_deg(self, *args: Any, **kwargs: Any) -> Any: return self
+    def scale(self, *args: Any, **kwargs: Any) -> Any: return self
+    def inverted(self) -> Any: return self
 
 
 class _IdentityTransform(_Transform):
@@ -946,30 +946,30 @@ class _BboxPatch:
 class _TextEntry(tuple[object, ...]):
     """Stored text record with the accessors Matplotlib text artists expose."""
 
-    def get_position(self): return (self[0], self[1])
-    def get_text(self): return self[2]
-    def get_color(self): return self[3]
-    def get_fontsize(self): return self[4]
-    def get_ha(self): return self[5]
-    def get_va(self): return self[6]
-    def get_bbox(self): return self[8]
-    def get_rotation(self): return self[9]
+    def get_position(self) -> Any: return (self[0], self[1])
+    def get_text(self) -> Any: return self[2]
+    def get_color(self) -> Any: return self[3]
+    def get_fontsize(self) -> Any: return self[4]
+    def get_ha(self) -> Any: return self[5]
+    def get_va(self) -> Any: return self[6]
+    def get_bbox(self) -> Any: return self[8]
+    def get_rotation(self) -> Any: return self[9]
 
 
 class _FigureImage:
     """Handle returned by `Figure.figimage`."""
 
-    def __init__(self, entry):
+    def __init__(self, entry: Any) -> None:
         self._e = entry
 
-    def get_array(self): return self._e["data"]
-    def get_alpha(self): return self._e["alpha"]
-    def set_alpha(self, alpha):
+    def get_array(self) -> Any: return self._e["data"]
+    def get_alpha(self) -> Any: return self._e["alpha"]
+    def set_alpha(self, alpha: Any) -> Any:
         self._e["alpha"] = float(np.clip(float(alpha), 0.0, 1.0))
         return self
 
 
-def _segment_intersects_bbox(start, end, bbox):
+def _segment_intersects_bbox(start: Any, end: Any, bbox: Any) -> Any:
     x0, y0 = float(start[0]), float(start[1])
     x1, y1 = float(end[0]), float(end[1])
     dx, dy = x1 - x0, y1 - y0
@@ -997,61 +997,61 @@ class _TextArt:
         self._bbox_patch = _BboxPatch()
         self._text = str(text)
 
-    def get_text(self): return self._text
-    def set_text(self, text): self._text = str(text); return self
+    def get_text(self) -> Any: return self._text
+    def set_text(self, text: Any) -> Any: self._text = str(text); return self
 
     set_path_effects = _noop_method(
         "set_path_effects", 'self, effects', warn='Text.set_path_effects', returns_self=True)
 
-    def set_bbox(self, bbox):
+    def set_bbox(self, bbox: Any) -> Any:
         self._bbox = bbox
         return self
 
-    def set_color(self, color): self._color = color; return self
-    def get_color(self): return getattr(self, "_color", "black")
-    def set_fontsize(self, size): self._fontsize = size; return self
-    def get_fontsize(self): return getattr(self, "_fontsize", 10)
-    def set_fontweight(self, weight): self._fontweight = weight; return self
-    def set_fontstyle(self, style): self._fontstyle = style; return self
-    def set_fontfamily(self, family): self._fontfamily = family; return self
-    def set_fontfeatures(self, features): self._fontfeatures = features; return self
-    def set_language(self, language): self._language = language; return self
-    def set_ha(self, value): self._ha = value; return self
+    def set_color(self, color: Any) -> Any: self._color = color; return self
+    def get_color(self) -> Any: return getattr(self, "_color", "black")
+    def set_fontsize(self, size: Any) -> Any: self._fontsize = size; return self
+    def get_fontsize(self) -> Any: return getattr(self, "_fontsize", 10)
+    def set_fontweight(self, weight: Any) -> Any: self._fontweight = weight; return self
+    def set_fontstyle(self, style: Any) -> Any: self._fontstyle = style; return self
+    def set_fontfamily(self, family: Any) -> Any: self._fontfamily = family; return self
+    def set_fontfeatures(self, features: Any) -> Any: self._fontfeatures = features; return self
+    def set_language(self, language: Any) -> Any: self._language = language; return self
+    def set_ha(self, value: Any) -> Any: self._ha = value; return self
     set_horizontalalignment = set_ha
-    def set_va(self, value): self._va = value; return self
+    def set_va(self, value: Any) -> Any: self._va = value; return self
     set_verticalalignment = set_va
-    def set_zorder(self, zorder): self._zorder = int(zorder); return self
-    def get_zorder(self): return getattr(self, "_zorder", 3)
+    def set_zorder(self, zorder: Any) -> Any: self._zorder = int(zorder); return self
+    def get_zorder(self) -> Any: return getattr(self, "_zorder", 3)
 
-    def get_bbox_patch(self): return self._bbox_patch
-    def contains(self, mouseevent=None): return False, {}
+    def get_bbox_patch(self) -> Any: return self._bbox_patch
+    def contains(self, mouseevent: Any = None) -> Any: return False, {}
     draggable = _noop_method("draggable", 'self, *args, **kwargs')
-    def get_window_extent(self, renderer=None):
+    def get_window_extent(self, renderer: Any = None) -> Any:
         return _Bbox(0.0, 0.0, 1.0, 1.0)
 
 
 class _TableCell:
     """A text artist plus the geometry the table API exposes for a cell."""
 
-    def __init__(self, art):
+    def __init__(self, art: Any) -> None:
         self._art = art
 
-    def get_text(self): return self._art.get_text()
-    def set_text(self, text): self._art.set_text(text); return self
+    def get_text(self) -> Any: return self._art.get_text()
+    def set_text(self, text: Any) -> Any: self._art.set_text(text); return self
 
-    def set_text_props(self, **kwargs):
+    def set_text_props(self, **kwargs: Any) -> Any:
         if "color" in kwargs:
             self._art.set_color(kwargs["color"])
         if "fontsize" in kwargs:
             self._art.set_fontsize(kwargs["fontsize"])
         return self
 
-    def get_visible(self): return getattr(self, "_visible", True)
-    def set_visible(self, visible): self._visible = bool(visible); return self
-    def get_facecolor(self): return getattr(self, "_facecolor", "none")
-    def set_facecolor(self, color): self._facecolor = color; return self
-    def get_edgecolor(self): return "black"
-    def get_linewidth(self): return 0.8
+    def get_visible(self) -> Any: return getattr(self, "_visible", True)
+    def set_visible(self, visible: Any) -> Any: self._visible = bool(visible); return self
+    def get_facecolor(self) -> Any: return getattr(self, "_facecolor", "none")
+    def set_facecolor(self, color: Any) -> Any: self._facecolor = color; return self
+    def get_edgecolor(self) -> Any: return "black"
+    def get_linewidth(self) -> Any: return 0.8
 
 
 class Table:
@@ -1117,11 +1117,11 @@ class Table:
                               ha=align, va="center", fontsize=fontsize, bbox=box)
                 self._cells[(row - label_rows, col - label_cols)] = _TableCell(art)
 
-    def get_celld(self): return dict(self._cells)
-    def get_cell(self, row, col): return self._cells[(row, col)]
+    def get_celld(self) -> Any: return dict(self._cells)
+    def get_cell(self, row: Any, col: Any) -> Any: return self._cells[(row, col)]
     auto_set_font_size = _noop_method("auto_set_font_size", 'self, *args, **kwargs')
     auto_set_column_width = _noop_method("auto_set_column_width", 'self, *args, **kwargs')
-    def set_fontsize(self, size):
+    def set_fontsize(self, size: Any) -> Any:
         for cell in self._cells.values():
             cell._art.set_fontsize(size)
 
@@ -1129,24 +1129,24 @@ class Table:
 class OffsetFrom:
     """Text offset anchored to another artist's bbox; only the values are kept."""
 
-    def __init__(self, artist, ref_coord, unit="points"):
+    def __init__(self, artist: Any, ref_coord: Any, unit: Any = "points") -> None:
         self.artist, self.ref_coord, self.unit = artist, ref_coord, unit
 
 
 class Text(_TextArt):
     """Constructible text artist used by code that imports `matplotlib.text`."""
 
-    def __init__(self, x=0, y=0, text="", **kwargs):
+    def __init__(self, x: Any = 0, y: Any = 0, text: Any = "", **kwargs: Any) -> None:
         super().__init__()
         self._x, self._y, self._text = x, y, str(text)
         self._axes = kwargs.get("axes")
 
-    def get_text(self): return self._text
-    def set_text(self, text): self._text = str(text); return self
-    def get_position(self): return (self._x, self._y)
-    def set_position(self, xy): self._x, self._y = xy; return self
-    def set_figure(self, figure): return self
-    def set_transform(self, transform): return self
+    def get_text(self) -> Any: return self._text
+    def set_text(self, text: Any) -> Any: self._text = str(text); return self
+    def get_position(self) -> Any: return (self._x, self._y)
+    def set_position(self, xy: Any) -> Any: self._x, self._y = xy; return self
+    def set_figure(self, figure: Any) -> Any: return self
+    def set_transform(self, transform: Any) -> Any: return self
     draw = _noop_method("draw", 'self, renderer')
 
 
@@ -1158,15 +1158,15 @@ class _TextLabel:
         self._rotation = 0.0
         self._color = "black"
 
-    def get_text(self): return self._text
-    def set_text(self, text): self._text = str(text)
-    def get_visible(self): return self._visible
-    def set_visible(self, visible): self._visible = bool(visible)
-    def get_fontsize(self): return self._fontsize
-    def set_fontsize(self, size): self._fontsize = _font_size(size, self._fontsize)
-    def get_rotation(self): return self._rotation
-    def set_rotation(self, rotation): self._rotation = float(rotation)
-    def get_color(self): return self._color
+    def get_text(self) -> Any: return self._text
+    def set_text(self, text: Any) -> Any: self._text = str(text)
+    def get_visible(self) -> Any: return self._visible
+    def set_visible(self, visible: Any) -> Any: self._visible = bool(visible)
+    def get_fontsize(self) -> Any: return self._fontsize
+    def set_fontsize(self, size: Any) -> Any: self._fontsize = _font_size(size, self._fontsize)
+    def get_rotation(self) -> Any: return self._rotation
+    def set_rotation(self, rotation: Any) -> Any: self._rotation = float(rotation)
+    def get_color(self) -> Any: return self._color
     set_color = _state_setter(
         "_color", 'color', 'color')
     set_ha = _noop_method(
@@ -1177,13 +1177,13 @@ class _TextLabel:
     set_verticalalignment = set_va
     set_axis_direction = _noop_method(
         "set_axis_direction", 'self, value', warn='Text.set_axis_direction')
-    def set_pad(self, value): self._pad = float(value)
-    def get_pad(self): return getattr(self, "_pad", 4.0)
-    def set_tick_out(self, value): self._tick_out = bool(value)
-    def set_tick_direction(self, value): self._tick_direction = str(value)
+    def set_pad(self, value: Any) -> Any: self._pad = float(value)
+    def get_pad(self) -> Any: return getattr(self, "_pad", 4.0)
+    def set_tick_out(self, value: Any) -> Any: self._tick_out = bool(value)
+    def set_tick_direction(self, value: Any) -> Any: self._tick_direction = str(value)
     set_axisline_style = _state_setter(
         "_line_style", 'value, **kwargs', 'value')
-    def set_picker(self, value): self._picker = value; return self
+    def set_picker(self, value: Any) -> Any: self._picker = value; return self
     set_fontweight = _noop_method(
         "set_fontweight", 'self, value', warn='Text.set_fontweight')
     set_fontstyle = _noop_method(
@@ -1200,10 +1200,10 @@ class _TextLabel:
         "set_linespacing", 'self, value', warn='Text.set_linespacing')
     set_wrap = _noop_method(
         "set_wrap", 'self, value', warn='Text.set_wrap')
-    def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
+    def get_window_extent(self, renderer: Any = None) -> Any: return _Bbox(0, 0, 1, 1)
 
 
-def _margin(lo, hi, scale, sticky=(), fraction=0.05):
+def _margin(lo: Any, hi: Any, scale: Any, sticky: Any = (), fraction: Any = 0.05) -> Any:
     """Matplotlib's autoscale margin (in log space for log axes).
 
     `fraction` is the axes' stored margin (`Axes.margins`), 5% by default.
@@ -1221,7 +1221,7 @@ def _margin(lo, hi, scale, sticky=(), fraction=0.05):
     return (10.0 ** lo, 10.0 ** hi) if scale == "log" else (lo, hi)
 
 
-def _update_extent(ext, values):
+def _update_extent(ext: Any, values: Any) -> Any:
     """Update running (min, max) extent without flattening arrays into Python lists.
 
     Performance: Direct NumPy min/max avoids allocating large Python lists and
@@ -1245,7 +1245,7 @@ def _update_extent(ext, values):
     return ext
 
 
-def _span_extent(ext):
+def _span_extent(ext: Any) -> Any:
     """Convert an accumulated (min, max) extent to non-degenerate span."""
     lo, hi = ext
     if lo > hi:
@@ -1334,14 +1334,14 @@ def _date_from_num(value: Any) -> _datetime.datetime:
             + _datetime.timedelta(seconds=seconds))
 
 
-def _date_label(value):
+def _date_label(value: Any) -> Any:
     dt = _date_from_num(value)
     if abs(value - round(value)) < 1e-9:
         return dt.strftime("%Y-%m-%d")
     return dt.strftime("%Y-%m-%d %H:%M")
 
 
-def _format_ticklabels(formatter, ticks):
+def _format_ticklabels(formatter: Any, ticks: Any) -> Any:
     """Labels from a major formatter, or None when it cannot be used here."""
     if formatter is None or ticks is None:
         return None
@@ -1361,7 +1361,7 @@ def _format_ticklabels(formatter, ticks):
     return labels
 
 
-def _scale_transform_pair(scale):
+def _scale_transform_pair(scale: Any) -> Any:
     """Forward and inverse callables from a Matplotlib-style scale object."""
     transform = scale.get_transform()
     forward = getattr(transform, "transform_non_affine", None)
@@ -1376,7 +1376,7 @@ def _scale_transform_pair(scale):
     return forward, inverse
 
 
-def _scale_values(forward, values):
+def _scale_values(forward: Any, values: Any) -> Any:
     """Apply a scale transform, turning masked/non-finite results into gaps."""
     array = np.asarray(values, dtype=np.float64)
     result = np.ma.filled(np.ma.asarray(forward(array), dtype=np.float64), np.nan)
@@ -1392,11 +1392,11 @@ def _add_months(value: _datetime.datetime, months: Any) -> _datetime.datetime:
     return value.replace(year=year, month=month, day=min(value.day, last_day))
 
 
-def _symlog_label(value):
+def _symlog_label(value: Any) -> Any:
     return f"{value:g}".replace("-", "\u2212")
 
 
-def _logit_ticks(lo, hi, one_half="1/2", use_overline=False):
+def _logit_ticks(lo: Any, hi: Any, one_half: Any = "1/2", use_overline: Any = False) -> Any:
     """Ticks at powers of ten in odds, symmetric around probability 0.5."""
     lo = max(float(lo), 1e-9)
     hi = min(float(hi), 1.0 - 1e-9)
@@ -1420,7 +1420,7 @@ def _logit_ticks(lo, hi, one_half="1/2", use_overline=False):
     return ticks, labels
 
 
-def _symlog_ticks(lo, hi, linthresh):
+def _symlog_ticks(lo: Any, hi: Any, linthresh: Any) -> Any:
     """Decade ticks on both sides of `linthresh`, plus zero."""
     l = max(float(linthresh), 1e-300)
     top = max(0, int(_math.floor(_math.log10(max(abs(float(lo)), abs(float(hi)), l) / l))))
@@ -1435,14 +1435,14 @@ def _symlog_ticks(lo, hi, linthresh):
     return ticks, [_symlog_label(v) for v in ticks]
 
 
-def _nice_step(raw, steps):
+def _nice_step(raw: Any, steps: Any) -> Any:
     for step in steps:
         if step >= raw:
             return step
     return steps[-1] * max(1, int(_math.ceil(raw / steps[-1])))
 
 
-def _auto_ticks(lo, hi, log=False, base=10.0, target=8):
+def _auto_ticks(lo: Any, hi: Any, log: Any = False, base: Any = 10.0, target: Any = 8) -> Any:
     """Ticks for an axis with none set, computed by the Rust locator."""
     return _auto_ticks_core(float(lo), float(hi), bool(log), float(base), int(target))
 
@@ -1509,9 +1509,9 @@ _MAX_EDGES = 100_000
 _MAX_GRID_CELLS = 10_000
 
 
-def _validate_grid_shape(nrows, ncols):
+def _validate_grid_shape(nrows: Any, ncols: Any) -> Any:
     """Reject grids that would allocate one Python object per requested cell."""
-    def positive(value, label):
+    def positive(value: Any, label: Any) -> Any:
         if (isinstance(value, bool)
                 or not isinstance(value, (int, np.integer))):
             raise ValueError(
@@ -1529,7 +1529,7 @@ def _validate_grid_shape(nrows, ncols):
     return rows, cols
 
 
-def _apply_axes_options(ax, options, grid_helper=None):
+def _apply_axes_options(ax: Any, options: Any, grid_helper: Any = None) -> Any:
     """Apply `add_subplot`/`add_axes` options used by axisartist examples."""
     if grid_helper is not None:
         ax._grid_helper = grid_helper
@@ -1595,7 +1595,7 @@ def _validate_bins(bins: Any, name: str = "bins",
     return bins
 
 
-def _validate_dimension(val, name):
+def _validate_dimension(val: Any, name: Any) -> Any:
     try:
         v = float(val)
     except (TypeError, ValueError):
@@ -1605,7 +1605,7 @@ def _validate_dimension(val, name):
     return v
 
 
-def _validate_figsize(figsize):
+def _validate_figsize(figsize: Any) -> Any:
     if not isinstance(figsize, (tuple, list, np.ndarray)) or len(figsize) != 2:
         raise ValueError(f"figsize must be a sequence of 2 positive numbers, got {figsize!r}")
     w = _validate_dimension(figsize[0], "figsize width")
@@ -1613,7 +1613,7 @@ def _validate_figsize(figsize):
     return (w, h)
 
 
-def _output_format(filepath, format):
+def _output_format(filepath: Any, format: Any) -> Any:
     """Resolve the output format from an explicit value or the destination name."""
     if format is None:
         name = (filepath if isinstance(filepath, (str, bytes, os.PathLike))
@@ -1676,7 +1676,7 @@ def _validate_linestyle(style: Any) -> Any:
     raise ValueError(f"{style!r} is not a valid value for ls.")
 
 
-def _validate_savefig_mapping(value, name):
+def _validate_savefig_mapping(value: Any, name: Any) -> Any:
     if value is None:
         return {}
     if not isinstance(value, dict):

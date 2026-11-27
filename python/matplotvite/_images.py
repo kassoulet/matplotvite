@@ -69,7 +69,7 @@ class ContourSet:
                        x=None, y=None, z=None)
         self._draw_manual(list(segments), allkinds)
 
-    def _manual_colour(self, index):
+    def _manual_colour(self, index: Any) -> Any:
         colours = self._e.get("colors")
         if colours:
             return _norm_color(colours[index % len(colours)])
@@ -83,13 +83,13 @@ class ContourSet:
         rgb = _as_f64(get_cmap(self._e["cmap"])(t))[:3]
         return "#{:02x}{:02x}{:02x}".format(*tuple(int(round(float(v) * 255)) for v in rgb))
 
-    def _manual_linewidth(self, index):
+    def _manual_linewidth(self, index: Any) -> Any:
         widths = self._e["linewidths"]
         if not widths:
             return rcParams.get("lines.linewidth", 1.5)
         return widths[index % len(widths)]
 
-    def _draw_manual(self, groups, allkinds):
+    def _draw_manual(self, groups: Any, allkinds: Any) -> Any:
         """Draw user-supplied contour paths through the normal artist layer."""
         kinds = (list(allkinds) if allkinds is not None
                  else [None] * len(groups))
@@ -122,9 +122,9 @@ class ContourSet:
                                        linewidth=width, alpha=self._e["alpha"])
 
     @property
-    def levels(self): return list(self._e["levels"])
+    def levels(self) -> Any: return list(self._e["levels"])
 
-    def set_edgecolors(self, colors):
+    def set_edgecolors(self, colors: Any) -> Any:
         if colors is None:
             self._e["colors"] = None
         elif isinstance(colors, str):
@@ -134,7 +134,7 @@ class ContourSet:
         return self
     set_edgecolor = set_edgecolors
 
-    def legend_elements(self, variable_name="x", str_format=None, **kwargs):
+    def legend_elements(self, variable_name: Any = "x", str_format: Any = None, **kwargs: Any) -> Any:
         """Handles and labels for one entry per contour level."""
         levels = list(self._e["levels"])
         artists, labels = [], []
@@ -152,37 +152,37 @@ class ContourSet:
         return artists, labels
 
     @property
-    def cmap(self): return get_cmap(self._e["cmap"])
+    def cmap(self) -> Any: return get_cmap(self._e["cmap"])
     @property
-    def linewidths(self):
+    def linewidths(self) -> Any:
         widths = self._e.get("linewidths") or []
         return widths[0] if len(widths) == 1 and widths else widths
 
-    def get_linewidth(self): return self.linewidths
-    def set_linewidth(self, width):
+    def get_linewidth(self) -> Any: return self.linewidths
+    def set_linewidth(self, width: Any) -> Any:
         values = np.atleast_1d(np.asarray(width, dtype=np.float64)).ravel()
         self._e["linewidths"] = [float(v) for v in values]
         return self
-    def get_linewidths(self):
+    def get_linewidths(self) -> Any:
         widths = self._e.get("linewidths") or []
         return list(widths)
     @property
-    def linestyles(self):
+    def linestyles(self) -> Any:
         return self._e.get("linestyles") or "solid"
-    def set_linestyle(self, linestyle):
+    def set_linestyle(self, linestyle: Any) -> Any:
         self._e["linestyles"] = linestyle
         return self
-    def get_linestyle(self): return self.linestyles
-    def get_cmap(self): return get_cmap(self._e["cmap"])
-    def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
-    def set_clim(self, vmin=None, vmax=None): pass
-    def set(self, **kwargs): return self
+    def get_linestyle(self) -> Any: return self.linestyles
+    def get_cmap(self) -> Any: return get_cmap(self._e["cmap"])
+    def set_cmap(self, cmap: Any) -> Any: self._e["cmap"] = _cmap_name(cmap)
+    def set_clim(self, vmin: Any = None, vmax: Any = None) -> Any: pass
+    def set(self, **kwargs: Any) -> Any: return self
 
     add_label_near = _noop_method("add_label_near", 'self, x, y, inline=True, inline_spacing=5, transform=None')
 
-    def clabel(self, levels=None, *, fontsize=None, inline=True, inline_spacing=5,
-               fmt=None, colors=None, use_clabeltext=False, manual=False,
-               rightside_up=True, zorder=None, **kwargs):
+    def clabel(self, levels: Any = None, *, fontsize: Any = None, inline: Any = True, inline_spacing: Any = 5,
+               fmt: Any = None, colors: Any = None, use_clabeltext: Any = False, manual: Any = False,
+               rightside_up: Any = True, zorder: Any = None, **kwargs: Any) -> Any:
         """Label each contour level at its longest segment or at given points.
 
         Labels are drawn horizontally or vertically, whichever is closer to the
@@ -207,7 +207,7 @@ class ContourSet:
                                 for point in manual]
         texts = []
 
-        def add_label(index, px, py, xa, ya, xb, yb):
+        def add_label(index: Any, px: Any, py: Any, xa: Any, ya: Any, xb: Any, yb: Any) -> Any:
             level = all_levels[index]
             angle = _math.degrees(_math.atan2(yb - ya, xb - xa))
             if rightside_up:
@@ -247,7 +247,7 @@ class ContourSet:
             add_label(index, (xa + xb) / 2.0, (ya + yb) / 2.0, xa, ya, xb, yb)
         return texts
 
-    def get_paths(self):
+    def get_paths(self) -> Any:
         if self._manual is not None:
             out = []
             for index, group in enumerate(self._manual):
@@ -267,11 +267,11 @@ class ContourSet:
                 paths.append(Path(np.asarray([start, end], dtype=float)))
         return paths
 
-    def get_transform(self): return _Transform()
+    def get_transform(self) -> Any: return _Transform()
 
-    def get_arrays(self): return ()
+    def get_arrays(self) -> Any: return ()
 
-    def _colorbar_spec(self):
+    def _colorbar_spec(self) -> Any:
         lv = self._e["levels"]
         return dict(cmap=self._e["cmap"], vmin=lv[0], vmax=lv[-1], ticks=lv)
 
@@ -279,25 +279,25 @@ class ContourSet:
 class BboxImage:
     """Image positioned by a bbox callback, used by text-path examples."""
 
-    def __init__(self, bbox, norm=None, origin=None, **kwargs):
+    def __init__(self, bbox: Any, norm: Any = None, origin: Any = None, **kwargs: Any) -> None:
         self._bbox = bbox
         self.norm = norm
         self.origin = origin
         self._data = None
-        self._clip_path = None
+        self._clip_path: Any = None
 
-    def set_data(self, data):
+    def set_data(self, data: Any) -> Any:
         self._data = data
         return self
 
-    def get_array(self): return self._data
+    def get_array(self) -> Any: return self._data
 
-    def set_clip_path(self, path, transform=None):
+    def set_clip_path(self, path: Any, transform: Any = None) -> Any:
         self._clip_path = (path, transform)
         return self
-    def set_clip_on(self, value): return self
+    def set_clip_on(self, value: Any) -> Any: return self
 
-    def get_window_extent(self, renderer=None):
+    def get_window_extent(self, renderer: Any = None) -> Any:
         return self._bbox(renderer) if callable(self._bbox) else self._bbox
 
     draw = _noop_method("draw", 'self, renderer=None')
@@ -306,15 +306,15 @@ class BboxImage:
 class NonUniformImage:
     """Rectilinear image; irregular coordinate arrays are resampled for display."""
 
-    def __init__(self, ax=None, *, extent=None, cmap=None, interpolation="nearest",
-                 **kwargs):
+    def __init__(self, ax: Any = None, *, extent: Any = None, cmap: Any = None, interpolation: Any = "nearest",
+                 **kwargs: Any) -> None:
         self.axes = ax
         self._extent = None if extent is None else tuple(float(v) for v in extent)
         self._cmap = _cmap_name(cmap)
         self._interpolation = str(interpolation)
-        self._data = None
+        self._data: Any = None
 
-    def set_data(self, x, y, z):
+    def set_data(self, x: Any, y: Any, z: Any) -> Any:
         self._x = _as_f64(x)
         self._y = _as_f64(y)
         self._data = np.asarray(z, dtype=float)
@@ -322,14 +322,14 @@ class NonUniformImage:
             raise ValueError("z must have shape (len(y), len(x))")
         return self
 
-    def get_array(self): return self._data
-    def get_extent(self): return self._extent
-    def set_extent(self, extent): self._extent = tuple(float(v) for v in extent)
-    def get_cmap(self): return get_cmap(self._cmap)
-    def set_cmap(self, cmap): self._cmap = _cmap_name(cmap)
-    def set_interpolation(self, value): self._interpolation = str(value)
+    def get_array(self) -> Any: return self._data
+    def get_extent(self) -> Any: return self._extent
+    def set_extent(self, extent: Any) -> Any: self._extent = tuple(float(v) for v in extent)
+    def get_cmap(self) -> Any: return get_cmap(self._cmap)
+    def set_cmap(self, cmap: Any) -> Any: self._cmap = _cmap_name(cmap)
+    def set_interpolation(self, value: Any) -> Any: self._interpolation = str(value)
 
-    def _render_spec(self):
+    def _render_spec(self) -> Any:
         data = np.asarray(self._data, dtype=float)
         x, y = self._x, self._y
         if x.size > 1 and not np.allclose(np.diff(x), np.diff(x)[0]):
@@ -368,33 +368,33 @@ class AxesImage:
         self._zorder = 0
         self._transform = None
 
-    def get_array(self): return self._e.get("data")
-    def set_data(self, X): self._e["data"] = _as_image(X)
+    def get_array(self) -> Any: return self._e.get("data")
+    def set_data(self, X: Any) -> Any: self._e["data"] = _as_image(X)
     set_array = set_data
-    def get_transform(self): return self._transform
+    def get_transform(self) -> Any: return self._transform
     draw = _noop_method("draw", 'self, renderer=None')
-    def get_cmap(self): return get_cmap(self._e["cmap"])
+    def get_cmap(self) -> Any: return get_cmap(self._e["cmap"])
 
     @property
-    def norm(self):
+    def norm(self) -> Any:
         return _Normalize(vmin=self._e["vmin"], vmax=self._e["vmax"])
 
-    def set_norm(self, norm):
+    def set_norm(self, norm: Any) -> Any:
         self._e["vmin"] = getattr(norm, "vmin", None)
         self._e["vmax"] = getattr(norm, "vmax", None)
         return self
-    def set_cmap(self, cmap): self._e["cmap"] = _cmap_name(cmap)
-    def set_extent(self, extent): self._e["extent"] = tuple(float(v) for v in extent)
-    def get_extent(self): return self._e["extent"]
-    def set_interpolation(self, value): self._e["interpolation"] = str(value)
-    def get_interpolation(self): return self._e["interpolation"]
-    def set_alpha(self, value): self._e["alpha"] = float(value)
-    def get_alpha(self): return self._e["alpha"]
+    def set_cmap(self, cmap: Any) -> Any: self._e["cmap"] = _cmap_name(cmap)
+    def set_extent(self, extent: Any) -> Any: self._e["extent"] = tuple(float(v) for v in extent)
+    def get_extent(self) -> Any: return self._e["extent"]
+    def set_interpolation(self, value: Any) -> Any: self._e["interpolation"] = str(value)
+    def get_interpolation(self) -> Any: return self._e["interpolation"]
+    def set_alpha(self, value: Any) -> Any: self._e["alpha"] = float(value)
+    def get_alpha(self) -> Any: return self._e["alpha"]
     set_rasterized = _noop_method(
         "set_rasterized", 'self, value', warn='AxesImage.set_rasterized')
     set_agg_filter = _noop_method(
         "set_agg_filter", 'self, value', warn='AxesImage.set_agg_filter')
-    def remove(self):
+    def remove(self) -> Any:
         if self.axes is not None:
             self.axes.images[:] = [image for image in self.axes.images
                                    if image is not self]
@@ -415,14 +415,14 @@ class AxesImage:
         "set_transform", 'self, value', warn='AxesImage.set_transform')
     set_visible = _noop_method(
         "set_visible", 'self, value', warn='AxesImage.set_visible')
-    def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
+    def get_window_extent(self, renderer: Any = None) -> Any: return _Bbox(0, 0, 1, 1)
 
-    def set_clim(self, vmin=None, vmax=None):
+    def set_clim(self, vmin: Any = None, vmax: Any = None) -> Any:
         self._e["vmin"], self._e["vmax"] = vmin, vmax
 
-    def get_clim(self): return self._e["vmin"], self._e["vmax"]
+    def get_clim(self) -> Any: return self._e["vmin"], self._e["vmax"]
 
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         """Apply Matplotlib's image `.set(data=..., extent=..., clim=...)` form."""
         for key, value in kwargs.items():
             if key == "data":
@@ -443,14 +443,14 @@ class AxesImage:
                 _ignored(f"AxesImage.set({key})")
         return self
 
-    def _colorbar_spec(self):
+    def _colorbar_spec(self) -> Any:
         data = self._e["data"]
         lo = self._e["vmin"] if self._e["vmin"] is not None else float(np.nanmin(data))
         hi = self._e["vmax"] if self._e["vmax"] is not None else float(np.nanmax(data))
         return dict(cmap=self._e["cmap"], vmin=lo, vmax=hi)
 
 
-def _span_index(key, size):
+def _span_index(key: Any, size: Any) -> Any:
     """Normalise an int or slice into an inclusive (start, stop) span."""
     if isinstance(key, slice):
         step = 1 if key.step is None else int(key.step)
@@ -476,22 +476,22 @@ def _span_index(key, size):
 class SubplotSpec:
     """A rectangular region of a `GridSpec`, accepted by `Figure.add_subplot`."""
 
-    def __init__(self, gridspec, rows, cols):
+    def __init__(self, gridspec: Any, rows: Any, cols: Any) -> None:
         self.gridspec = gridspec
         self.rows = rows
         self.cols = cols
 
-    def get_position(self, figure=None):
+    def get_position(self, figure: Any = None) -> Any:
         x, y, w, h = self.gridspec._bounds(self.rows, self.cols)
         return _Bbox(x, y, x + w, y + h)
 
-    def get_gridspec(self): return self.gridspec
-    def is_first_row(self): return self.rows[0] == 0
-    def is_last_row(self): return self.rows[1] == self.gridspec.nrows - 1
-    def is_first_col(self): return self.cols[0] == 0
-    def is_last_col(self): return self.cols[1] == self.gridspec.ncols - 1
+    def get_gridspec(self) -> Any: return self.gridspec
+    def is_first_row(self) -> Any: return self.rows[0] == 0
+    def is_last_row(self) -> Any: return self.rows[1] == self.gridspec.nrows - 1
+    def is_first_col(self) -> Any: return self.cols[0] == 0
+    def is_last_col(self) -> Any: return self.cols[1] == self.gridspec.ncols - 1
 
-    def subgridspec(self, nrows, ncols, **kwargs):
+    def subgridspec(self, nrows: Any, ncols: Any, **kwargs: Any) -> Any:
         """Nested grid confined to this region."""
         x, y, w, h = self.gridspec._bounds(self.rows, self.cols)
         return GridSpec(nrows, ncols, figure=self.gridspec.figure,
@@ -522,7 +522,7 @@ class GridSpec:
         if any(not np.isfinite(v) or v <= 0.0 for v in self.width_ratios + self.height_ratios):
             raise ValueError("GridSpec ratios must be positive and finite")
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         if isinstance(key, tuple):
             rows, cols = key
             return SubplotSpec(self, _span_index(rows, self.nrows),
@@ -537,18 +537,18 @@ class GridSpec:
         row, col = divmod(index, self.ncols)
         return SubplotSpec(self, (row, row), (col, col))
 
-    def get_geometry(self):
+    def get_geometry(self) -> Any:
         return self.nrows, self.ncols
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         for row in range(self.nrows):
             for col in range(self.ncols):
                 yield SubplotSpec(self, (row, row), (col, col))
 
-    def __len__(self):
+    def __len__(self) -> Any:
         return self.nrows * self.ncols
 
-    def update(self, **kwargs):
+    def update(self, **kwargs: Any) -> Any:
         for key in ("left", "right", "bottom", "top", "wspace", "hspace"):
             if kwargs.get(key) is not None:
                 setattr(self, key, float(kwargs[key]))
@@ -556,7 +556,7 @@ class GridSpec:
 
     tight_layout = _noop_method("tight_layout", 'self, *args, **kwargs')
 
-    def subplots(self, sharex=False, sharey=False, squeeze=True, subplot_kw=None):
+    def subplots(self, sharex: Any = False, sharey: Any = False, squeeze: Any = True, subplot_kw: Any = None) -> Any:
         if self.figure is None:
             raise RuntimeError("GridSpec.subplots needs a figure")
         options = dict(subplot_kw or {})
@@ -567,7 +567,7 @@ class GridSpec:
         out = np.array(axs, dtype=object).reshape(self.nrows, self.ncols)
         return out.squeeze() if squeeze else out
 
-    def _bounds(self, rows, cols):
+    def _bounds(self, rows: Any, cols: Any) -> Any:
         r0, r1 = rows
         c0, c1 = cols
         width = self.right - self.left
@@ -598,23 +598,23 @@ class _ColorbarAxis:
     set_label_text = _noop_method("set_label_text", 'self, *args, **kwargs')
     set_label_position = _noop_method("set_label_position", 'self, position')
     set_ticks_position = _noop_method("set_ticks_position", 'self, position')
-    def get_major_locator(self): return _LocatorHandle()
-    def get_minor_locator(self): return _LocatorHandle()
+    def get_major_locator(self) -> Any: return _LocatorHandle()
+    def get_minor_locator(self) -> Any: return _LocatorHandle()
 
 
 class _ColorbarAxes:
-    def __init__(self, entry=None):
+    def __init__(self, entry: Any = None) -> None:
         self._e = entry or {}
-        self._position = None
+        self._position: Any = None
         self.yaxis = self.xaxis = _ColorbarAxis()
-    def get_position(self, original=False):
+    def get_position(self, original: Any = False) -> Any:
         return self._position or _Bbox(0.0, 0.0, 1.0, 1.0)
-    def set_position(self, bounds):
+    def set_position(self, bounds: Any) -> Any:
         """Remember a reposition request; the colorbar keeps its own strip."""
         values = tuple(float(v) for v in bounds)
         self._position = _Bbox(*values) if len(values) == 4 else None
         return self._position
-    def get_window_extent(self, renderer=None): return _Bbox(0.0, 0.0, 1.0, 1.0)
+    def get_window_extent(self, renderer: Any = None) -> Any: return _Bbox(0.0, 0.0, 1.0, 1.0)
     set_visible = _noop_method("set_visible", 'self, value')
     set_axis_off = _noop_method("set_axis_off", 'self')
     set_ylabel = _noop_method("set_ylabel", 'self, *args, **kwargs')
@@ -625,12 +625,12 @@ class _ColorbarAxes:
     set_xticks = _noop_method("set_xticks", 'self, *args, **kwargs')
     set_yticklabels = _noop_method("set_yticklabels", 'self, *args, **kwargs')
     set_xticklabels = _noop_method("set_xticklabels", 'self, *args, **kwargs')
-    def get_yticklabels(self): return self._ticklabels()
-    def get_xticklabels(self): return self._ticklabels()
-    def get_yticks(self): return self._e.get("ticks") or []
-    def get_xticks(self): return self._e.get("ticks") or []
+    def get_yticklabels(self) -> Any: return self._ticklabels()
+    def get_xticklabels(self) -> Any: return self._ticklabels()
+    def get_yticks(self) -> Any: return self._e.get("ticks") or []
+    def get_xticks(self) -> Any: return self._e.get("ticks") or []
 
-    def _set_scale(self, axis, value, base):
+    def _set_scale(self, axis: Any, value: Any, base: Any) -> Any:
         name = str(value).lower()
         if name not in ("linear", "log"):
             raise NotImplementedError(f"unsupported colorbar scale: {value!r}")
@@ -638,16 +638,16 @@ class _ColorbarAxes:
         self._e["log_base"] = float(base)
         return None
 
-    def set_xscale(self, value, base=10, **kwargs):
+    def set_xscale(self, value: Any, base: Any = 10, **kwargs: Any) -> Any:
         return self._set_scale("x", value, base)
 
-    def set_yscale(self, value, base=10, **kwargs):
+    def set_yscale(self, value: Any, base: Any = 10, **kwargs: Any) -> Any:
         return self._set_scale("y", value, base)
 
-    def get_xscale(self): return self._e.get("xscale", "linear")
-    def get_yscale(self): return self._e.get("yscale", "linear")
+    def get_xscale(self) -> Any: return self._e.get("xscale", "linear")
+    def get_yscale(self) -> Any: return self._e.get("yscale", "linear")
 
-    def _set_lim(self, axis, low, high, kwargs):
+    def _set_lim(self, axis: Any, low: Any, high: Any, kwargs: Any) -> Any:
         low = kwargs.pop(f"{axis}min", low)
         high = kwargs.pop(f"{axis}max", high)
         if high is None and low is not None:
@@ -660,25 +660,25 @@ class _ColorbarAxes:
         self._e[f"{axis}lim"] = (low, high)
         return self.get_xlim() if axis == "x" else self.get_ylim()
 
-    def set_xlim(self, left=None, right=None, **kwargs):
+    def set_xlim(self, left: Any = None, right: Any = None, **kwargs: Any) -> Any:
         return self._set_lim("x", left, right, kwargs)
 
-    def set_ylim(self, bottom=None, top=None, **kwargs):
+    def set_ylim(self, bottom: Any = None, top: Any = None, **kwargs: Any) -> Any:
         return self._set_lim("y", bottom, top, kwargs)
 
-    def get_xlim(self):
+    def get_xlim(self) -> Any:
         limits = self._e.get("xlim")
         if limits is not None:
             return tuple(float(v) for v in limits)
         return (float(self._e.get("vmin", 0.0)), float(self._e.get("vmax", 1.0)))
 
-    def get_ylim(self):
+    def get_ylim(self) -> Any:
         limits = self._e.get("ylim")
         if limits is not None:
             return tuple(float(v) for v in limits)
         return (float(self._e.get("vmin", 0.0)), float(self._e.get("vmax", 1.0)))
 
-    def _ticklabels(self):
+    def _ticklabels(self) -> Any:
         ticks = self._e.get("ticks")
         if ticks is None:
             return []
@@ -691,14 +691,14 @@ class _ColorbarAxes:
 class _ColorbarDividers:
     """Divider lines for a standalone colorbar, in the colorbar axes' data units."""
 
-    def __init__(self, axes, boundaries, orientation, enabled, extend=None):
+    def __init__(self, axes: Any, boundaries: Any, orientation: Any, enabled: Any, extend: Any = None) -> None:
         self.axes = axes
         self.boundaries = np.asarray(boundaries, dtype=float) if boundaries is not None else None
         self.orientation = orientation or "vertical"
         self.enabled = bool(enabled)
         self.extend = extend
 
-    def get_segments(self):
+    def get_segments(self) -> Any:
         if not self.enabled:
             return []
         horizontal = self.orientation == "horizontal"
@@ -718,7 +718,7 @@ class _ColorbarDividers:
         return [[[0.0, v], [1.0, v]] for v in cuts]
 
 
-def _resolve_colorbar_extendfrac(value, boundaries, extend):
+def _resolve_colorbar_extendfrac(value: Any, boundaries: Any, extend: Any) -> Any:
     """Normalize `extendfrac` to the fraction of the strip used per end."""
     if value is None:
         return 0.05
@@ -757,10 +757,10 @@ def _resolve_colorbar_extendfrac(value, boundaries, extend):
 class Colorbar:
     """Handle returned by `Figure.colorbar` or constructed around an axes."""
 
-    def __init__(self, ax=None, mappable=None, *, cmap=None, norm=None, values=None,
-                 boundaries=None, orientation=None, ticklocation="auto", extend=None,
-                 spacing="uniform", ticks=None, format=None, drawedges=False,
-                 extendfrac=None, extendrect=False, label="", **kwargs):
+    def __init__(self, ax: Any = None, mappable: Any = None, *, cmap: Any = None, norm: Any = None, values: Any = None,
+                 boundaries: Any = None, orientation: Any = None, ticklocation: Any = "auto", extend: Any = None,
+                 spacing: Any = "uniform", ticks: Any = None, format: Any = None, drawedges: Any = False,
+                 extendfrac: Any = None, extendrect: Any = False, label: Any = "", **kwargs: Any) -> None:
         if isinstance(ax, dict):
             self._e = ax
             self.ax = _ColorbarAxes(ax)
@@ -815,8 +815,8 @@ class Colorbar:
         self._e = entry
         self.dividers = _ColorbarDividers(ax, bounds, orientation, drawedges, extend)
 
-    def set_label(self, label, loc=None, **kwargs): self._e["label"] = str(label)
-    def get_label(self): return self._e["label"]
+    def set_label(self, label: Any, loc: Any = None, **kwargs: Any) -> Any: self._e["label"] = str(label)
+    def get_label(self) -> Any: return self._e["label"]
     add_lines = _noop_method("add_lines", 'self, *args, **kwargs')
     minorticks_on = _noop_method("minorticks_on", 'self')
     minorticks_off = _noop_method("minorticks_off", 'self')

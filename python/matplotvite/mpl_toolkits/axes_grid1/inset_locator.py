@@ -6,6 +6,7 @@ and delegates to `Axes.inset_axes`.
 """
 
 import math
+from typing import Any
 
 import numpy as np
 
@@ -28,7 +29,7 @@ _LOCS = {
 }
 
 
-def _bounds(value):
+def _bounds(value: Any) -> Any:
     if hasattr(value, "bounds"):
         return tuple(float(v) for v in value.bounds)
     if hasattr(value, "get_points"):
@@ -42,7 +43,7 @@ def _bounds(value):
     return values
 
 
-def _axis_size(value, axis, parent, figure, parent_box):
+def _axis_size(value: Any, axis: Any, parent: Any, figure: Any, parent_box: Any) -> Any:
     """Convert inches or a percentage into a parent-axes fraction."""
     if isinstance(value, str):
         text = value.strip()
@@ -57,7 +58,7 @@ def _axis_size(value, axis, parent, figure, parent_box):
     return inches / figure_size / extent
 
 
-def _anchor_box(parent, bbox_to_anchor, bbox_transform):
+def _anchor_box(parent: Any, bbox_to_anchor: Any, bbox_transform: Any) -> Any:
     box = (0.0, 0.0, 1.0, 1.0) if bbox_to_anchor is None else _bounds(bbox_to_anchor)
     kind = getattr(bbox_transform, "kind", "axes") if bbox_transform is not None else "axes"
     if kind == "figure":
@@ -79,7 +80,7 @@ def _anchor_box(parent, bbox_to_anchor, bbox_transform):
     return box
 
 
-def _data_fraction(parent, values, axis):
+def _data_fraction(parent: Any, values: Any, axis: Any) -> Any:
     """Map two data coordinates to parent-axes fractions, honouring log scales."""
     lo, hi = parent.get_xlim() if axis == "x" else parent.get_ylim()
     scale = parent.get_xscale() if axis == "x" else parent.get_yscale()
@@ -92,7 +93,7 @@ def _data_fraction(parent, values, axis):
     return tuple((float(v) - float(lo)) / span for v in values)
 
 
-def _place(anchor, width, height, loc, pad_x, pad_y):
+def _place(anchor: Any, width: Any, height: Any, loc: Any, pad_x: Any, pad_y: Any) -> Any:
     x, y, w, h = anchor
     loc = _LOCS.get(str(loc).lower(), "upper right")
     if "right" in loc:
@@ -110,9 +111,9 @@ def _place(anchor, width, height, loc, pad_x, pad_y):
     return left, bottom, width, height
 
 
-def inset_axes(parent_axes, width="30%", height="30%", loc="upper right",
-               bbox_to_anchor=None, bbox_transform=None, axes_class=None,
-               axes_kwargs=None, borderpad=0.5, **kwargs):
+def inset_axes(parent_axes: Any, width: Any = "30%", height: Any = "30%", loc: Any = "upper right",
+               bbox_to_anchor: Any = None, bbox_transform: Any = None, axes_class: Any = None,
+               axes_kwargs: Any = None, borderpad: Any = 0.5, **kwargs: Any) -> Any:
     """Create a child axes using Matplotlib's width/height/location arguments."""
     figure = parent_axes.get_figure()
     parent_box = parent_axes.get_position()
@@ -148,7 +149,7 @@ def inset_axes(parent_axes, width="30%", height="30%", loc="upper right",
     return child
 
 
-def _corner(bbox, loc):
+def _corner(bbox: Any, loc: Any) -> Any:
     x = bbox.x1 if loc in (2, 4) else bbox.x0
     y = bbox.y1 if loc in (3, 4) else bbox.y0
     return (float(x), float(y))
@@ -157,25 +158,25 @@ def _corner(bbox, loc):
 class BboxPatch(Patch):
     """Rectangle spanning a bbox; coordinates are kept in the bbox's space."""
 
-    def __init__(self, bbox, **kwargs):
+    def __init__(self, bbox: Any, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._bbox = bbox
 
-    def get_x(self): return float(self._bbox.x0)
-    def get_y(self): return float(self._bbox.y0)
-    def get_width(self): return float(self._bbox.width)
-    def get_height(self): return float(self._bbox.height)
+    def get_x(self) -> Any: return float(self._bbox.x0)
+    def get_y(self) -> Any: return float(self._bbox.y0)
+    def get_width(self) -> Any: return float(self._bbox.width)
+    def get_height(self) -> Any: return float(self._bbox.height)
 
 
 class BboxConnector(Patch):
     """Line joining one corner of each bbox."""
 
-    def __init__(self, bbox1, bbox2, loc1=1, loc2=1, **kwargs):
+    def __init__(self, bbox1: Any, bbox2: Any, loc1: Any = 1, loc2: Any = 1, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.bbox1, self.bbox2 = bbox1, bbox2
         self.loc1, self.loc2 = int(loc1), int(loc2)
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         return np.asarray([_corner(self.bbox1, self.loc1),
                            _corner(self.bbox2, self.loc2)], dtype=float)
 
@@ -183,27 +184,27 @@ class BboxConnector(Patch):
 class BboxConnectorPatch(Patch):
     """Filled quadrilateral spanning the connector corners."""
 
-    def __init__(self, bbox1, bbox2, loc1a=1, loc2a=1, loc1b=2, loc2b=2, **kwargs):
+    def __init__(self, bbox1: Any, bbox2: Any, loc1a: Any = 1, loc2a: Any = 1, loc1b: Any = 2, loc2b: Any = 2, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.bbox1, self.bbox2 = bbox1, bbox2
         self.loc1a, self.loc2a = int(loc1a), int(loc2a)
         self.loc1b, self.loc2b = int(loc1b), int(loc2b)
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         return np.asarray([_corner(self.bbox1, self.loc1a),
                            _corner(self.bbox2, self.loc2a),
                            _corner(self.bbox2, self.loc2b),
                            _corner(self.bbox1, self.loc1b)], dtype=float)
 
 
-def mark_inset(parent_axes, inset_axes, loc1=1, loc2=2, **kwargs):
+def mark_inset(parent_axes: Any, inset_axes: Any, loc1: Any = 1, loc2: Any = 2, **kwargs: Any) -> Any:
     """Accept the marker request; the inset already shows the zoomed region."""
     return None
 
 
-def zoomed_inset_axes(parent_axes, zoom, loc="upper right", bbox_to_anchor=None,
-                      bbox_transform=None, axes_class=None, borderpad=0.5,
-                      **kwargs):
+def zoomed_inset_axes(parent_axes: Any, zoom: Any, loc: Any = "upper right", bbox_to_anchor: Any = None,
+                      bbox_transform: Any = None, axes_class: Any = None, borderpad: Any = 0.5,
+                      **kwargs: Any) -> Any:
     """Create an inset axes showing a centred `1/zoom` portion of the parent."""
     zoom = float(zoom)
     if not zoom > 0.0:

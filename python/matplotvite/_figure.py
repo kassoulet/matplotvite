@@ -94,7 +94,7 @@ class Figure:
         self._label = ""
         self.callbacks = _Callbacks()
 
-    def suptitle(self, t, x=0.5, y=0.98, fontsize=None, **kwargs):
+    def suptitle(self, t: Any, x: Any = 0.5, y: Any = 0.98, fontsize: Any = None, **kwargs: Any) -> Any:
         """Draw a figure-level title above the panel grid."""
         size = _font_size(fontsize, rcParams.get("figure.titlesize", 12.0))
         family = _family_override(kwargs)
@@ -102,14 +102,14 @@ class Figure:
                               x=float(x), y=float(y), family=family)
         return None
 
-    def supxlabel(self, t, x=0.5, y=0.01, fontsize=None, **kwargs):
+    def supxlabel(self, t: Any, x: Any = 0.5, y: Any = 0.01, fontsize: Any = None, **kwargs: Any) -> Any:
         """Draw a figure-level x label below the panel grid."""
         self._supxlabel = str(t)
         kwargs.setdefault("ha", "center")
         kwargs.setdefault("va", "bottom")
         return self.text(x, y, t, fontsize=fontsize, **kwargs)
 
-    def supylabel(self, t, x=0.02, y=0.5, fontsize=None, **kwargs):
+    def supylabel(self, t: Any, x: Any = 0.02, y: Any = 0.5, fontsize: Any = None, **kwargs: Any) -> Any:
         """Draw a figure-level y label left of the panel grid."""
         self._supylabel = str(t)
         kwargs.setdefault("ha", "center")
@@ -122,7 +122,7 @@ class Figure:
     align_titles = _noop_method("align_titles", 'self, axs=None')
     align_labels = _noop_method("align_labels", 'self, axs=None')
 
-    def text(self, x, y, s, fontdict=None, **kwargs):
+    def text(self, x: Any, y: Any, s: Any, fontdict: Any = None, **kwargs: Any) -> Any:
         """Figure-fraction text, drawn above every panel so nothing clips it."""
         transform, fontsize, colour, ha, va, bbox, rotation, family = _text_props(
             fontdict, kwargs)
@@ -146,7 +146,7 @@ class Figure:
                                    family, (0.0, 0.0)))
         return _TextArt()
 
-    def add_subplot(self, nrows=1, ncols=1, index=1, **kwargs):
+    def add_subplot(self, nrows: Any = 1, ncols: Any = 1, index: Any = 1, **kwargs: Any) -> Any:
         """index is 1-based, row-major (matplotlib convention); a `SubplotSpec`
         may be passed instead to place the axes on an irregular grid."""
         axes_class = kwargs.pop("axes_class", None)
@@ -196,7 +196,7 @@ class Figure:
         self._cur = ax
         return ax
 
-    def _add_spec(self, spec, axes_class=Axes, grid_helper=None, **kwargs):
+    def _add_spec(self, spec: Any, axes_class: Any = Axes, grid_helper: Any = None, **kwargs: Any) -> Any:
         ax = axes_class(len(self.axes))
         ax._subplotspec = spec
         ax._fig = self
@@ -207,18 +207,18 @@ class Figure:
         self._cur = ax
         return ax
 
-    def add_gridspec(self, nrows=1, ncols=1, **kwargs):
+    def add_gridspec(self, nrows: Any = 1, ncols: Any = 1, **kwargs: Any) -> Any:
         kwargs.setdefault("figure", self)
         return GridSpec(nrows, ncols, **kwargs)
 
-    def subplot2grid(self, shape, loc, rowspan=1, colspan=1, **kwargs):
+    def subplot2grid(self, shape: Any, loc: Any, rowspan: Any = 1, colspan: Any = 1, **kwargs: Any) -> Any:
         rows, cols = (int(v) for v in shape)
         row, col = (int(v) for v in loc)
         gs = GridSpec(rows, cols, figure=self)
         return self.add_subplot(SubplotSpec(
             gs, (row, row + int(rowspan) - 1), (col, col + int(colspan) - 1)))
 
-    def subplot_mosaic(self, mosaic, empty_sentinel=".", **kwargs):
+    def subplot_mosaic(self, mosaic: Any, empty_sentinel: Any = ".", **kwargs: Any) -> Any:
         """Create one axes per mosaic label from a string or list-of-lists grid."""
         rows = [list(row) for row in mosaic]
         if not rows or not rows[0]:
@@ -295,7 +295,7 @@ class Figure:
             ax.set_axes_locator(locator)
         return ax
 
-    def add_artist(self, artist, **kwargs):
+    def add_artist(self, artist: Any, **kwargs: Any) -> Any:
         self.artists.append(artist)
         if isinstance(artist, Patch):
             self.patches.append(artist)
@@ -308,45 +308,45 @@ class Figure:
     # cells, so there are no margins to negotiate.
     tight_layout = _noop_method("tight_layout", 'self, **kwargs')
     subplots_adjust = _noop_method("subplots_adjust", 'self, *args, **kwargs')
-    def set_layout_engine(self, engine=None, **kwargs):
+    def set_layout_engine(self, engine: Any = None, **kwargs: Any) -> Any:
         self.layout_engine = (engine if isinstance(engine, _LayoutEngine)
                               else _LayoutEngine(engine))
 
-    def get_layout_engine(self): return getattr(self, "layout_engine", None)
-    def get_axes(self): return list(self.axes)
-    def get_dpi(self): return self.dpi or DPI
-    def get_figwidth(self): return self.figsize[0]
-    def get_figheight(self): return self.figsize[1]
-    def get_linewidth(self): return self._linewidth
-    def get_suptitle(self): return self._suptitle["raw"] if self._suptitle else ""
-    def get_supxlabel(self): return self._supxlabel
-    def get_supylabel(self): return self._supylabel
+    def get_layout_engine(self) -> Any: return getattr(self, "layout_engine", None)
+    def get_axes(self) -> Any: return list(self.axes)
+    def get_dpi(self) -> Any: return self.dpi or DPI
+    def get_figwidth(self) -> Any: return self.figsize[0]
+    def get_figheight(self) -> Any: return self.figsize[1]
+    def get_linewidth(self) -> Any: return self._linewidth
+    def get_suptitle(self) -> Any: return self._suptitle["raw"] if self._suptitle else ""
+    def get_supxlabel(self) -> Any: return self._supxlabel
+    def get_supylabel(self) -> Any: return self._supylabel
 
-    def set_figwidth(self, width, forward=True):
+    def set_figwidth(self, width: Any, forward: Any = True) -> Any:
         self.figsize = (_validate_dimension(width, "figwidth"), self.figsize[1])
 
-    def set_figheight(self, height, forward=True):
+    def set_figheight(self, height: Any, forward: Any = True) -> Any:
         self.figsize = (self.figsize[0], _validate_dimension(height, "figheight"))
 
-    def set_linewidth(self, width):
+    def set_linewidth(self, width: Any) -> Any:
         value = float(width)
         if not _math.isfinite(value) or value < 0.0:
             raise ValueError(f"linewidth must be finite and non-negative, got {width!r}")
         self._linewidth = value
 
-    def set_dpi(self, value):
+    def set_dpi(self, value: Any) -> Any:
         self.dpi = _validate_dimension(value, "dpi")
 
-    def get_constrained_layout_pads(self, which=None, **kwargs):
+    def get_constrained_layout_pads(self, which: Any = None, **kwargs: Any) -> Any:
         return (None, None, None, None)
 
-    def sca(self, ax):
+    def sca(self, ax: Any) -> Any:
         if ax not in self.axes:
             raise ValueError("Axes has not been added yet")
         self._cur = ax
         return ax
 
-    def clf(self, keep_observers=False):
+    def clf(self, keep_observers: Any = False) -> Any:
         """Clear every axes and figure-level artist, keeping the figure itself."""
         for ax in self.axes:
             ax._fig = None
@@ -361,7 +361,7 @@ class Figure:
         self.patches = []
         self._render_cache = None
 
-    def delaxes(self, ax):
+    def delaxes(self, ax: Any) -> Any:
         if ax in self.axes:
             self.axes.remove(ax)
             if self._cur is ax:
@@ -369,20 +369,20 @@ class Figure:
             ax._fig = None
 
     @property
-    def dpi_scale_trans(self): return _Transform()
-    def get_facecolor(self): return self.facecolor or "white"
-    def get_edgecolor(self): return self.edgecolor
-    def get_size_inches(self): return self.figsize
+    def dpi_scale_trans(self) -> Any: return _Transform()
+    def get_facecolor(self) -> Any: return self.facecolor or "white"
+    def get_edgecolor(self) -> Any: return self.edgecolor
+    def get_size_inches(self) -> Any: return self.figsize
     def get_label(self) -> str: return self._label
     def set_label(self, label: Any) -> "Figure": self._label = str(label); return self
 
-    def set_facecolor(self, color):
+    def set_facecolor(self, color: Any) -> Any:
         self.facecolor = _norm_color(color)
         if getattr(self, "patch", None) is not None:
             self.patch.set_facecolor(self.facecolor)
         return self
 
-    def set_edgecolor(self, color):
+    def set_edgecolor(self, color: Any) -> Any:
         self.edgecolor = _norm_color(color)
         if getattr(self, "patch", None) is not None:
             self.patch.set_edgecolor(self.edgecolor)
@@ -395,13 +395,13 @@ class Figure:
     ginput = _noop_method(
         "ginput", 'self, n=1, timeout=30, show_clicks=True, mouse_add=1, mouse_pick=2, mouse_pop=3, mouse_stop=4', warn='Figure.ginput')
 
-    def pick(self, mouseevent):
+    def pick(self, mouseevent: Any) -> Any:
         """Dispatch a pick event to every axes, as `Figure.pick`."""
         return [artist for ax in self.axes for artist in ax.pick(mouseevent)]
 
-    def legend(self, *args, **kwargs): return _LegendHandle()
-    def figimage(self, X, xo=0, yo=0, alpha=None, norm=None, cmap=None,
-                 vmin=None, vmax=None, origin=None, resize=False, **kwargs):
+    def legend(self, *args: Any, **kwargs: Any) -> Any: return _LegendHandle()
+    def figimage(self, X: Any, xo: Any = 0, yo: Any = 0, alpha: Any = None, norm: Any = None, cmap: Any = None,
+                 vmin: Any = None, vmax: Any = None, origin: Any = None, resize: Any = False, **kwargs: Any) -> Any:
         """Place an image directly on the figure at pixel offsets from the
         lower-left corner. `resize` and artist kwargs are accepted and ignored."""
         raw = np.asarray(X)
@@ -446,17 +446,17 @@ class Figure:
                      xo=int(xo), yo=int(yo))
         self._figure_images.append(entry)
         return _FigureImage(entry)
-    def add_subfigure(self, spec=None, **kwargs):
+    def add_subfigure(self, spec: Any = None, **kwargs: Any) -> Any:
         if isinstance(spec, SubplotSpec):
             return _SubFigure(self, spec.get_position().bounds)
         return _SubFigure(self, (0.0, 0.0, 1.0, 1.0))
 
-    def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
+    def subfigures(self, nrows: Any = 1, ncols: Any = 1, squeeze: Any = True, **kwargs: Any) -> Any:
         """Create independent subfigure views that place their own axes."""
         return _subfigure_array(self, nrows, ncols, squeeze=squeeze, **kwargs)
-    def get_children(self): return list(self.axes)
+    def get_children(self) -> Any: return list(self.axes)
 
-    def findobj(self, match=None, include_self=True):
+    def findobj(self, match: Any = None, include_self: Any = True) -> Any:
         """Return children accepted by `match`, a class or predicate."""
         candidates = ([self] if include_self else []) + list(self.axes) + list(self.artists)
         if match is None:
@@ -467,24 +467,24 @@ class Figure:
 
     get_tightbbox = _noop_method("get_tightbbox", 'self, renderer=None, *args, **kwargs')
     set_tight_layout = _noop_method("set_tight_layout", 'self, value')
-    def get_tight_layout(self): return False
+    def get_tight_layout(self) -> Any: return False
     set_constrained_layout = _noop_method("set_constrained_layout", 'self, value')
-    def get_constrained_layout(self): return False
+    def get_constrained_layout(self) -> Any: return False
     set_constrained_layout_pads = _noop_method("set_constrained_layout_pads", 'self, **kwargs')
 
-    def set_size_inches(self, width, height=None):
+    def set_size_inches(self, width: Any, height: Any = None) -> Any:
         if height is None:
             width, height = width
         self.figsize = _validate_figsize((width, height))
 
-    def autofmt_xdate(self, bottom=0.2, rotation=30, ha="right", **kwargs):
+    def autofmt_xdate(self, bottom: Any = 0.2, rotation: Any = 30, ha: Any = "right", **kwargs: Any) -> Any:
         for axes in self.axes:
             for label in axes.get_xticklabels():
                 label.set_rotation(rotation)
                 if hasattr(label, "set_ha"):
                     label.set_ha(ha)
 
-    def colorbar(self, mappable=None, ax=None, label="", **kwargs):
+    def colorbar(self, mappable: Any = None, ax: Any = None, label: Any = "", **kwargs: Any) -> Any:
         """Reserve a strip beside `mappable`'s axes showing its scale."""
         if not self.axes:
             raise ValueError("colorbar needs at least one axes")
@@ -576,7 +576,7 @@ class Figure:
         data = self._encode((w, h), panels, options)
         return _write_output(fname, data)
 
-    def _render_panels(self, dpi, transparent):
+    def _render_panels(self, dpi: Any, transparent: Any) -> Any:
         """Panel payloads for one save, already stamped with the render dpi."""
         panels = [a._panel(dpi) for a in self.axes if a.visible and not a._removed]
         # savefig(dpi=) overrides the figure default, and text sizes scale with it.
@@ -590,8 +590,8 @@ class Figure:
             panel["cache_key"] = _panel_cache_key(panel)
         return panels
 
-    def _savefig_options(self, fmt, dpi, bbox_inches, transparent, compression,
-                         facecolor, edgecolor):
+    def _savefig_options(self, fmt: Any, dpi: Any, bbox_inches: Any, transparent: Any, compression: Any,
+                         facecolor: Any, edgecolor: Any) -> Any:
         """Renderer options for one save; they are part of the cache key."""
         return {
             "format": fmt,
@@ -613,7 +613,7 @@ class Figure:
                              for e in self._figure_images],
         }
 
-    def _encode(self, size, panels, options):
+    def _encode(self, size: Any, panels: Any, options: Any) -> Any:
         """Encode the figure, reusing the last bytes when nothing changed.
 
         The key covers both the panel payload and every render option, so any
@@ -636,8 +636,8 @@ class Figure:
         return data
 
 
-def _savefig_request(fname, format, dpi, bbox_inches, transparent, compression,
-                     metadata, pil_kwargs, default_dpi):
+def _savefig_request(fname: Any, format: Any, dpi: Any, bbox_inches: Any, transparent: Any, compression: Any,
+                     metadata: Any, pil_kwargs: Any, default_dpi: Any) -> Any:
     """Validate savefig's output request: `(fmt, dpi, transparent, compression)`."""
     if transparent is None:
         transparent = bool(rcParams.get("savefig.transparent", False))
@@ -660,7 +660,7 @@ def _savefig_request(fname, format, dpi, bbox_inches, transparent, compression,
     return _output_format(fname, format), dpi, transparent, compression
 
 
-def _canvas_pixels(figsize, dpi):
+def _canvas_pixels(figsize: Any, dpi: Any) -> Any:
     """Pixel size for `figsize` at `dpi`, with the renderer's canvas limits."""
     # Matplotlib truncates fractional pixels here (`int(width * dpi)`), matching
     # its canvas; rounding made 6.4x4.8 in at 72 dpi 461x346 instead of 460x345.
@@ -678,7 +678,7 @@ def _canvas_pixels(figsize, dpi):
     return rw, rh
 
 
-def _write_output(fname, data):
+def _write_output(fname: Any, data: Any) -> Any:
     """Return the encoded bytes, or write them to a path or file-like object."""
     if fname is None:
         return data
@@ -690,9 +690,9 @@ def _write_output(fname, data):
     return None
 
 
-def _subfigure_array(figure, nrows=1, ncols=1, squeeze=True, bounds=(0.0, 0.0, 1.0, 1.0),
-                     width_ratios=None, height_ratios=None, wspace=None, hspace=None,
-                     **kwargs):
+def _subfigure_array(figure: Any, nrows: Any = 1, ncols: Any = 1, squeeze: Any = True, bounds: Any = (0.0, 0.0, 1.0, 1.0),
+                     width_ratios: Any = None, height_ratios: Any = None, wspace: Any = None, hspace: Any = None,
+                     **kwargs: Any) -> Any:
     """Lay out subfigures on a grid confined to `bounds`."""
     nrows, ncols = _validate_grid_shape(nrows, ncols)
     left, bottom, width, height = bounds
@@ -711,20 +711,20 @@ def _subfigure_array(figure, nrows=1, ncols=1, squeeze=True, bounds=(0.0, 0.0, 1
 class _SubFigure:
     """A rectangular view of a figure with its own subplot grid."""
 
-    def __init__(self, figure, bounds):
+    def __init__(self, figure: Any, bounds: Any) -> None:
         self.figure = figure
         self._bounds = tuple(bounds)
         self._zorder = 0
 
-    def get_position(self):
+    def get_position(self) -> Any:
         x, y, width, height = self._bounds
         return _Bbox(x, y, x + width, y + height)
 
     @property
-    def canvas(self): return self.figure.canvas
+    def canvas(self) -> Any: return self.figure.canvas
 
-    def subplots(self, nrows=1, ncols=1, *, sharex=False, sharey=False,
-                 squeeze=True, subplot_kw=None, gridspec_kw=None):
+    def subplots(self, nrows: Any = 1, ncols: Any = 1, *, sharex: Any = False, sharey: Any = False,
+                 squeeze: Any = True, subplot_kw: Any = None, gridspec_kw: Any = None) -> Any:
         nrows, ncols = _validate_grid_shape(nrows, ncols)
         x, y, width, height = self._bounds
         gs = GridSpec(nrows, ncols, figure=self.figure,
@@ -739,7 +739,7 @@ class _SubFigure:
         out = np.array(axs, dtype=object).reshape(nrows, ncols)
         return out.squeeze() if squeeze else out
 
-    def add_subplot(self, *args, **kwargs):
+    def add_subplot(self, *args: Any, **kwargs: Any) -> Any:
         if args and isinstance(args[0], SubplotSpec):
             return self.figure.add_subplot(*args, **kwargs)
         x, y, width, height = self._bounds
@@ -747,38 +747,38 @@ class _SubFigure:
                       bottom=y, top=y + height)
         return self.figure.add_subplot(gs[0])
 
-    def subfigures(self, nrows=1, ncols=1, squeeze=True, **kwargs):
+    def subfigures(self, nrows: Any = 1, ncols: Any = 1, squeeze: Any = True, **kwargs: Any) -> Any:
         return _subfigure_array(self.figure, nrows, ncols, squeeze=squeeze,
                                 bounds=self._bounds, **kwargs)
 
-    def add_subfigure(self, spec=None, **kwargs):
+    def add_subfigure(self, spec: Any = None, **kwargs: Any) -> Any:
         if isinstance(spec, SubplotSpec):
             return _SubFigure(self.figure, spec.get_position().bounds)
         return _SubFigure(self.figure, self._bounds)
 
-    def colorbar(self, *args, **kwargs): return self.figure.colorbar(*args, **kwargs)
-    def text(self, *args, **kwargs): return self.figure.text(*args, **kwargs)
+    def colorbar(self, *args: Any, **kwargs: Any) -> Any: return self.figure.colorbar(*args, **kwargs)
+    def text(self, *args: Any, **kwargs: Any) -> Any: return self.figure.text(*args, **kwargs)
 
-    def suptitle(self, text, x=0.5, y=0.98, fontsize=None, **kwargs):
+    def suptitle(self, text: Any, x: Any = 0.5, y: Any = 0.98, fontsize: Any = None, **kwargs: Any) -> Any:
         left, bottom, width, height = self._bounds
         size = _font_size(fontsize, rcParams.get("figure.titlesize", 12.0))
         return self.figure.text(left + x * width, bottom + y * height, text,
                                 ha="center", va="top", fontsize=size)
 
-    def supxlabel(self, text, x=0.5, y=0.01, fontsize=None, **kwargs):
+    def supxlabel(self, text: Any, x: Any = 0.5, y: Any = 0.01, fontsize: Any = None, **kwargs: Any) -> Any:
         left, bottom, width, height = self._bounds
         return self.figure.text(left + x * width, bottom + y * height, text,
                                 ha="center", va="bottom", fontsize=fontsize, **kwargs)
 
-    def supylabel(self, text, x=0.02, y=0.5, fontsize=None, **kwargs):
+    def supylabel(self, text: Any, x: Any = 0.02, y: Any = 0.5, fontsize: Any = None, **kwargs: Any) -> Any:
         left, bottom, width, height = self._bounds
         kwargs.setdefault("rotation", 90)
         return self.figure.text(left + x * width, bottom + y * height, text,
                                 ha="center", va="bottom", fontsize=fontsize, **kwargs)
 
-    def set_facecolor(self, color): return self
-    def set_zorder(self, zorder): self._zorder = int(zorder); return self
-    def get_zorder(self): return self._zorder
+    def set_facecolor(self, color: Any) -> Any: return self
+    def set_zorder(self, zorder: Any) -> Any: self._zorder = int(zorder); return self
+    def get_zorder(self) -> Any: return self._zorder
 
 
 # The pyplot shims share a process-wide registry. The lock only protects the

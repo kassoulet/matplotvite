@@ -24,7 +24,7 @@ from ._helpers import (
 )
 
 
-def _norm_aspect(a):
+def _norm_aspect(a: Any) -> Any:
     if isinstance(a, str):
         if a == "auto": return None
         if a == "equal": return 1.0
@@ -35,7 +35,7 @@ def _norm_aspect(a):
     return a
 
 
-def _figimage_payload_estimate(data):
+def _figimage_payload_estimate(data: Any) -> Any:
     """Upper bound on the base64 payload for one RGBA figure image."""
     pixels = int(data.shape[0]) * int(data.shape[1])
     return (pixels * 4 + 2) // 3 * 4
@@ -130,7 +130,7 @@ def _streamplot_field(x: Any, y: Any, u: Any, v: Any
     return xs, ys, ua, va, mask
 
 
-def _streamplot_bracket(values, coordinate):
+def _streamplot_bracket(values: Any, coordinate: Any) -> Any:
     if coordinate < values[0] or coordinate > values[-1]:
         return None, None
     index = int(np.searchsorted(values, coordinate, side="right") - 1)
@@ -153,7 +153,7 @@ def _streamplot_sample(values: Any, xs: Any, ys: Any, px: float, py: float) -> A
 
 def _streamplot_sampler(xs: Any, ys: Any, u: Any, v: Any, mask: Any) -> Any:
     """Bilinear vector-field sampler that rejects samples touching a mask."""
-    def sample(px, py):
+    def sample(px: Any, py: Any) -> Any:
         ix, tx = _streamplot_bracket(xs, px)
         iy, ty = _streamplot_bracket(ys, py)
         if ix is None or iy is None:
@@ -170,7 +170,7 @@ def _streamplot_sampler(xs: Any, ys: Any, u: Any, v: Any, mask: Any) -> Any:
     return sample
 
 
-def _hash_value(hasher, value):
+def _hash_value(hasher: Any, value: Any) -> Any:
     """Feed a deterministic representation of nested panel data to `hasher`."""
     if isinstance(value, np.ndarray):
         array = np.ascontiguousarray(value)
@@ -208,7 +208,7 @@ def _hash_value(hasher, value):
         hasher.update(repr(value).encode())
 
 
-def _panel_cache_key(panel):
+def _panel_cache_key(panel: Any) -> Any:
     """Stable fingerprint used by the renderer's per-panel fragment cache."""
     try:
         # Change detection, not security: SHA-1 hashes large arrays ~2.7x faster
@@ -222,7 +222,7 @@ def _panel_cache_key(panel):
 
 def _resolve_data_args(args: Any, data: Any, x: Any, y: Any) -> Any:
     """Resolve `data=` columns for `plot(..., x=, y=)` and `plot("x", "y", data=)`."""
-    def with_index(values):
+    def with_index(values: Any) -> Any:
         index = getattr(values, "index", None)
         return (index, values) if index is not None else (values,)
 
@@ -231,12 +231,15 @@ def _resolve_data_args(args: Any, data: Any, x: Any, y: Any) -> Any:
             raise TypeError("plot requires y when using data=")
         if data is None:
             return (y,) if x is None else (x, y)
-        pick = lambda name: data[name] if isinstance(name, str) else name
-        return with_index(pick(y)) if x is None else (pick(x), pick(y))
+        def pick_column(name: Any) -> Any:
+            return data[name] if isinstance(name, str) else name
+
+        return with_index(pick_column(y)) if x is None else (
+            pick_column(x), pick_column(y))
     if data is None:
         return args
 
-    def pick(name):  # type: ignore[no-redef]
+    def pick(name: Any) -> Any:
         try:
             return data[name]
         except (KeyError, IndexError, TypeError):
@@ -289,30 +292,30 @@ class MarkerStyle:
         "None": None, "none": None, " ": None, "": None}
     filled_markers = tuple("osD^v<>pP*hHX")
 
-    def __init__(self, marker="o", fillstyle=None, transform=None,
-                 capstyle=None, joinstyle=None):
+    def __init__(self, marker: Any = "o", fillstyle: Any = None, transform: Any = None,
+                 capstyle: Any = None, joinstyle: Any = None) -> None:
         if isinstance(marker, MarkerStyle):
             marker = marker.get_marker()
         self._marker = marker
         self._fillstyle = "full" if fillstyle is None else str(fillstyle)
 
-    def get_marker(self): return self._marker
-    def set_marker(self, marker): self._marker = marker; return self
-    def get_fillstyle(self): return self._fillstyle
-    def set_fillstyle(self, fillstyle): self._fillstyle = str(fillstyle); return self
-    def get_transform(self): return _Transform()
-    def get_alt_transform(self): return _Transform()
-    def get_capstyle(self): return "butt"
-    def get_joinstyle(self): return "round"
+    def get_marker(self) -> Any: return self._marker
+    def set_marker(self, marker: Any) -> Any: self._marker = marker; return self
+    def get_fillstyle(self) -> Any: return self._fillstyle
+    def set_fillstyle(self, fillstyle: Any) -> Any: self._fillstyle = str(fillstyle); return self
+    def get_transform(self) -> Any: return _Transform()
+    def get_alt_transform(self) -> Any: return _Transform()
+    def get_capstyle(self) -> Any: return "butt"
+    def get_joinstyle(self) -> Any: return "round"
     get_snap_threshold = _noop_method("get_snap_threshold", 'self')
-    def is_filled(self):
+    def is_filled(self) -> Any:
         return self._fillstyle == "full" and str(self._marker) in self.filled_markers
-    def get_path(self): return Path.unit_circle()
+    def get_path(self) -> Any: return Path.unit_circle()
     get_alt_path = _noop_method("get_alt_path", 'self')
-    def rotated(self, *args, **kwargs): return self
-    def scaled(self, *args, **kwargs): return self
-    def __str__(self): return str(self._marker)
-    def __repr__(self): return f"MarkerStyle({self._marker!r})"
+    def rotated(self, *args: Any, **kwargs: Any) -> Any: return self
+    def scaled(self, *args: Any, **kwargs: Any) -> Any: return self
+    def __str__(self) -> Any: return str(self._marker)
+    def __repr__(self) -> Any: return f"MarkerStyle({self._marker!r})"
 
 
 def _parse_fmt(fmt: Any) -> Any:
@@ -343,7 +346,7 @@ def _parse_fmt(fmt: Any) -> Any:
     return color, style, mark
 
 
-def _log_bounds(lo, hi, scale, extent):
+def _log_bounds(lo: Any, hi: Any, scale: Any, extent: Any) -> Any:
     """Log axes can only cover positive data; the lower bound climbs to the
     smallest positive sample when the data crosses zero.
 
@@ -417,7 +420,7 @@ def _check_same_length(a: Any, b: Any,
 def _as_f64(v: Any) -> np.ndarray:
     arr = np.asarray(_as_list(v))
     if arr.dtype.kind == "O":
-        def number(item):
+        def number(item: Any) -> Any:
             if item is None or np.ma.is_masked(item):
                 return np.nan
             if isinstance(item, (np.datetime64, _datetime.date)):
@@ -508,7 +511,7 @@ def _box_datasets(x: Any) -> list[Any]:
     return [_as_f64(x)]
 
 
-def _boxplot_stats(x, whis=1.5, bootstrap=None, labels=None, autorange=False):
+def _boxplot_stats(x: Any, whis: Any = 1.5, bootstrap: Any = None, labels: Any = None, autorange: Any = False) -> Any:
     """Matplotlib-compatible `cbook.boxplot_stats` for `Axes.bxp`."""
     groups = _box_datasets(x)
     if labels is None:
@@ -612,7 +615,7 @@ def _sizes(s: Any, n: Any) -> Any:
     return np.ascontiguousarray(np.clip(a, 0.0, None))
 
 
-def _is_color_sequence(value):
+def _is_color_sequence(value: Any) -> Any:
     """A list of colour specs, e.g. `[cmap(0.2), cmap(0.4)]`."""
     if not isinstance(value, (list, tuple)) or not value:
         return False
@@ -742,7 +745,7 @@ def _colors(colors: Any) -> Any:
     return [_norm_color(c) for c in colors]
 
 
-def _is_triangulation(value):
+def _is_triangulation(value: Any) -> Any:
     return all(hasattr(value, name) for name in ("x", "y", "triangles", "mask"))
 
 
@@ -831,7 +834,7 @@ def _contour_args(args: Any, levels: Any) -> tuple[Any, Any, Any, Any]:
             np.ascontiguousarray(z), levels)
 
 
-def _contour_segments(x, y, z, level):
+def _contour_segments(x: Any, y: Any, z: Any, level: Any) -> Any:
     """Marching-squares iso-line segments for one level on a rectilinear grid."""
     segments = []
     rows, cols = z.shape
@@ -857,7 +860,7 @@ def _contour_segments(x, y, z, level):
     return segments
 
 
-def _contour_label_text(level, fmt):
+def _contour_label_text(level: Any, fmt: Any) -> Any:
     if callable(fmt):
         return str(fmt(level))
     if isinstance(fmt, dict):
@@ -870,7 +873,7 @@ def _contour_label_text(level, fmt):
     return str(fmt % level)
 
 
-def _contour_label_colour(entry, index, level):
+def _contour_label_colour(entry: Any, index: Any, level: Any) -> Any:
     """The colour the renderer uses for this level's line."""
     colours = entry.get("colors") or []
     if colours:
@@ -882,7 +885,7 @@ def _contour_label_colour(entry, index, level):
     return "#{:02x}{:02x}{:02x}".format(*tuple(int(round(float(v) * 255)) for v in rgb))
 
 
-def _point_segment_distance(px, py, xa, ya, xb, yb):
+def _point_segment_distance(px: Any, py: Any, xa: Any, ya: Any, xb: Any, yb: Any) -> Any:
     """Shortest distance from a point to a line segment."""
     dx, dy = xb - xa, yb - ya
     length = dx * dx + dy * dy
@@ -892,7 +895,7 @@ def _point_segment_distance(px, py, xa, ya, xb, yb):
     return _math.hypot(px - (xa + t * dx), py - (ya + t * dy))
 
 
-def _path_subpaths(vertices, codes):
+def _path_subpaths(vertices: Any, codes: Any) -> Any:
     """Split a compound path into rings, dropping CLOSEPOLY placeholders."""
     verts = np.asarray(vertices, dtype=float).reshape(-1, 2)
     if codes is None:
@@ -915,7 +918,7 @@ def _path_subpaths(vertices, codes):
     return out
 
 
-def _polygon_area_sign(points):
+def _polygon_area_sign(points: Any) -> Any:
     """Winding direction of a ring, used to spot holes in filled contours."""
     pts = np.asarray(points, dtype=float).reshape(-1, 2)
     if len(pts) < 3:

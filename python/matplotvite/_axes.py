@@ -203,7 +203,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             self._cycle_pos += 1
         return color
 
-    def set_prop_cycle(self, *args, **kwargs):
+    def set_prop_cycle(self, *args: Any, **kwargs: Any) -> Any:
         """Replace the colour cycle used by artists without an explicit colour."""
         colors = kwargs.get("color", kwargs.get("colors"))
         if colors is None and args:
@@ -226,42 +226,42 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._cycle_pos = self._patch_pos = 0
         return self
 
-    def get_prop_cycle(self):
+    def get_prop_cycle(self) -> Any:
         return _PropCycler(self._prop_cycle)
 
 
-    def set_aspect(self, aspect, adjustable=None, anchor=None, share=False):
+    def set_aspect(self, aspect: Any, adjustable: Any = None, anchor: Any = None, share: Any = False) -> Any:
         self.aspect = _norm_aspect(aspect)
         if adjustable is not None:
             self.set_adjustable(adjustable)
 
-    def set_adjustable(self, adjustable, share=False):
+    def set_adjustable(self, adjustable: Any, share: Any = False) -> Any:
         """'box' shrinks the plot area, 'datalim' bends the data limits."""
         if adjustable not in ("box", "datalim"):
             raise ValueError(
                 f"adjustable must be 'box' or 'datalim', got {adjustable!r}")
         self._adjustable = adjustable
 
-    def get_adjustable(self): return self._adjustable
+    def get_adjustable(self) -> Any: return self._adjustable
 
-    def set_forward_navigation_events(self, visible):
+    def set_forward_navigation_events(self, visible: Any) -> Any:
         """Store whether navigation events pass through this axes."""
         self._forward_navigation_events = visible
         return None
 
-    def get_forward_navigation_events(self):
+    def get_forward_navigation_events(self) -> Any:
         """The stored navigation-event policy, `"auto"` by default."""
         return self._forward_navigation_events
-    def set_navigate(self, visible): self._navigate = bool(visible)
-    def get_navigate(self): return self._navigate
-    def get_navigate_mode(self): return self._navigate_mode
+    def set_navigate(self, visible: Any) -> Any: self._navigate = bool(visible)
+    def get_navigate(self) -> Any: return self._navigate
+    def get_navigate_mode(self) -> Any: return self._navigate_mode
 
-    def get_aspect(self): return self.aspect
+    def get_aspect(self) -> Any: return self.aspect
 
     # -- introspection / compatibility surface --------------------------------
     draw = _noop_method("draw", 'self, *args, **kwargs')
 
-    def get_position(self, original=False):
+    def get_position(self, original: Any = False) -> Any:
         """Figure-fraction box: the grid cell, or whatever `set_position` stored."""
         if self._pos_override is not None:
             x, y, w, h = self._pos_override
@@ -274,14 +274,14 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._pos_override = tuple(float(v) for v in pos)
         self._bounds_are_axes = True
 
-    def _exact_axes_box(self):
+    def _exact_axes_box(self) -> Any:
         """True when the renderer can preserve a plain `add_axes` rectangle."""
         return (self._pos_override is not None
                 and getattr(self, "_bounds_are_axes", False)
                 and self._colorbar is None
                 and not self._twin and self.aspect is None)
 
-    def _render_bounds(self, dpi=None):
+    def _render_bounds(self, dpi: Any = None) -> Any:
         """Expand an axes rectangle by the renderer's label margins.
 
         Matplotlib's `add_axes`/`set_position` rectangle is the axes box, not
@@ -315,7 +315,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         x1, y1 = min(1.0, x + w + right), min(1.0, y + h + top)
         return (x0, y0, max(x1 - x0, 0.01), max(y1 - y0, 0.01))
 
-    def inset_axes(self, bounds, *, transform=None, zorder=5, **kwargs):
+    def inset_axes(self, bounds: Any, *, transform: Any = None, zorder: Any = 5, **kwargs: Any) -> Any:
         """Place a child axes inside this one, in axes-fraction coordinates."""
         if self._fig is None:
             raise RuntimeError("inset_axes needs an axes attached to a figure")
@@ -339,21 +339,21 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._fig._cur = child
         return child
 
-    def indicate_inset(self, *args, **kwargs):
+    def indicate_inset(self, *args: Any, **kwargs: Any) -> Any:
         return _Namespace(connectors=[Patch(), Patch()], rectangle=Patch())
 
-    def indicate_inset_zoom(self, *args, **kwargs):
+    def indicate_inset_zoom(self, *args: Any, **kwargs: Any) -> Any:
         return _Namespace(connectors=[Patch(), Patch()], rectangle=Patch())
 
-    def twinx(self, **kwargs):
+    def twinx(self, **kwargs: Any) -> Any:
         """A second axes sharing the x axis, with its own y axis on the right."""
         return self._make_twin("y")
 
-    def twiny(self, **kwargs):
+    def twiny(self, **kwargs: Any) -> Any:
         """A second axes sharing the y axis, with its own x axis on top."""
         return self._make_twin("x")
 
-    def sharex(self, other):
+    def sharex(self, other: Any) -> Any:
         group = other._share_x or _Share()
         if other._share_x is None:
             group.axes.append(other)
@@ -363,7 +363,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.hide_xticklabels = True
         return self
 
-    def sharey(self, other):
+    def sharey(self, other: Any) -> Any:
         group = other._share_y or _Share()
         if other._share_y is None:
             group.axes.append(other)
@@ -373,17 +373,17 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.hide_yticklabels = True
         return self
 
-    def twin(self, *args, **kwargs):
+    def twin(self, *args: Any, **kwargs: Any) -> Any:
         """Overlay axes sharing y, with top/right axes (axes_grid1's `twin`)."""
         return self.twiny()
 
-    def colorbar(self, mappable=None, **kwargs):
+    def colorbar(self, mappable: Any = None, **kwargs: Any) -> Any:
         """Draw a colorbar for `mappable` in this axes' right margin."""
         if self._fig is None:
             raise RuntimeError("colorbar needs an axes attached to a figure")
         return self._fig.colorbar(mappable, cax=self, **kwargs)
 
-    def _make_twin(self, axis):
+    def _make_twin(self, axis: Any) -> Any:
         if self._fig is None:
             raise RuntimeError("twinx/twiny needs an axes attached to a figure")
         fig = self._fig
@@ -422,7 +422,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         fig._cur = twin
         return twin
 
-    def _artist_extents(self):
+    def _artist_extents(self) -> Any:
         """Data bounds of registered patches and collections."""
         xs, ys = [], []
         for artist in self.artists:
@@ -449,7 +449,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                         ys += pts[:, 1].tolist()
         return xs, ys
 
-    def _extent_x(self):
+    def _extent_x(self) -> Any:
         # Accumulate extent iteratively across primitives to avoid creating
         # giant Python lists and converting millions of elements.
         ext = (float("inf"), float("-inf"))
@@ -477,7 +477,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         ext = _update_extent(ext, self._artist_extents()[0])
         return _span_extent(ext)
 
-    def _extent_y(self):
+    def _extent_y(self) -> Any:
         ext = (float("inf"), float("-inf"))
         for entry in self.lines:
             ext = _update_extent(ext, entry["y"])
@@ -502,7 +502,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         ext = _update_extent(ext, self._artist_extents()[1])
         return _span_extent(ext)
 
-    def get_xlim(self):
+    def get_xlim(self) -> Any:
         group = self._share_x
         explicit = group.limits if group is not None else self.xlim
         extent = None
@@ -526,7 +526,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             bounds = (float(lo), float(hi))
         return (bounds[1], bounds[0]) if self._inverted[0] else bounds
 
-    def get_ylim(self):
+    def get_ylim(self) -> Any:
         group = self._share_y
         explicit = group.limits if group is not None else self.ylim
         extent = None
@@ -549,30 +549,30 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             lo, hi = self._yscale_obj.limit_range_for_scale(bounds[0], bounds[1], 0.0)
             bounds = (float(lo), float(hi))
         return (bounds[1], bounds[0]) if self._inverted[1] else bounds
-    def get_xbound(self): return self.get_xlim()
-    def get_ybound(self): return self.get_ylim()
-    def set_xbound(self, lower=None, upper=None): self.set_xlim(lower, upper)
-    def set_ybound(self, lower=None, upper=None): self.set_ylim(lower, upper)
+    def get_xbound(self) -> Any: return self.get_xlim()
+    def get_ybound(self) -> Any: return self.get_ylim()
+    def set_xbound(self, lower: Any = None, upper: Any = None) -> Any: self.set_xlim(lower, upper)
+    def set_ybound(self, lower: Any = None, upper: Any = None) -> Any: self.set_ylim(lower, upper)
 
-    def invert_xaxis(self): self._inverted[0] = not self._inverted[0]
-    def invert_yaxis(self): self._inverted[1] = not self._inverted[1]
-    def xaxis_inverted(self): return self._inverted[0]
-    def yaxis_inverted(self): return self._inverted[1]
+    def invert_xaxis(self) -> Any: self._inverted[0] = not self._inverted[0]
+    def invert_yaxis(self) -> Any: self._inverted[1] = not self._inverted[1]
+    def xaxis_inverted(self) -> Any: return self._inverted[0]
+    def yaxis_inverted(self) -> Any: return self._inverted[1]
 
     def _limits(self) -> Any:
         """Drawing limits; the getters already apply axis inversion."""
         return self.get_xlim(), self.get_ylim()
 
-    def get_visible(self): return self.visible
-    def set_visible(self, visible): self.visible = bool(visible)
-    def set_axis_off(self): self._axis_off = True
-    def set_axis_on(self): self._axis_off = False
+    def get_visible(self) -> Any: return self.visible
+    def set_visible(self, visible: Any) -> Any: self.visible = bool(visible)
+    def set_axis_off(self) -> Any: self._axis_off = True
+    def set_axis_on(self) -> Any: self._axis_off = False
 
-    def axis(self, *args, **kwargs):
+    def axis(self, *args: Any, **kwargs: Any) -> Any:
         """Class-level hook so `Axes.axis` is discoverable; instances use `_AxisAccessor`."""
         return self._axis(*args, **kwargs)
 
-    def _axis(self, arg=None, **kwargs):
+    def _axis(self, arg: Any = None, **kwargs: Any) -> Any:
         if arg is None:
             return (self.get_xlim(), self.get_ylim())
         if isinstance(arg, str):
@@ -597,98 +597,98 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.set_xlim(vals[0], vals[1])
         self.set_ylim(vals[2], vals[3])
 
-    def new_floating_axis(self, nth_coord, value, axis_direction="bottom", **kwargs):
+    def new_floating_axis(self, nth_coord: Any, value: Any, axis_direction: Any = "bottom", **kwargs: Any) -> Any:
         return _AxisArtistProxy()
 
-    def new_fixed_axis(self, loc, offset=None, axis_direction="bottom", **kwargs):
+    def new_fixed_axis(self, loc: Any, offset: Any = None, axis_direction: Any = "bottom", **kwargs: Any) -> Any:
         return _AxisArtistProxy()
 
-    def remove(self): self._removed = True
+    def remove(self) -> Any: self._removed = True
 
-    def get_facecolor(self):
+    def get_facecolor(self) -> Any:
         return self.facecolor or rcParams.get("axes.facecolor", "white")
 
     set_facecolor = _state_setter(
         "facecolor", 'color', 'color')
-    def get_alpha(self): return self.alpha
-    def set_alpha(self, alpha): self.alpha = None if alpha is None else float(alpha)
+    def get_alpha(self) -> Any: return self.alpha
+    def set_alpha(self, alpha: Any) -> Any: self.alpha = None if alpha is None else float(alpha)
 
-    def get_transform(self): return self._transform or _Transform()
+    def get_transform(self) -> Any: return self._transform or _Transform()
 
-    def set_transform(self, transform):
+    def set_transform(self, transform: Any) -> Any:
         self._transform = transform
         self._transform_set = True
         return self
 
-    def is_transform_set(self): return self._transform_set
+    def is_transform_set(self) -> Any: return self._transform_set
     apply_aspect = _noop_method("apply_aspect", 'self, position=None')
     set_figure = _state_setter(
         "_fig", 'figure', 'figure')
-    def get_lines(self): return [Line2D(entry) for entry in self.lines]
-    def get_images(self): return list(self.images)
+    def get_lines(self) -> Any: return [Line2D(entry) for entry in self.lines]
+    def get_images(self) -> Any: return list(self.images)
     set_gid = _state_setter(
         "_gid", 'gid', 'gid')
-    def get_gid(self): return self._gid
+    def get_gid(self) -> Any: return self._gid
     set_url = _state_setter(
         "_url", 'url', 'url')
-    def get_url(self): return self._url
-    def set_rasterized(self, value): self._rasterized = bool(value)
-    def get_rasterized(self): return self._rasterized
-    def set_sketch_params(self, scale=None, length=None, randomness=None):
+    def get_url(self) -> Any: return self._url
+    def set_rasterized(self, value: Any) -> Any: self._rasterized = bool(value)
+    def get_rasterized(self) -> Any: return self._rasterized
+    def set_sketch_params(self, scale: Any = None, length: Any = None, randomness: Any = None) -> Any:
         self._sketch = (scale, length, randomness)
     set_picker = _state_setter(
         "_picker", 'value', 'value')
-    def get_picker(self): return self._picker
+    def get_picker(self) -> Any: return self._picker
     set_clip_box = _state_setter(
         "_clip_box", 'box', 'box')
-    def get_clip_box(self): return self._clip_box
+    def get_clip_box(self) -> Any: return self._clip_box
     set_agg_filter = _state_setter(
         "_agg_filter", 'value', 'value')
-    def get_agg_filter(self): return self._agg_filter
-    def get_path_effects(self): return list(self._path_effects)
-    def set_animated(self, value): self._animated = bool(value)
-    def get_animated(self): return self._animated
-    def get_anchor(self): return self._anchor
+    def get_agg_filter(self) -> Any: return self._agg_filter
+    def get_path_effects(self) -> Any: return list(self._path_effects)
+    def set_animated(self, value: Any) -> Any: self._animated = bool(value)
+    def get_animated(self) -> Any: return self._animated
+    def get_anchor(self) -> Any: return self._anchor
     set_axisbelow = _state_setter(
         "_axisbelow", 'value', 'value')
-    def get_axisbelow(self): return self._axisbelow
-    def add_callback(self, func, *args, **kwargs):
+    def get_axisbelow(self) -> Any: return self._axisbelow
+    def add_callback(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         return self.callbacks.add_callback(func, *args, **kwargs)
-    def remove_callback(self, func): self.callbacks.remove_callback(func)
+    def remove_callback(self, func: Any) -> Any: self.callbacks.remove_callback(func)
 
-    def draw_artist(self, artist):
+    def draw_artist(self, artist: Any) -> Any:
         renderer = self._fig.canvas.get_renderer() if self._fig is not None else None
         draw = getattr(artist, "draw", None)
         if draw is not None:
             draw(renderer)
 
-    def xaxis_date(self, tz=None): self._x_date = True
-    def yaxis_date(self, tz=None): self._y_date = True
+    def xaxis_date(self, tz: Any = None) -> Any: self._x_date = True
+    def yaxis_date(self, tz: Any = None) -> Any: self._y_date = True
 
-    def format_xdata(self, x):
+    def format_xdata(self, x: Any) -> Any:
         formatter = self.xaxis.get_major_formatter()
         if formatter is not None and hasattr(formatter, "format_data_short"):
             return formatter.format_data_short(x)
         return f"{x:g}"
 
-    def format_ydata(self, y):
+    def format_ydata(self, y: Any) -> Any:
         formatter = self.yaxis.get_major_formatter()
         if formatter is not None and hasattr(formatter, "format_data_short"):
             return formatter.format_data_short(y)
         return f"{y:g}"
 
-    def format_coord(self, x, y):
+    def format_coord(self, x: Any, y: Any) -> Any:
         """Human-readable data coordinates for pointer readouts."""
         return f"(x, y) = ({self.format_xdata(x)}, {self.format_ydata(y)})"
 
-    def format_cursor_data(self, data):
+    def format_cursor_data(self, data: Any) -> Any:
         """Format one data value the way Matplotlib's status bar does."""
         try:
             return f"[{data:0.3g}]"
         except (TypeError, ValueError):
             return "[]"
 
-    def get_cursor_data(self, event):
+    def get_cursor_data(self, event: Any) -> Any:
         """The image value under `event`, or None when no image is hit."""
         x = getattr(event, "xdata", None)
         y = getattr(event, "ydata", None)
@@ -713,7 +713,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return np.asarray(data)[row, col]
         return None
 
-    def _axes_display_bbox(self):
+    def _axes_display_bbox(self) -> Any:
         if self._fig is None:
             return _Bbox(0.0, 0.0, 1.0, 1.0)
         box = self.get_position()
@@ -722,16 +722,16 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         return _Bbox(box.x0 * width * dpi, box.y0 * height * dpi,
                      box.x1 * width * dpi, box.y1 * height * dpi)
 
-    def contains_point(self, point):
+    def contains_point(self, point: Any) -> Any:
         x, y = point
         return self._axes_display_bbox().contains(x, y)
 
-    def contains(self, mouseevent=None):
+    def contains(self, mouseevent: Any = None) -> Any:
         if mouseevent is None:
             return False, {}
         return self.contains_point((mouseevent.x, mouseevent.y)), {}
 
-    def update_from(self, other):
+    def update_from(self, other: Any) -> Any:
         for name in ("_autoscale_on", "_autoscalex_on", "_autoscaley_on",
                      "_navigate", "_navigate_mode", "_animated", "_rasterized",
                      "_gid", "_url", "_picker", "_sketch", "_clip_box",
@@ -740,7 +740,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             if hasattr(other, name):
                 setattr(self, name, getattr(other, name))
 
-    def properties(self):
+    def properties(self) -> Any:
         """Current public state, mirroring `Artist.properties()`."""
         return {
             "adjustable": self.get_adjustable(),
@@ -781,7 +781,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     pchanged = _noop_method("pchanged", 'self')
 
-    def findobj(self, match=None, include_self=True):
+    def findobj(self, match: Any = None, include_self: Any = True) -> Any:
         candidates = ([self] if include_self else []) + [
             *self.get_lines(), *self.images, *self.patches, *self.collections,
             *self.texts, *self.artists,
@@ -793,20 +793,20 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         return [item for item in candidates if match(item)]
 
     @property
-    def bbox(self): return self.get_window_extent()
+    def bbox(self) -> Any: return self.get_window_extent()
 
     @property
-    def viewLim(self):
+    def viewLim(self) -> Any:
         x0, x1 = self.get_xlim()
         y0, y1 = self.get_ylim()
         return _Bbox(min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
 
-    def get_xticklines(self): return []
-    def get_yticklines(self): return []
-    def get_legend(self):
+    def get_xticklines(self) -> Any: return []
+    def get_yticklines(self) -> Any: return []
+    def get_legend(self) -> Any:
         """The legend handle when a legend is shown, otherwise None."""
         return _LegendHandle() if self.show_legend else None
-    def get_legend_handles_labels(self):
+    def get_legend_handles_labels(self) -> Any:
         handles, labels = [], []
         for entry in self.lines:
             if entry.get("label"):
@@ -831,8 +831,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     set_theta_offset = _noop_method("set_theta_offset", 'self, offset')
     set_thetamin = _noop_method("set_thetamin", 'self, value')
     set_thetamax = _noop_method("set_thetamax", 'self, value')
-    def pie_label(self, container, labels, *, distance=0.6, textprops=None,
-                  rotate=False, alignment="auto"):
+    def pie_label(self, container: Any, labels: Any, *, distance: Any = 0.6, textprops: Any = None,
+                  rotate: Any = False, alignment: Any = "auto") -> Any:
         """Label the wedges of a `pie` container, as Matplotlib 3.11.
 
         `labels` is a sequence of strings or a format string using the
@@ -873,23 +873,23 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         container.add_texts(texts)
         return texts
 
-    def set_rticks(self, ticks, labels=None, **kwargs):
+    def set_rticks(self, ticks: Any, labels: Any = None, **kwargs: Any) -> Any:
         """Set the radial tick positions, as PolarAxes.set_rticks."""
         return self.set_yticks(ticks, labels=labels, **kwargs)
 
-    def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kwargs):
+    def set_rgrids(self, radii: Any, labels: Any = None, angle: Any = None, fmt: Any = None, **kwargs: Any) -> Any:
         """Set the radial grid positions, as PolarAxes.set_rgrids."""
         if labels is None and fmt is not None:
             labels = [fmt % r for r in radii]
         return self.set_yticks(radii, labels=labels, **kwargs)
 
-    def set_thetagrids(self, angles, labels=None, fmt=None, **kwargs):
+    def set_thetagrids(self, angles: Any, labels: Any = None, fmt: Any = None, **kwargs: Any) -> Any:
         """Set the angular grid positions, as PolarAxes.set_thetagrids."""
         if labels is None and fmt is not None:
             labels = [fmt % a for a in angles]
         return self.set_xticks(angles, labels=labels, **kwargs)
 
-    def get_window_extent(self, renderer=None):
+    def get_window_extent(self, renderer: Any = None) -> Any:
         """Pixel box covering the axes plus the space its labels and title use."""
         b = self.get_position()
         w, h = self._fig.figsize if self._fig is not None else (6.4, 4.8)
@@ -907,38 +907,38 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                      b.x1 * w * dpi + 10.0 * scale,
                      b.y1 * h * dpi + top_pad * scale)
 
-    def get_tightbbox(self, renderer=None): return self.get_window_extent(renderer)
-    def get_figure(self, root=None): return self._fig
+    def get_tightbbox(self, renderer: Any = None) -> Any: return self.get_window_extent(renderer)
+    def get_figure(self, root: Any = None) -> Any: return self._fig
 
     @property
-    def figure(self): return self._fig
+    def figure(self) -> Any: return self._fig
 
     @figure.setter
-    def figure(self, value): self._fig = value
+    def figure(self, value: Any) -> Any: self._fig = value
 
-    def get_xaxis_transform(self, which="grid"): return _Transform()
-    def get_yaxis_transform(self, which="grid"): return _Transform()
-    def get_gridspec(self): return getattr(self._fig, "_gridspec", None)
+    def get_xaxis_transform(self, which: Any = "grid") -> Any: return _Transform()
+    def get_yaxis_transform(self, which: Any = "grid") -> Any: return _Transform()
+    def get_gridspec(self) -> Any: return getattr(self._fig, "_gridspec", None)
     set_box_aspect = _state_setter(
         "_box_aspect", 'aspect, **kwargs', 'aspect')
-    def get_box_aspect(self): return self._box_aspect
-    def set_axes_locator(self, locator):
+    def get_box_aspect(self) -> Any: return self._box_aspect
+    def set_axes_locator(self, locator: Any) -> Any:
         self._axes_locator = locator
         if locator is not None and hasattr(locator, "apply"):
             locator.apply(self)
         return self
-    def get_axes_locator(self): return self._axes_locator
-    def set_autoscale_on(self, value): self._autoscale_on = bool(value)
-    def get_autoscale_on(self): return self._autoscale_on
-    def set_autoscalex_on(self, value): self._autoscalex_on = bool(value)
-    def get_autoscalex_on(self): return self._autoscalex_on
-    def set_autoscaley_on(self, value): self._autoscaley_on = bool(value)
-    def get_autoscaley_on(self): return self._autoscaley_on
-    def set_frame_on(self, value): self._frame_on = bool(value)
-    def set_xmargin(self, value): self._xmargin = float(value)
-    def set_ymargin(self, value): self._ymargin = float(value)
+    def get_axes_locator(self) -> Any: return self._axes_locator
+    def set_autoscale_on(self, value: Any) -> Any: self._autoscale_on = bool(value)
+    def get_autoscale_on(self) -> Any: return self._autoscale_on
+    def set_autoscalex_on(self, value: Any) -> Any: self._autoscalex_on = bool(value)
+    def get_autoscalex_on(self) -> Any: return self._autoscalex_on
+    def set_autoscaley_on(self, value: Any) -> Any: self._autoscaley_on = bool(value)
+    def get_autoscaley_on(self) -> Any: return self._autoscaley_on
+    def set_frame_on(self, value: Any) -> Any: self._frame_on = bool(value)
+    def set_xmargin(self, value: Any) -> Any: self._xmargin = float(value)
+    def set_ymargin(self, value: Any) -> Any: self._ymargin = float(value)
 
-    def margins(self, *margins, x=None, y=None, tight=True):
+    def margins(self, *margins: Any, x: Any = None, y: Any = None, tight: Any = True) -> Any:
         """Set the autoscale margins and return the current `(x, y)` values.
 
         One positional value applies to both axes; two set x and y. The
@@ -959,10 +959,10 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             self._ymargin = float(y)
         return (self._xmargin, self._ymargin)
 
-    def get_xmargin(self): return self._xmargin
-    def get_ymargin(self): return self._ymargin
-    def get_frame_on(self): return self._frame_on
-    def label_outer(self, remove_inner_ticks=False):
+    def get_xmargin(self) -> Any: return self._xmargin
+    def get_ymargin(self) -> Any: return self._ymargin
+    def get_frame_on(self) -> Any: return self._frame_on
+    def label_outer(self, remove_inner_ticks: Any = False) -> Any:
         """Hide tick labels on non-outer axes of a subplot grid.
 
         x labels stay on the last row and y labels on the first column. Inner
@@ -974,7 +974,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._label_outer = True
         return None
 
-    def locator_params(self, axis="both", tight=None, **kwargs):
+    def locator_params(self, axis: Any = "both", tight: Any = None, **kwargs: Any) -> Any:
         """Configure the major locator's tick budget (`nbins`, `steps`, ...).
 
         Installs a `MaxNLocator` on axes that do not have an explicit locator.
@@ -997,9 +997,9 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         "secondary_xaxis", 'self, *args, **kwargs', warn='Axes.secondary_xaxis', returns_self=True)
     secondary_yaxis = _noop_method(
         "secondary_yaxis", 'self, *args, **kwargs', warn='Axes.secondary_yaxis', returns_self=True)
-    def get_aux_axes(self, *args, **kwargs): return self
+    def get_aux_axes(self, *args: Any, **kwargs: Any) -> Any: return self
 
-    def add_artist(self, artist, **kwargs):
+    def add_artist(self, artist: Any, **kwargs: Any) -> Any:
         if isinstance(artist, Text):
             self.text(artist._x, artist._y, artist._text)
         elif isinstance(artist, Line2D):
@@ -1009,17 +1009,17 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         else:
             self.artists.append(self._stamp(artist))
         return artist
-    def set_anchor(self, anchor, **kwargs):
+    def set_anchor(self, anchor: Any, **kwargs: Any) -> Any:
         self._anchor = anchor
         return None
-    def matshow(self, Z, **kwargs):
+    def matshow(self, Z: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("origin", "upper")
         kwargs.setdefault("aspect", "equal")
         return self.imshow(Z, **kwargs)
 
 
 
-    def add_image(self, image):
+    def add_image(self, image: Any) -> Any:
         if isinstance(image, NonUniformImage):
             data, extent = image._render_spec()
             return self.imshow(data, extent=extent, cmap=image._cmap,
@@ -1042,26 +1042,26 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.artists.append(self._stamp(collection))
         self.collections.append(collection)
         return collection
-    def add_line(self, line):
+    def add_line(self, line: Any) -> Any:
         if isinstance(line, Line2D):
             line.axes = self
             self._append_series(line._series)
         else:
             self.artists.append(self._stamp(line))
         return line
-    def get_children(self): return [*list(self.artists), self]
+    def get_children(self) -> Any: return [*list(self.artists), self]
     update = _noop_method("update", 'self, *args, **kwargs')
 
-    def get_label(self): return self.label
-    def set_label(self, label): self.label = str(label)
-    def get_zorder(self): return self.zorder
-    def set_zorder(self, zorder): self.zorder = int(zorder)
+    def get_label(self) -> Any: return self.label
+    def set_label(self, label: Any) -> Any: self.label = str(label)
+    def get_zorder(self) -> Any: return self.zorder
+    def set_zorder(self, zorder: Any) -> Any: self.zorder = int(zorder)
 
     # Accepted for compatibility; custom artists are not rendered yet.
-    def set_clip_path(self, path, transform=None):
+    def set_clip_path(self, path: Any, transform: Any = None) -> Any:
         self._clip_path = path
         return None
-    def get_clip_path(self):
+    def get_clip_path(self) -> Any:
         """The stored clip path, or the axes rectangle in data coordinates."""
         if self._clip_path is not None:
             return self._clip_path
@@ -1073,14 +1073,14 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         return Path(vertices, codes)
     set_clip_on = _noop_method("set_clip_on", 'self, clip')
     set_path_effects = _noop_method("set_path_effects", 'self, effects')
-    def get_xgridlines(self):
+    def get_xgridlines(self) -> Any:
         """Major and minor x gridline handles, as Matplotlib returns."""
         return [_GridLine(self, "x", "major"), _GridLine(self, "x", "minor")]
-    def get_ygridlines(self):
+    def get_ygridlines(self) -> Any:
         """Major and minor y gridline handles, as Matplotlib returns."""
         return [_GridLine(self, "y", "major"), _GridLine(self, "y", "minor")]
     redraw_in_frame = _noop_method("redraw_in_frame", 'self')
-    def pick(self, mouseevent):
+    def pick(self, mouseevent: Any) -> Any:
         """Dispatch a pick event to children that implement `pick`."""
         picked = []
         for artist in self.get_children():
@@ -1090,13 +1090,13 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             if handler is not None and handler(mouseevent):
                 picked.append(artist)
         return picked
-    def start_pan(self, x, y, button=None):
+    def start_pan(self, x: Any, y: Any, button: Any = None) -> Any:
         """Record the anchor for a pan gesture in display coordinates."""
         self._pan_start = dict(x=float(x), y=float(y), button=button,
                                xlim=self.get_xlim(), ylim=self.get_ylim())
-    def end_pan(self):
+    def end_pan(self) -> Any:
         self._pan_start = None
-    def drag_pan(self, button, key, x, y):
+    def drag_pan(self, button: Any, key: Any, x: Any, y: Any) -> Any:
         """Shift the view by the display-space drag since `start_pan`."""
         start = self._pan_start
         if start is None:
@@ -1111,7 +1111,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.set_xlim(xmin - dx, xmax - dx)
         self.set_ylim(ymin - dy, ymax - dy)
         return None
-    def relim(self, visible_only=True):
+    def relim(self, visible_only: Any = True) -> Any:
         """Recompute the data limits from the current artists.
 
         Matplotvite derives extents from the artists on every access, so this
@@ -1127,7 +1127,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             setattr(self, f"{name}lim", None)
         return None
 
-    def autoscale(self, enable=True, axis="both", tight=None):
+    def autoscale(self, enable: Any = True, axis: Any = "both", tight: Any = None) -> Any:
         """Autoscale the view to the data, honoring the stored margins.
 
         `enable=True` re-enables autoscaling and recomputes the view from the
@@ -1156,7 +1156,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.autoscale_view(tight=tight, scalex="x" in targets, scaley="y" in targets)
         return None
 
-    def autoscale_view(self, tight=None, scalex=True, scaley=True):
+    def autoscale_view(self, tight: Any = None, scalex: Any = True, scaley: Any = True) -> Any:
         """Recompute the view from the data for every autoscaled axis."""
         for name, enabled in (("x", scalex), ("y", scaley)):
             if not enabled:
@@ -1171,7 +1171,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             setattr(self, f"{name}lim", None)
         return None
 
-    def clear(self):
+    def clear(self) -> Any:
         self.lines.clear()
         self.texts.clear()
         self.images.clear()
@@ -1214,7 +1214,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     cla = clear
 
-    def _xdate(self, values):
+    def _xdate(self, values: Any) -> Any:
         """Convert date-like or categorical x values to numbers and mark the axis."""
         if _looks_like_dates(values):
             self._x_date = True
@@ -1230,8 +1230,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return mapped.reshape(array.shape)
         return values
 
-    def set_xticks(self, ticks, labels=None, rotation=None, fontsize=None,
-                   color=None, **kwargs):
+    def set_xticks(self, ticks: Any, labels: Any = None, rotation: Any = None, fontsize: Any = None,
+                   color: Any = None, **kwargs: Any) -> Any:
         self._xticks = [float(t) for t in np.asarray(self._xdate(ticks)).ravel()]
         if labels is not None:
             self._xticklabels = [str(v) for v in np.asarray(labels).ravel()]
@@ -1239,14 +1239,14 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             self._xticklabels = None
         self._tick_style("x", rotation=rotation, labelsize=fontsize, labelcolor=color)
 
-    def set_yticks(self, ticks, labels=None, rotation=None, fontsize=None,
-                   color=None, **kwargs):
+    def set_yticks(self, ticks: Any, labels: Any = None, rotation: Any = None, fontsize: Any = None,
+                   color: Any = None, **kwargs: Any) -> Any:
         self._yticks = [float(t) for t in np.asarray(ticks).ravel()]
         if labels is not None:
             self._yticklabels = [str(v) for v in np.asarray(labels).ravel()]
         self._tick_style("y", rotation=rotation, labelsize=fontsize, labelcolor=color)
 
-    def _tick_style(self, axis, **kwargs):
+    def _tick_style(self, axis: Any, **kwargs: Any) -> Any:
         """Merge tick styling into the per-axis settings (`axis` is x or y)."""
         target = self.tick_params_x if axis == "x" else self.tick_params_y
         aliases = {"labelsize": "labelsize", "fontsize": "labelsize",
@@ -1258,21 +1258,21 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             if value is not None and key in aliases:
                 target[aliases[key]] = value
 
-    def xticks(self, ticks=None, labels=None, **kwargs):
+    def xticks(self, ticks: Any = None, labels: Any = None, **kwargs: Any) -> Any:
         """`plt.xticks(...)` shim: set ticks/labels or return the current pair."""
         if ticks is None:
             return (self.get_xticks(), self.get_xticklabels())
         self.set_xticks(ticks, labels=labels, **kwargs)
         return (self.get_xticks(), self.get_xticklabels())
 
-    def yticks(self, ticks=None, labels=None, **kwargs):
+    def yticks(self, ticks: Any = None, labels: Any = None, **kwargs: Any) -> Any:
         """`plt.yticks(...)` shim, mirroring `xticks`."""
         if ticks is None:
             return (self.get_yticks(), self.get_yticklabels())
         self.set_yticks(ticks, labels=labels, **kwargs)
         return (self.get_yticks(), self.get_yticklabels())
 
-    def _locator_ticks(self, axis):
+    def _locator_ticks(self, axis: Any) -> Any:
         """Tick positions from the major locator, or None for the automatic ones."""
         locator = self._xlocator if axis == "x" else self._ylocator
         if locator is None:
@@ -1285,7 +1285,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         ticks = ticks[np.isfinite(ticks)]
         return [float(v) for v in ticks] or None
 
-    def _auto_tick_target(self, axis):
+    def _auto_tick_target(self, axis: Any) -> Any:
         """Label budget for an auto axis, scaled to its drawn pixel extent."""
         try:
             position = self.get_position()
@@ -1302,7 +1302,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         per_label = 55.0 if axis == "x" else 45.0
         return _tick_target_core(pixels, per_label)
 
-    def _drawn_ticks(self, axis):
+    def _drawn_ticks(self, axis: Any) -> Any:
         """The positions `_panel` hands the renderer when no ticks were set."""
         base = float(getattr(self, "log_base", 10.0))
         if axis == "x":
@@ -1331,7 +1331,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         return _auto_ticks(lo, hi, scale == "log", base,
                            self._auto_tick_target("y"))
 
-    def get_xticks(self, minor=False):
+    def get_xticks(self, minor: Any = False) -> Any:
         if self._xticks is not None:
             return np.asarray(self._xticks)
         ticks = self._locator_ticks("x")
@@ -1339,7 +1339,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return np.asarray(ticks)
         return np.asarray(self._drawn_ticks("x"))
 
-    def get_yticks(self, minor=False):
+    def get_yticks(self, minor: Any = False) -> Any:
         if self._yticks is not None:
             return np.asarray(self._yticks)
         ticks = self._locator_ticks("y")
@@ -1347,13 +1347,13 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return np.asarray(ticks)
         return np.asarray(self._drawn_ticks("y"))
 
-    def set_xticklabels(self, labels, **kwargs):
+    def set_xticklabels(self, labels: Any, **kwargs: Any) -> Any:
         self._xticklabels = [str(v) for v in np.asarray(labels).ravel()]
 
-    def set_yticklabels(self, labels, **kwargs):
+    def set_yticklabels(self, labels: Any, **kwargs: Any) -> Any:
         self._yticklabels = [str(v) for v in np.asarray(labels).ravel()]
 
-    def get_xticklabels(self, minor=False, which=None):
+    def get_xticklabels(self, minor: Any = False, which: Any = None) -> Any:
         labels = self._xticklabels
         if labels is None and self.xscale == "logit":
             labels = _logit_ticks(*self.get_xlim(), self.logit_one_half,  # type: ignore[call-arg]
@@ -1365,7 +1365,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         size = self._tick_style_dict("x")["labelsize"]
         return [_TextLabel(t, size) for t in labels]
 
-    def get_yticklabels(self, minor=False, which=None):
+    def get_yticklabels(self, minor: Any = False, which: Any = None) -> Any:
         labels = self._yticklabels
         if labels is None and self.yscale == "logit":
             labels = _logit_ticks(*self.get_ylim(), self.logit_one_half,  # type: ignore[call-arg]
@@ -1377,7 +1377,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         size = self._tick_style_dict("y")["labelsize"]
         return [_TextLabel(t, size) for t in labels]
 
-    def _set_scale(self, axis, value, base=10, **kwargs):
+    def _set_scale(self, axis: Any, value: Any, base: Any = 10, **kwargs: Any) -> Any:
         """Install a built-in, function, or registered custom scale on `axis`."""
         name = str(value)
         scale_attr = f"{axis}scale"
@@ -1429,39 +1429,39 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             scale_obj.set_default_locators_and_formatters(axis_obj)
         return scale_obj
 
-    def set_xscale(self, value, base=10, **kwargs):
+    def set_xscale(self, value: Any, base: Any = 10, **kwargs: Any) -> Any:
         return self._set_scale("x", value, base, **kwargs)
 
     def set_yscale(self, value: Any, base: Any = 10, **kwargs: Any) -> Any:
         return self._set_scale("y", value, base, **kwargs)
 
     @staticmethod
-    def _symlog_linthresh(kwargs):
+    def _symlog_linthresh(kwargs: Any) -> Any:
         value = kwargs.get("linthresh")
         return 1.0 if value is None else max(float(value), 1e-300)
 
     @staticmethod
-    def _asinh_width(kwargs):
+    def _asinh_width(kwargs: Any) -> Any:
         value = kwargs.get("linear_width")
         return 1.0 if value is None else max(float(value), 1e-300)
 
-    def semilogx(self, *args, **kwargs):
+    def semilogx(self, *args: Any, **kwargs: Any) -> Any:
         base = kwargs.pop("base", 10)
         self.set_xscale("log", base=base)
         return self.plot(*args, **kwargs)
 
-    def semilogy(self, *args, **kwargs):
+    def semilogy(self, *args: Any, **kwargs: Any) -> Any:
         base = kwargs.pop("base", 10)
         self.set_yscale("log", base=base)
         return self.plot(*args, **kwargs)
 
-    def loglog(self, *args, **kwargs):
+    def loglog(self, *args: Any, **kwargs: Any) -> Any:
         base = kwargs.pop("base", 10)
         self.set_xscale("log", base=base)
         self.set_yscale("log", base=base)
         return self.plot(*args, **kwargs)
 
-    def get_subplotspec(self):
+    def get_subplotspec(self) -> Any:
         """The `SubplotSpec` this axes was created from, or its grid cell."""
         if self._subplotspec is not None:
             return self._subplotspec
@@ -1470,13 +1470,13 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         return SubplotSpec(GridSpec(rows, cols, figure=self._fig),
                            (row, row), (col, col))
 
-    def get_xscale(self): return self.xscale
-    def get_yscale(self): return self.yscale
-    def get_title(self): return self.title
-    def get_xlabel(self): return self.xlabel
-    def get_ylabel(self): return self.ylabel
+    def get_xscale(self) -> Any: return self.xscale
+    def get_yscale(self) -> Any: return self.yscale
+    def get_title(self) -> Any: return self.title
+    def get_xlabel(self) -> Any: return self.xlabel
+    def get_ylabel(self) -> Any: return self.ylabel
 
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         """`ax.set(xlim=, ylim=, xlabel=, title=, xticks=, aspect=, ...)` shorthand."""
         for key, value in kwargs.items():
             if key in ("xlim", "ylim", "xticks", "yticks"):
@@ -1509,7 +1509,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
 
 
-    def _stamp(self, item, *, container=False):
+    def _stamp(self, item: Any, *, container: Any = False) -> Any:
         """Give an artist a creation sequence number for legend ordering."""
         self._artist_seq += 1
         if isinstance(item, dict):
@@ -1524,23 +1524,23 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                 pass
         return item
 
-    def _append_series(self, entry):
+    def _append_series(self, entry: Any) -> Any:
         self.lines.append(self._stamp(entry))
         return entry
 
-    def _append_band(self, entry):
+    def _append_band(self, entry: Any) -> Any:
         self.bands.append(self._stamp(entry))
         return entry
 
-    def _append_scatter(self, entry):
+    def _append_scatter(self, entry: Any) -> Any:
         self.scatter_pts.append(self._stamp(entry))
         return entry
 
-    def _append_bar(self, entry, *, container=True):
+    def _append_bar(self, entry: Any, *, container: Any = True) -> Any:
         self.bars.append(self._stamp(entry, container=container))
         return entry
 
-    def _legend_order(self):
+    def _legend_order(self) -> Any:
         """Legend labels in creation order, with bar containers last."""
         entries = []
         for item in (*self.lines, *self.scatter_pts, *self.bands, *self.bars):
@@ -1559,7 +1559,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
 
 
-    def _ydate(self, values):
+    def _ydate(self, values: Any) -> Any:
         """Convert date-like or categorical y values to numbers and label the axis."""
         if _looks_like_dates(values):
             return _date_to_num(values)
@@ -1567,7 +1567,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return self._category_positions(values)
         return values
 
-    def _category_positions(self, values):
+    def _category_positions(self, values: Any) -> Any:
         """Map y category labels to positions, labelling the y axis with them."""
         labels = [str(v) for v in np.asarray(_as_list(values), dtype=object).ravel()]
         self._yticks = [float(i) for i in range(len(labels))]
@@ -1657,10 +1657,10 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         return self.get_ylim()
 
 
-    def minorticks_on(self): self.minor_ticks = True
-    def minorticks_off(self): self.minor_ticks = False
-    def ticklabel_format(self, *, axis="both", style=None, scilimits=None,
-                         useOffset=None, useLocale=None, useMathText=None):
+    def minorticks_on(self) -> Any: self.minor_ticks = True
+    def minorticks_off(self) -> Any: self.minor_ticks = False
+    def ticklabel_format(self, *, axis: Any = "both", style: Any = None, scilimits: Any = None,
+                         useOffset: Any = None, useLocale: Any = None, useMathText: Any = None) -> Any:
         """Switch an axis between plain and scientific tick labels.
 
         `style` is `'plain'`, `'sci'` or None; `scilimits` must be a pair of
@@ -1678,7 +1678,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         for name in (("x", "y") if axis == "both" else (axis,)):
             (self.xaxis if name == "x" else self.yaxis).set_major_formatter(formatter)
         return None
-    def set_rasterization_zorder(self, zorder):
+    def set_rasterization_zorder(self, zorder: Any) -> Any:
         self._rasterization_zorder = None if zorder is None else float(zorder)
 
 
@@ -1699,11 +1699,11 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     subplots_adjust = _noop_method("subplots_adjust", 'self, **kwargs')
     set_layout_engine = _state_setter(
         "layout_engine", 'engine=None, **kwargs', 'engine')
-    def get_layout_engine(self): return getattr(self, "layout_engine", None)
-    def set_in_layout(self, b): self.in_layout = bool(b)
-    def get_in_layout(self): return getattr(self, "in_layout", True)
+    def get_layout_engine(self) -> Any: return getattr(self, "layout_engine", None)
+    def set_in_layout(self, b: Any) -> Any: self.in_layout = bool(b)
+    def get_in_layout(self) -> Any: return getattr(self, "in_layout", True)
 
-    def _colorbar_tuple(self):
+    def _colorbar_tuple(self) -> Any:
         entry = self._colorbar
         if entry is None:
             return None
@@ -1716,7 +1716,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                 bool(entry.get("extendrect", False)),
                 float(entry.get("extendfrac", 0.05)))
 
-    def _panel_series(self, x0, x1, y0, y1):
+    def _panel_series(self, x0: Any, x1: Any, y0: Any, y1: Any) -> Any:
         """Resolve reference lines, spans, bands and polar geometry."""
         dx, dy = x1 - x0, y1 - y0
         # Reference lines and bands are axes-fraction based, so they are resolved
@@ -1789,7 +1789,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             bands = clipped_bands
         return series, bars, bands, polar_texts
 
-    def _panel_ticks(self, x0, x1, y0, y1):
+    def _panel_ticks(self, x0: Any, x1: Any, y0: Any, y1: Any) -> Any:
         """Resolve explicit, locator, date, category and scale-specific ticks."""
         xticks, xticklabels = self._xticks, self._xticklabels
         if xticks is None:
@@ -1858,7 +1858,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             yticklabels = [f"{float(v):g}" for v in yticks]
         return xticks, xticklabels, yticks, yticklabels
 
-    def _panel(self, dpi=None):
+    def _panel(self, dpi: Any = None) -> Any:
         (x0, x1), (y0, y1) = self._limits()
         series, bars, bands, polar_texts = self._panel_series(x0, x1, y0, y1)
         patches = [p for p in (_patch_entry(a) for a in self.artists) if p is not None]
@@ -1951,7 +1951,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                             for im in self.images])
         return self._apply_axis_scales(panel)
 
-    def _scale_panel_points(self, panel, fx, fy, scale):
+    def _scale_panel_points(self, panel: Any, fx: Any, fy: Any, scale: Any) -> Any:
         """Map ticks, series, bars, bands and scatter through custom scales."""
         ticks = panel["ticks"]
         if fx is not None and ticks["xticks"] is not None:
@@ -1991,7 +1991,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                  y=_scale_values(fy, item["y"]) if fy is not None else item["y"])
             for item in panel["scatter"]]
 
-    def _scale_panel_geometry(self, panel, fx, fy, scale):
+    def _scale_panel_geometry(self, panel: Any, fx: Any, fy: Any, scale: Any) -> Any:
         """Map vector arrows and error-bar extents through custom scales."""
         scaled_arrows = []
         for item in panel["arrows"]:
@@ -2033,7 +2033,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             scaled_errors.append((nx, ny, ylo, yhi, xlo, xhi, *item[6:]))
         panel["errors"] = scaled_errors
 
-    def _scale_panel_artists(self, panel, fx, fy, scale, scalar, points):
+    def _scale_panel_artists(self, panel: Any, fx: Any, fy: Any, scale: Any, scalar: Any, points: Any) -> Any:
         """Map contours, images, text, annotations, patches and collections."""
         scaled_contours = []
         for item in panel["contours"]:
@@ -2109,12 +2109,12 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             scaled_collections.append(collection)
         panel["collections"] = scaled_collections
 
-    def _scale_panel_limits(self, panel, fx, fy, scale):
+    def _scale_panel_limits(self, panel: Any, fx: Any, fy: Any, scale: Any) -> Any:
         """Reproject limits, falling back to the scaled artist extents."""
-        def finite_bounds(key):
+        def finite_bounds(key: Any) -> Any:
             lo, hi = np.inf, -np.inf
 
-            def take(values):
+            def take(values: Any) -> Any:
                 nonlocal lo, hi
                 arr = np.asarray(values, dtype=float)
                 arr = arr[np.isfinite(arr)]
@@ -2138,7 +2138,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                          + np.asarray(item["height"], dtype=float))
             return lo, hi
 
-        def scaled_limits(forward, current, key):
+        def scaled_limits(forward: Any, current: Any, key: Any) -> Any:
             values = scale(forward, current)
             if np.isfinite(values).all():
                 return tuple(float(v) for v in values)
@@ -2152,20 +2152,20 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         if fy is not None:
             panel["y"]["lim"] = scaled_limits(fy, panel["y"]["lim"], "y")
 
-    def _apply_axis_scales(self, panel):
+    def _apply_axis_scales(self, panel: Any) -> Any:
         """Map panel coordinates through function or registered custom scales."""
         fx, fy = self._xscale_forward, self._yscale_forward
         if fx is None and fy is None:
             return panel
 
-        def scale(forward, values):
+        def scale(forward: Any, values: Any) -> Any:
             return (_scale_values(forward, values) if forward is not None
                     else np.asarray(values, dtype=float))
 
-        def scalar(forward, value):
+        def scalar(forward: Any, value: Any) -> Any:
             return float(scale(forward, [value])[0])
 
-        def points(flat):
+        def points(flat: Any) -> Any:
             pts = np.asarray(flat, dtype=float).reshape(-1, 2)
             if fx is not None:
                 pts[:, 0] = _scale_values(fx, pts[:, 0])
@@ -2179,7 +2179,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._scale_panel_limits(panel, fx, fy, scale)
         return panel
 
-    def _resolve_text(self, t, x0, x1, y0, y1):
+    def _resolve_text(self, t: Any, x0: Any, x1: Any, y0: Any, y1: Any) -> Any:
         """Turn axes/figure coordinates into the data coordinates the renderer uses."""
         x, y, s, c, size, ha, va, kind, bbox, rotation, family, shift = t
         if kind == "axes":
@@ -2192,7 +2192,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             y = y0 + (y - fy0) * rows * (y1 - y0)
         return (x, y, s, c, size, ha, va, bbox, rotation, family, shift)
 
-    def _tick_style_dict(self, axis):
+    def _tick_style_dict(self, axis: Any) -> Any:
         style = self.tick_params_x if axis == "x" else self.tick_params_y
         font = float(rcParams.get("font.size", 10.0))  # type: ignore[arg-type]
         default = rcParams.get(f"{axis}tick.labelsize", font)

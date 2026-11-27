@@ -69,7 +69,7 @@ import types as _types
 
 
 
-def _late_bind(module, name, value):
+def _late_bind(module: Any, name: Any, value: Any) -> Any:
     """Bind a name a module only needs once it is called."""
     setattr(module, name, value)
 
@@ -240,7 +240,7 @@ _MODULES = (
 class _PlottingModule(_types.ModuleType):
     """Mirror a facade patch into the module that owns the name."""
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: Any, value: Any) -> Any:
         super().__setattr__(name, value)
         for _module in _MODULES:
             if name in _module.__dict__:

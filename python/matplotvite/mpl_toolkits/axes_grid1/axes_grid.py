@@ -1,11 +1,13 @@
 """Small `axes_grid1.ImageGrid` compatibility layer."""
 
+from typing import Any
+
 import numpy as np
 
 from matplotvite import _share_axes
 
 
-def _subplot_bounds(fig, rect):
+def _subplot_bounds(fig: Any, rect: Any) -> Any:
     if isinstance(rect, (tuple, list, np.ndarray)):
         if len(rect) != 4:
             raise ValueError("rect must be (left, bottom, width, height)")
@@ -24,21 +26,21 @@ def _subplot_bounds(fig, rect):
 class _CbarAxis:
     """Axis-like label proxy used by `cax.axis[cax.orientation]`."""
 
-    def __init__(self, owner, orientation):
+    def __init__(self, owner: Any, orientation: Any) -> None:
         self._owner = owner
         self._orientation = orientation
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self
 
-    def set_label(self, label, **kwargs):
+    def set_label(self, label: Any, **kwargs: Any) -> Any:
         if self._orientation in ("bottom", "top"):
             self._owner.set_xlabel(label)
         else:
             self._owner.set_ylabel(label)
         return self
 
-    def set_visible(self, visible):
+    def set_visible(self, visible: Any) -> Any:
         return self
 
 
@@ -49,29 +51,29 @@ class _CbarHandle:
     separate narrow axes is needed.
     """
 
-    def __init__(self, fig, owner, orientation="right"):
+    def __init__(self, fig: Any, owner: Any, orientation: Any = "right") -> None:
         self._fig = fig
         self._owner = owner
         self.orientation = orientation
         self.axis = _CbarAxis(owner, orientation)
 
-    def colorbar(self, mappable=None, **kwargs):
+    def colorbar(self, mappable: Any = None, **kwargs: Any) -> Any:
         return self._fig.colorbar(mappable, ax=self._owner, **kwargs)
 
-    def tick_params(self, *args, **kwargs):
+    def tick_params(self, *args: Any, **kwargs: Any) -> Any:
         return None
 
-    def set_label(self, *args, **kwargs):
+    def set_label(self, *args: Any, **kwargs: Any) -> Any:
         return None
 
 
 class ImageGrid:
     """Arrange a fixed grid of axes in one subplot rectangle."""
 
-    def __init__(self, fig, rect, nrows_ncols=(1, 1), axes_pad=0.02,
-                 share_all=False, aspect=True, label_mode="L", cbar_mode=None,
-                 cbar_location="right", cbar_size="5%", cbar_pad=None,
-                 cbar_set_cax=True, direction="row", **kwargs):
+    def __init__(self, fig: Any, rect: Any, nrows_ncols: Any = (1, 1), axes_pad: Any = 0.02,
+                 share_all: Any = False, aspect: Any = True, label_mode: Any = "L", cbar_mode: Any = None,
+                 cbar_location: Any = "right", cbar_size: Any = "5%", cbar_pad: Any = None,
+                 cbar_set_cax: Any = True, direction: Any = "row", **kwargs: Any) -> None:
         nrows, ncols = (int(value) for value in nrows_ncols)
         if nrows < 1 or ncols < 1:
             raise ValueError("nrows_ncols must be positive")
@@ -126,13 +128,13 @@ class ImageGrid:
         if share_all:
             _share_axes(self._axes, (nrows, ncols), True, True)
 
-    def __len__(self):
+    def __len__(self) -> Any:
         return len(self._axes)
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter(self._axes)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: Any) -> Any:
         if isinstance(index, tuple):
             row, col = index
             return self.axes_row[row][col]

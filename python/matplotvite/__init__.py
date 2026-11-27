@@ -8,6 +8,7 @@ import functools as _functools
 import importlib as _importlib
 import sys as _sys
 import types as _types
+from typing import Any
 
 from . import _plotting
 from ._core import __version__
@@ -247,12 +248,12 @@ from ._plotting import (  # noqa: F401
 )
 
 
-def __getattr__(name):
+def __getattr__(name: Any) -> Any:
     """Keep the old module-level internals reachable through the facade."""
     return getattr(_plotting, name)
 
 
-def __dir__():
+def __dir__() -> Any:
     """List what `__getattr__` forwards, so introspection sees the same names.
 
     Without this, `dir(matplotvite)` only shows the explicitly imported ones and
@@ -264,7 +265,7 @@ def __dir__():
 class _FacadeModule(_types.ModuleType):
     """Mirror assignments so patching a facade internal still reaches the code."""
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: Any, value: Any) -> Any:
         super().__setattr__(name, value)
         if name in _plotting.__dict__:
             setattr(_plotting, name, value)
@@ -298,14 +299,14 @@ from .offsetbox import (
 from .sankey import Sankey
 
 
-def _data_kwargs(method):
+def _data_kwargs(method: Any) -> Any:
     """Resolve Matplotlib `data=` string arguments before a plotting method."""
 
     @_functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self, *args: Any, **kwargs: Any) -> Any:
         data = kwargs.pop("data", None)
         if data is not None and hasattr(data, "get"):
-            def resolve(value):
+            def resolve(value: Any) -> Any:
                 return data.get(value, value) if isinstance(value, str) else value
             args = tuple(resolve(value) for value in args)
             kwargs = {key: value if key == "label" else resolve(value)

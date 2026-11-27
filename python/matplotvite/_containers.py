@@ -27,26 +27,26 @@ class _Wedge:
         self.r = float(r)
         self.theta1, self.theta2 = float(theta1), float(theta2)
 
-    def set_facecolor(self, c):
+    def set_facecolor(self, c: Any) -> Any:
         self._color = str(c)
         return self
 
-    def set_edgecolor(self, c): return self
-    def set_color(self, c): return self.set_facecolor(c)
-    def get_facecolor(self): return self._color
-    def set_gid(self, gid):
+    def set_edgecolor(self, c: Any) -> Any: return self
+    def set_color(self, c: Any) -> Any: return self.set_facecolor(c)
+    def get_facecolor(self) -> Any: return self._color
+    def set_gid(self, gid: Any) -> Any:
         self._gid = "" if gid is None else str(gid)
         if self._band is not None:
             self._band["gid"] = self._gid
         return self
-    def get_gid(self): return self._gid
-    def get_label(self): return self._label
-    def get_zorder(self): return self._zorder
+    def get_gid(self) -> Any: return self._gid
+    def get_label(self) -> Any: return self._label
+    def get_zorder(self) -> Any: return self._zorder
     set_zorder = _state_setter(
         "_zorder", 'zorder', 'zorder')
-    def set_agg_filter(self, value): return self
-    def set_rasterized(self, value): return self
-    def set(self, **kwargs):
+    def set_agg_filter(self, value: Any) -> Any: return self
+    def set_rasterized(self, value: Any) -> Any: return self
+    def set(self, **kwargs: Any) -> Any:
         if "ec" in kwargs or "edgecolor" in kwargs:
             self.set_edgecolor(kwargs.get("ec", kwargs.get("edgecolor")))
         return self
@@ -55,13 +55,13 @@ class _Wedge:
 class HandlerTuple:
     """Legend handler that packs tuple entries into one row; drawing is a no-op."""
 
-    def __init__(self, ndivide=None, pad=None, **kwargs):
+    def __init__(self, ndivide: Any = None, pad: Any = None, **kwargs: Any) -> None:
         self.ndivide, self.pad, self.kwargs = ndivide, pad, kwargs
 
 
 class HandlerLineCollection:
     """Legend handler that draws a line-collection sample."""
-    def __init__(self, **kwargs): self.kwargs = kwargs
+    def __init__(self, **kwargs: Any) -> None: self.kwargs = kwargs
 
 
 class _PieResult:
@@ -72,9 +72,9 @@ class _PieResult:
         self.values = np.asarray([] if values is None else values, dtype=float)
         self.fracs = np.asarray([] if fracs is None else fracs, dtype=float)
 
-    def __iter__(self): return iter((self.wedges, self.texts, self.autotexts))
+    def __iter__(self) -> Any: return iter((self.wedges, self.texts, self.autotexts))
 
-    def add_texts(self, texts):
+    def add_texts(self, texts: Any) -> Any:
         """Append label `.Text` instances to the container."""
         self.texts.extend(texts)
         return None
@@ -87,12 +87,12 @@ class _LegendHandle:
         self.legendPatch = Rectangle((0, 0), 1, 1)
         self._zorder = 5
 
-    def get_zorder(self): return self._zorder
-    def set_zorder(self, zorder): self._zorder = int(zorder)
-    def get_frame(self): return self.legendPatch
-    def get_title(self): return _TextLabel()
-    def get_lines(self): return []
-    def set_draggable(self, value=True, **kwargs): return self
+    def get_zorder(self) -> Any: return self._zorder
+    def set_zorder(self, zorder: Any) -> Any: self._zorder = int(zorder)
+    def get_frame(self) -> Any: return self.legendPatch
+    def get_title(self) -> Any: return _TextLabel()
+    def get_lines(self) -> Any: return []
+    def set_draggable(self, value: Any = True, **kwargs: Any) -> Any: return self
 
 
 class _BarHandle:
@@ -103,65 +103,65 @@ class _BarHandle:
         self._group = group
         self._index = index
 
-    def _get(self, key):
+    def _get(self, key: Any) -> Any:
         return float(self._axes.bars[self._group][key][self._index])
 
-    def _set(self, key, value):
+    def _set(self, key: Any, value: Any) -> Any:
         self._axes.bars[self._group][key] = value
 
-    def get_x(self): return self._get("left")
-    def get_y(self): return self._get("bottom")
-    def get_width(self): return self._get("width")
-    def get_height(self): return self._get("height")
+    def get_x(self) -> Any: return self._get("left")
+    def get_y(self) -> Any: return self._get("bottom")
+    def get_width(self) -> Any: return self._get("width")
+    def get_height(self) -> Any: return self._get("height")
 
-    def get_xdata(self):
+    def get_xdata(self) -> Any:
         """The rectangle's four corners and closing vertex, as Matplotlib's box."""
         x, w = self.get_x(), self.get_width()
         return np.asarray([x, x, x + w, x + w, x], dtype=float)
 
-    def get_ydata(self):
+    def get_ydata(self) -> Any:
         y, h = self.get_y(), self.get_height()
         return np.asarray([y, y + h, y + h, y, y], dtype=float)
 
-    def get_facecolor(self):
+    def get_facecolor(self) -> Any:
         return self._axes.bars[self._group]["colors"][:1] or ["#1f77b4"]
 
-    def get_edgecolor(self):
+    def get_edgecolor(self) -> Any:
         edges = self._axes.bars[self._group].get("edgecolor")
         return edges[0] if edges and len(edges) == 1 else edges
 
-    def get_color(self):
+    def get_color(self) -> Any:
         return self.get_facecolor()[0]
 
-    def get_zorder(self): return 1
-    def set_zorder(self, zorder): return self
-    def set_agg_filter(self, value): return self
-    def set_rasterized(self, value): return self
+    def get_zorder(self) -> Any: return 1
+    def set_zorder(self, zorder: Any) -> Any: return self
+    def set_agg_filter(self, value: Any) -> Any: return self
+    def set_rasterized(self, value: Any) -> Any: return self
 
-    def set_x(self, x):
+    def set_x(self, x: Any) -> Any:
         self._axes.bars[self._group]["left"][self._index] = float(x)
         return self
 
-    def set_y(self, y):
+    def set_y(self, y: Any) -> Any:
         self._axes.bars[self._group]["bottom"][self._index] = float(y)
         return self
 
-    def set_width(self, w):
+    def set_width(self, w: Any) -> Any:
         self._axes.bars[self._group]["width"][self._index] = float(w)
         return self
 
-    def set_height(self, h):
+    def set_height(self, h: Any) -> Any:
         self._axes.bars[self._group]["height"][self._index] = float(h)
         return self
 
-    def set_facecolor(self, c):
+    def set_facecolor(self, c: Any) -> Any:
         self._set("colors", [c if isinstance(c, str) else _norm_color(c)])
         return self
 
-    def set_color(self, c):
+    def set_color(self, c: Any) -> Any:
         return self.set_facecolor(c)
 
-    def set_edgecolor(self, c):
+    def set_edgecolor(self, c: Any) -> Any:
         group = self._axes.bars[self._group]
         count = len(group["left"])
         current = group.get("edgecolor")
@@ -177,17 +177,17 @@ class _BarHandle:
         group["edgecolor"] = current
         return self
 
-    def set_alpha(self, a):
+    def set_alpha(self, a: Any) -> Any:
         self._set("alpha", float(a))
         return self
 
-    def set_hatch(self, hatch):
+    def set_hatch(self, hatch: Any) -> Any:
         # Keep hatch styling on the handle; the Rust panel record has no bar
         # hatch field, and adding one would make panel extraction reject it.
         self._hatch = hatch
         return self
 
-    def remove(self):
+    def remove(self) -> Any:
         self._axes.bars[self._group]["height"][self._index] = 0.0
         self._axes.bars[self._group]["width"][self._index] = 0.0
 
@@ -195,22 +195,22 @@ class _BarHandle:
 class _LineGroupHandle(list[Any]):
     """A group of line handles that applies a setter to every member."""
 
-    def set_linewidth(self, width):
+    def set_linewidth(self, width: Any) -> Any:
         for handle in self:
             handle.set_linewidth(width)
         return self
 
-    def set_color(self, color):
+    def set_color(self, color: Any) -> Any:
         for handle in self:
             handle.set_color(color)
         return self
 
-    def set_linestyle(self, linestyle):
+    def set_linestyle(self, linestyle: Any) -> Any:
         for handle in self:
             handle.set_linestyle(linestyle)
         return self
 
-    def set_visible(self, visible): return self
+    def set_visible(self, visible: Any) -> Any: return self
 
 
 class _StemContainer:
@@ -219,7 +219,7 @@ class _StemContainer:
     def __init__(self, markerline: Any, stemlines: Any, baseline: Any) -> None:
         self.markerline, self.stemlines, self.baseline = markerline, stemlines, baseline
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         return iter((self.markerline, self.stemlines, self.baseline))
 
 
@@ -234,11 +234,11 @@ class _BarContainer(list[object]):
         super().__init__(handles)
         self.label = label
 
-    def get_label(self): return str(self.label)
-    def set_label(self, label): self.label = str(label)
+    def get_label(self) -> Any: return str(self.label)
+    def set_label(self, label: Any) -> Any: self.label = str(label)
 
     @property
-    def patches(self):
+    def patches(self) -> Any:
         return list(self)
 
 
@@ -255,12 +255,12 @@ class _QuiverHandle:
 
     def __init__(self, entry: Any) -> None: self._e = entry
 
-    def get_offsets(self):
+    def get_offsets(self) -> Any:
         return np.column_stack([self._e["x"], self._e["y"]])
 
-    def get_U(self): return self._e["u"]
-    def get_V(self): return self._e["v"]
-    def get_facecolor(self): return list(self._e["colors"])
+    def get_U(self) -> Any: return self._e["u"]
+    def get_V(self) -> Any: return self._e["v"]
+    def get_facecolor(self) -> Any: return list(self._e["colors"])
 
 
 class _ScatterHandle:
@@ -270,16 +270,16 @@ class _ScatterHandle:
         self._e = entry
         self.axes = axes
 
-    def get_offsets(self):
+    def get_offsets(self) -> Any:
         return np.column_stack([self._e["x"], self._e["y"]])
 
-    def get_sizes(self): return self._e["sizes"]
+    def get_sizes(self) -> Any: return self._e["sizes"]
 
-    def set_sizes(self, sizes):
+    def set_sizes(self, sizes: Any) -> Any:
         self._e["sizes"] = np.ascontiguousarray(_as_f64(sizes))
         return self
 
-    def set_markerfacecolor(self, color):
+    def set_markerfacecolor(self, color: Any) -> Any:
         self._e["colors"] = [_norm_color(color)]
         return self
 
@@ -288,21 +288,21 @@ class _ScatterHandle:
     set_markeredgecolor = _noop_method(
         "set_markeredgecolor", 'self, color', warn='PathCollection.set_markeredgecolor', returns_self=True)
 
-    def set_markersize(self, size):
+    def set_markersize(self, size: Any) -> Any:
         self._e["sizes"] = np.full(np.asarray(self._e["x"]).size, float(size) ** 2)
         return self
 
-    def set_alpha(self, alpha):
+    def set_alpha(self, alpha: Any) -> Any:
         self._e["alpha"] = float(alpha)
         return self
 
     @property
-    def cmap(self): return get_cmap(self._e["cmap"])
+    def cmap(self) -> Any: return get_cmap(self._e["cmap"])
 
-    def set_urls(self, urls): self._urls = list(urls)
-    def get_urls(self): return getattr(self, "_urls", None)
+    def set_urls(self, urls: Any) -> Any: self._urls = list(urls)
+    def get_urls(self) -> Any: return getattr(self, "_urls", None)
 
-    def legend_elements(self, prop="colors", num="auto", alpha=None, **kwargs):
+    def legend_elements(self, prop: Any = "colors", num: Any = "auto", alpha: Any = None, **kwargs: Any) -> Any:
         """Proxy handles and labels for a numeric color or size scale."""
         values = self._e["values"] if prop == "colors" else self._e["sizes"]
         if values is None:
@@ -315,19 +315,19 @@ class _ScatterHandle:
         picks = vals[np.linspace(0, vals.size - 1, count).astype(int)]
         return [self] * picks.size, [f"{value:g}" for value in picks]
 
-    def get_array(self): return self._e["values"]
-    def get_cmap(self): return self._e["cmap"]
+    def get_array(self) -> Any: return self._e["values"]
+    def get_cmap(self) -> Any: return self._e["cmap"]
 
-    def get_clim(self):
+    def get_clim(self) -> Any:
         clim = self._e["clim"]
         return tuple(clim) if clim is not None else (None, None)
 
-    def set_clim(self, vmin=None, vmax=None):
+    def set_clim(self, vmin: Any = None, vmax: Any = None) -> Any:
         if vmin is not None or vmax is not None:
             self._e["clim"] = (vmin, vmax)
         return self
 
-    def _colorbar_spec(self):
+    def _colorbar_spec(self) -> Any:
         values = self._e["values"]
         if values is None:
             raise ValueError("scatter needs numeric c values for a colorbar")
@@ -354,14 +354,14 @@ class _HexbinHandle:
         self._colors = list(colors)
         self._cmap = cmap
 
-    def get_array(self): return self._values
-    def get_offsets(self): return self._offsets
-    def get_facecolor(self): return list(self._colors)
-    def get_cmap(self): return self._cmap
+    def get_array(self) -> Any: return self._values
+    def get_offsets(self) -> Any: return self._offsets
+    def get_facecolor(self) -> Any: return list(self._colors)
+    def get_cmap(self) -> Any: return self._cmap
 
     set_clim = _noop_method("set_clim", 'self, vmin=None, vmax=None')
 
-    def _colorbar_spec(self):
+    def _colorbar_spec(self) -> Any:
         vals = self._values[np.isfinite(self._values)]
         lo = float(vals.min()) if vals.size else 0.0
         hi = float(vals.max()) if vals.size else 1.0
@@ -375,16 +375,16 @@ class _ViolinBody:
         self._e = entry
         self._facecolor = facecolor
 
-    def get_facecolor(self): return self._facecolor or self._e["color"]
+    def get_facecolor(self) -> Any: return self._facecolor or self._e["color"]
 
-    def set_facecolor(self, color):
+    def set_facecolor(self, color: Any) -> Any:
         self._facecolor = _norm_color(color)
         self._e["color"] = self._facecolor
         return self
 
-    def get_alpha(self): return self._e["alpha"]
+    def get_alpha(self) -> Any: return self._e["alpha"]
 
-    def set_alpha(self, alpha):
+    def set_alpha(self, alpha: Any) -> Any:
         self._e["alpha"] = None if alpha is None else float(alpha)
         return self
 
@@ -394,48 +394,48 @@ class _ViolinBody:
     set_linewidth = _noop_method(
         "set_linewidth", 'self, width', warn='ViolinBody.set_linewidth', returns_self=True)
 
-    def get_paths(self): return [self._e]
+    def get_paths(self) -> Any: return [self._e]
 
 
 class _GridLine:
     """One axis gridline handle, backed by the axes' grid state."""
 
-    def __init__(self, axes, axis, which):
+    def __init__(self, axes: Any, axis: Any, which: Any) -> None:
         self.axes = axes
         self._axis = axis
         self._which = which
 
-    def _prefix(self):
+    def _prefix(self) -> Any:
         return "grid_" if self._which == "major" else "grid_minor_"
 
-    def _visible_attr(self):
+    def _visible_attr(self) -> Any:
         return "show_grid" if self._which == "major" else "grid_minor_show"
 
-    def get_visible(self):
+    def get_visible(self) -> Any:
         return bool(getattr(self.axes, self._visible_attr(), False))
 
-    def set_visible(self, visible):
+    def set_visible(self, visible: Any) -> Any:
         setattr(self.axes, self._visible_attr(), bool(visible))
         return self
 
-    def get_color(self):
+    def get_color(self) -> Any:
         return getattr(self.axes, f"{self._prefix()}color", None)
 
-    def set_color(self, color):
+    def set_color(self, color: Any) -> Any:
         setattr(self.axes, f"{self._prefix()}color", _norm_color(color))
         return self
 
-    def get_linewidth(self):
+    def get_linewidth(self) -> Any:
         return getattr(self.axes, f"{self._prefix()}linewidth", None)
 
-    def set_linewidth(self, width):
+    def set_linewidth(self, width: Any) -> Any:
         setattr(self.axes, f"{self._prefix()}linewidth", float(width))
         return self
 
-    def get_alpha(self):
+    def get_alpha(self) -> Any:
         return getattr(self.axes, f"{self._prefix()}alpha", None)
 
-    def set_alpha(self, alpha):
+    def set_alpha(self, alpha: Any) -> Any:
         setattr(self.axes, f"{self._prefix()}alpha",
                 None if alpha is None else float(alpha))
         return self
@@ -448,80 +448,80 @@ class _LineHandle:
         self._e = entry
         self._facecolor = facecolor
 
-    def get_xdata(self): return self._e["x"]
-    def get_ydata(self): return self._e["y"]
-    def get_color(self): return self._e["color"]
+    def get_xdata(self) -> Any: return self._e["x"]
+    def get_ydata(self) -> Any: return self._e["y"]
+    def get_color(self) -> Any: return self._e["color"]
 
-    def set_color(self, color):
+    def set_color(self, color: Any) -> Any:
         self._e["color"] = _norm_color(color)
         return self
 
-    def get_facecolor(self): return self._facecolor
+    def get_facecolor(self) -> Any: return self._facecolor
 
-    def set_facecolor(self, color):
+    def set_facecolor(self, color: Any) -> Any:
         self._facecolor = _norm_color(color)
         return self
 
-    def get_linewidth(self): return self._e["linewidth"]
+    def get_linewidth(self) -> Any: return self._e["linewidth"]
 
-    def set_linewidth(self, width):
+    def set_linewidth(self, width: Any) -> Any:
         self._e["linewidth"] = float(width)
         return self
 
-    def get_linestyle(self): return self._e["linestyle"]
+    def get_linestyle(self) -> Any: return self._e["linestyle"]
 
-    def set_linestyle(self, linestyle):
+    def set_linestyle(self, linestyle: Any) -> Any:
         self._e["linestyle"] = str(linestyle)
         return self
 
-    def get_label(self): return self._e["label"]
+    def get_label(self) -> Any: return self._e["label"]
 
-    def set_label(self, label):
+    def set_label(self, label: Any) -> Any:
         self._e["label"] = str(label)
         return self
 
-    def set_marker(self, marker):
+    def set_marker(self, marker: Any) -> Any:
         self._e["marker"] = str(marker)
         return self
 
-    def set_markersize(self, size):
+    def set_markersize(self, size: Any) -> Any:
         self._e["markersize"] = float(size)
         return self
 
-    def set_markerfacecolor(self, color):
+    def set_markerfacecolor(self, color: Any) -> Any:
         self._e["mfc"] = _norm_color(color)
         return self
 
-    def set_markeredgecolor(self, color):
+    def set_markeredgecolor(self, color: Any) -> Any:
         self._e["mec"] = _norm_color(color)
         return self
 
-    def set_markeredgewidth(self, width):
+    def set_markeredgewidth(self, width: Any) -> Any:
         self._e["mew"] = float(width)
         return self
 
-    def set_alpha(self, alpha):
+    def set_alpha(self, alpha: Any) -> Any:
         self._e["alpha"] = None if alpha is None else float(alpha)
         return self
 
-    def set_drawstyle(self, drawstyle):
+    def set_drawstyle(self, drawstyle: Any) -> Any:
         self._e["drawstyle"] = str(drawstyle)
         return self
 
-    def set_gid(self, gid):
+    def set_gid(self, gid: Any) -> Any:
         self._e["gid"] = "" if gid is None else str(gid)
         return self
 
-    def get_gid(self): return self._e.get("gid", "")
-    def set_zorder(self, zorder): self._e["zorder"] = int(zorder); return self
-    def get_zorder(self): return self._e.get("zorder", 2)
-    def set_visible(self, visible): return self
-    def set_path_effects(self, effects): return self
-    def set_rasterized(self, value): return self
-    def set_clip_on(self, value): return self
+    def get_gid(self) -> Any: return self._e.get("gid", "")
+    def set_zorder(self, zorder: Any) -> Any: self._e["zorder"] = int(zorder); return self
+    def get_zorder(self) -> Any: return self._e.get("zorder", 2)
+    def set_visible(self, visible: Any) -> Any: return self
+    def set_path_effects(self, effects: Any) -> Any: return self
+    def set_rasterized(self, value: Any) -> Any: return self
+    def set_clip_on(self, value: Any) -> Any: return self
 
 
-def _call(obj, name):
+def _call(obj: Any, name: Any) -> Any:
     """Call an optional getter, treating broken or missing members as absent."""
     fn = getattr(obj, name, None)
     if fn is None:
@@ -599,7 +599,7 @@ def _family_override(kwargs: dict[str, Any]) -> Optional[str]:
     return None if value is None else _font_family(value)
 
 
-def _numbers(value):
+def _numbers(value: Any) -> Any:
     if value is None:
         return []
     if isinstance(value, (int, float, np.number)):
@@ -632,7 +632,7 @@ def _single_color(value: Any, fallback: Any = None) -> Any:
         return fallback
 
 
-def _color_list(value):
+def _color_list(value: Any) -> Any:
     """Normalise a colour, a list of colours or an Nx4 colour array."""
     if value is None:
         return []
@@ -651,7 +651,9 @@ def _color_list(value):
 
 
 class _StickyEdges:
-    def __init__(self): self.x, self.y = [], []
+    def __init__(self) -> None:
+        self.x: list[Any] = []
+        self.y: list[Any] = []
 
 
 # Bound by `_plotting` once every module is imported: importing

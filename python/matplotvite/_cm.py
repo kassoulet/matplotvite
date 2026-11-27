@@ -105,7 +105,7 @@ class _ListedColormap:
         self._over = _norm_color(over) if over is not None else None
 
     @classmethod
-    def from_list(cls, name: Any, colors: Any, N: Any = 256) -> Any:
+    def from_list(cls: Any, name: Any, colors: Any, N: Any = 256) -> Any:
         if len(colors) and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
             colors = [c for _, c in colors]
         return cls(colors, name)
@@ -186,7 +186,7 @@ class _LinearSegmentedColormap(_ListedColormap):
         super().__init__(colors, name)
 
     @classmethod
-    def from_list(cls, name: Any, colors: Any, N: Any = 256) -> Any:
+    def from_list(cls: Any, name: Any, colors: Any, N: Any = 256) -> Any:
         """Resample a list of colours (or value/colour pairs) into `N` steps."""
         if len(colors) and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
             colors = [c for _, c in colors]

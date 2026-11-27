@@ -30,7 +30,7 @@ from ._helpers import (
 class Patch:
     """Base class for matplotlib-style patches accepted by `add_patch`."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         self.sticky_edges = _StickyEdges()
         fill = kwargs.pop("fill", True)
         color = kwargs.pop("color", None)
@@ -50,28 +50,28 @@ class Patch:
         self._gid = str(kwargs.pop("gid", "") or "")
         self._kwargs = kwargs
 
-    def get_facecolor(self):
+    def get_facecolor(self) -> Any:
         return "none" if not self._fill or self._facecolor is None else _norm_color(self._facecolor)
 
-    def get_edgecolor(self):
+    def get_edgecolor(self) -> Any:
         return None if self._edgecolor is None else _norm_color(self._edgecolor)
 
-    def get_color(self): return self.get_facecolor()
-    def get_linewidth(self): return self._linewidth
-    def get_lw(self): return self._linewidth
-    def get_linestyle(self): return self._linestyle
-    def get_alpha(self): return self._alpha
-    def get_label(self): return self._label
-    def get_gid(self): return self._gid
-    def set_gid(self, gid):
+    def get_color(self) -> Any: return self.get_facecolor()
+    def get_linewidth(self) -> Any: return self._linewidth
+    def get_lw(self) -> Any: return self._linewidth
+    def get_linestyle(self) -> Any: return self._linestyle
+    def get_alpha(self) -> Any: return self._alpha
+    def get_label(self) -> Any: return self._label
+    def get_gid(self) -> Any: return self._gid
+    def set_gid(self, gid: Any) -> Any:
         self._gid = "" if gid is None else str(gid)
         return self
-    def get_visible(self): return self._visible
-    def get_zorder(self): return self._zorder
-    def get_fill(self): return self._fill
-    def get_hatch(self): return self._hatch
-    def get_transform(self): return self._transform or _Transform()
-    def get_path(self):
+    def get_visible(self) -> Any: return self._visible
+    def get_zorder(self) -> Any: return self._zorder
+    def get_fill(self) -> Any: return self._fill
+    def get_hatch(self) -> Any: return self._hatch
+    def get_transform(self) -> Any: return self._transform or _Transform()
+    def get_path(self) -> Any:
         if hasattr(self, "_path"):
             return self._path
         if hasattr(self, "_xy"):
@@ -81,56 +81,56 @@ class Patch:
             w, h = self._width, self._height  # type: ignore[attr-defined]
             return Path([(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)])
         return Path(np.empty((0, 2)))
-    def add_callback(self, func, *args, **kwargs): return 1
+    def add_callback(self, func: Any, *args: Any, **kwargs: Any) -> Any: return 1
     remove_callback = _noop_method("remove_callback", 'self, func')
-    def get_patch_transform(self): return self.get_transform()
+    def get_patch_transform(self) -> Any: return self.get_transform()
 
-    def set_facecolor(self, color):
+    def set_facecolor(self, color: Any) -> Any:
         self._facecolor = color
         self._fill = color is not None and str(color).lower() != "none"
         return self
 
-    def set_fc(self, color): return self.set_facecolor(color)
+    def set_fc(self, color: Any) -> Any: return self.set_facecolor(color)
 
-    def set_color(self, color):
+    def set_color(self, color: Any) -> Any:
         self._facecolor = color
         self._edgecolor = color
         self._fill = str(color).lower() != "none"
         return self
 
-    def set_edgecolor(self, color):
+    def set_edgecolor(self, color: Any) -> Any:
         self._edgecolor = color
         return self
 
-    def set_ec(self, color): return self.set_edgecolor(color)
+    def set_ec(self, color: Any) -> Any: return self.set_edgecolor(color)
 
-    def set_linewidth(self, width):
+    def set_linewidth(self, width: Any) -> Any:
         self._linewidth = float(width)
         return self
 
-    def set_lw(self, width): return self.set_linewidth(width)
+    def set_lw(self, width: Any) -> Any: return self.set_linewidth(width)
 
-    def set_linestyle(self, style):
+    def set_linestyle(self, style: Any) -> Any:
         self._linestyle = str(style)
         return self
 
-    def set_alpha(self, alpha):
+    def set_alpha(self, alpha: Any) -> Any:
         self._alpha = None if alpha is None else float(alpha)
         return self
 
-    def set_label(self, label):
+    def set_label(self, label: Any) -> Any:
         self._label = str(label)
         return self
 
-    def set_visible(self, visible):
+    def set_visible(self, visible: Any) -> Any:
         self._visible = bool(visible)
         return self
 
-    def set_zorder(self, zorder):
+    def set_zorder(self, zorder: Any) -> Any:
         self._zorder = int(zorder)
         return self
 
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         """Apply Matplotlib artist properties by name, as `patch.set(color=...)`."""
         setters = {
             "color": self.set_color,
@@ -157,11 +157,11 @@ class Patch:
                 setter(value)
         return self
 
-    def set_fill(self, fill):
+    def set_fill(self, fill: Any) -> Any:
         self._fill = bool(fill)
         return self
 
-    def set_hatch(self, hatch):
+    def set_hatch(self, hatch: Any) -> Any:
         self._hatch = hatch
         return self
 
@@ -175,9 +175,9 @@ class Patch:
         "set_clip_box", 'self, box', warn='Patch.set_clip_box')
     set_path_effects = _noop_method(
         "set_path_effects", 'self, effects', warn='Patch.set_path_effects')
-    def set_animated(self, value): self._animated = bool(value); return self
-    def get_animated(self): return getattr(self, "_animated", False)
-    def set_picker(self, value): self._picker = value; return self
+    def set_animated(self, value: Any) -> Any: self._animated = bool(value); return self
+    def get_animated(self) -> Any: return getattr(self, "_animated", False)
+    def set_picker(self, value: Any) -> Any: self._picker = value; return self
     set_antialiased = _noop_method("set_antialiased", 'self, value')
     set_antialiaseds = _noop_method("set_antialiaseds", 'self, value')
     set_joinstyle = _noop_method("set_joinstyle", 'self, value')
@@ -188,37 +188,37 @@ class Patch:
     set_sketch_params = _noop_method("set_sketch_params", 'self, *args, **kwargs')
     set_snap = _noop_method("set_snap", 'self, value')
     set_in_layout = _noop_method("set_in_layout", 'self, value')
-    def remove(self): self._visible = False
-    def get_window_extent(self, renderer=None): return _Bbox(0, 0, 1, 1)
-    def contains(self, mouseevent=None): return False, {}
+    def remove(self) -> Any: self._visible = False
+    def get_window_extent(self, renderer: Any = None) -> Any: return _Bbox(0, 0, 1, 1)
+    def contains(self, mouseevent: Any = None) -> Any: return False, {}
     draw = _noop_method("draw", 'self, renderer=None')
 
-    def __repr__(self):
+    def __repr__(self) -> Any:
         return f"<{type(self).__name__} at {hex(id(self))}>"
 
 
 class Rectangle(Patch):
     """Axis-aligned (or rotated) rectangle in data coordinates."""
 
-    def __init__(self, xy, width, height, angle=0.0, **kwargs):
+    def __init__(self, xy: Any, width: Any, height: Any, angle: Any = 0.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._x, self._y = float(xy[0]), float(xy[1])
         self._width, self._height = float(width), float(height)
         self.angle = float(angle)
 
-    def get_x(self): return self._x
-    def get_y(self): return self._y
-    def get_width(self): return self._width
-    def get_height(self): return self._height
-    def get_angle(self): return self.angle
-    def get_xy(self): return (self._x, self._y)
-    def set_x(self, x): self._x = float(x)
-    def set_y(self, y): self._y = float(y)
-    def set_width(self, width): self._width = float(width)
-    def set_height(self, height): self._height = float(height)
-    def set_angle(self, angle): self.angle = float(angle)
-    def set_xy(self, xy): self._x, self._y = float(xy[0]), float(xy[1])
-    def set_bounds(self, *args):
+    def get_x(self) -> Any: return self._x
+    def get_y(self) -> Any: return self._y
+    def get_width(self) -> Any: return self._width
+    def get_height(self) -> Any: return self._height
+    def get_angle(self) -> Any: return self.angle
+    def get_xy(self) -> Any: return (self._x, self._y)
+    def set_x(self, x: Any) -> Any: self._x = float(x)
+    def set_y(self, y: Any) -> Any: self._y = float(y)
+    def set_width(self, width: Any) -> Any: self._width = float(width)
+    def set_height(self, height: Any) -> Any: self._height = float(height)
+    def set_angle(self, angle: Any) -> Any: self.angle = float(angle)
+    def set_xy(self, xy: Any) -> Any: self._x, self._y = float(xy[0]), float(xy[1])
+    def set_bounds(self, *args: Any) -> Any:
         if len(args) == 1:
             x, y, width, height = args[0]
         elif len(args) == 4:
@@ -228,7 +228,7 @@ class Rectangle(Patch):
         self._x, self._y = float(x), float(y)
         self._width, self._height = float(width), float(height)
         return self
-    def get_bbox(self): return _Bbox(self._x, self._y, self._x + self._width, self._y + self._height)
+    def get_bbox(self) -> Any: return _Bbox(self._x, self._y, self._x + self._width, self._y + self._height)
 
 
 class Circle(Patch):
@@ -237,44 +237,44 @@ class Circle(Patch):
         self._center = (float(xy[0]), float(xy[1]))
         self._radius = float(radius)
 
-    def get_center(self): return self._center
-    def get_radius(self): return self._radius
-    def set_center(self, xy): self._center = (float(xy[0]), float(xy[1]))
-    def set_radius(self, radius): self._radius = float(radius)
+    def get_center(self) -> Any: return self._center
+    def get_radius(self) -> Any: return self._radius
+    def set_center(self, xy: Any) -> Any: self._center = (float(xy[0]), float(xy[1]))
+    def set_radius(self, radius: Any) -> Any: self._radius = float(radius)
 
     @property
-    def center(self): return self._center
+    def center(self) -> Any: return self._center
 
     @center.setter
-    def center(self, value): self.set_center(value)
+    def center(self, value: Any) -> Any: self.set_center(value)
 
 
 class CirclePolygon(Circle):
     """Circle-compatible polygon used by Matplotlib's patch examples."""
 
-    def __init__(self, xy, radius=5, resolution=20, **kwargs):
+    def __init__(self, xy: Any, radius: Any = 5, resolution: Any = 20, **kwargs: Any) -> None:
         super().__init__(xy, radius=radius, **kwargs)
         self.resolution = int(resolution)
 
 
 class Ellipse(Patch):
-    def __init__(self, xy, width, height, angle=0.0, **kwargs):
+    def __init__(self, xy: Any, width: Any, height: Any, angle: Any = 0.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._center = (float(_as_f64(xy[0])[0]), float(_as_f64(xy[1])[0]))
         self._width = float(_as_f64(width)[0])
         self._height = float(_as_f64(height)[0])
         self.angle = float(angle)
 
-    def get_center(self): return self._center
-    def get_width(self): return self._width
-    def get_height(self): return self._height
-    def get_angle(self): return self.angle
-    def set_center(self, xy): self._center = (float(xy[0]), float(xy[1]))
-    def set_width(self, width): self._width = float(width)
-    def set_height(self, height): self._height = float(height)
-    def set_angle(self, angle): self.angle = float(angle)
+    def get_center(self) -> Any: return self._center
+    def get_width(self) -> Any: return self._width
+    def get_height(self) -> Any: return self._height
+    def get_angle(self) -> Any: return self.angle
+    def set_center(self, xy: Any) -> Any: self._center = (float(xy[0]), float(xy[1]))
+    def set_width(self, width: Any) -> Any: self._width = float(width)
+    def set_height(self, height: Any) -> Any: self._height = float(height)
+    def set_angle(self, angle: Any) -> Any: self.angle = float(angle)
 
-    def get_co_vertices(self):
+    def get_co_vertices(self) -> Any:
         """The two rotated minor-axis endpoints, as Matplotlib exposes them."""
         a = np.deg2rad(self.angle)
         dx = 0.5 * self._width * np.cos(a)
@@ -282,7 +282,7 @@ class Ellipse(Patch):
         return [(self._center[0] - dx, self._center[1] - dy),
                 (self._center[0] + dx, self._center[1] + dy)]
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         t = np.linspace(0.0, 2.0 * np.pi, 73)
         x = 0.5 * self._width * np.cos(t)
         y = 0.5 * self._height * np.sin(t)
@@ -299,20 +299,20 @@ class Polygon(Patch):
         self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
         self._closed = bool(closed)
 
-    def get_xy(self): return self._xy
-    def get_closed(self): return self._closed
-    def set_xy(self, xy): self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
-    def set_closed(self, closed): self._closed = bool(closed)
+    def get_xy(self) -> Any: return self._xy
+    def get_closed(self) -> Any: return self._closed
+    def set_xy(self, xy: Any) -> Any: self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
+    def set_closed(self, closed: Any) -> Any: self._closed = bool(closed)
 
     @property
-    def xy(self): return self._xy
+    def xy(self) -> Any: return self._xy
 
     @xy.setter
-    def xy(self, value): self.set_xy(value)
+    def xy(self, value: Any) -> Any: self.set_xy(value)
 
 
 class Arc(Patch):
-    def __init__(self, xy, width, height, angle=0.0, theta1=0.0, theta2=360.0, **kwargs):
+    def __init__(self, xy: Any, width: Any, height: Any, angle: Any = 0.0, theta1: Any = 0.0, theta2: Any = 360.0, **kwargs: Any) -> None:
         kwargs.setdefault("fill", False)
         kwargs.setdefault("facecolor", "none")
         super().__init__(**kwargs)
@@ -322,14 +322,14 @@ class Arc(Patch):
         self.angle = float(angle)
         self.theta1, self.theta2 = float(theta1), float(theta2)
 
-    def get_center(self): return self._center
-    def get_width(self): return self._width
-    def get_height(self): return self._height
-    def get_angle(self): return self.angle
-    def get_theta1(self): return self.theta1
-    def get_theta2(self): return self.theta2
+    def get_center(self) -> Any: return self._center
+    def get_width(self) -> Any: return self._width
+    def get_height(self) -> Any: return self._height
+    def get_angle(self) -> Any: return self.angle
+    def get_theta1(self) -> Any: return self.theta1
+    def get_theta2(self) -> Any: return self.theta2
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         t = np.deg2rad(np.linspace(self.theta1, self.theta2, 73))
         x = 0.5 * self._width * np.cos(t)
         y = 0.5 * self._height * np.sin(t)
@@ -341,19 +341,19 @@ class Arc(Patch):
 
 
 class Wedge(Patch):
-    def __init__(self, center, r, theta1, theta2, width=None, **kwargs):
+    def __init__(self, center: Any, r: Any, theta1: Any, theta2: Any, width: Any = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._center = (float(center[0]), float(center[1]))
         self._r = float(r)
         self.theta1, self.theta2 = float(theta1), float(theta2)
         self._width = None if width is None else float(width)
 
-    def get_center(self): return self._center
-    def get_radius(self): return self._r
-    def get_theta1(self): return self.theta1
-    def get_theta2(self): return self.theta2
+    def get_center(self) -> Any: return self._center
+    def get_radius(self) -> Any: return self._r
+    def get_theta1(self) -> Any: return self.theta1
+    def get_theta2(self) -> Any: return self.theta2
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         t = np.deg2rad(np.linspace(self.theta1, self.theta2, 49))
         outer = np.column_stack([
             self._center[0] + self._r * np.cos(t),
@@ -369,18 +369,18 @@ class Wedge(Patch):
 
 
 class RegularPolygon(Patch):
-    def __init__(self, xy, numVertices, radius=5, orientation=0, **kwargs):
+    def __init__(self, xy: Any, numVertices: Any, radius: Any = 5, orientation: Any = 0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._center = (float(xy[0]), float(xy[1]))
         self.numvertices = int(numVertices)
         self._radius = float(radius)
         self.orientation = float(orientation)
 
-    def get_center(self): return self._center
-    def get_radius(self): return self._radius
-    def get_numvertices(self): return self.numvertices
+    def get_center(self) -> Any: return self._center
+    def get_radius(self) -> Any: return self._radius
+    def get_numvertices(self) -> Any: return self.numvertices
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         t = (np.arange(self.numvertices) / self.numvertices * 2.0 * np.pi
              + np.deg2rad(self.orientation))
         return np.column_stack([
@@ -399,7 +399,7 @@ class FancyArrow(Patch):
         self.head_width = float(head_width if head_width is not None else 3.0 * width)
         self.head_length = float(head_length if head_length is not None else 3.0 * width)
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         x0, y0, dx, dy = self.x, self.y, self.dx, self.dy
         length = _math.hypot(dx, dy)
         if length == 0.0:
@@ -421,13 +421,13 @@ class FancyArrow(Patch):
 
 
 class FancyArrowPatch(Patch):
-    def __init__(self, posA=None, posB=None, arrowstyle="-", mutation_scale=1.0, **kwargs):
+    def __init__(self, posA: Any = None, posB: Any = None, arrowstyle: Any = "-", mutation_scale: Any = 1.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.posA, self.posB = posA, posB
         self.arrowstyle = arrowstyle
         self.mutation_scale = float(mutation_scale)
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         if self.posA is None or self.posB is None:
             return np.empty((0, 2))
         a = np.asarray(self.posA, dtype=float)
@@ -439,76 +439,76 @@ class FancyArrowPatch(Patch):
                           head_width=self.mutation_scale * 0.02,
                           head_length=self.mutation_scale * 0.02).get_xy()
 
-    def set_positions(self, posA, posB):
+    def set_positions(self, posA: Any, posB: Any) -> Any:
         self.posA, self.posB = posA, posB
 
 
 class FancyBboxPatch(Patch):
-    def __init__(self, xy, width, height, boxstyle="round", mutation_scale=1.0, **kwargs):
+    def __init__(self, xy: Any, width: Any, height: Any, boxstyle: Any = "round", mutation_scale: Any = 1.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._x, self._y = float(xy[0]), float(xy[1])
         self._width, self._height = float(width), float(height)
         self.boxstyle = boxstyle
         self.mutation_scale = float(mutation_scale)
 
-    def get_x(self): return self._x
-    def get_y(self): return self._y
-    def get_width(self): return self._width
-    def get_height(self): return self._height
-    def get_xy(self): return (self._x, self._y)
-    def set_bounds(self, x, y, width, height):
+    def get_x(self) -> Any: return self._x
+    def get_y(self) -> Any: return self._y
+    def get_width(self) -> Any: return self._width
+    def get_height(self) -> Any: return self._height
+    def get_xy(self) -> Any: return (self._x, self._y)
+    def set_bounds(self, x: Any, y: Any, width: Any, height: Any) -> Any:
         self._x, self._y = float(x), float(y)
         self._width, self._height = float(width), float(height)
 
-    def set_boxstyle(self, boxstyle=None, **kwargs):
+    def set_boxstyle(self, boxstyle: Any = None, **kwargs: Any) -> Any:
         self.boxstyle = boxstyle or self.boxstyle
         return self
 
 
 class PathPatch(Patch):
-    def __init__(self, path, **kwargs):
+    def __init__(self, path: Any, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._path = path
 
-    def get_path(self): return self._path
+    def get_path(self) -> Any: return self._path
     set_path = _state_setter(
         "_path", 'path', 'path')
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         vertices = getattr(self._path, "vertices", None)
         return np.empty((0, 2)) if vertices is None else np.asarray(vertices, dtype=float)
 
 
 class Annulus(Patch):
-    def __init__(self, xy, r, width, angle=0.0, **kwargs):
+    def __init__(self, xy: Any, r: Any, width: Any, angle: Any = 0.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._center = (float(xy[0]), float(xy[1]))
         self._r = max(float(v) for v in _as_f64(r))
-        self._semiminor = None
+        self._semiminor: Any = None
         self._width = max(float(v) for v in _as_f64(width))
         self.angle = float(angle)
 
     @property
-    def center(self): return self._center
+    def center(self) -> Any: return self._center
 
     @center.setter
-    def center(self, value): self._center = (float(value[0]), float(value[1]))
+    def center(self, value: Any) -> Any: self._center = (float(value[0]), float(value[1]))
 
     @property
-    def width(self): return self._width
+    def width(self) -> Any: return self._width
 
     @width.setter
-    def width(self, value): self._width = float(value)
+    def width(self, value: Any) -> Any: self._width = float(value)
 
-    def set_semimajor(self, value):
+    def set_semimajor(self, value: Any) -> Any:
         self._r = float(value)
         return self
 
-    def set_semiminor(self, value):
+    def set_semiminor(self, value: Any) -> Any:
         self._semiminor = float(value)
         return self
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         t = np.linspace(0.0, 2.0 * np.pi, 97)
         ry = self._r if self._semiminor is None else self._semiminor
         outer = np.column_stack([self._center[0] + self._r * np.cos(t),
@@ -521,7 +521,7 @@ class Annulus(Patch):
 class StepPatch(Patch):
     """Filled step outline from bin values and edges."""
 
-    def __init__(self, values, edges, orientation="vertical", baseline=0.0, **kwargs):
+    def __init__(self, values: Any, edges: Any, orientation: Any = "vertical", baseline: Any = 0.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._values = _as_f64(values)
         self._edges = _as_f64(edges)
@@ -529,7 +529,7 @@ class StepPatch(Patch):
             raise ValueError("edges must have len(values) + 1 entries")
         self._orientation, self._baseline = str(orientation), float(baseline)
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         points = [(self._edges[0], self._baseline)]
         for index, value in enumerate(self._values):
             points.extend([(self._edges[index], value),
@@ -558,17 +558,17 @@ for _patch_name in ("Patch", "Rectangle", "Circle", "CirclePolygon", "Ellipse", 
 
 
 class _FlexibleStyleNamespace:
-    def __call__(self, name="", **kwargs):
+    def __call__(self, name: Any = "", **kwargs: Any) -> Any:
         """`BoxStyle("Round", pad=...)` returns an inert style object."""
         return self.__getattr__(str(name) or "Style")(**kwargs)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: Any) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
         _ignored(f"patches.{name}")
         return type(name, (), {"__init__": lambda self, *args, **kwargs: None})
 
-    def get_styles(self):
+    def get_styles(self) -> Any:
         return {name: type(name, (), {"__init__": lambda self, *args, **kwargs: None})
                 for name in ("circle", "darrow", "larrow", "rarrow", "round",
                              "round4", "roundtooth", "sawtooth", "square")}
@@ -579,7 +579,7 @@ patches.BoxStyle = _FlexibleStyleNamespace()
 patches.ConnectionStyle = _FlexibleStyleNamespace()
 
 
-def _patch_entry(artist):
+def _patch_entry(artist: Any) -> Any:
     """Reduce a Rectangle/Circle/Polygon-like object, or return None."""
     kind = None
     x = y = w = h = 0.0
@@ -635,7 +635,7 @@ def _patch_entry(artist):
                 label=str(_call(artist, "get_label") or ""))
 
 
-def _collection_entry(artist):
+def _collection_entry(artist: Any) -> Any:
     """Reduce a scatter/line collection, or return None."""
     points, segments = [], []
     offsets = _call(artist, "get_offsets")
@@ -697,34 +697,34 @@ class Collection:
         self._cmap = kwargs.get("cmap")
         self._clim: Any = None
 
-    def get_facecolor(self): return self._facecolor
-    def get_edgecolor(self): return self._edgecolor
-    def get_colors(self): return self._colors
-    def get_alpha(self): return self._alpha
-    def get_linewidth(self):
+    def get_facecolor(self) -> Any: return self._facecolor
+    def get_edgecolor(self) -> Any: return self._edgecolor
+    def get_colors(self) -> Any: return self._colors
+    def get_alpha(self) -> Any: return self._alpha
+    def get_linewidth(self) -> Any:
         return float(np.asarray(self._linewidth).ravel()[0]) if self._linewidth is not None else 1.5
-    def get_label(self): return self._label
-    def get_zorder(self): return self._zorder
-    def get_visible(self): return self._visible
-    def set_color(self, color):
+    def get_label(self) -> Any: return self._label
+    def get_zorder(self) -> Any: return self._zorder
+    def get_visible(self) -> Any: return self._visible
+    def set_color(self, color: Any) -> Any:
         self._colors = color
         self._facecolor = color
         return self
-    def set_facecolor(self, color): self._facecolor = color; return self
-    def set_edgecolor(self, color): self._edgecolor = color; return self
-    def set_alpha(self, alpha): self._alpha = alpha; return self
-    def set_linewidth(self, width): self._linewidth = width; return self
-    def set_linewidths(self, width): self._linewidth = width; return self
-    def set_label(self, label): self._label = str(label); return self
-    def set_zorder(self, zorder): self._zorder = zorder; return self
-    def set_visible(self, visible): self._visible = bool(visible); return self
-    def get_array(self): return self._array
-    def set_array(self, values): self._array = values; return self
-    def set_clim(self, vmin=None, vmax=None):
+    def set_facecolor(self, color: Any) -> Any: self._facecolor = color; return self
+    def set_edgecolor(self, color: Any) -> Any: self._edgecolor = color; return self
+    def set_alpha(self, alpha: Any) -> Any: self._alpha = alpha; return self
+    def set_linewidth(self, width: Any) -> Any: self._linewidth = width; return self
+    def set_linewidths(self, width: Any) -> Any: self._linewidth = width; return self
+    def set_label(self, label: Any) -> Any: self._label = str(label); return self
+    def set_zorder(self, zorder: Any) -> Any: self._zorder = zorder; return self
+    def set_visible(self, visible: Any) -> Any: self._visible = bool(visible); return self
+    def get_array(self) -> Any: return self._array
+    def set_array(self, values: Any) -> Any: self._array = values; return self
+    def set_clim(self, vmin: Any = None, vmax: Any = None) -> Any:
         if vmin is not None or vmax is not None:
             self._clim = (vmin, vmax)
         return self
-    def _colorbar_spec(self):
+    def _colorbar_spec(self) -> Any:
         values = self._array
         if values is None:
             raise ValueError("collection needs an array for a colorbar")
@@ -740,9 +740,9 @@ class Collection:
         return dict(cmap=getattr(self, "_cmap", None)
                     or rcParams.get("image.cmap", "viridis"),
                     vmin=lo, vmax=hi)
-    def set_norm(self, norm): return self
-    def set_cmap(self, cmap): return self
-    def set_sizes(self, sizes): return self
+    def set_norm(self, norm: Any) -> Any: return self
+    def set_cmap(self, cmap: Any) -> Any: return self
+    def set_sizes(self, sizes: Any) -> Any: return self
     set_capstyle = _noop_method(
         "set_capstyle", 'self, value', warn='Collection.set_capstyle', returns_self=True)
     set_joinstyle = _noop_method(
@@ -753,8 +753,8 @@ class Collection:
         "set_clip_on", 'self, value', warn='Collection.set_clip_on')
     set_clip_path = _noop_method(
         "set_clip_path", 'self, *args, **kwargs', warn='Collection.set_clip_path')
-    def set_offset_transform(self, value): return self
-    def set_transform(self, value): return self
+    def set_offset_transform(self, value: Any) -> Any: return self
+    def set_transform(self, value: Any) -> Any: return self
 
 
 class LineCollection(Collection):
@@ -772,22 +772,22 @@ class LineCollection(Collection):
         super().__init__(colors=colors, linewidths=linewidths, label=label, **kwargs)
         self._segments = [np.asarray(seg, dtype=float).reshape(-1, 2) for seg in segments]
 
-    def get_segments(self): return self._segments
-    def set_segments(self, segments):
+    def get_segments(self) -> Any: return self._segments
+    def set_segments(self, segments: Any) -> Any:
         self._segments = [np.asarray(seg, dtype=float).reshape(-1, 2) for seg in segments]
         return self
     get_offsets = _noop_method("get_offsets", 'self')
 
 
 class PolyCollection(LineCollection):
-    def __init__(self, verts, colors=None, **kwargs):
+    def __init__(self, verts: Any, colors: Any = None, **kwargs: Any) -> None:
         loops = []
         for vert in verts:
             points = np.asarray(vert, dtype=float).reshape(-1, 2)
             loops.append(np.vstack([points, points[:1]]) if len(points) else points)
         super().__init__(loops, colors=colors, **kwargs)
 
-    def set_verts(self, verts, closed=True):
+    def set_verts(self, verts: Any, closed: Any = True) -> Any:
         self._segments = [np.vstack([np.asarray(v, dtype=float).reshape(-1, 2),
                                       np.asarray(v, dtype=float).reshape(-1, 2)[:1]])
                           for v in verts]
@@ -795,7 +795,7 @@ class PolyCollection(LineCollection):
 
 
 class PathCollection(LineCollection):
-    def __init__(self, paths, sizes=None, offsets=None, **kwargs):
+    def __init__(self, paths: Any, sizes: Any = None, offsets: Any = None, **kwargs: Any) -> None:
         self._paths = list(paths)
         self._sizes = sizes
         self._offsets = offsets
@@ -805,13 +805,13 @@ class PathCollection(LineCollection):
             segments.append(np.vstack([points, points[:1]]) if len(points) else points)
         super().__init__(segments, **kwargs)
 
-    def set_paths(self, paths):
+    def set_paths(self, paths: Any) -> Any:
         self._paths = list(paths)
         return self
 
 
 class RegularPolyCollection(LineCollection):
-    def __init__(self, numVertices, sizes=None, offsets=None, offset_transform=None, **kwargs):
+    def __init__(self, numVertices: Any, sizes: Any = None, offsets: Any = None, offset_transform: Any = None, **kwargs: Any) -> None:
         n = max(int(numVertices), 3)
         angles = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False) + np.pi / 2.0
         base = np.column_stack([np.cos(angles), np.sin(angles)])
@@ -829,8 +829,8 @@ class RegularPolyCollection(LineCollection):
 class EllipseCollection(PolyCollection):
     """Ellipses at `offsets`, with widths/heights in points or data units."""
 
-    def __init__(self, widths, heights, angles, units="points", offsets=None,
-                 offset_transform=None, **kwargs):
+    def __init__(self, widths: Any, heights: Any, angles: Any, units: Any = "points", offsets: Any = None,
+                 offset_transform: Any = None, **kwargs: Any) -> None:
         widths = np.atleast_1d(np.asarray(widths, dtype=float)).ravel()
         heights = np.atleast_1d(np.asarray(heights, dtype=float)).ravel()
         angles = np.atleast_1d(np.asarray(angles, dtype=float)).ravel()
@@ -855,12 +855,12 @@ class EllipseCollection(PolyCollection):
 class Arrow(Patch):
     """A filled arrow from (x, y) to (x + dx, y + dy)."""
 
-    def __init__(self, x, y, dx, dy, width=1.0, **kwargs):
+    def __init__(self, x: Any, y: Any, dx: Any, dy: Any, width: Any = 1.0, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.x, self.y, self.dx, self.dy = map(float, (x, y, dx, dy))
         self.width = float(width)
 
-    def get_xy(self):
+    def get_xy(self) -> Any:
         length = _math.hypot(self.dx, self.dy)
         if length == 0.0:
             return np.array([[self.x, self.y], [self.x, self.y]])
@@ -887,11 +887,11 @@ patches.Arrow = Arrow
 
 
 class PatchCollection(LineCollection):
-    def __init__(self, patches, colors=None, **kwargs):
+    def __init__(self, patches: Any, colors: Any = None, **kwargs: Any) -> None:
         self._patches = list(patches)
         super().__init__([], colors=colors, **kwargs)
 
-    def get_segments(self):
+    def get_segments(self) -> Any:
         out = []
         for patch in self._patches:
             entry = _patch_entry(patch)
@@ -906,22 +906,23 @@ class PatchCollection(LineCollection):
                 out.append(np.vstack([pts, pts[:1]]))
         return out
 
-    def set_paths(self, patches):
+    def set_paths(self, patches: Any) -> Any:
         self._patches = list(patches)
         return self
 
-    def set_offsets(self, offsets):
+    def set_offsets(self, offsets: Any) -> Any:
         self._offsets = np.asarray(offsets, dtype=float).reshape(-1, 2)
         return self
 
-    def set_edgecolors(self, colors):
+    def set_edgecolors(self, colors: Any) -> Any:
         self._edgecolors = colors
         return self
-    set_edgecolor = set_edgecolors
+    def set_edgecolor(self, color: Any) -> Any:
+        return self.set_edgecolors(color)
 
 
 class EventCollection(LineCollection):
-    def __init__(self, positions, orientation="horizontal", lineoffset=0, linelength=1, **kwargs):
+    def __init__(self, positions: Any, orientation: Any = "horizontal", lineoffset: Any = 0, linelength: Any = 1, **kwargs: Any) -> None:
         self._positions = _as_f64(positions).copy()
         self._orientation = orientation
         self._lineoffset = float(lineoffset)
@@ -933,7 +934,7 @@ class EventCollection(LineCollection):
             kwargs["linewidths"] = kwargs.pop("linewidth")
         super().__init__(self._event_segments(), **kwargs)
 
-    def _event_segments(self):
+    def _event_segments(self) -> Any:
         if self._orientation not in ("horizontal", "vertical"):
             raise ValueError(f"unsupported orientation: {self._orientation!r}")
         if self._orientation == "horizontal":
@@ -942,15 +943,15 @@ class EventCollection(LineCollection):
         return [[(self._lineoffset - self._linelength / 2, p),
                  (self._lineoffset + self._linelength / 2, p)] for p in self._positions]
 
-    def _refresh(self):
+    def _refresh(self) -> Any:
         self._segments = self._event_segments()
         return self
 
-    def get_positions(self): return self._positions.copy()
-    def get_orientation(self): return self._orientation
-    def get_lineoffset(self): return self._lineoffset
-    def get_linelength(self): return self._linelength
-    def get_colors(self):
+    def get_positions(self) -> Any: return self._positions.copy()
+    def get_orientation(self) -> Any: return self._orientation
+    def get_lineoffset(self) -> Any: return self._lineoffset
+    def get_linelength(self) -> Any: return self._linelength
+    def get_colors(self) -> Any:
         colors = self._colors
         if colors is None:
             return []
@@ -958,15 +959,15 @@ class EventCollection(LineCollection):
         if values.ndim == 1:
             return [values]
         return [np.asarray(row) for row in values]
-    def get_color(self):
+    def get_color(self) -> Any:
         colors = self.get_colors()
         return colors[0] if colors else None
-    def set_linestyle(self, linestyle):
+    def set_linestyle(self, linestyle: Any) -> Any:
         self._linestyle = linestyle
         return self
-    def get_linestyle(self):
+    def get_linestyle(self) -> Any:
         return getattr(self, "_linestyle", "solid")
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         setters = {"linestyle": self.set_linestyle, "ls": self.set_linestyle,
                    "linewidth": self.set_linewidth, "lw": self.set_linewidth,
                    "color": self.set_color, "c": self.set_color,
@@ -976,32 +977,32 @@ class EventCollection(LineCollection):
             if setter is not None:
                 setter(value)
         return self
-    def add_positions(self, positions): return self.append_positions(positions)
-    def set_positions(self, positions):
+    def add_positions(self, positions: Any) -> Any: return self.append_positions(positions)
+    def set_positions(self, positions: Any) -> Any:
         self._positions = _as_f64(positions).copy()
         return self._refresh()
-    def append_positions(self, positions):
+    def append_positions(self, positions: Any) -> Any:
         self._positions = np.append(self._positions, _as_f64(positions))
         return self._refresh()
-    def extend_positions(self, positions): return self.append_positions(positions)
-    def set_orientation(self, orientation):
+    def extend_positions(self, positions: Any) -> Any: return self.append_positions(positions)
+    def set_orientation(self, orientation: Any) -> Any:
         self._orientation = orientation
         return self._refresh()
-    def switch_orientation(self):
+    def switch_orientation(self) -> Any:
         self._orientation = ("vertical" if self._orientation == "horizontal"
                              else "horizontal")
         return self._refresh()
-    def set_lineoffset(self, lineoffset):
+    def set_lineoffset(self, lineoffset: Any) -> Any:
         self._lineoffset = float(lineoffset)
         return self._refresh()
-    def set_linelength(self, linelength):
+    def set_linelength(self, linelength: Any) -> Any:
         self._linelength = float(linelength)
         return self._refresh()
 
 
 class ConnectionPatch(FancyArrowPatch):
-    def __init__(self, xyA, xyB, coordsA="data", coordsB="data", axesA=None, axesB=None,
-                 **kwargs):
+    def __init__(self, xyA: Any, xyB: Any, coordsA: Any = "data", coordsB: Any = "data", axesA: Any = None, axesB: Any = None,
+                 **kwargs: Any) -> None:
         super().__init__(posA=xyA, posB=xyB, **kwargs)
         self.coordsA, self.coordsB = coordsA, coordsB
         self.axesA, self.axesB = axesA, axesB
@@ -1041,26 +1042,26 @@ class Line2D:
         self._gid = None
 
     @property
-    def axes(self): return self._axes
+    def axes(self) -> Any: return self._axes
 
     @axes.setter
-    def axes(self, value): self._axes = value
+    def axes(self, value: Any) -> Any: self._axes = value
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         return self._series[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Any, value: Any) -> Any:
         self._series[key] = value
 
-    def __iter__(self): return iter(self._series)
-    def __len__(self): return len(self._series)
+    def __iter__(self) -> Any: return iter(self._series)
+    def __len__(self) -> Any: return len(self._series)
 
-    def update_from(self, other):
+    def update_from(self, other: Any) -> Any:
         if getattr(other, "_series", None) is not None:
             self._series.update(other._series)
         return self
 
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         """Apply Matplotlib line properties by name, as `line.set(lw=...)`."""
         setters = {
             "color": self.set_color,
@@ -1090,65 +1091,65 @@ class Line2D:
                 setter(value)
         return self
 
-    def get_transform(self): return getattr(self, "_transform", _Transform())
-    def get_path(self):
+    def get_transform(self) -> Any: return getattr(self, "_transform", _Transform())
+    def get_path(self) -> Any:
         return Path(np.column_stack([
             _as_f64(self._series["x"]),
             _as_f64(self._series["y"])]))
-    def set_transform(self, transform): self._transform = transform; return self
-    def set_agg_filter(self, value): return self
-    def set_rasterized(self, value): return self
-    def set_clip_on(self, value): return self
+    def set_transform(self, transform: Any) -> Any: self._transform = transform; return self
+    def set_agg_filter(self, value: Any) -> Any: return self
+    def set_rasterized(self, value: Any) -> Any: return self
+    def set_clip_on(self, value: Any) -> Any: return self
 
-    def set_dashes(self, dashes):
+    def set_dashes(self, dashes: Any) -> Any:
         self._series["linestyle"] = "--" if dashes else "-"
         self._dashes = list(dashes)
         return self
 
-    def set_dash_capstyle(self, style): return self
-    def set_solid_capstyle(self, style): return self
-    def set_dash_joinstyle(self, style): return self
-    def set_solid_joinstyle(self, style): return self
+    def set_dash_capstyle(self, style: Any) -> Any: return self
+    def set_solid_capstyle(self, style: Any) -> Any: return self
+    def set_dash_joinstyle(self, style: Any) -> Any: return self
+    def set_solid_joinstyle(self, style: Any) -> Any: return self
 
-    def get_xdata(self): return self._series["x"]
-    def get_ydata(self): return self._series["y"]
-    def get_data(self, *args, **kwargs): return (self.get_xdata(), self.get_ydata())
-    def set_gid(self, gid):
+    def get_xdata(self) -> Any: return self._series["x"]
+    def get_ydata(self) -> Any: return self._series["y"]
+    def get_data(self, *args: Any, **kwargs: Any) -> Any: return (self.get_xdata(), self.get_ydata())
+    def set_gid(self, gid: Any) -> Any:
         self._gid = gid
         self._series["gid"] = "" if gid is None else str(gid)
         return self
-    def get_gid(self): return self._gid
-    def set_figure(self, figure): return self
+    def get_gid(self) -> Any: return self._gid
+    def set_figure(self, figure: Any) -> Any: return self
     draw = _noop_method("draw", 'self, renderer')
-    def set_xdata(self, x): self._series["x"] = _as_f64(x)
-    def set_ydata(self, y): self._series["y"] = _as_f64(y)
+    def set_xdata(self, x: Any) -> Any: self._series["x"] = _as_f64(x)
+    def set_ydata(self, y: Any) -> Any: self._series["y"] = _as_f64(y)
 
-    def set_data(self, x, y):
+    def set_data(self, x: Any, y: Any) -> Any:
         self.set_xdata(x)
         self.set_ydata(y)
 
-    def get_color(self): return self._series["color"]
-    def set_color(self, color): self._series["color"] = _norm_color(color)
-    def get_alpha(self): return self._series["alpha"]
-    def set_alpha(self, alpha):
+    def get_color(self) -> Any: return self._series["color"]
+    def set_color(self, color: Any) -> Any: self._series["color"] = _norm_color(color)
+    def get_alpha(self) -> Any: return self._series["alpha"]
+    def set_alpha(self, alpha: Any) -> Any:
         self._series["alpha"] = None if alpha is None else float(alpha)
-    def get_linewidth(self): return self._series["linewidth"]
-    def set_linewidth(self, linewidth): self._series["linewidth"] = float(linewidth)
-    def get_linestyle(self): return self._series["linestyle"]
-    def set_linestyle(self, linestyle): self._series["linestyle"] = str(linestyle)
-    def get_marker(self): return self._series["marker"]
-    def set_marker(self, marker): self._series["marker"] = str(marker)
-    def set_markersize(self, size): self._series["markersize"] = float(size)
-    def set_markerfacecolor(self, color): self._series["mfc"] = _norm_color(color)
-    def set_markeredgecolor(self, color): self._series["mec"] = _norm_color(color)
-    def get_label(self): return self._series["label"]
-    def set_label(self, label): self._series["label"] = str(label)
-    def get_drawstyle(self): return self._series["drawstyle"]
-    def set_drawstyle(self, drawstyle): self._series["drawstyle"] = str(drawstyle)
+    def get_linewidth(self) -> Any: return self._series["linewidth"]
+    def set_linewidth(self, linewidth: Any) -> Any: self._series["linewidth"] = float(linewidth)
+    def get_linestyle(self) -> Any: return self._series["linestyle"]
+    def set_linestyle(self, linestyle: Any) -> Any: self._series["linestyle"] = str(linestyle)
+    def get_marker(self) -> Any: return self._series["marker"]
+    def set_marker(self, marker: Any) -> Any: self._series["marker"] = str(marker)
+    def set_markersize(self, size: Any) -> Any: self._series["markersize"] = float(size)
+    def set_markerfacecolor(self, color: Any) -> Any: self._series["mfc"] = _norm_color(color)
+    def set_markeredgecolor(self, color: Any) -> Any: self._series["mec"] = _norm_color(color)
+    def get_label(self) -> Any: return self._series["label"]
+    def set_label(self, label: Any) -> Any: self._series["label"] = str(label)
+    def get_drawstyle(self) -> Any: return self._series["drawstyle"]
+    def set_drawstyle(self, drawstyle: Any) -> Any: self._series["drawstyle"] = str(drawstyle)
     set_path_effects = _noop_method(
         "set_path_effects", 'self, effects', warn='Line2D.set_path_effects', returns_self=True)
-    def set_zorder(self, zorder): self._series["zorder"] = int(zorder)
-    def get_zorder(self): return self._series.get("zorder", 2)
+    def set_zorder(self, zorder: Any) -> Any: self._series["zorder"] = int(zorder)
+    def get_zorder(self) -> Any: return self._series.get("zorder", 2)
     set_visible = _noop_method(
         "set_visible", 'self, visible', warn='Line2D.set_visible')
 
@@ -1156,47 +1157,47 @@ class Line2D:
 class Artist:
     """Minimal artist base class used by custom gallery artists."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._zorder = kwargs.get("zorder", 0)
         self._visible = kwargs.get("visible", True)
         self._agg_filter = None
         self._rasterized = False
 
-    def set_zorder(self, zorder): self._zorder = int(zorder); return self
-    def get_zorder(self): return self._zorder
-    def set_visible(self, visible): self._visible = bool(visible); return self
-    def get_visible(self): return self._visible
-    def set_agg_filter(self, value): self._agg_filter = value; return self
-    def set_rasterized(self, value): self._rasterized = bool(value); return self
-    def set_in_layout(self, value): return self
-    def set_clip_on(self, value): return self
-    def set_clip_path(self, *args, **kwargs): return self
-    def set_animated(self, value): self._animated = bool(value); return self
-    def get_animated(self): return getattr(self, "_animated", False)
-    def set_picker(self, value): self._picker = value; return self
+    def set_zorder(self, zorder: Any) -> Any: self._zorder = int(zorder); return self
+    def get_zorder(self) -> Any: return self._zorder
+    def set_visible(self, visible: Any) -> Any: self._visible = bool(visible); return self
+    def get_visible(self) -> Any: return self._visible
+    def set_agg_filter(self, value: Any) -> Any: self._agg_filter = value; return self
+    def set_rasterized(self, value: Any) -> Any: self._rasterized = bool(value); return self
+    def set_in_layout(self, value: Any) -> Any: return self
+    def set_clip_on(self, value: Any) -> Any: return self
+    def set_clip_path(self, *args: Any, **kwargs: Any) -> Any: return self
+    def set_animated(self, value: Any) -> Any: self._animated = bool(value); return self
+    def get_animated(self) -> Any: return getattr(self, "_animated", False)
+    def set_picker(self, value: Any) -> Any: self._picker = value; return self
     draw = _noop_method("draw", 'self, renderer=None')
 
 
 class _Spine:
     """Compatibility stand-in for one axes spine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._visible = True
         self._color = None
         self._linewidth = 1.0
         self._position = ""
 
-    def set_visible(self, visible): self._visible = bool(visible)
-    def get_visible(self): return self._visible
+    def set_visible(self, visible: Any) -> Any: self._visible = bool(visible)
+    def get_visible(self) -> Any: return self._visible
     set_color = _state_setter(
         "_color", 'color', 'color')
-    def get_color(self): return self._color
-    def get_edgecolor(self): return self._color
-    def set_linewidth(self, width): self._linewidth = float(width)
-    def get_linewidth(self): return self._linewidth
+    def get_color(self) -> Any: return self._color
+    def get_edgecolor(self) -> Any: return self._color
+    def set_linewidth(self, width: Any) -> Any: self._linewidth = float(width)
+    def get_linewidth(self) -> Any: return self._linewidth
     set_position = _state_setter(
         "_position", 'position', 'position')
-    def get_position(self): return self._position
+    def get_position(self) -> Any: return self._position
     set_bounds = _noop_method("set_bounds", 'self, *args')
     set_smart_bounds = _noop_method("set_smart_bounds", 'self, *args')
     set_zorder = _noop_method("set_zorder", 'self, zorder')
@@ -1206,13 +1207,13 @@ class _Spine:
 class _SpineSelection:
     """A group of spines selected with `spines[:]` or `spines[[...]]`."""
 
-    def __init__(self, spines): self._spines = tuple(spines)
-    def __iter__(self): return iter(self._spines)
+    def __init__(self, spines: Any) -> None: self._spines = tuple(spines)
+    def __iter__(self) -> Any: return iter(self._spines)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: Any) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
-        def apply(*args, **kwargs):
+        def apply(*args: Any, **kwargs: Any) -> Any:
             for spine in self._spines:
                 getattr(spine, name)(*args, **kwargs)
             return self
@@ -1222,31 +1223,31 @@ class _SpineSelection:
 class _Spines:
     """The four axes spines, addressable as a mapping or as attributes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.left = _Spine()
         self.right = _Spine()
         self.bottom = _Spine()
         self.top = _Spine()
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: Any) -> Any:
         if isinstance(name, slice):
             names = ("left", "right", "bottom", "top")[name]
             return _SpineSelection(getattr(self, item) for item in names)
         if isinstance(name, (list, tuple)):
             return _SpineSelection(getattr(self, str(item)) for item in name)
         return getattr(self, name)
-    def __setitem__(self, name, spine): setattr(self, name, spine)
+    def __setitem__(self, name: Any, spine: Any) -> Any: setattr(self, name, spine)
     register_axis = _noop_method("register_axis", 'self, axis')
-    def __iter__(self): return iter(("left", "right", "bottom", "top"))
-    def keys(self): return ("left", "right", "bottom", "top")
-    def values(self): return (self.left, self.right, self.bottom, self.top)
-    def items(self): return ((name, getattr(self, name)) for name in self)
+    def __iter__(self) -> Any: return iter(("left", "right", "bottom", "top"))
+    def keys(self) -> Any: return ("left", "right", "bottom", "top")
+    def values(self) -> Any: return (self.left, self.right, self.bottom, self.top)
+    def items(self) -> Any: return ((name, getattr(self, name)) for name in self)
 
 
 class _AxisHelper:
     """State holder returned by `axisartist` axis `get_helper()`."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.nth_coord_ticks = 0
         self.nth_coord = 0
 
@@ -1254,7 +1255,7 @@ class _AxisHelper:
 class _AxisArtistProxy:
     """Small stand-in for the floating-axis artists used by axisartist."""
 
-    def __init__(self, axes=None, name=""):
+    def __init__(self, axes: Any = None, name: Any = "") -> None:
         self._axes = axes
         self.name = name
         self.label = _TextLabel()
@@ -1265,13 +1266,13 @@ class _AxisArtistProxy:
         self._visible = True
         self._helper = _AxisHelper()
 
-    def set_visible(self, visible):
+    def set_visible(self, visible: Any) -> Any:
         self._visible = bool(visible)
         return self
 
-    def get_visible(self): return self._visible
+    def get_visible(self) -> Any: return self._visible
 
-    def toggle(self, all=None, ticks=None, ticklabels=None, label=None, **kwargs):
+    def toggle(self, all: Any = None, ticks: Any = None, ticklabels: Any = None, label: Any = None, **kwargs: Any) -> Any:
         if all is not None:
             ticks = ticklabels = label = all
         if ticks is not None:
@@ -1284,13 +1285,13 @@ class _AxisArtistProxy:
             self.label.set_visible(label)
         return self
 
-    def get_helper(self): return self._helper
-    def set_axisline_style(self, *args, **kwargs): return self
-    def set_axis_direction(self, *args, **kwargs): return self
-    def set_axislabel_direction(self, *args, **kwargs): return self
-    def set_ticklabel_direction(self, *args, **kwargs): return self
+    def get_helper(self) -> Any: return self._helper
+    def set_axisline_style(self, *args: Any, **kwargs: Any) -> Any: return self
+    def set_axis_direction(self, *args: Any, **kwargs: Any) -> Any: return self
+    def set_axislabel_direction(self, *args: Any, **kwargs: Any) -> Any: return self
+    def set_ticklabel_direction(self, *args: Any, **kwargs: Any) -> Any: return self
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: Any) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
         return lambda *args, **kwargs: self
@@ -1299,18 +1300,18 @@ class _AxisArtistProxy:
 class _AxisSelection:
     """Forward an axisartist operation to several axis proxies."""
 
-    def __init__(self, artists): self._artists = tuple(artists)
+    def __init__(self, artists: Any) -> None: self._artists = tuple(artists)
 
-    def __iter__(self): return iter(self._artists)
+    def __iter__(self) -> Any: return iter(self._artists)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: Any) -> Any:
         if name.startswith("__"):
             raise AttributeError(name)
         values = [getattr(artist, name, None) for artist in self._artists]
         if values and all(value is not None and not callable(value) for value in values):
             return _AxisSelection(values)
 
-        def apply(*args, **kwargs):
+        def apply(*args: Any, **kwargs: Any) -> Any:
             for artist in self._artists:
                 getattr(artist, name)(*args, **kwargs)
             return self
@@ -1322,19 +1323,19 @@ class _AxisAccessor:
 
     _STANDARD = ("left", "right", "bottom", "top")
 
-    def __init__(self, axes):
+    def __init__(self, axes: Any) -> None:
         self._axes = axes
-        self._artists = {}
+        self._artists: dict[Any, Any] = {}
 
-    def _artist(self, key):
+    def _artist(self, key: Any) -> Any:
         return self._artists.setdefault(str(key), _AxisArtistProxy(self._axes, str(key)))
 
-    def _standard(self):
+    def _standard(self) -> Any:
         return [self._artist(name) for name in self._STANDARD]
 
-    def __call__(self, *args, **kwargs): return self._axes._axis(*args, **kwargs)
+    def __call__(self, *args: Any, **kwargs: Any) -> Any: return self._axes._axis(*args, **kwargs)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
         if isinstance(key, slice):
             names = self._STANDARD[key]
             return _AxisSelection(self._artist(name) for name in names)
@@ -1345,20 +1346,20 @@ class _AxisAccessor:
             return self._axes.spines[key]
         return self._artist(key)
 
-    def __setitem__(self, key, value): self._artists[str(key)] = value
+    def __setitem__(self, key: Any, value: Any) -> Any: self._artists[str(key)] = value
 
-    def __iter__(self): return iter(self._standard())
-    def keys(self):
+    def __iter__(self) -> Any: return iter(self._standard())
+    def keys(self) -> Any:
         return tuple(dict.fromkeys((*self._STANDARD, *self._artists)))
-    def values(self): return tuple(self._artist(name) for name in self.keys())
-    def items(self): return tuple((name, self._artist(name)) for name in self.keys())
-    def __getattr__(self, name): return getattr(self._axes, name)
+    def values(self) -> Any: return tuple(self._artist(name) for name in self.keys())
+    def items(self) -> Any: return tuple((name, self._artist(name)) for name in self.keys())
+    def __getattr__(self, name: Any) -> Any: return getattr(self._axes, name)
 
 
 class _Axis:
     """Stand-in for `ax.xaxis` / `ax.yaxis` with tick and label shims."""
 
-    def __init__(self, parent, axis):
+    def __init__(self, parent: Any, axis: Any) -> None:
         self._parent, self._axis = parent, axis
         self.axes = parent
         self.label = _TextLabel()
@@ -1368,20 +1369,20 @@ class _Axis:
         self._minor_locator = None
         self._formatter = None
 
-    def _labels(self):
+    def _labels(self) -> Any:
         return (self._parent.get_xticklabels() if self._axis == "x"
                 else self._parent.get_yticklabels())
 
-    def _ticks(self):
+    def _ticks(self) -> Any:
         return (self._parent.get_xticks() if self._axis == "x"
                 else self._parent.get_yticks())
 
-    def set_visible(self, visible): self._visible = bool(visible)
-    def get_visible(self): return self._visible
-    def get_label(self): return self.label
-    def get_offset_text(self): return self.offsetText
+    def set_visible(self, visible: Any) -> Any: self._visible = bool(visible)
+    def get_visible(self) -> Any: return self._visible
+    def get_label(self) -> Any: return self.label
+    def get_offset_text(self) -> Any: return self.offsetText
 
-    def set_label_text(self, label, fontdict=None, **kwargs):
+    def set_label_text(self, label: Any, fontdict: Any = None, **kwargs: Any) -> Any:
         if self._axis == "x":
             self._parent.set_xlabel(label, fontsize=kwargs.get("fontsize", kwargs.get("size")))
         else:
@@ -1396,22 +1397,22 @@ class _Axis:
     tick_bottom = _noop_method("tick_bottom", 'self')
     tick_left = _noop_method("tick_left", 'self')
     tick_right = _noop_method("tick_right", 'self')
-    def set_tick_params(self, **kwargs): self._parent._tick_style(self._axis, **kwargs)
-    def set_ticks(self, ticks, labels=None, **kwargs):
+    def set_tick_params(self, **kwargs: Any) -> Any: self._parent._tick_style(self._axis, **kwargs)
+    def set_ticks(self, ticks: Any, labels: Any = None, **kwargs: Any) -> Any:
         if self._axis == "x": self._parent.set_xticks(ticks, labels=labels, **kwargs)
         else: self._parent.set_yticks(ticks, labels=labels, **kwargs)
-    def get_ticklocs(self): return self._ticks()
-    def get_ticklabels(self, *args, **kwargs): return self._labels()
-    def get_majorticklabels(self): return self._labels()
-    def get_minorticklabels(self): return []
-    def get_major_ticks(self): return []
-    def get_minor_ticks(self): return []
+    def get_ticklocs(self) -> Any: return self._ticks()
+    def get_ticklabels(self, *args: Any, **kwargs: Any) -> Any: return self._labels()
+    def get_majorticklabels(self) -> Any: return self._labels()
+    def get_minorticklabels(self) -> Any: return []
+    def get_major_ticks(self) -> Any: return []
+    def get_minor_ticks(self) -> Any: return []
 
 
-    def set_ticklabels(self, labels, **kwargs):
+    def set_ticklabels(self, labels: Any, **kwargs: Any) -> Any:
         if self._axis == "x": self._parent.set_xticklabels(labels, **kwargs)
         else: self._parent.set_yticklabels(labels, **kwargs)
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         """`ax.xaxis.set(major_locator=..., major_formatter=..., label=...)`."""
         for key, value in kwargs.items():
             if key in ("major_locator", "minor_locator", "major_formatter",
@@ -1428,7 +1429,7 @@ class _Axis:
             else:
                 raise AttributeError(f"Axis.set() does not support {key!r}")
 
-    def set_major_locator(self, locator):
+    def set_major_locator(self, locator: Any) -> Any:
         """Place the major ticks with `locator`, dropping explicit tick lists."""
         self._locator = locator
         if hasattr(locator, "set_axis"):
@@ -1439,90 +1440,90 @@ class _Axis:
         else:
             self._parent._ylocator = locator
             self._parent._yticks = self._parent._yticklabels = None
-    def set_minor_locator(self, locator):
+    def set_minor_locator(self, locator: Any) -> Any:
         self._minor_locator = locator
         if hasattr(locator, "set_axis"):
             locator.set_axis(self)
-    def get_minor_locator(self): return self._minor_locator or _LocatorHandle()
-    def minorticks_on(self): self._parent.minorticks_on()
-    def minorticks_off(self): self._parent.minorticks_off()
+    def get_minor_locator(self) -> Any: return self._minor_locator or _LocatorHandle()
+    def minorticks_on(self) -> Any: self._parent.minorticks_on()
+    def minorticks_off(self) -> Any: self._parent.minorticks_off()
     set_major_formatter = _state_setter(
         "_formatter", 'formatter', 'formatter')
     set_minor_formatter = _noop_method("set_minor_formatter", 'self, formatter')
-    def get_major_locator(self): return self._locator or _LocatorHandle()
-    def get_major_formatter(self): return self._formatter
+    def get_major_locator(self) -> Any: return self._locator or _LocatorHandle()
+    def get_major_formatter(self) -> Any: return self._formatter
     set_units = _noop_method("set_units", 'self, units')
     get_units = _noop_method("get_units", 'self')
     update_units = _noop_method("update_units", 'self, data')
-    def set_inverted(self, inverted):
+    def set_inverted(self, inverted: Any) -> Any:
         target = self._parent._inverted[0 if self._axis == "x" else 1]
         if bool(inverted) != target:
             if self._axis == "x": self._parent.invert_xaxis()
             else: self._parent.invert_yaxis()
-    def get_inverted(self): return self._parent._inverted[0 if self._axis == "x" else 1]
-    def get_transform(self): return _Transform()
-    def get_scale(self): return self._parent.get_xscale() if self._axis == "x" else self._parent.get_yscale()
-    def set_scale(self, value, **kwargs):
+    def get_inverted(self) -> Any: return self._parent._inverted[0 if self._axis == "x" else 1]
+    def get_transform(self) -> Any: return _Transform()
+    def get_scale(self) -> Any: return self._parent.get_xscale() if self._axis == "x" else self._parent.get_yscale()
+    def set_scale(self, value: Any, **kwargs: Any) -> Any:
         if self._axis == "x": self._parent.set_xscale(value, **kwargs)
         else: self._parent.set_yscale(value, **kwargs)
-    def grid(self, visible=None, **kwargs): self._parent.grid(visible, axis=self._axis, **kwargs)
+    def grid(self, visible: Any = None, **kwargs: Any) -> Any: self._parent.grid(visible, axis=self._axis, **kwargs)
 
 
 class _LocatorHandle:
     """Placeholder locator returned before an explicit locator is installed."""
 
     @property
-    def base(self): return self
+    def base(self) -> Any: return self
     set_params = _noop_method("set_params", 'self, *args, **kwargs')
     set_nbins = _noop_method("set_nbins", 'self, *args, **kwargs')
-    def numticks(self, *args, **kwargs): return 8
+    def numticks(self, *args: Any, **kwargs: Any) -> Any: return 8
 
 
 class _Callbacks:
-    def __init__(self): self.callbacks = []
-    def connect(self, *args, **kwargs): return 1
+    def __init__(self) -> None: self.callbacks: list[Any] = []
+    def connect(self, *args: Any, **kwargs: Any) -> Any: return 1
     disconnect = _noop_method("disconnect", 'self, *args, **kwargs')
-    def add_callback(self, func, *args, **kwargs):
+    def add_callback(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         self.callbacks.append((func, args, kwargs))
         return len(self.callbacks)
-    def remove_callback(self, func):
+    def remove_callback(self, func: Any) -> Any:
         self.callbacks = [item for item in self.callbacks if item[0] is not func]
 
 
 class _Timer:
     """Headless timer accepted by Matplotlib's animation event sources."""
 
-    def __init__(self, interval=1000, callbacks=None, **kwargs):
+    def __init__(self, interval: Any = 1000, callbacks: Any = None, **kwargs: Any) -> None:
         self.interval = interval
-        self.callbacks = []
+        self.callbacks: list[Any] = []
         self._running = False
         for callback in callbacks or ():
             self.add_callback(callback)
 
-    def add_callback(self, func, *args, **kwargs):
+    def add_callback(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         self.callbacks.append((func, args, kwargs))
         return len(self.callbacks)
 
-    def remove_callback(self, func):
+    def remove_callback(self, func: Any) -> Any:
         self.callbacks = [item for item in self.callbacks if item[0] is not func]
 
-    def start(self, interval=None):
+    def start(self, interval: Any = None) -> Any:
         if interval is not None:
             self.interval = interval
         self._running = True
 
-    def stop(self):
+    def stop(self) -> Any:
         self._running = False
 
-    def single_shot(self, func, *args, **kwargs):
+    def single_shot(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         self.add_callback(func, *args, **kwargs)
 
 
 class MouseEvent:
     """Headless mouse event used by examples that simulate a pointer move."""
 
-    def __init__(self, name, canvas, x, y, button=None, key=None,
-                 step=0, dblclick=False, guiEvent=None):
+    def __init__(self, name: Any, canvas: Any, x: Any, y: Any, button: Any = None, key: Any = None,
+                 step: Any = 0, dblclick: Any = False, guiEvent: Any = None) -> None:
         self.name, self.canvas = str(name), canvas
         self.x, self.y = float(x), float(y)
         self.xdata = self.ydata = None
@@ -1534,39 +1535,39 @@ class MouseEvent:
 
 
 class _Manager:
-    def __init__(self, canvas):
+    def __init__(self, canvas: Any) -> None:
         self.canvas = canvas
         self.key_press_handler_id = None
     set_window_title = _noop_method("set_window_title", 'self, *args, **kwargs')
-    def get_window_title(self): return ""
+    def get_window_title(self) -> Any: return ""
     destroy = _noop_method("destroy", 'self')
 
 
 class _Canvas:
     """Headless canvas stand-in for code that calls draw or print_figure."""
 
-    def __init__(self, figure):
+    def __init__(self, figure: Any) -> None:
         self.figure = figure
         self.manager = _Manager(self)
     draw = _noop_method("draw", 'self, *args, **kwargs')
     draw_idle = _noop_method("draw_idle", 'self, *args, **kwargs')
     flush_events = _noop_method("flush_events", 'self')
     get_renderer = _noop_method("get_renderer", 'self, *args, **kwargs')
-    def get_width_height(self):
+    def get_width_height(self) -> Any:
         w, h = self.figure.get_size_inches()
         dpi = self.figure.get_dpi()
         return int(w * dpi), int(h * dpi)
-    def print_figure(self, filename, **kwargs):
+    def print_figure(self, filename: Any, **kwargs: Any) -> Any:
         return self.figure.savefig(filename, **kwargs)
-    def mpl_connect(self, *args, **kwargs): return 1
+    def mpl_connect(self, *args: Any, **kwargs: Any) -> Any: return 1
     mpl_disconnect = _noop_method("mpl_disconnect", 'self, *args, **kwargs')
-    def add_callback(self, *args, **kwargs): return 1
+    def add_callback(self, *args: Any, **kwargs: Any) -> Any: return 1
     remove_callback = _noop_method("remove_callback", 'self, *args, **kwargs')
-    def supports_blit(self): return False
+    def supports_blit(self) -> Any: return False
     blit = _noop_method("blit", 'self, *args, **kwargs')
     restore_region = _noop_method("restore_region", 'self, *args, **kwargs')
     copy_from_bbox = _noop_method("copy_from_bbox", 'self, *args, **kwargs')
-    def new_timer(self, interval=1000, callbacks=None, **kwargs):
+    def new_timer(self, interval: Any = 1000, callbacks: Any = None, **kwargs: Any) -> Any:
         return _Timer(interval, callbacks, **kwargs)
     set_window_title = _noop_method("set_window_title", 'self, *args, **kwargs')
     start_event_loop = _noop_method("start_event_loop", 'self, *args, **kwargs')
@@ -1574,11 +1575,11 @@ class _Canvas:
 
 
 class _SubplotPars:
-    def __init__(self):
+    def __init__(self) -> None:
         self.left, self.right, self.bottom, self.top = 0.125, 0.9, 0.11, 0.88
         self.wspace, self.hspace = 0.2, 0.2
 
-    def update(self, **kwargs):
+    def update(self, **kwargs: Any) -> Any:
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -1588,15 +1589,15 @@ class _SubplotPars:
 class _LayoutEngine:
     """Accepted layout-engine object; matplotvite owns the actual layout."""
 
-    def __init__(self, name=None):
+    def __init__(self, name: Any = None) -> None:
         self.name = name
-        self.params = {}
+        self.params: dict[Any, Any] = {}
 
-    def set(self, **kwargs):
+    def set(self, **kwargs: Any) -> Any:
         self.params.update(kwargs)
         return None
 
-    def get(self): return dict(self.params)
+    def get(self) -> Any: return dict(self.params)
 
 
 class _GroupedBarResult:

@@ -5,12 +5,14 @@ objects.  Matplotlib applies the locator at draw time; matplotvite stores the
 axis positions immediately because the renderer reads them from `Axes`.
 """
 
+from typing import Any
+
 from matplotvite import Axes, _Share
 
 from . import axes_size as Size
 
 
-def _size_in_fraction(value, base, figure_size):
+def _size_in_fraction(value: Any, base: Any, figure_size: Any) -> Any:
     if isinstance(value, str):
         value = value.strip()
         if value.endswith("%"):
@@ -20,13 +22,13 @@ def _size_in_fraction(value, base, figure_size):
     return inches / figure_size
 
 
-def _pad_in_fraction(value, base, figure_size):
+def _pad_in_fraction(value: Any, base: Any, figure_size: Any) -> Any:
     if isinstance(value, str) and value.strip().endswith("%"):
         return float(value.strip()[:-1]) / 100.0 * base
     return float(value) / figure_size
 
 
-def _subplot_rect(fig, nrows, ncols, index):
+def _subplot_rect(fig: Any, nrows: Any, ncols: Any, index: Any) -> Any:
     """Approximate Matplotlib's default subplot cell for a 3-digit spec."""
     left, right, bottom, top = 0.125, 0.9, 0.11, 0.88
     wspace, hspace = 0.2, 0.2
@@ -41,24 +43,24 @@ def _subplot_rect(fig, nrows, ncols, index):
 class _Locator:
     """One rectangle in a divider's size grid."""
 
-    def __init__(self, divider, nx, ny, nx1, ny1):
+    def __init__(self, divider: Any, nx: Any, ny: Any, nx1: Any, ny1: Any) -> None:
         self.divider = divider
         self.nx, self.ny = int(nx), int(ny)
         self.nx1 = self.nx if nx1 is None else int(nx1)
         self.ny1 = self.ny if ny1 is None else int(ny1)
         self.axes = None
 
-    def __call__(self, ax):
+    def __call__(self, ax: Any) -> Any:
         return self.apply(ax)
 
-    def apply(self, ax):
+    def apply(self, ax: Any) -> Any:
         self.axes = ax
         if self not in self.divider._locators:
             self.divider._locators.append(self)
         self.divider._layout()
         return self
 
-    def get_position(self, ax=None):
+    def get_position(self, ax: Any = None) -> Any:
         if ax is not None:
             self.apply(ax)
         return self.divider._rect_for(self)
@@ -67,8 +69,8 @@ class _Locator:
 class Divider:
     """Place axes from horizontal and vertical size lists."""
 
-    def __init__(self, ax_or_fig, rect=None, horizontal=None, vertical=None,
-                 aspect=False, anchor="C", **kwargs):
+    def __init__(self, ax_or_fig: Any, rect: Any = None, horizontal: Any = None, vertical: Any = None,
+                 aspect: Any = False, anchor: Any = "C", **kwargs: Any) -> None:
         if isinstance(ax_or_fig, Axes) and rect is None:
             self._ax = ax_or_fig
             self._fig = ax_or_fig._fig  # type: ignore[attr-defined]
@@ -89,11 +91,11 @@ class Divider:
         self._horizontal = list(horizontal or ())
         self._vertical = list(vertical or ())
         self._aspect = bool(aspect)
-        self._locators = []
+        self._locators: list[Any] = []
 
     # -- locatable-axes API -------------------------------------------------
-    def append_axes(self, position, size, pad=0.1, sharex=None, sharey=None,
-                    axes_class=None, **kwargs):
+    def append_axes(self, position: Any, size: Any, pad: Any = 0.1, sharex: Any = None, sharey: Any = None,
+                    axes_class: Any = None, **kwargs: Any) -> Any:
         if self._fig is None:
             raise RuntimeError("append_axes needs an axes attached to a figure")
         x, y, width, height = self._ax.get_position().bounds
@@ -119,7 +121,7 @@ class Divider:
         self._share(new, sharex=sharex, sharey=sharey)
         return new
 
-    def _share(self, new, sharex=None, sharey=None):
+    def _share(self, new: Any, sharex: Any = None, sharey: Any = None) -> Any:
         if sharex:
             group = self._ax._share_x  # type: ignore[attr-defined]
             if group is None:
@@ -139,34 +141,34 @@ class Divider:
             new._share_y = group
             group.axes.append(new)
 
-    def add_auto_adjustable_area(self, *args, **kwargs):
+    def add_auto_adjustable_area(self, *args: Any, **kwargs: Any) -> Any:
         return None
 
     # -- grid-divider API ---------------------------------------------------
-    def new_locator(self, nx=0, ny=0, nx1=None, ny1=None):
+    def new_locator(self, nx: Any = 0, ny: Any = 0, nx1: Any = None, ny1: Any = None) -> Any:
         locator = _Locator(self, nx, ny, nx1, ny1)
         self._locators.append(locator)
         return locator
 
-    def set_horizontal(self, sizes):
+    def set_horizontal(self, sizes: Any) -> Any:
         self._horizontal = list(sizes)
         self._layout()
 
-    def set_vertical(self, sizes):
+    def set_vertical(self, sizes: Any) -> Any:
         self._vertical = list(sizes)
         self._layout()
 
-    def set_aspect(self, aspect):
+    def set_aspect(self, aspect: Any) -> Any:
         self._aspect = bool(aspect)
         self._layout()
 
-    def get_aspect(self):
+    def get_aspect(self) -> Any:
         return self._aspect
 
-    def get_position(self):
+    def get_position(self) -> Any:
         return self._rect
 
-    def _resolve(self, sizes, available):
+    def _resolve(self, sizes: Any, available: Any) -> Any:
         if not sizes:
             return [available]
         values = []  # type: ignore[var-annotated]
@@ -189,7 +191,7 @@ class Divider:
             values = [v * available / total for v in values]
         return values
 
-    def _layout(self):
+    def _layout(self) -> Any:
         if self._mode != "grid" or not self._locators:
             return
         fig_w, fig_h = (float(v) for v in self._fig.get_size_inches())
@@ -208,12 +210,12 @@ class Divider:
             y1 = self._rect[1] + self._rect[3] * sum(heights[:locator.ny1 + 1]) / total_h
             locator.axes.set_position((x0, y0, x1 - x0, y1 - y0))
 
-    def _rect_for(self, locator):
+    def _rect_for(self, locator: Any) -> Any:
         ax = locator.axes
         return ax.get_position().bounds if ax is not None else self._rect
 
 
-def _data_ratio(ax):
+def _data_ratio(ax: Any) -> Any:
     x0, x1 = sorted(float(v) for v in ax.get_xlim())
     y0, y1 = sorted(float(v) for v in ax.get_ylim())
     if y1 == y0 or x1 == x0:
@@ -221,14 +223,14 @@ def _data_ratio(ax):
     return abs((x1 - x0) / (y1 - y0))
 
 
-def _area(divider):
+def _area(divider: Any) -> Any:
     return divider._rect
 
 
 class HBoxDivider(Divider):
     """Arrange axes in a row with equal heights and their data aspect."""
 
-    def _layout(self):
+    def _layout(self) -> Any:
         if self._mode != "grid" or not self._locators:
             return
         axes = [loc.axes for loc in self._locators if loc.axes is not None]
@@ -258,7 +260,7 @@ class HBoxDivider(Divider):
 class VBoxDivider(Divider):
     """Arrange axes in a column with equal widths and their data aspect."""
 
-    def _layout(self):
+    def _layout(self) -> Any:
         if self._mode != "grid" or not self._locators:
             return
         axes = [loc.axes for loc in self._locators if loc.axes is not None]
@@ -289,15 +291,15 @@ class VBoxDivider(Divider):
 class SubplotDivider(Divider):
     """A divider placed on one subplot cell."""
 
-    def __init__(self, fig, nrows, ncols, index, **kwargs):
+    def __init__(self, fig: Any, nrows: Any, ncols: Any, index: Any, **kwargs: Any) -> None:
         super().__init__(fig, _subplot_rect(fig, nrows, ncols, index), **kwargs)
 
 
-def make_axes_locatable(ax):
+def make_axes_locatable(ax: Any) -> Any:
     """Return a divider rooted at `ax`."""
     return Divider(ax)
 
 
-def make_axes_area_auto_adjustable(ax, pad=0.1, use_axes=None, adjust_dirs=None):
+def make_axes_area_auto_adjustable(ax: Any, pad: Any = 0.1, use_axes: Any = None, adjust_dirs: Any = None) -> Any:
     """Compatibility no-op: the renderer already reserves label margins."""
     return None

@@ -1,11 +1,13 @@
 """Angle locators used by the axisartist gallery examples."""
 
+from typing import Any
+
 import numpy as np
 
 from . import grid_finder
 
 
-def _degree_parts(value, scale):
+def _degree_parts(value: Any, scale: Any) -> Any:
     """Format a coordinate as degrees/minutes/seconds for tick labels."""
     sign = "-" if value < 0 else ""
     value = abs(float(value))
@@ -23,34 +25,34 @@ def _degree_parts(value, scale):
 
 
 class LocatorDMS:
-    def __init__(self, nbins=10, **kwargs):
+    def __init__(self, nbins: Any = 10, **kwargs: Any) -> None:
         self.nbins = int(nbins)
 
-    def __call__(self, v1, v2):
+    def __call__(self, v1: Any, v2: Any) -> Any:
         return list(np.linspace(v1, v2, max(2, self.nbins + 1)))
 
 
 class FormatterDMS:
-    def __call__(self, values, num_to_format=None):
+    def __call__(self, values: Any, num_to_format: Any = None) -> Any:
         return [_degree_parts(v, "DMS") for v in values]
 
 
 class LocatorHMS:
-    def __init__(self, nbins=10, **kwargs):
+    def __init__(self, nbins: Any = 10, **kwargs: Any) -> None:
         self.nbins = int(nbins)
 
-    def __call__(self, v1, v2):
+    def __call__(self, v1: Any, v2: Any) -> Any:
         return list(np.linspace(v1, v2, max(2, self.nbins + 1)))
 
 
 class FormatterHMS:
-    def __call__(self, values, num_to_format=None):
+    def __call__(self, values: Any, num_to_format: Any = None) -> Any:
         return [_degree_parts(v, "HMS") for v in values]
 
 
 class ExtremeFinderCycle(grid_finder.ExtremeFinderSimple):
-    def __init__(self, nx=100, ny=100, lon_cycle=360, lat_cycle=180,
-                 lon_minmax=None, lat_minmax=None, **kwargs):
+    def __init__(self, nx: Any = 100, ny: Any = 100, lon_cycle: Any = 360, lat_cycle: Any = 180,
+                 lon_minmax: Any = None, lat_minmax: Any = None, **kwargs: Any) -> None:
         super().__init__(nx, ny)
         self.lon_cycle = lon_cycle
         self.lat_cycle = lat_cycle

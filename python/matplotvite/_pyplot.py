@@ -124,7 +124,7 @@ def gca() -> Any:
     return gcf().gca()
 
 
-def close(fig=None):
+def close(fig: Any = None) -> Any:
     """Close the current figure, a numbered/labelled figure, or all figures."""
     global _current_fig
     with _figure_lock:
@@ -148,13 +148,13 @@ def close(fig=None):
             _current_fig = max(_figures, default=None)
 
 
-def get_fignums():
+def get_fignums() -> Any:
     """Return the numbers of all open figures, in ascending order."""
     with _figure_lock:
         return sorted(_figures)
 
 
-def fignum_exists(num):
+def fignum_exists(num: Any) -> Any:
     """Return whether a figure with the given number is open."""
     if isinstance(num, np.integer):
         num = int(num)
@@ -325,7 +325,7 @@ _PYPLOT_DELEGATES = {
 }
 
 
-def _make_delegate(name, target, method, signature, call, doc):
+def _make_delegate(name: Any, target: Any, method: Any, signature: Any, call: Any, doc: Any) -> Any:
     """Build a pyplot wrapper with the signature and docstring the docs expect."""
     scope = {"__name__": __name__, "_current": gcf if target == "figure" else gca}
     source = f"def {name}({signature}):\n    return _current().{method}({call})\n"
@@ -412,22 +412,22 @@ tick_params = _make_delegate("tick_params", *_PYPLOT_DELEGATES["tick_params"])
 axline = _make_delegate("axline", *_PYPLOT_DELEGATES["axline"])
 
 
-def subplot2grid(shape, loc, rowspan=1, colspan=1, fig=None, **kwargs):
+def subplot2grid(shape: Any, loc: Any, rowspan: Any = 1, colspan: Any = 1, fig: Any = None, **kwargs: Any) -> Any:
     """Create an axes spanning a cell of a regular grid."""
     return (fig or gcf()).subplot2grid(shape, loc, rowspan=rowspan,
                                       colspan=colspan, **kwargs)
 
 
-def subplot_mosaic(mosaic, empty_sentinel=".", figsize=None, dpi=None,
-                   facecolor=None, edgecolor=None, **kwargs):
+def subplot_mosaic(mosaic: Any, empty_sentinel: Any = ".", figsize: Any = None, dpi: Any = None,
+                   facecolor: Any = None, edgecolor: Any = None, **kwargs: Any) -> Any:
     """Create a figure from an ASCII or nested mosaic layout."""
     fig = figure(figsize, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor)
     return fig, fig.subplot_mosaic(mosaic, empty_sentinel=empty_sentinel)
 class _ScalarFormatter:
     """Compact `ScalarFormatter` used by `Axes.ticklabel_format`."""
 
-    def __init__(self, style=None, scilimits=None, useOffset=None,
-                 useLocale=None, useMathText=None):
+    def __init__(self, style: Any = None, scilimits: Any = None, useOffset: Any = None,
+                 useLocale: Any = None, useMathText: Any = None) -> None:
         if style not in (None, "plain", "sci"):
             raise ValueError(f"style must be 'sci', 'plain' or None, not {style!r}")
         self.style = style
@@ -440,44 +440,44 @@ class _ScalarFormatter:
     set_locs = _state_setter(
         "locs", 'locs', 'locs')
 
-    def _scientific(self, value):
+    def _scientific(self, value: Any) -> Any:
         if self.scilimits is None:
             return False
         magnitude = abs(value)
         return magnitude != 0.0 and not 10.0 ** self.scilimits[0] <= magnitude < 10.0 ** self.scilimits[1]
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> Any:
         value = float(x)
         if self.style == "sci" or (self.style is None and self._scientific(value)):
             return f"{value:.2e}"
         return f"{value:g}"
 
-    def format_data_short(self, value): return self(value)
+    def format_data_short(self, value: Any) -> Any: return self(value)
 
 
 class FormatStrFormatter:
     """Old-style `%` formatter used by `FormatStrFormatter`."""
 
-    def __init__(self, fmt):
+    def __init__(self, fmt: Any) -> None:
         self.fmt = str(fmt)
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> Any:
         return self.fmt % x
 
 
 class FuncFormatter:
     """Formatter backed by a user function, as `matplotlib.ticker.FuncFormatter`."""
 
-    def __init__(self, func):
+    def __init__(self, func: Any) -> None:
         if not callable(func):
             raise TypeError("FuncFormatter needs a callable")
         self.func = func
         self.locs = None
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> Any:
         return str(self.func(x, pos))
 
-    def format_data_short(self, value):
+    def format_data_short(self, value: Any) -> Any:
         return str(self.func(value, None))
 
     set_locs = _state_setter(
@@ -487,7 +487,7 @@ class FuncFormatter:
 class _Epoch(float):
     """Date-number-compatible epoch used by the harvested JPL unit tests."""
 
-    def __new__(cls, name, dt=None):
+    def __new__(cls: Any, name: Any, dt: Any = None) -> Any:
         if dt is None:
             value = 0.0
         elif isinstance(dt, _datetime.datetime):
@@ -500,10 +500,10 @@ class _Epoch(float):
 class _Duration(float):
     """Second-based duration with the small `convert` surface tests use."""
 
-    def __new__(cls, name, seconds=0.0):
+    def __new__(cls: Any, name: Any, seconds: Any = 0.0) -> Any:
         return float.__new__(cls, float(seconds))
 
-    def convert(self, unit):
+    def convert(self, unit: Any) -> Any:
         return float(self)
 
 
@@ -516,7 +516,7 @@ class _TestingUnits:
     Epoch = _Epoch
     Duration = _Duration
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.day = _Duration("ET", 86400.0)
 
     register = _noop_method("register", 'self')
@@ -525,26 +525,26 @@ class _TestingUnits:
 testing = _TestingUnits()
 
 
-def twinx(ax=None):
+def twinx(ax: Any = None) -> Any:
     """`plt.twinx()` shim."""
     return (ax or gca()).twinx()
 
 
-def twiny(ax=None):
+def twiny(ax: Any = None) -> Any:
     """`plt.twiny()` shim."""
     return (ax or gca()).twiny()
 
 
 
 
-def _is_pandas_data(value):
+def _is_pandas_data(value: Any) -> Any:
     """Whether `value` is a pandas DataFrame or Series, without importing pandas."""
     return (type(value).__module__.split(".")[0] == "pandas"
             and hasattr(value, "index")
             and (hasattr(value, "columns") or hasattr(value, "name")))
 
 
-def plot(*args, **kwargs):
+def plot(*args: Any, **kwargs: Any) -> Any:
     """Call ``Axes.plot`` on the current axes and return its result.
 
     A pandas DataFrame/Series with a `kind=` keyword is dispatched to the
@@ -555,10 +555,10 @@ def plot(*args, **kwargs):
         from ._pandas import plot as pandas_plot
         return pandas_plot(*args, **kwargs)
     return gca().plot(*args, **kwargs)
-def xlabel(text, fontsize=None, **kwargs):
+def xlabel(text: Any, fontsize: Any = None, **kwargs: Any) -> Any:
     """Set the x-axis label of the current axes."""
     gca().set_xlabel(text, fontsize=fontsize)
-def ylabel(text, fontsize=None, **kwargs):
+def ylabel(text: Any, fontsize: Any = None, **kwargs: Any) -> Any:
     """Set the y-axis label of the current axes."""
     gca().set_ylabel(text, fontsize=fontsize)
 # `text` is a function, so the class hangs off it as Matplotlib does; mypy
@@ -566,18 +566,18 @@ def ylabel(text, fontsize=None, **kwargs):
 text.Text = Text
 
 
-def xkcd(scale=1, length=100, randomness=2):
+def xkcd(scale: Any = 1, length: Any = 100, randomness: Any = 2) -> Any:
     """Matplotlib's sketch style has no renderer support; accept and ignore it.
 
     The call also works as `with plt.xkcd():`, so return a context manager.
     """
     _ignored("xkcd")
     return _NoopContext()
-def get_data_path():
+def get_data_path() -> Any:
     """Return the directory that holds the bundled data files."""
     return os.path.dirname(os.path.abspath(__file__))
-def _delegate_probe(method):
-    def wrapper(*args, **kwargs):
+def _delegate_probe(method: Any) -> Any:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         return getattr(gca(), method)(*args, **kwargs)
     wrapper.__name__ = method
     return wrapper
@@ -590,7 +590,7 @@ grouped_bar = _delegate_probe("grouped_bar")
 
 
 
-def axes(*args, **kwargs):
+def axes(*args: Any, **kwargs: Any) -> Any:
     """Compatibility shim: matplotvite lays out subplots on a grid, so this returns the
     current axes (creating one if needed)."""
     return gca()
@@ -599,49 +599,49 @@ def axes(*args, **kwargs):
 
 
 
-def get_backend():
+def get_backend() -> Any:
     """Return the active backend name; matplotvite always renders statically."""
     return _backend
 
 
-def switch_backend(newbackend):
+def switch_backend(newbackend: Any) -> Any:
     """Record a backend name; the renderer and encoded formats do not change."""
     global _backend
     _backend = str(newbackend).lower()
 
 
-def draw_if_interactive(*args, **kwargs):
+def draw_if_interactive(*args: Any, **kwargs: Any) -> Any:
     """Draw pending figures in interactive mode; matplotvite draws on save."""
     pass
 
 
-def draw_all(*args, **kwargs):
+def draw_all(*args: Any, **kwargs: Any) -> Any:
     """Draw every open figure; matplotvite draws on save, so this is a no-op."""
     pass
 
 
-def show(*args, **kwargs):
+def show(*args: Any, **kwargs: Any) -> Any:
     """Display figures; Matplotvite has no window backend, so this is a no-op."""
     pass
 
-def draw(*args, **kwargs):
+def draw(*args: Any, **kwargs: Any) -> Any:
     """Flush pending drawing work; Matplotvite writes on save, so this is a no-op."""
     pass
 
-def pause(*args, **kwargs):
+def pause(*args: Any, **kwargs: Any) -> Any:
     """Pause for an interval; Matplotvite has no interactive backend, so this is a no-op."""
     pass
 
 
-def ion(*args, **kwargs):
+def ion(*args: Any, **kwargs: Any) -> Any:
     """Enable interactive mode; Matplotvite always renders statically."""
     pass
-def ioff(*args, **kwargs):
+def ioff(*args: Any, **kwargs: Any) -> Any:
     """Disable interactive mode; Matplotvite always renders statically."""
     pass
-def use(*args, **kwargs): pass
-def connect(*args, **kwargs): return 1
-def figaspect(aspect):
+def use(*args: Any, **kwargs: Any) -> Any: pass
+def connect(*args: Any, **kwargs: Any) -> Any: return 1
+def figaspect(aspect: Any) -> Any:
     """Return a figure size with the requested height/width ratio."""
     aspect = float(aspect)
     if aspect < 1.0:
@@ -649,13 +649,13 @@ def figaspect(aspect):
     return (4.0 * aspect, 4.0)
 
 
-def get_figlabels():
+def get_figlabels() -> Any:
     """Return the labels of all open figures, in figure-number order."""
     with _figure_lock:
         return [_figures[number].get_label() for number in sorted(_figures)]
 
 
-def sca(ax):
+def sca(ax: Any) -> Any:
     """Set the current axes, switching to its figure when needed."""
     if not isinstance(ax, Axes):
         raise ValueError("sca() requires an Axes instance")
@@ -673,7 +673,7 @@ def sca(ax):
     fig.sca(ax)
 
 
-def box(on=None):
+def box(on: Any = None) -> Any:
     """Turn the current axes' frame on or off, toggling when `on` is None."""
     ax = gca()
     if on is None:
@@ -711,12 +711,12 @@ def box(on=None):
 
 
 
-def set_cmap(cmap):
+def set_cmap(cmap: Any) -> Any:
     """Set the default colormap used by image-like artists."""
     rcParams["image.cmap"] = _cmap_name(cmap)
 
 
-def xlim(*args, **kwargs):
+def xlim(*args: Any, **kwargs: Any) -> Any:
     """Set or query the x limits of the current axes."""
     ax = gca()
     if not args and not kwargs:
@@ -728,7 +728,7 @@ def xlim(*args, **kwargs):
     return ax.get_xlim()
 
 
-def ylim(*args, **kwargs):
+def ylim(*args: Any, **kwargs: Any) -> Any:
     """Set or query the y limits of the current axes."""
     ax = gca()
     if not args and not kwargs:
@@ -740,12 +740,12 @@ def ylim(*args, **kwargs):
     return ax.get_ylim()
 
 
-def _is_artist_sequence(obj):
+def _is_artist_sequence(obj: Any) -> Any:
     """True for a list of artists such as a `BarContainer`, not a string."""
     return isinstance(obj, (list, tuple, np.flatiter)) and not isinstance(obj, (str, bytes))
 
 
-def getp(obj, *args):
+def getp(obj: Any, *args: Any) -> Any:
     """Generic getter: `getp(artist, "color")` calls `artist.get_color()`.
 
     A sequence of artists is read element by element, as in Matplotlib.
@@ -763,7 +763,7 @@ def getp(obj, *args):
     return out[0] if len(out) == 1 else out
 
 
-def setp(obj, *args, **kwargs):
+def setp(obj: Any, *args: Any, **kwargs: Any) -> Any:
     """Generic setter: `setp(artist, color="red")` calls `artist.set_color()`.
 
     A sequence of artists is updated element by element, as in Matplotlib.

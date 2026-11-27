@@ -1,11 +1,13 @@
 """RGB-channel axes layout used by `axes_grid1`."""
 
+from typing import Any
+
 import numpy as np
 
 __all__ = ("RGBAxes", "make_rgb_axes")
 
 
-def make_rgb_axes(ax, pad=0.02):
+def make_rgb_axes(ax: Any, pad: Any = 0.02) -> Any:
     """Resize `ax` and add three narrow R/G/B axes along its right edge."""
     figure = ax.get_figure()
     x, y, width, height = ax.get_position().bounds
@@ -29,15 +31,15 @@ def make_rgb_axes(ax, pad=0.02):
 class RGBAxes:
     """A main RGB image axes with three channel axes beside it."""
 
-    def __init__(self, fig, rect, pad=0.0, **kwargs):
+    def __init__(self, fig: Any, rect: Any, pad: Any = 0.0, **kwargs: Any) -> None:
         self.figure = fig
         self._ax = fig.add_axes(rect)
         self.axes_r, self.axes_g, self.axes_b = make_rgb_axes(self._ax, pad=pad)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: Any) -> Any:
         return getattr(self._ax, name)
 
-    def imshow_rgb(self, r, g, b, **kwargs):
+    def imshow_rgb(self, r: Any, g: Any, b: Any, **kwargs: Any) -> Any:
         r, g, b = (np.asarray(value, dtype=float) for value in (r, g, b))
         rgb = np.dstack((r, g, b))
         images = (

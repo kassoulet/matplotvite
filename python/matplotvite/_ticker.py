@@ -1,7 +1,7 @@
 """Locators, formatters, transforms and font properties."""
 import datetime as _datetime
 import math as _math
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import numpy as np
 
@@ -292,15 +292,15 @@ class FontProperties:
 
 
 class _StyleValue(str):
-    def __new__(cls, value: Any, name: Any) -> "_StyleValue":
-        obj = super().__new__(cls, value)
+    def __new__(cls: Any, value: Any, name: Any) -> "_StyleValue":
+        obj = cast("_StyleValue", super().__new__(cls, value))
         obj.name = name  # type: ignore[attr-defined]
         return obj
 
 
 class _StyleMeta(type):
-    def __iter__(cls) -> Any: return iter(cls._members())  # type: ignore[attr-defined]
-    def __len__(cls) -> int: return len(cls._members())  # type: ignore[attr-defined]
+    def __iter__(cls: Any) -> Any: return iter(cls._members())
+    def __len__(cls: Any) -> int: return len(cls._members())
 
 
 class CapStyle(str, metaclass=_StyleMeta):
@@ -309,7 +309,7 @@ class CapStyle(str, metaclass=_StyleMeta):
     projecting = _StyleValue("projecting", "projecting")
 
     @classmethod
-    def _members(cls) -> tuple[Any, ...]: return (cls.butt, cls.round, cls.projecting)
+    def _members(cls: Any) -> tuple[Any, ...]: return (cls.butt, cls.round, cls.projecting)
 
     @staticmethod
     def demo() -> None:
@@ -328,7 +328,7 @@ class JoinStyle(str, metaclass=_StyleMeta):
     bevel = _StyleValue("bevel", "bevel")
 
     @classmethod
-    def _members(cls) -> tuple[Any, ...]: return (cls.miter, cls.round, cls.bevel)
+    def _members(cls: Any) -> tuple[Any, ...]: return (cls.miter, cls.round, cls.bevel)
 
     @staticmethod
     def demo() -> None:

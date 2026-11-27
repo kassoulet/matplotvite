@@ -116,8 +116,8 @@ class _FontFlagSet:
 
 
 class _FontFlagsMeta(type):
-    def __iter__(cls) -> Iterator[Any]: return iter(cls._members())  # type: ignore[attr-defined]
-    def __len__(cls) -> int: return len(cls._members())  # type: ignore[attr-defined]
+    def __iter__(cls: Any) -> Iterator[Any]: return iter(cls._members())
+    def __len__(cls: Any) -> int: return len(cls._members())
 
 
 class StyleFlags(metaclass=_FontFlagsMeta):
@@ -127,7 +127,7 @@ class StyleFlags(metaclass=_FontFlagsMeta):
     BOLD = _FontFlag("BOLD")
 
     @classmethod
-    def _members(cls) -> tuple[Any, ...]: return (cls.ITALIC, cls.BOLD)
+    def _members(cls: Any) -> tuple[Any, ...]: return (cls.ITALIC, cls.BOLD)
 
 
 class FaceFlags(metaclass=_FontFlagsMeta):
@@ -147,7 +147,7 @@ class FaceFlags(metaclass=_FontFlagsMeta):
     HINTER = _FontFlag("HINTER")
 
     @classmethod
-    def _members(cls) -> tuple[Any, ...]:
+    def _members(cls: Any) -> tuple[Any, ...]:
         return tuple(getattr(cls, name) for name in (
             "SCALABLE", "FIXED_SIZES", "FIXED_WIDTH", "SFNT", "HORIZONTAL",
             "VERTICAL", "KERNING", "FAST_GLYPHS", "MULTIPLE_MASTERS",

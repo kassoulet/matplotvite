@@ -28,9 +28,9 @@ class Spine(_Spine):
         self._patch = None
 
     @classmethod
-    def linear_spine(cls, axes: object, spine_type: str,
+    def linear_spine(cls: Any, axes: object, spine_type: str,
                      path: object = None) -> "Spine":
-        spine = cls()
+        spine: Spine = cls()
         spine.axes = axes
         spine.spine_type = spine_type
         if path is None:
@@ -42,8 +42,8 @@ class Spine(_Spine):
         return spine
 
     @classmethod
-    def circular_spine(cls, axes: object, center: Any, radius: float) -> "Spine":
-        spine = cls()
+    def circular_spine(cls: Any, axes: object, center: Any, radius: float) -> "Spine":
+        spine: Spine = cls()
         spine.axes = axes
         spine.spine_type = "circle"
         angles = np.linspace(0.0, 2.0 * np.pi, 65)
