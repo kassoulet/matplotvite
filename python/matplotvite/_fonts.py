@@ -244,7 +244,7 @@ gridspec = _Namespace(GridSpec=GridSpec, SubplotSpec=SubplotSpec,
 lines = _Namespace(Line2D=Line2D)
 patheffects = _PathEffects()
 path_effects = patheffects
-class _ColorSequences(dict):
+class _ColorSequences(dict[str, list[str]]):
     """`matplotlib.color_sequences`: named colour lists, looked up by name."""
 
     def __missing__(self, key):

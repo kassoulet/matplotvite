@@ -223,10 +223,8 @@ class _FieldAxes(_AxesMixinBase):
                 raise ValueError("C must have one value per point")
             sums = np.bincount(cell, weights=weights[valid], minlength=total)
             values = np.divide(sums, counts, out=np.zeros(total), where=counts > 0)
-        if mincnt is None:
-            keep = np.ones(total, dtype=bool)
-        else:
-            keep = counts >= float(mincnt)
+        keep = (np.ones(total, dtype=bool) if mincnt is None
+                else counts >= float(mincnt))
         if not keep.any():
             keep = counts > 0
         shown = np.flatnonzero(keep)

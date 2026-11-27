@@ -192,7 +192,7 @@ class _BarHandle:
         self._axes.bars[self._group]["width"][self._index] = 0.0
 
 
-class _LineGroupHandle(list):
+class _LineGroupHandle(list[Any]):
     """A group of line handles that applies a setter to every member."""
 
     def set_linewidth(self, width):
@@ -223,7 +223,7 @@ class _StemContainer:
         return iter((self.markerline, self.stemlines, self.baseline))
 
 
-class _BarContainer(list):
+class _BarContainer(list[object]):
     """List of `_BarHandle`, matching matplotlib's `BarContainer`."""
 
     # `list` is unhashable; Matplotlib's container is not, so restore the

@@ -263,8 +263,8 @@ class _MColors:
     Colormap = Colormap
     ListedColormap = _ListedColormap
     LinearSegmentedColormap = _LinearSegmentedColormap
-    TABLEAU_COLORS: ClassVar[dict] = dict(_TAB10)
-    BASE_COLORS: ClassVar[dict] = {
+    TABLEAU_COLORS: ClassVar[dict[str, str]] = dict(_TAB10)
+    BASE_COLORS: ClassVar[dict[str, str]] = {
         name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
     cnames = _CSS_COLORS

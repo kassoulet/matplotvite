@@ -31,11 +31,11 @@ def generate_gallery_html(samples_info: list[dict[str, object]],
     )
 
     cat_buttons = ['<button class="filter-btn active" data-filter="all">All</button>']
-    for cat in categories:
-        cat_buttons.append(
-            f'<button class="filter-btn" data-filter="{category_id(cat)}">'
-            f"{html.escape(cat)}</button>"
-        )
+    cat_buttons.extend(
+        f'<button class="filter-btn" data-filter="{category_id(cat)}">'
+        f"{html.escape(cat)}</button>"
+        for cat in categories
+    )
     cat_buttons_html = "\n        ".join(cat_buttons)
 
     cards = []

@@ -553,17 +553,17 @@ class GeoAxes(PolarAxes):
                              "", edge, linewidth=0.8))
         if self.show_grid:
             latitude = np.linspace(-np.pi / 2.0, np.pi / 2.0, 91)
-            for longitude in np.linspace(-2.0 * np.pi / 3.0, 2.0 * np.pi / 3.0, 5):
-                lines.append(_series(
-                    np.sin(longitude) * np.cos(latitude),
-                    self._geo_height * np.sin(latitude),
-                    "", grid, linewidth=0.5))
+            lines.extend(
+                _series(np.sin(longitude) * np.cos(latitude),
+                        self._geo_height * np.sin(latitude),
+                        "", grid, linewidth=0.5)
+                for longitude in np.linspace(-2.0 * np.pi / 3.0, 2.0 * np.pi / 3.0, 5))
             longitude = np.linspace(-np.pi, np.pi, 181)
-            for lat in np.deg2rad([-60.0, -30.0, 0.0, 30.0, 60.0]):
-                lines.append(_series(
-                    np.sin(longitude) * np.cos(lat),
-                    np.full(longitude.size, self._geo_height * np.sin(lat)),
-                    "", grid, linewidth=0.5))
+            lines.extend(
+                _series(np.sin(longitude) * np.cos(lat),
+                        np.full(longitude.size, self._geo_height * np.sin(lat)),
+                        "", grid, linewidth=0.5)
+                for lat in np.deg2rad([-60.0, -30.0, 0.0, 30.0, 60.0]))
         return lines, []
 
 

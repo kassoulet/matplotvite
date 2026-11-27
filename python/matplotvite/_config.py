@@ -43,7 +43,7 @@ _RC_DEFAULTS = dict(rcParams)
 class _Namespace:
     """Namespace whose members come from keyword arguments at construction."""
 
-    def __init__(self, **values): self.__dict__.update(values)
+    def __init__(self, **values: object) -> None: self.__dict__.update(values)
 
     def __getattr__(self, name: str) -> Any:
         raise AttributeError(name)

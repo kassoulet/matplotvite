@@ -6,6 +6,7 @@ import math as _math
 import os
 import re as _re
 import warnings
+from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
@@ -553,14 +554,16 @@ class _PropCycler:
         return f"Cycler(color={self._colors!r})"
 
 
-class _CycleList(list):
+class _CycleList(list[dict[str, object]]):
     """`axes.prop_cycle`: iterating yields `{"color": ...}` entries, as Cycler."""
 
-    def __init__(self, colors):
+    def __init__(self, colors: Iterable[object]) -> None:
         super().__init__({"color": c} for c in colors)
 
-    def by_key(self): return {"color": [entry["color"] for entry in self]}
-    def __call__(self): return iter(self)
+    def by_key(self) -> dict[str, list[object]]:
+        return {"color": [entry["color"] for entry in self]}
+
+    def __call__(self) -> Iterator[dict[str, object]]: return iter(self)
 
 
 def cycler(*args, **kwargs):
@@ -938,7 +941,7 @@ class _BboxPatch:
         "set_path_effects", 'self, effects', warn='Patch.set_path_effects', returns_self=True)
 
 
-class _TextEntry(tuple):
+class _TextEntry(tuple[object, ...]):
     """Stored text record with the accessors Matplotlib text artists expose."""
 
     def get_position(self): return (self[0], self[1])

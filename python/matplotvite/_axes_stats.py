@@ -365,7 +365,7 @@ class _StatsAxes(_AxesMixinBase):
             out["cmaxes"], out["cmins"], out["cbars"] = [], [], []
         if showmedians:
             out["cmedians"] = []
-        quantile_lines = []
+        quantile_lines: list[_LineHandle] = []
         for i, stat in enumerate(stats):
             coords = np.asarray(stat["coords"])
             if _looks_like_dates(coords):
@@ -402,8 +402,7 @@ class _StatsAxes(_AxesMixinBase):
                     self._stats_line([pos, pos], [minimum, maximum], line_color))
             if showmedians:
                 out["cmedians"].append(perp(number(stat["median"])))
-            for q in stat.get("quantiles") or ():
-                quantile_lines.append(perp(number(q)))
+            quantile_lines.extend(perp(number(q)) for q in stat.get("quantiles") or ())
         if quantile_lines:
             out["cquantiles"] = quantile_lines
         return out

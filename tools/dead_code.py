@@ -26,10 +26,10 @@ def scan(path: pathlib.Path) -> Vulture:
 
 def main() -> int:
     findings = list(scan(ROOT / "tools").get_unused_code(min_confidence=60))
-    for item in scan(ROOT / "python" / "matplotvite").get_unused_code(min_confidence=60):
-        if item.typ in PRIVATE_KINDS and item.name.startswith("_") \
-                and not item.name.startswith("__"):
-            findings.append(item)
+    findings.extend(
+        item for item in scan(ROOT / "python" / "matplotvite").get_unused_code(min_confidence=60)
+        if item.typ in PRIVATE_KINDS and item.name.startswith("_")
+        and not item.name.startswith("__"))
     for item in findings:
         print(f"{item.filename}:{item.first_lineno}: unused {item.typ} "
               f"'{item.name}'", file=sys.stderr)

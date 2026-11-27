@@ -1026,10 +1026,8 @@ def _hist_datasets(x):
 def _hist_centers(edges, align):
     """`(bar_align, centers)` for a histogram's bin edges."""
     bar_align = "edge" if align in ("left", "edge") else "center"
-    if bar_align == "edge":
-        centers = edges[:-1]
-    else:
-        centers = (edges[:-1] + edges[1:]) / 2.0
+    centers = (edges[:-1] if bar_align == "edge"
+               else (edges[:-1] + edges[1:]) / 2.0)
     return bar_align, centers
 
 

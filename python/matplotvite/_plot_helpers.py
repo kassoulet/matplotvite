@@ -253,7 +253,7 @@ def _plot_args(args, fmt):
     repeated `plot(x1, y1, x2, y2, ...)` form Matplotlib accepts all map to
     groups; a trailing format string applies to the group before it.
     """
-    groups: list[tuple] = []
+    groups: list[tuple[object, ...]] = []
     i = 0
     while i < len(args):
         arg = args[i]
@@ -687,10 +687,8 @@ def _err_pair(err, n, name):
         v = np.full(n, abs(float(_as_f64(err)[0])))
         return v, v.copy()
     raw = np.asarray(err, dtype=object)
-    if raw.ndim == 2:
-        a = np.asarray([_as_f64(row) for row in err])
-    else:
-        a = _as_f64(err)
+    a = (np.asarray([_as_f64(row) for row in err]) if raw.ndim == 2
+         else _as_f64(err))
     if a.ndim == 0:
         v = np.full(n, abs(float(a)))
         return v, v.copy()

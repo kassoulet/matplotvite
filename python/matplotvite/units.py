@@ -4,8 +4,9 @@
 class AxisInfo:
     """Axis label, locator and formatter hints supplied by a converter."""
 
-    def __init__(self, majloc=None, minloc=None, majfmt=None, minfmt=None,
-                 label=None, default_limits=None):
+    def __init__(self, majloc: object = None, minloc: object = None,
+                 majfmt: object = None, minfmt: object = None,
+                 label: object = None, default_limits: object = None) -> None:
         self.majloc = majloc
         self.minloc = minloc
         self.majfmt = majfmt
@@ -18,22 +19,22 @@ class ConversionInterface:
     """Base class for converters registered in `registry`."""
 
     @staticmethod
-    def axisinfo(unit, axis):
+    def axisinfo(unit: object, axis: object) -> None:
         return None
 
     @staticmethod
-    def default_units(x, axis):
+    def default_units(x: object, axis: object) -> None:
         return None
 
     @staticmethod
-    def convert(obj, unit, axis):
+    def convert(obj: object, unit: object, axis: object) -> object:
         return obj
 
 
-class Registry(dict):
+class Registry(dict[type, object]):
     """Mapping from value types to their conversion interface."""
 
-    def get_converter(self, x):
+    def get_converter(self, x: object) -> object:
         for cls in type(x).__mro__:
             converter = self.get(cls)
             if converter is not None:

@@ -1721,12 +1721,13 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         # Reference lines and bands are axes-fraction based, so they are resolved
         # here, once the drawing limits are known.
         series = list(self.lines)
-        for h in self._hline_refs:
-            series.append(_series([x0 + h["xmin"] * dx, x0 + h["xmax"] * dx],
-                                  [h["y"], h["y"]], h["label"], h["color"] or "black",
-                                  linestyle=h["linestyle"] or "-",
-                                  linewidth=h["linewidth"] if h["linewidth"] is not None else rcParams.get("lines.linewidth", 1.5),
-                                  alpha=h["alpha"]))
+        series.extend(
+            _series([x0 + h["xmin"] * dx, x0 + h["xmax"] * dx],
+                    [h["y"], h["y"]], h["label"], h["color"] or "black",
+                    linestyle=h["linestyle"] or "-",
+                    linewidth=h["linewidth"] if h["linewidth"] is not None else rcParams.get("lines.linewidth", 1.5),
+                    alpha=h["alpha"])
+            for h in self._hline_refs)
         for a in self._axlines:
             (px, py) = a["p"]
             if a["slope"] is None:
@@ -1742,13 +1743,14 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             series.append(_series(xs, ys, a["label"], a["color"] or "black",
                                   linestyle=a["linestyle"], linewidth=a["linewidth"],
                                   alpha=a["alpha"]))
-        for v in self._vline_refs:
-            series.append(_series([v["x"], v["x"]],
-                                  [y0 + v["ymin"] * dy, y0 + v["ymax"] * dy],
-                                  v["label"], v["color"] or "black",
-                                  linestyle=v["linestyle"] or "-",
-                                  linewidth=v["linewidth"] if v["linewidth"] is not None else rcParams.get("lines.linewidth", 1.5),
-                                  alpha=v["alpha"]))
+        series.extend(
+            _series([v["x"], v["x"]],
+                    [y0 + v["ymin"] * dy, y0 + v["ymax"] * dy],
+                    v["label"], v["color"] or "black",
+                    linestyle=v["linestyle"] or "-",
+                    linewidth=v["linewidth"] if v["linewidth"] is not None else rcParams.get("lines.linewidth", 1.5),
+                    alpha=v["alpha"])
+            for v in self._vline_refs)
         bars = list(self.bars)
         for s in self.hspans:
             lo, hi = min(s["ymin"], s["ymax"]), max(s["ymin"], s["ymax"])

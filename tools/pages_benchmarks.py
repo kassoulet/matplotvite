@@ -68,10 +68,8 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
         )
     comparison_rows = "\n".join(rows)
 
-    table_rows = []
-    for result in results:
-        table_rows.append(
-            f"""
+    table_rows = [
+        f"""
           <tr>
             <td>{html.escape(str(result['name']))}</td>
             <td class="category-label">{html.escape(str(result.get('category', 'General')))}</td>
@@ -80,7 +78,8 @@ def generate_benchmarks_html(bench_data: dict[str, object]) -> str:
             <td class="num">{float(result['mpl_ms']):.2f}</td>
             <td class="num">{float(result['speedup']):.1f}×</td>
           </tr>"""
-        )
+        for result in results
+    ]
     table_html = "\n".join(table_rows)
 
     return f"""<!DOCTYPE html>

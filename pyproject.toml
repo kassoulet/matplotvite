@@ -77,11 +77,6 @@ ignore = [
     "RUF001",
     # Explicit int() conversions document pixel/raster boundaries.
     "RUF046",
-    # Ternaries and extend() rewrites of the compact drawing code are style
-    # churn, not correctness; the rest of SIM and PERF stay on.
-    "SIM108",
-    "PERF401",
-    "PERF203",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -113,6 +108,14 @@ warn_unused_ignores = true
 # Typed bodies only checked signatures before; check untyped ones too. Known
 # findings carry an explicit `type: ignore[code]` to be burned down over time.
 check_untyped_defs = true
+# The checking half of `strict`, turned on for the whole package so new code
+# cannot lean on `Any` returns, implicit `Optional` or loose generic types.
+# The annotation half (`disallow_untyped_defs` and friends) is turned on
+# per module below, starting with the small modules and working outward.
+warn_return_any = true
+no_implicit_optional = true
+strict_equality = true
+disallow_any_generics = true
 
 [tool.coverage.run]
 # Branch coverage catches the short-circuit paths in the drawing helpers that
@@ -165,3 +168,9 @@ exclude = [
     ".freebuff/**",
     "review.md",
 ]
+
+[[tool.mypy.overrides]]
+module = ["matplotvite._config", "matplotvite.units"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = true
