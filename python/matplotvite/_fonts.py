@@ -1,5 +1,7 @@
 """Font, style-flag and epoch compatibility shims."""
+from collections.abc import Iterator
 from contextlib import contextmanager, suppress
+from typing import Any
 
 import numpy as np
 
@@ -50,8 +52,8 @@ from ._ticker import (
 )
 
 
-def _set_epoch(epoch): _epoch["value"] = str(epoch)
-def _get_epoch(): return _epoch["value"]
+def _set_epoch(epoch: Any) -> None: _epoch["value"] = str(epoch)
+def _get_epoch() -> Any: return _epoch["value"]
 
 dates = _Namespace(
     date2num=_date_to_num, num2date=_num_to_date, DateFormatter=_DateFormatter,
@@ -79,7 +81,7 @@ cbook = _Namespace(get_sample_data=_get_sample_data, flatten=_flatten,
 mlab = _Mlab()
 
 
-def _findfont(prop=None, **kwargs):
+def _findfont(prop: Any = None, **kwargs: Any) -> str:
     """Return a placeholder bundled-font path.
 
     The renderer uses its own bundled font bytes, so resolving a real path is
@@ -95,27 +97,27 @@ findfont = _findfont
 class _FontFlag:
     """One named FreeType style or face flag."""
 
-    def __init__(self, name):
+    def __init__(self, name: Any) -> None:
         self.name = name
 
-    def __repr__(self): return f"<FontFlag {self.name}>"
+    def __repr__(self) -> str: return f"<FontFlag {self.name}>"
 
 
 class _FontFlagSet:
     """The flags present on a font face, testable with `flag in font.flags`."""
 
-    def __init__(self, names):
+    def __init__(self, names: Any) -> None:
         self._names = set(names)
 
-    def __contains__(self, flag):
+    def __contains__(self, flag: Any) -> bool:
         return getattr(flag, "name", flag) in self._names
 
-    def __iter__(self): return iter(self._names)
+    def __iter__(self) -> Iterator[str]: return iter(self._names)
 
 
 class _FontFlagsMeta(type):
-    def __iter__(cls): return iter(cls._members())  # type: ignore[attr-defined]
-    def __len__(cls): return len(cls._members())  # type: ignore[attr-defined]
+    def __iter__(cls) -> Iterator[Any]: return iter(cls._members())  # type: ignore[attr-defined]
+    def __len__(cls) -> int: return len(cls._members())  # type: ignore[attr-defined]
 
 
 class StyleFlags(metaclass=_FontFlagsMeta):
@@ -125,7 +127,7 @@ class StyleFlags(metaclass=_FontFlagsMeta):
     BOLD = _FontFlag("BOLD")
 
     @classmethod
-    def _members(cls): return (cls.ITALIC, cls.BOLD)
+    def _members(cls) -> tuple[Any, ...]: return (cls.ITALIC, cls.BOLD)
 
 
 class FaceFlags(metaclass=_FontFlagsMeta):
@@ -145,7 +147,7 @@ class FaceFlags(metaclass=_FontFlagsMeta):
     HINTER = _FontFlag("HINTER")
 
     @classmethod
-    def _members(cls):
+    def _members(cls) -> tuple[Any, ...]:
         return tuple(getattr(cls, name) for name in (
             "SCALABLE", "FIXED_SIZES", "FIXED_WIDTH", "SFNT", "HORIZONTAL",
             "VERTICAL", "KERNING", "FAST_GLYPHS", "MULTIPLE_MASTERS",
@@ -163,7 +165,7 @@ class Kerning:
 class _FT2Glyph:
     """Glyph metrics returned by the font-inspection shim."""
 
-    def __init__(self, glyph_index):
+    def __init__(self, glyph_index: Any) -> None:
         self.glyph_index = int(glyph_index)
         self.bbox = (0, 0, 600, 700)
         self.width = self.horiAdvance = 600
@@ -174,7 +176,7 @@ class _FT2Glyph:
 class FT2Font:
     """Small font-inspection stand-in backed by the bundled DejaVu metrics."""
 
-    def __init__(self, filename):
+    def __init__(self, filename: Any) -> None:
         self.fname = str(filename)
         name = self.fname.lower()
         self.num_faces = 1
@@ -207,30 +209,31 @@ class FT2Font:
         self._charmap = 0
         self._size = (12.0, 72.0)
 
-    def set_charmap(self, charmap):
+    def set_charmap(self, charmap: Any) -> None:
         """Select a character map; the bundled font only has one."""
         self._charmap = int(charmap)
 
-    def set_size(self, size, dpi=72):
+    def set_size(self, size: Any, dpi: Any = 72) -> None:
         self._size = (float(size), float(dpi))
 
-    def get_charmap(self):
+    def get_charmap(self) -> dict[int, int]:
         return {code: code for code in range(0x20, 0x100)}
 
-    def get_name_index(self, name):
+    def get_name_index(self, name: Any) -> int:
         """Index of a named font table entry; the stand-in has none."""
         return 0
 
-    def get_glyph_name(self, glyph_index):
+    def get_glyph_name(self, glyph_index: Any) -> str:
         index = int(glyph_index)
         if 0x20 <= index <= 0x7E:
             return chr(index)
         return f"uni{index:04X}"
 
-    def load_char(self, charcode):
+    def load_char(self, charcode: Any) -> _FT2Glyph:
         return _FT2Glyph(charcode)
 
-    def get_kerning(self, left, right, mode=Kerning.DEFAULT):
+    def get_kerning(self, left: Any, right: Any,
+                    mode: Any = Kerning.DEFAULT) -> int:
         """The bundled metrics shim has no kerning table."""
         return 0
 
@@ -247,11 +250,11 @@ path_effects = patheffects
 class _ColorSequences(dict[str, list[str]]):
     """`matplotlib.color_sequences`: named colour lists, looked up by name."""
 
-    def __missing__(self, key):
+    def __missing__(self, key: str) -> list[str]:
         raise KeyError(key)
 
 
-def _colormap_sequence(name):
+def _colormap_sequence(name: str) -> list[str]:
     cmap = get_cmap(name)
     rows = np.asarray(cmap.colors)[::-1] if cmap.name.endswith("_r") else np.asarray(cmap.colors)
     return [f"#{round(r * 255):02x}{round(g * 255):02x}{round(b * 255):02x}"
@@ -269,7 +272,7 @@ for _sequence in ("tab10", "tab20", "tab20b", "tab20c", "Pastel1", "Pastel2",
         color_sequences[_sequence] = _colormap_sequence(_sequence)
 
 
-def rc(group=None, **kwargs):
+def rc(group: Any = None, **kwargs: Any) -> None:
     """Record rc settings. `rc("lines", linewidth=2)` maps to `lines.linewidth`."""
     if group is None or isinstance(group, dict):
         rcParams.update(group or kwargs)
@@ -280,7 +283,7 @@ def rc(group=None, **kwargs):
 
 
 @contextmanager
-def rc_context(rc=None, fname=None):
+def rc_context(rc: Any = None, fname: Any = None) -> Iterator[Any]:
     """Apply rc overrides for the duration of the block, then restore them."""
     saved = dict(rcParams)
     if rc is not None:
@@ -292,7 +295,7 @@ def rc_context(rc=None, fname=None):
         rcParams.update(saved)
 
 
-def rcdefaults():
+def rcdefaults() -> None:
     """Restore `rcParams` to the built-in defaults."""
     rcParams.clear()
     rcParams.update(_RC_DEFAULTS)
@@ -373,7 +376,7 @@ for _petroff_style in ("petroff6", "petroff8", "petroff10"):
         "axes.prop_cycle": list(color_sequences[_petroff_style])}
 
 
-def _style_rc(style):
+def _style_rc(style: Any) -> dict[str, Any]:
     """Merge a preset name, a list of names or a dict into one rc mapping."""
     if isinstance(style, dict):
         merged = dict(style)
@@ -399,22 +402,25 @@ class _StyleLibrary:
     available = sorted(["default", *_STYLE_PRESETS], key=str)
     library = _STYLE_PRESETS
 
-    def use(self, style):
+    def use(self, style: Any) -> None:
         if isinstance(style, str) and style == "default":
             rcdefaults()
         else:
             rcParams.update(_style_rc(style))
 
-    def context(self, style):
+    def context(self, style: Any) -> Any:
         return rc_context(_style_rc(style))
 
 
 style = _StyleLibrary()
 
 
-def savefig(fname=None, format=None, dpi=None, bbox_inches=None, transparent=None,
-            facecolor=None, edgecolor=None, compression=None, pad_inches=None,
-            metadata=None, pil_kwargs=None, **kwargs):
+def savefig(fname: Any = None, format: Any = None, dpi: Any = None,
+            bbox_inches: Any = None, transparent: Any = None,
+            facecolor: Any = None, edgecolor: Any = None,
+            compression: Any = None, pad_inches: Any = None,
+            metadata: Any = None, pil_kwargs: Any = None,
+            **kwargs: Any) -> Any:
     """Save the current figure, inferring the format from the filename."""
     return gcf().savefig(fname, format=format, dpi=dpi, bbox_inches=bbox_inches,
                          transparent=transparent, facecolor=facecolor, edgecolor=edgecolor,

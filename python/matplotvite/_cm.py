@@ -1,5 +1,5 @@
 """Colormaps, scalar mappables and light sources."""
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 import numpy as np
 
@@ -37,11 +37,11 @@ from ._pyplot import gca
 class _BivarColormap:
     """A small bivariate two-input colormap used by the Matplotlib corpus."""
 
-    def __init__(self, name, shape="square"):
+    def __init__(self, name: Any, shape: Any = "square") -> None:
         self.name = str(name)
         self.shape = str(shape)
 
-    def __call__(self, values):
+    def __call__(self, values: Any) -> np.ndarray:
         if isinstance(values, tuple) and len(values) == 2:
             x0, x1 = values
         else:
@@ -70,7 +70,7 @@ class _BivarColormap:
             rgb = np.stack([red, green, blue], axis=-1)
         return np.clip(rgb, 0.0, 1.0)
 
-    def with_extremes(self, **kwargs):
+    def with_extremes(self, **kwargs: Any) -> "_BivarColormap":
         shape = kwargs.get("shape", self.shape)
         return _BivarColormap(self.name, shape)
 
@@ -84,18 +84,20 @@ bivar_colormaps = {
 class _AxisModule(_Namespace):
     """`matplotlib.axis` plus the callable `plt.axis` compatibility shim."""
 
-    def __call__(self, *args, **kwargs): return gca().axis(*args, **kwargs)
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return gca().axis(*args, **kwargs)
 
 
 class _NoopContext:
     """A context manager for calls such as `with plt.xkcd():` that do nothing."""
 
-    def __enter__(self): return self
-    def __exit__(self, *exc): return False
+    def __enter__(self) -> "_NoopContext": return self
+    def __exit__(self, *exc: Any) -> Literal[False]: return False
 
 
 class _ListedColormap:
-    def __init__(self, colors, name="from_list", over=None, under=None, bad=None):
+    def __init__(self, colors: Any, name: Any = "from_list", over: Any = None,
+                 under: Any = None, bad: Any = None) -> None:
         self.colors = [str(_norm_color(c)) for c in colors]
         self.name, self.N = str(name), len(self.colors)
         self._bad = _norm_color(bad) if bad is not None else None
@@ -103,20 +105,23 @@ class _ListedColormap:
         self._over = _norm_color(over) if over is not None else None
 
     @classmethod
-    def from_list(cls, name, colors, N=256):
+    def from_list(cls, name: Any, colors: Any, N: Any = 256) -> Any:
         if len(colors) and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
             colors = [c for _, c in colors]
         return cls(colors, name)
 
     @property
-    def _rgb(self):
+    def _rgb(self) -> np.ndarray:
         return np.asarray([_rgba_tuple(c)[:3] for c in self.colors], dtype=np.float64)
 
-    def set_bad(self, color="k", alpha=None): self._bad = _norm_color(color)
-    def set_under(self, color="k", alpha=None): self._under = _norm_color(color)
-    def set_over(self, color="k", alpha=None): self._over = _norm_color(color)
+    def set_bad(self, color: Any = "k", alpha: Any = None) -> None:
+        self._bad = _norm_color(color)
+    def set_under(self, color: Any = "k", alpha: Any = None) -> None:
+        self._under = _norm_color(color)
+    def set_over(self, color: Any = "k", alpha: Any = None) -> None:
+        self._over = _norm_color(color)
 
-    def __call__(self, X, alpha=None, bytes=False):
+    def __call__(self, X: Any, alpha: Any = None, bytes: Any = False) -> np.ndarray:
         arr = np.asarray(X, dtype=float)
         index = np.clip((arr * self.N).astype(int), 0, self.N - 1)
         rgb = np.asarray([[int(c[1:3], 16), int(c[3:5], 16), int(c[5:7], 16)]
@@ -125,7 +130,8 @@ class _ListedColormap:
         return out.astype(np.uint8) if bytes else out
 
 
-def from_levels_and_colors(levels, colors, extend="neither"):
+def from_levels_and_colors(levels: Any, colors: Any, extend: Any = "neither"
+                           ) -> tuple[_ListedColormap, Any]:
     """A `(cmap, norm)` pair for discrete levels, as `colors.from_levels_and_colors`."""
     boundaries = _as_f64(levels)
     if boundaries.size < 2:
@@ -143,7 +149,7 @@ def from_levels_and_colors(levels, colors, extend="neither"):
     return cmap, _BoundaryNorm(boundaries, ncolors, extend=extend)
 
 
-def _norm_values(norm, data):
+def _norm_values(norm: Any, data: Any) -> tuple[np.ndarray, Any, Any]:
     """Fold `norm` into the data so the renderer's 0-1 mapping is linear."""
     if isinstance(norm, str):
         kind = norm.lower()
@@ -165,7 +171,8 @@ def _norm_values(norm, data):
 class _LinearSegmentedColormap(_ListedColormap):
     """Colormap built from channel tables, as `LinearSegmentedColormap`."""
 
-    def __init__(self, name, segmentdata, N=256, gamma=1.0):
+    def __init__(self, name: Any, segmentdata: Any, N: Any = 256,
+                 gamma: Any = 1.0) -> None:
         samples = np.linspace(0.0, 1.0, max(int(N), 2))
         channels = []
         for key in ("red", "green", "blue"):
@@ -179,7 +186,7 @@ class _LinearSegmentedColormap(_ListedColormap):
         super().__init__(colors, name)
 
     @classmethod
-    def from_list(cls, name, colors, N=256):
+    def from_list(cls, name: Any, colors: Any, N: Any = 256) -> Any:
         """Resample a list of colours (or value/colour pairs) into `N` steps."""
         if len(colors) and isinstance(colors[0], (tuple, list)) and len(colors[0]) == 2:
             colors = [c for _, c in colors]
@@ -197,7 +204,7 @@ class _LinearSegmentedColormap(_ListedColormap):
         return instance
 
 
-def _rgba_tuple(color):
+def _rgba_tuple(color: Any) -> tuple[float, ...]:
     value = _norm_color(color)
     if value is None or value == "none":
         return (0.0, 0.0, 0.0, 0.0)
@@ -211,18 +218,18 @@ class _Mlab:
     """Small subset of matplotlib.mlab used by the signal examples."""
 
     @staticmethod
-    def window_hanning(x):
+    def window_hanning(x: Any) -> np.ndarray:
         x = np.asarray(x)
         return np.hanning(x.size) * x
 
     @staticmethod
-    def window_none(x): return x
+    def window_none(x: Any) -> Any: return x
 
     @staticmethod
-    def detrend_none(x, axis=-1): return x
+    def detrend_none(x: Any, axis: Any = -1) -> Any: return x
 
     @staticmethod
-    def detrend_mean(x, axis=-1):
+    def detrend_mean(x: Any, axis: Any = -1) -> np.ndarray:
         x = np.asarray(x)
         return x - np.mean(x, axis=axis, keepdims=True)
 
@@ -230,12 +237,12 @@ class _Mlab:
 class _MultivarColormap:
     """Minimal multivariate colormap: sample the first component."""
 
-    def __init__(self, cmaps, combination_mode=None):
+    def __init__(self, cmaps: Any, combination_mode: Any = None) -> None:
         self.cmaps = list(cmaps)
         self.combination_mode = combination_mode
         self.N = min(int(getattr(c, "N", 256)) for c in self.cmaps) if self.cmaps else 0
 
-    def __call__(self, X, alpha=None, bytes=False):
+    def __call__(self, X: Any, alpha: Any = None, bytes: Any = False) -> np.ndarray:
         values = X[0] if isinstance(X, tuple) else X
         if not self.cmaps:
             raise ValueError("MultivarColormap needs at least one component")
@@ -276,30 +283,30 @@ class _MColors:
     from_levels_and_colors: Any
 
     @staticmethod
-    def to_rgb(color): return _rgba_tuple(color)[:3]
+    def to_rgb(color: Any) -> tuple[Any, ...]: return _rgba_tuple(color)[:3]
 
     @staticmethod
-    def to_rgba(color, alpha=None, **kwargs):
+    def to_rgba(color: Any, alpha: Any = None, **kwargs: Any) -> tuple[Any, ...]:
         rgba = _rgba_tuple(color)
         return rgba if alpha is None else (*rgba[:3], float(alpha))
 
     @staticmethod
-    def to_rgba_array(colors, alpha=None):
+    def to_rgba_array(colors: Any, alpha: Any = None) -> np.ndarray:
         values = [_rgba_tuple(c) for c in colors]
         return np.asarray([v if alpha is None else (*v[:3], float(alpha)) for v in values])
 
     @staticmethod
-    def rgb2hex(rgb): return _norm_color(tuple(rgb))
+    def rgb2hex(rgb: Any) -> Any: return _norm_color(tuple(rgb))
 
     @staticmethod
-    def to_hex(color, keep_alpha=False):
+    def to_hex(color: Any, keep_alpha: Any = False) -> Any:
         value = _norm_color(color)
         if keep_alpha or value is None or value == "none":
             return value
         return value[:7]
 
 
-def rgb_to_hsv(rgb):
+def rgb_to_hsv(rgb: Any) -> np.ndarray:
     """Convert an RGB(A) array in 0..1 to HSV on the trailing axis."""
     rgb = np.asarray(rgb, dtype=float)
     r, g, b = np.moveaxis(rgb[..., :3], -1, 0)
@@ -319,7 +326,7 @@ def rgb_to_hsv(rgb):
     return np.stack([hue, sat, maxc], axis=-1)
 
 
-def hsv_to_rgb(hsv):
+def hsv_to_rgb(hsv: Any) -> np.ndarray:
     """Convert an HSV array in 0..1 to RGB on the trailing axis."""
     hsv = np.asarray(hsv, dtype=float)
     h, s, v = np.moveaxis(hsv[..., :3], -1, 0)
@@ -338,8 +345,9 @@ def hsv_to_rgb(hsv):
 class LightSource:
     """Light source for hillshading, matching Matplotlib's blend modes."""
 
-    def __init__(self, azdeg=315, altdeg=45, hsv_min_val=0, hsv_max_val=1,
-                 hsv_min_sat=1, hsv_max_sat=0):
+    def __init__(self, azdeg: Any = 315, altdeg: Any = 45, hsv_min_val: Any = 0,
+                 hsv_max_val: Any = 1, hsv_min_sat: Any = 1,
+                 hsv_max_sat: Any = 0) -> None:
         self.azdeg = float(azdeg)
         self.altdeg = float(altdeg)
         self.hsv_min_val = hsv_min_val
@@ -348,14 +356,15 @@ class LightSource:
         self.hsv_max_sat = hsv_max_sat
 
     @property
-    def direction(self):
+    def direction(self) -> np.ndarray:
         az = np.radians(90 - self.azdeg)
         alt = np.radians(self.altdeg)
         return np.array([np.cos(az) * np.cos(alt),
                          np.sin(az) * np.cos(alt),
                          np.sin(alt)])
 
-    def hillshade(self, elevation, vert_exag=1, dx=1, dy=1, fraction=1.0):
+    def hillshade(self, elevation: Any, vert_exag: Any = 1, dx: Any = 1,
+                  dy: Any = 1, fraction: Any = 1.0) -> np.ndarray:
         dy = -float(dy)
         elevation = np.asarray(elevation, dtype=float)
         e_dy, e_dx = np.gradient(float(vert_exag) * elevation, dy, dx)
@@ -364,7 +373,7 @@ class LightSource:
         normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
         return self.shade_normals(normal, fraction=fraction)
 
-    def shade_normals(self, normals, fraction=1.0):
+    def shade_normals(self, normals: Any, fraction: Any = 1.0) -> np.ndarray:
         intensity = np.asarray(normals, dtype=float).dot(self.direction)
         imin, imax = float(np.nanmin(intensity)), float(np.nanmax(intensity))
         intensity = intensity * float(fraction)
@@ -372,8 +381,10 @@ class LightSource:
             intensity = (intensity - imin) / (imax - imin)
         return np.clip(intensity, 0.0, 1.0)
 
-    def shade(self, data, cmap, norm=None, blend_mode="overlay", vmin=None,
-              vmax=None, vert_exag=1, dx=1, dy=1, fraction=1, **kwargs):
+    def shade(self, data: Any, cmap: Any, norm: Any = None,
+              blend_mode: Any = "overlay", vmin: Any = None, vmax: Any = None,
+              vert_exag: Any = 1, dx: Any = 1, dy: Any = 1, fraction: Any = 1,
+              **kwargs: Any) -> np.ndarray:
         data = np.asarray(data, dtype=float)
         if norm is None:
             lo = np.nanmin(data) if vmin is None else float(vmin)
@@ -392,8 +403,9 @@ class LightSource:
         rgb0[..., :3] = rgb1
         return rgb0
 
-    def shade_rgb(self, rgb, elevation, fraction=1.0, blend_mode="hsv",
-                  vert_exag=1, dx=1, dy=1, **kwargs):
+    def shade_rgb(self, rgb: Any, elevation: Any, fraction: Any = 1.0,
+                  blend_mode: Any = "hsv", vert_exag: Any = 1, dx: Any = 1,
+                  dy: Any = 1, **kwargs: Any) -> np.ndarray:
         rgb = np.asarray(rgb, dtype=float)
         intensity = self.hillshade(elevation, vert_exag=vert_exag, dx=dx, dy=dy,
                                    fraction=fraction)[..., np.newaxis]
@@ -405,8 +417,9 @@ class LightSource:
             return blend_mode(rgb, intensity, **kwargs)
         raise ValueError(f'"blend_mode" must be callable or one of {tuple(lookup)}')
 
-    def blend_hsv(self, rgb, intensity, hsv_max_sat=None, hsv_max_val=None,
-                  hsv_min_val=None, hsv_min_sat=None):
+    def blend_hsv(self, rgb: Any, intensity: Any, hsv_max_sat: Any = None,
+                  hsv_max_val: Any = None, hsv_min_val: Any = None,
+                  hsv_min_sat: Any = None) -> np.ndarray:
         hsv_max_sat = self.hsv_max_sat if hsv_max_sat is None else hsv_max_sat
         hsv_max_val = self.hsv_max_val if hsv_max_val is None else hsv_max_val
         hsv_min_sat = self.hsv_min_sat if hsv_min_sat is None else hsv_min_sat
@@ -425,11 +438,11 @@ class LightSource:
         hsv[..., 1:] = np.clip(hsv[..., 1:], 0.0, 1.0)
         return hsv_to_rgb(hsv)
 
-    def blend_soft_light(self, rgb, intensity):
+    def blend_soft_light(self, rgb: Any, intensity: Any) -> np.ndarray:
         rgb = np.asarray(rgb, dtype=float)
         return 2 * intensity * rgb + (1 - 2 * intensity) * rgb**2
 
-    def blend_overlay(self, rgb, intensity):
+    def blend_overlay(self, rgb: Any, intensity: Any) -> np.ndarray:
         rgb = np.asarray(rgb, dtype=float)
         low = 2 * intensity * rgb
         high = 1 - 2 * (1 - intensity) * (1 - rgb)
@@ -439,7 +452,7 @@ class LightSource:
 class Colorizer:
     """Shared norm/cmap pair accepted by `imshow(colorizer=...)`."""
 
-    def __init__(self, norm=None, cmap=None):
+    def __init__(self, norm: Any = None, cmap: Any = None) -> None:
         self.norm = norm
         self.cmap = cmap
 
@@ -447,26 +460,26 @@ class Colorizer:
 class ScalarMappable:
     """Minimal `matplotlib.cm.ScalarMappable` for standalone colorbars."""
 
-    def __init__(self, norm=None, cmap=None):
+    def __init__(self, norm: Any = None, cmap: Any = None) -> None:
         self.norm = norm if norm is not None else _Normalize()
         self.cmap = _cmap_name(cmap)
         self._array = None
 
-    def set_array(self, values):
+    def set_array(self, values: Any) -> "ScalarMappable":
         self._array = None if values is None else np.asarray(values, dtype=float)
         return self
 
-    def get_array(self): return self._array
+    def get_array(self) -> Any: return self._array
 
-    def set_clim(self, vmin=None, vmax=None):
+    def set_clim(self, vmin: Any = None, vmax: Any = None) -> "ScalarMappable":
         self.norm.vmin = vmin
         self.norm.vmax = vmax
         return self
 
-    def get_clim(self): return (self.norm.vmin, self.norm.vmax)
-    def get_cmap(self): return self.cmap
+    def get_clim(self) -> tuple[Any, Any]: return (self.norm.vmin, self.norm.vmax)
+    def get_cmap(self) -> Any: return self.cmap
 
-    def _colorbar_spec(self):
+    def _colorbar_spec(self) -> dict[str, Any]:
         lo, hi = self.norm.vmin, self.norm.vmax
         if self._array is not None and (lo is None or hi is None):
             values = self._array[np.isfinite(self._array)]

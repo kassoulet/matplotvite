@@ -189,6 +189,7 @@ disallow_untyped_calls = true
 # These modules annotate every definition of their own, but they still call
 # into the plotting core, so untyped calls stay allowed until the ratchet
 # annotates what they call.
-module = ["matplotvite._pandas", "matplotvite.offsetbox"]
+module = ["matplotvite._cm", "matplotvite._fonts", "matplotvite._pandas",
+           "matplotvite.offsetbox"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
