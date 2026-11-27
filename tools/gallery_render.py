@@ -33,6 +33,11 @@ import numpy as np
 from examples.karios_figures import make_data, overview, shift_by_row_col
 from examples.samples import SAMPLES
 
+try:
+    from tools import snippet_runner as _snippet_runner
+except ModuleNotFoundError:  # `python tools/gallery_render.py`
+    import snippet_runner as _snippet_runner
+
 SAMPLES_FILE = "samples.json"
 
 # The page templates need these fields; callables and import requirements stay
@@ -89,8 +94,8 @@ def render_matplotlib_sample(sample: dict[str, object], out_path: Path) -> None:
     )
     code = code.replace(f'"{filename}"', f'"{out_path.as_posix()}"')
     code += "\nplt.close('all')\n"
-    # Only repository-owned sample definitions reach this renderer.
-    exec(code, {})  # nosec
+    # Timings need the snippet in this process, without a child startup cost.
+    _snippet_runner.execute(code, {})
 
 
 def render_scaling_chart(out_path: Path, results: list[dict[str, object]]) -> None:

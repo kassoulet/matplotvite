@@ -22,6 +22,11 @@ import matplotlib.image as mimg
 import matplotlib.pyplot as mpl
 import matplotvite
 
+try:
+    from tools import snippet_runner as _snippet_runner
+except ModuleNotFoundError:  # `python tools/visual_compare.py`
+    import snippet_runner as _snippet_runner
+
 x = np.linspace(0, 10, 200)
 CASES = {
     "lines_legend": """
@@ -153,8 +158,7 @@ def run(name: str, code: str, lib, tag: str, out: pathlib.Path, fmt: str = "png"
         lib.close("all")
         # Keep random gallery cases comparable between the two libraries.
         np.random.seed(0)
-        # Only repository-owned comparison snippets reach this renderer.
-        exec(code, {"plt": lib, "np": np, "x": x, "OUT": str(path)})  # nosec
+        _snippet_runner.execute(code, {"plt": lib, "np": np, "x": x, "OUT": str(path)})
         return path, None
     except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"

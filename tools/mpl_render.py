@@ -5,21 +5,25 @@ from __future__ import annotations
 import ast
 import gzip
 import importlib.util
-import json
 import os
 import pathlib
 import subprocess
 import sys
 import tempfile
-import warnings
 
 import matplotvite
 import numpy as np
 
 try:
+    from tools import snippet_runner as _snippet_runner
     from tools.mpl_harvest import NUMPY_ALIASES, _loaded_names, compat_name
 except ModuleNotFoundError:  # `python tools/harvest_matplotlib.py`
+    import snippet_runner as _snippet_runner
     from mpl_harvest import NUMPY_ALIASES, _loaded_names, compat_name
+
+# Re-exported for `harvest_matplotlib`; the definition lives in the runner.
+SNIPPET_TIMEOUT = _snippet_runner.SNIPPET_TIMEOUT
+
 
 class _SampleDataCbook:
     """`cbook` backed by the Matplotlib checkout's bundled sample data."""
@@ -200,11 +204,7 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
             if ignored_calls is not None:
                 ignored_calls.clear()
             np.random.seed(0)
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", RuntimeWarning)
-                # The child process is timeout-bound and isolated from the harvest;
-                # snippets are pinned Matplotlib source, never downloaded input.
-                exec(snippet, namespace)  # nosec
+            _snippet_runner.execute(snippet, namespace)
             if not out_path.exists():
                 return "no figure saved"
             return None
@@ -223,33 +223,22 @@ def _render_snippet_in_process(snippet: str, out_path: pathlib.Path,
             os.chdir(previous)
 
 
-# Gallery snippets run in a child interpreter, matching the reference renderer:
-# a hung or crashing test cannot take down the harvest, and its rcParams, cwd,
-# sys.path and imported modules are discarded with the process.
-SNIPPET_TIMEOUT = 90
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+def _render_entry(snippet: str, options: dict) -> dict:
+    """Child-process entry point for `render`; returns a JSON payload."""
+    ignored: list[str] = []
+    error = _render_snippet_in_process(
+        snippet,
+        pathlib.Path(options["out_path"]),
+        pathlib.Path(options["extra_path"]) if options.get("extra_path") else None,
+        ignored,
+        pathlib.Path(options["sample_data"]) if options.get("sample_data") else None,
+        pathlib.Path(options["filename"]) if options.get("filename") else None,
+    )
+    return {"error": error, "ignored": ignored}
 
-_CHILD_DRIVER = r'''
-import json
-import pathlib
-import sys
 
-from tools.harvest_matplotlib import _render_snippet_in_process
-
-snippet_path, out_path, extra, sample_data, filename, result_path = sys.argv[1:7]
-ignored = []
-error = _render_snippet_in_process(
-    pathlib.Path(snippet_path).read_text(encoding="utf-8"),
-    pathlib.Path(out_path),
-    pathlib.Path(extra) if extra else None,
-    ignored,
-    pathlib.Path(sample_data) if sample_data else None,
-    pathlib.Path(filename) if filename else None,
-)
-pathlib.Path(result_path).write_text(
-    json.dumps({"error": error, "ignored": ignored}), encoding="utf-8"
-)
-'''
+# The child interpreter imports the entry point by name.
+SNIPPET_ENTRY = f"{_render_entry.__module__}.{_render_entry.__name__}"
 
 
 def render(snippet: str, out_path: pathlib.Path,
@@ -261,49 +250,21 @@ def render(snippet: str, out_path: pathlib.Path,
     out_path = out_path.resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.unlink(missing_ok=True)
-    with tempfile.TemporaryDirectory(prefix="matplotvite-snippet-") as scratch:
-        scratch = pathlib.Path(scratch)
-        snippet_path = scratch / "snippet.py"
-        result_path = scratch / "result.json"
-        snippet_path.write_text(snippet, encoding="utf-8")
-        command = [
-            sys.executable, "-c", _CHILD_DRIVER,
-            str(snippet_path), str(out_path),
-            str(extra_path.resolve()) if extra_path is not None else "",
-            str(sample_data.resolve()) if sample_data is not None else "",
-            str(filename.resolve()) if filename is not None else "",
-            str(result_path),
-        ]
-        env = dict(os.environ, MPLBACKEND="Agg")
-        env["PYTHONPATH"] = os.pathsep.join(
-            part for part in (str(ROOT), env.get("PYTHONPATH", "")) if part)
-        try:
-            result = subprocess.run(
-                command,
-                cwd=scratch,
-                env=env,
-                capture_output=True,
-                text=True,
-                errors="replace",
-                timeout=SNIPPET_TIMEOUT,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            out_path.unlink(missing_ok=True)
-            return f"TimeoutError: render did not finish in {SNIPPET_TIMEOUT}s"
-        if result.returncode != 0 or not result_path.exists():
-            out_path.unlink(missing_ok=True)
-            stderr = result.stderr.strip().splitlines()
-            return (stderr[-1] if stderr
-                    else f"render exited with status {result.returncode}")
-        try:
-            payload = json.loads(result_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            out_path.unlink(missing_ok=True)
-            return f"invalid render result: {exc}"
-        if ignored is not None:
-            ignored.extend(payload.get("ignored") or ())
-        return payload.get("error")
+    options = {
+        "out_path": str(out_path),
+        "extra_path": str(extra_path.resolve()) if extra_path is not None else "",
+        "sample_data": str(sample_data.resolve()) if sample_data is not None else "",
+        "filename": str(filename.resolve()) if filename is not None else "",
+    }
+    payload = _snippet_runner.run_isolated(
+        SNIPPET_ENTRY, snippet, options, timeout=SNIPPET_TIMEOUT, label="render")
+    error = payload.get("error")
+    if error or not out_path.exists():
+        out_path.unlink(missing_ok=True)
+        return error or "no figure saved"
+    if ignored is not None:
+        ignored.extend(payload.get("ignored") or ())
+    return None
 
 
 # Run each example in its own interpreter: gallery scripts set rcParams,
