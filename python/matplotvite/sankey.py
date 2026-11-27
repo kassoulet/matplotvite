@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from typing import Any
 
 import numpy as np
 
@@ -13,8 +14,9 @@ _ORIENTATION_ANGLE = {-1: 1, 0: 2, 1: 3}
 class Diagram:
     """One system in a Sankey diagram, mirroring `matplotlib.sankey.Diagram`."""
 
-    def __init__(self, sankey, flows, orientations, labels, trunklength,
-                 pathlengths, prior, connect):
+    def __init__(self, sankey: Sankey, flows: Any, orientations: Any,
+                 labels: Any, trunklength: float, pathlengths: Any,
+                 prior: Any, connect: Any) -> None:
         self.sankey = sankey
         self.flows = np.asarray(flows, dtype=float)
         n = self.flows.size
@@ -30,16 +32,16 @@ class Diagram:
         self.width = max(float(np.sum(self.flows[self.flows > 0])),
                          float(-np.sum(self.flows[self.flows < 0])), 0.1)
         self.tips = np.empty((n, 2), dtype=float)
-        self.patch = None
-        self.text = None
-        self.texts = []
-        self.flows_patches = []
-        self._bands = []
+        self.patch: Any = None
+        self.text: Any = None
+        self.texts: list[Any] = []
+        self.flows_patches: list[Any] = []
+        self._bands: list[Any] = []
 
-    def _scale(self, value):
+    def _scale(self, value: float) -> float:
         return float(value) * self.sankey.scale
 
-    def layout(self, x, y):
+    def layout(self, x: float, y: float) -> None:
         self.x, self.y = float(x), float(y)
         half = self._scale(self.width) / 2.0
         pos_cursor = half
@@ -71,7 +73,7 @@ class Diagram:
                 self.tips[i] = (x + self._scale(self.trunklength)
                                 + (length if flow >= 0 else -length), tip_y)
 
-    def bands(self):
+    def bands(self) -> list[Any]:
         """Return the trunk and flow polygons in data coordinates."""
         length = self._scale(self.trunklength)
         half = self._scale(self.width) / 2.0
@@ -121,8 +123,9 @@ class Diagram:
 class Sankey:
     """Create Sankey flow diagrams, following matplotlib's public API."""
 
-    def __init__(self, ax=None, scale=1.0, offset=0.15, head_angle=100,
-                 tolerance=1e-6, **kwargs):
+    def __init__(self, ax: Any = None, scale: float = 1.0, offset: float = 0.15,
+                 head_angle: float = 100, tolerance: float = 1e-6,
+                 **kwargs: Any) -> None:
         gap = kwargs.pop("gap", 0.25)
         radius = kwargs.pop("radius", 0.1)
         if gap < 0:
@@ -144,21 +147,21 @@ class Sankey:
         self.radius = float(radius)
         self.unit = kwargs.pop("unit", "")
         self.format = kwargs.pop("format", None)
-        self.diagrams = []
+        self.diagrams: list[Diagram] = []
         if "flows" in kwargs:
             self.add(**kwargs)
 
-    def _axes(self):
+    def _axes(self) -> Any:
         if self.ax is None:
             from . import gca
             self.ax = gca()
         return self.ax
 
-    def _value_text(self, flow):
+    def _value_text(self, flow: Any) -> str:
         value = abs(float(flow))
         fmt = self.format
         if callable(fmt):
-            text = fmt(value)
+            text = str(fmt(value))
         elif isinstance(fmt, str) and "%" in fmt:
             text = fmt % value
         elif fmt is None:
@@ -169,8 +172,10 @@ class Sankey:
             text = f"{text} {self.unit}"
         return text
 
-    def add(self, flows=None, orientations=None, labels="", trunklength=1.0,
-            pathlengths=0.25, prior=None, connect=(0, 0), rotation=0, **kwargs):
+    def add(self, flows: Any = None, orientations: Any = None, labels: Any = "",
+            trunklength: float = 1.0, pathlengths: Any = 0.25, prior: Any = None,
+            connect: Any = (0, 0), rotation: float = 0,
+            **kwargs: Any) -> Diagram:
         if flows is None:
             flows = [1]
         flows = np.asarray(flows, dtype=float).reshape(-1)
@@ -272,7 +277,7 @@ class Sankey:
         self.diagrams.append(diagram)
         return diagram
 
-    def finish(self):
+    def finish(self) -> list[Diagram]:
         self._axes()
         with suppress(AttributeError):
             self.ax.autoscale_view()

@@ -2,7 +2,7 @@
 import datetime as _datetime
 import hashlib as _hashlib
 import math as _math
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
@@ -409,7 +409,7 @@ def _check_same_length(a, b, message="x and y must have the same length"):
         raise ValueError(message)
 
 
-def _as_f64(v):
+def _as_f64(v: Any) -> np.ndarray:
     arr = np.asarray(_as_list(v))
     if arr.dtype.kind == "O":
         def number(item):

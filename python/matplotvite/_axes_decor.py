@@ -1,5 +1,5 @@
 """Axes mixin for text, labels, legends and grid styling."""
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -21,13 +21,15 @@ from ._helpers import (
 class _DecorAxes(_AxesMixinBase):
     """Labels, annotation, legends and axis decoration."""
 
-    def arrow(self, x, y, dx, dy, **kwargs):
+    def arrow(self, x: Any, y: Any, dx: Any, dy: Any, **kwargs: Any) -> Any:
         """Add a data-space `FancyArrow` and return the patch."""
         patch = FancyArrow(x, y, dx, dy, **kwargs)
         self.add_patch(patch)
         return patch
 
-    def text(self, x, y, s, fontdict=None, offset=(0.0, 0.0), **kwargs):
+    def text(self, x: Any, y: Any, s: Any, fontdict: Any = None,
+             offset: tuple[float, float] = (0.0, 0.0),
+             **kwargs: Any) -> _TextArt:
         """Place text at (x, y); `transform` may be `ax.transAxes` or
         `fig.transFigure` to use axes- or figure-fraction coordinates. `offset`
         shifts the glyphs by that many points from the anchor. Other Matplotlib
@@ -53,8 +55,9 @@ class _DecorAxes(_AxesMixinBase):
                                       (float(offset[0]), float(offset[1])))))
         return _TextArt(str(s))
 
-    def annotate(self, text, xy, xytext=None, arrowprops=None, color=None, fontsize=None,
-                 **kwargs):
+    def annotate(self, text: Any, xy: Any, xytext: Any = None,
+                 arrowprops: Any = None, color: Any = None,
+                 fontsize: Any = None, **kwargs: Any) -> _TextArt:
         """Text at `xytext` with an arrow pointing at `xy`.
 
         `xycoords`/`textcoords`, alignment and box keywords are accepted; the
@@ -73,13 +76,13 @@ class _DecorAxes(_AxesMixinBase):
         art.arrow_patch = _TextArt()  # type: ignore[attr-defined]
         return art
 
-    def set_title(self, t, fontsize=None, **kwargs):
+    def set_title(self, t: Any, fontsize: Any = None, **kwargs: Any) -> None:
         family = _family_override(kwargs)
         self.title = _mathtext(t, family)
         self.title_size = self._size_or(fontsize, "axes.titlesize")
         self.title_family = family
 
-    def set_xlabel(self, t, fontsize=None, **kwargs):
+    def set_xlabel(self, t: Any, fontsize: Any = None, **kwargs: Any) -> None:
         family = _family_override(kwargs)
         self.xlabel = _mathtext(t, family)
         self.xlabel_size = self._size_or(fontsize, "axes.labelsize")
@@ -87,7 +90,7 @@ class _DecorAxes(_AxesMixinBase):
         if "color" in kwargs or "labelcolor" in kwargs:
             self.xlabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
-    def set_ylabel(self, t, fontsize=None, **kwargs):
+    def set_ylabel(self, t: Any, fontsize: Any = None, **kwargs: Any) -> None:
         family = _family_override(kwargs)
         self.ylabel = _mathtext(t, family)
         self.ylabel_size = self._size_or(fontsize, "axes.labelsize")
@@ -96,12 +99,15 @@ class _DecorAxes(_AxesMixinBase):
             self.ylabel_color = _norm_color(kwargs.get("color", kwargs.get("labelcolor")))
 
     @staticmethod
-    def _size_or(value, key):
+    def _size_or(value: Any, key: str) -> float:
         return _font_size(value, rcParams.get(key, rcParams.get("font.size", 10.0)))
 
-    def legend(self, *args, loc=None, ncol=None, ncols=None, frameon=None, fontsize=None,
-               title=None, title_fontsize=None, bbox_to_anchor=None, handles=None,
-               labels=None, fontfamily=None, **kwargs):
+    def legend(self, *args: Any, loc: Any = None, ncol: Any = None,
+               ncols: Any = None, frameon: Any = None, fontsize: Any = None,
+               title: Any = None, title_fontsize: Any = None,
+               bbox_to_anchor: Any = None, handles: Any = None,
+               labels: Any = None, fontfamily: Any = None,
+               **kwargs: Any) -> _LegendHandle:
         """Show a legend. Supports placement, layout and explicit handles/labels."""
         _check_kwargs(kwargs, "legend", _LEGEND_KWARGS)
         _handles = _labels = None
@@ -152,7 +158,8 @@ class _DecorAxes(_AxesMixinBase):
             self.legend_anchor = (anchor[0], anchor[1])
         return _LegendHandle()
 
-    def grid(self, visible=None, which="major", axis="both", **kwargs):
+    def grid(self, visible: Any = None, which: str = "major", axis: str = "both",
+             **kwargs: Any) -> None:
         """Toggle gridlines and style them (`color`, `linewidth`, `alpha`,
         `linestyle`, `axis`). `visible=None` flips the current state."""
         if axis not in ("both", "x", "y"):
@@ -190,7 +197,7 @@ class _DecorAxes(_AxesMixinBase):
                     setattr(self, f"{prefix}alpha", 1.0)
         return None
 
-    def tick_params(self, axis="both", **kwargs):
+    def tick_params(self, axis: str = "both", **kwargs: Any) -> None:
         """Style ticks on `axis` ("x", "y" or "both"); stored for the renderer."""
         if axis not in ("x", "y", "both"):
             raise ValueError(f"unsupported tick axis: {axis!r}")

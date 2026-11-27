@@ -5,6 +5,8 @@ construction. The interpolators are linear; the cubic class exposes the same
 sampling API because the renderer only consumes sampled values.
 """
 
+from typing import Any, Optional
+
 import numpy as np
 
 __all__ = (
@@ -16,7 +18,7 @@ __all__ = (
 )
 
 
-def _circumcircle_contains(a, b, c, p):
+def _circumcircle_contains(a: Any, b: Any, c: Any, p: Any) -> bool:
     ax, ay = a
     bx, by = b
     cx, cy = c
@@ -29,10 +31,10 @@ def _circumcircle_contains(a, b, c, p):
     ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / det
     uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / det
     r2 = (ax - ux) ** 2 + (ay - uy) ** 2
-    return (p[0] - ux) ** 2 + (p[1] - uy) ** 2 < r2 - 1e-12
+    return bool((p[0] - ux) ** 2 + (p[1] - uy) ** 2 < r2 - 1e-12)
 
 
-def _delaunay(x, y):
+def _delaunay(x: Any, y: Any) -> np.ndarray:
     """Return triangle vertex indices for a small point set."""
     points = np.column_stack((x, y))
     n = len(points)
@@ -49,11 +51,11 @@ def _delaunay(x, y):
         bad = [tri_index for tri_index, tri in enumerate(triangles)
                if _circumcircle_contains(vertices[tri[0]], vertices[tri[1]],
                                          vertices[tri[2]], point)]
-        edges = {}  # type: ignore[var-annotated]
+        edges: dict[tuple[int, int], int] = {}
         for tri_index in bad:
             a, b, c = triangles[tri_index]
             for edge in ((a, b), (b, c), (c, a)):
-                key = tuple(sorted(edge))
+                key: tuple[int, int] = (min(edge), max(edge))
                 edges[key] = edges.get(key, 0) + 1
         bad_set = set(bad)
         triangles = [tri for i, tri in enumerate(triangles) if i not in bad_set]
@@ -63,7 +65,9 @@ def _delaunay(x, y):
     return np.asarray([tri for tri in triangles if max(tri) < n], dtype=int)
 
 
-def _barycentric_scalar(px, py, x0, y0, x1, y1, x2, y2):
+def _barycentric_scalar(px: float, py: float, x0: float, y0: float, x1: float,
+                        y1: float, x2: float, y2: float
+                        ) -> Optional[tuple[float, float, float]]:
     det = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
     if abs(det) < 1e-15:
         return None
@@ -75,22 +79,21 @@ def _barycentric_scalar(px, py, x0, y0, x1, y1, x2, y2):
 class _TriangleIndex:
     """Uniform bucket index for fast point location in a triangulation."""
 
-    def __init__(self, x, y, triangles):
+    def __init__(self, x: Any, y: Any, triangles: Any) -> None:
         self.x = x
         self.y = y
         self.triangles = triangles
+        self.buckets: dict[tuple[int, int], list[int]] = {}
         if len(triangles) == 0:
             self.size = 1
             self.minx = self.miny = 0.0
             self.maxx = self.maxy = 1.0
-            self.buckets = {}  # type: ignore[var-annotated]
             return
         xs = x[triangles]
         ys = y[triangles]
         self.minx, self.miny = float(xs.min()), float(ys.min())
         self.maxx, self.maxy = float(xs.max()), float(ys.max())
         self.size = max(1, int(np.sqrt(len(triangles))))
-        self.buckets = {}
         width = max(self.maxx - self.minx, 1e-15)
         height = max(self.maxy - self.miny, 1e-15)
         for index, tri in enumerate(triangles):
@@ -100,7 +103,8 @@ class _TriangleIndex:
                 for ix in range(bx.min(), bx.max() + 1):
                     self.buckets.setdefault((ix, iy), []).append(index)
 
-    def find(self, px, py):
+    def find(self, px: float, py: float
+             ) -> tuple[Optional[int], Optional[tuple[float, float, float]]]:
         """Return (triangle, barycentric) for a point, or (None, None)."""
         if not self.buckets or not np.isfinite(px) or not np.isfinite(py):
             return None, None
@@ -123,7 +127,8 @@ class _TriangleIndex:
 class Triangulation:
     """Unstructured triangular mesh from x/y points and optional triangles."""
 
-    def __init__(self, x, y, triangles=None, mask=None):
+    def __init__(self, x: Any, y: Any, triangles: Any = None,
+                 mask: Any = None) -> None:
         self.x = np.asarray(x, dtype=float).ravel()
         self.y = np.asarray(y, dtype=float).ravel()
         if self.x.size != self.y.size:
@@ -141,37 +146,37 @@ class Triangulation:
             self.mask = np.asarray(mask, dtype=bool).ravel()
             if self.mask.size != len(self.triangles):
                 raise ValueError("mask must have one entry per triangle")
-        self._trifinder = None
-        self._index = None
+        self._trifinder: Optional[_TriFinder] = None
+        self._index: Optional[_TriangleIndex] = None
 
     @property
-    def index(self):
+    def index(self) -> _TriangleIndex:
         if self._index is None:
             self._index = _TriangleIndex(self.x, self.y,
                                          self.get_masked_triangles())
         return self._index
 
-    def set_mask(self, mask):
+    def set_mask(self, mask: Any) -> "Triangulation":
         self.mask = (np.zeros(len(self.triangles), dtype=bool) if mask is None
                      else np.asarray(mask, dtype=bool).ravel())
         self._trifinder = None
         self._index = None
         return self
 
-    def get_masked_triangles(self):
+    def get_masked_triangles(self) -> np.ndarray:
         return self.triangles[~self.mask]
 
-    def get_trifinder(self):
+    def get_trifinder(self) -> "_TriFinder":
         if self._trifinder is None:
             self._trifinder = _TriFinder(self)
         return self._trifinder
 
 
 class _TriFinder:
-    def __init__(self, triangulation):
+    def __init__(self, triangulation: Triangulation) -> None:
         self._tri = triangulation
 
-    def __call__(self, x, y):
+    def __call__(self, x: Any, y: Any) -> Any:
         px, py = np.broadcast_arrays(np.asarray(x, dtype=float),
                                      np.asarray(y, dtype=float))
         out = np.full(px.shape, -1, dtype=int)
@@ -184,36 +189,37 @@ class _TriFinder:
 
 
 class LinearTriInterpolator:
-    def __init__(self, triangulation, z):
+    def __init__(self, triangulation: Triangulation, z: Any) -> None:
         self.triangulation = triangulation
         self.z = np.asarray(z, dtype=float).ravel()
         if self.z.size != len(triangulation.x):
             raise ValueError("z must have one value per triangulation point")
 
-    def _sample(self, x, y):
+    def _sample(self, x: Any, y: Any) -> np.ndarray:
         px, py = np.broadcast_arrays(np.asarray(x, dtype=float),
                                      np.asarray(y, dtype=float))
         out = np.full(px.size, np.nan)
         for i, (qx, qy) in enumerate(zip(px.ravel(), py.ravel())):
             index, weights = self.triangulation.index.find(float(qx), float(qy))
-            if index is None:
+            if index is None or weights is None:
                 continue
             tri = self.triangulation.index.triangles[index]
             out[i] = sum(w * self.z[v] for w, v in zip(weights, tri))
         return out.reshape(px.shape)
 
-    def __call__(self, x, y):
+    def __call__(self, x: Any, y: Any) -> np.ndarray:
         return self._sample(x, y)
 
 
 class CubicTriInterpolator(LinearTriInterpolator):
     """Linear fallback with the cubic interpolator's API."""
 
-    def __init__(self, triangulation, z, kind="min_E"):
+    def __init__(self, triangulation: Triangulation, z: Any,
+                 kind: str = "min_E") -> None:
         super().__init__(triangulation, z)
         self.kind = kind
 
-    def gradient(self, x, y):
+    def gradient(self, x: Any, y: Any) -> tuple[np.ndarray, np.ndarray]:
         px, py = np.broadcast_arrays(np.asarray(x, dtype=float),
                                      np.asarray(y, dtype=float))
         out_x = np.zeros(px.size)
@@ -236,17 +242,19 @@ class CubicTriInterpolator(LinearTriInterpolator):
 class UniformTriRefiner:
     """Uniform midpoint refinement of a triangulation and its field."""
 
-    def __init__(self, triangulation):
+    def __init__(self, triangulation: Triangulation) -> None:
         self._tri = triangulation
 
-    def _refine(self, values=None, subdiv=1):
+    def _refine(self, values: Any = None,
+                subdiv: int = 1) -> tuple[Triangulation, Any]:
         triangulation = self._tri
         x, y = triangulation.x.copy(), triangulation.y.copy()
         triangles = triangulation.triangles.copy()
         mask = triangulation.mask.copy()
         for _ in range(int(subdiv)):
             midpoints = {}
-            new_triangles, new_mask = [], []  # type: ignore[var-annotated]
+            new_triangles: list[tuple[int, int, int]] = []
+            new_mask: list[bool] = []
             for tri, masked in zip(triangles, mask):
                 corners = []
                 for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
@@ -266,10 +274,11 @@ class UniformTriRefiner:
             mask = np.asarray(new_mask, dtype=bool)
         return Triangulation(x, y, triangles, mask), values
 
-    def refine_triangulation(self, subdiv=1):
+    def refine_triangulation(self, subdiv: int = 1) -> Triangulation:
         return self._refine(None, subdiv)[0]
 
-    def refine_field(self, z, subdiv=1):
+    def refine_field(self, z: Any, subdiv: int = 1
+                     ) -> tuple[Triangulation, np.ndarray]:
         values = np.asarray(z, dtype=float).ravel()
         if values.size != len(self._tri.x):
             raise ValueError("z must have one value per triangulation point")
@@ -279,11 +288,12 @@ class UniformTriRefiner:
 class TriAnalyzer:
     """Compatibility analyzer; flat-triangle detection is conservative."""
 
-    def __init__(self, triangulation):
+    def __init__(self, triangulation: Triangulation) -> None:
         self._tri = triangulation
 
-    def get_flat_tri_mask(self, min_circle_ratio=0.01, rescale=True):
+    def get_flat_tri_mask(self, min_circle_ratio: float = 0.01,
+                          rescale: bool = True) -> np.ndarray:
         return np.zeros(len(self._tri.triangles), dtype=bool)
 
-    def circle_ratios(self, rescale=True):
+    def circle_ratios(self, rescale: bool = True) -> np.ndarray:
         return np.ones(len(self._tri.triangles))

@@ -96,7 +96,7 @@ class _NoopContext:
 
 class _ListedColormap:
     def __init__(self, colors, name="from_list", over=None, under=None, bad=None):
-        self.colors = [_norm_color(c) for c in colors]
+        self.colors = [str(_norm_color(c)) for c in colors]
         self.name, self.N = str(name), len(self.colors)
         self._bad = _norm_color(bad) if bad is not None else None
         self._under = _norm_color(under) if under is not None else None
@@ -199,7 +199,7 @@ class _LinearSegmentedColormap(_ListedColormap):
 
 def _rgba_tuple(color):
     value = _norm_color(color)
-    if value in (None, "none"):
+    if value is None or value == "none":
         return (0.0, 0.0, 0.0, 0.0)
     body = value[1:]
     rgba = [int(body[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
@@ -265,7 +265,7 @@ class _MColors:
     LinearSegmentedColormap = _LinearSegmentedColormap
     TABLEAU_COLORS: ClassVar[dict[str, str]] = dict(_TAB10)
     BASE_COLORS: ClassVar[dict[str, str]] = {
-        name: _norm_color(name) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
+        name: str(_norm_color(name)) for name in ("b", "g", "r", "c", "m", "y", "k", "w")}
     CSS4_COLORS = _CSS_COLORS
     cnames = _CSS_COLORS
     # Attached at module scope once these helpers are defined below.
@@ -294,7 +294,9 @@ class _MColors:
     @staticmethod
     def to_hex(color, keep_alpha=False):
         value = _norm_color(color)
-        return value if keep_alpha or value in (None, "none") else value[:7]
+        if keep_alpha or value is None or value == "none":
+            return value
+        return value[:7]
 
 
 def rgb_to_hsv(rgb):

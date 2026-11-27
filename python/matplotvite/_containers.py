@@ -1,5 +1,5 @@
 """Artist handles and containers returned by the plotting calls."""
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 import numpy as np
 
@@ -546,7 +546,7 @@ _FONT_SCALINGS = {
 }
 
 
-def _font_size(value, default=10.0):
+def _font_size(value: Any, default: Any = 10.0) -> float:
     """Resolve numeric and named font sizes relative to `font.size`."""
     base = float(rcParams.get("font.size", 10.0))  # type: ignore[arg-type]
     if value is None:
@@ -577,7 +577,7 @@ _FONT_FAMILY_ALIASES = {
 }
 
 
-def _font_family(value=None):
+def _font_family(value: Any = None) -> str:
     """Resolve a Matplotlib font family to one of the embedded faces.
 
     `font.family` may be a string or a preference list; unknown names fall back
@@ -593,7 +593,7 @@ def _font_family(value=None):
     return _FONT_FAMILY_ALIASES["sans-serif"]
 
 
-def _family_override(kwargs):
+def _family_override(kwargs: dict[str, Any]) -> Optional[str]:
     """Explicit `fontfamily=`/`family=` on an artist, or None to follow rcParams."""
     value = kwargs.get("fontfamily", kwargs.get("family", kwargs.get("fontname")))
     return None if value is None else _font_family(value)

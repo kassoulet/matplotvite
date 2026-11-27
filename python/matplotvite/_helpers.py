@@ -7,7 +7,7 @@ import os
 import re as _re
 import warnings
 from collections.abc import Iterable, Iterator
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 import numpy as np
 
@@ -130,7 +130,7 @@ _SCATTER_KWARGS = _COLLECTION_KWARGS | frozenset(
 )
 
 
-def _check_kwargs(kwargs, name, allowed):
+def _check_kwargs(kwargs: dict[str, Any], name: str, allowed: Any) -> None:
     """Reject unknown keywords and record known compatibility keywords."""
     unexpected = sorted(key for key in kwargs if key not in allowed)
     if unexpected:
@@ -155,16 +155,16 @@ def _deprecated(name, *, since, alternative=None, removal=None):
     warnings.warn(message, FutureWarning, stacklevel=3)
 
 
-def _with_alpha(value, alpha):
+def _with_alpha(value: Optional[str], alpha: Any) -> Optional[str]:
     """Apply an alpha value to a normalised colour string."""
-    if value in (None, "none"):
+    if value is None or value == "none":
         return value
     alpha = min(max(float(alpha), 0.0), 1.0)
     body = value[1:7]
     return f"#{body}{round(alpha * 255):02x}"
 
 
-def _norm_color(c):
+def _norm_color(c: Any) -> Optional[str]:
     """Normalise a matplotlib colour spec to `#rrggbb`, `#rrggbbaa` or "none".
 
     Accepts CSS4 names, single-letter shorthands, `C0`-`C9`, hex strings
@@ -297,7 +297,8 @@ def _rotation_value(value):
     return float(value)
 
 
-def _text_props(fontdict, kwargs):
+def _text_props(fontdict: Any, kwargs: dict[str, Any]
+                ) -> tuple[Any, Any, Any, Any, Any, Any, Any, str]:
     """Split text keywords into the honoured subset and the compatibility no-ops."""
     props = dict(fontdict or {})
     props.update(kwargs)
@@ -316,7 +317,7 @@ def _text_props(fontdict, kwargs):
     return transform, fontsize, colour, ha, va, bbox, rotation, family
 
 
-def _mathtext(text, family=None):
+def _mathtext(text: Any, family: Any = None) -> str:
     """Render a small `$...$` TeX subset as Unicode for the text renderer."""
     value = str(text)
     if not rcParams.get("text.parse_math", True):
@@ -1635,7 +1636,7 @@ _LEGEND_LOCATION_CODES = {
 }
 
 
-def _normalize_legend_loc(loc):
+def _normalize_legend_loc(loc: Any) -> Optional[str]:
     """Validate a legend location, accepting Matplotlib's integer codes."""
     if loc is None:
         return None
