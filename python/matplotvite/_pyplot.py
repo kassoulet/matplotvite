@@ -2,7 +2,7 @@
 import datetime as _datetime
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
@@ -23,7 +23,7 @@ _backend = "agg"
 _figure_lock = threading.RLock()
 
 
-def _find_figure_locked(fig):
+def _find_figure_locked(fig: Any) -> Optional[int]:
     if isinstance(fig, Figure):
         for number, candidate in _figures.items():
             if candidate is fig:
@@ -39,7 +39,7 @@ def _find_figure_locked(fig):
     return None
 
 
-def _new_figure_locked(number, label=None, **kwargs):
+def _new_figure_locked(number: int, label: Any = None, **kwargs: Any) -> Figure:
     global _current_fig
     fig = Figure(**kwargs)
     fig.number = number
@@ -50,8 +50,8 @@ def _new_figure_locked(number, label=None, **kwargs):
     return fig
 
 
-def figure(*args, num=None, figsize=None, dpi=None, facecolor=None,
-           edgecolor=None, **kwargs):
+def figure(*args: Any, num: Any = None, figsize: Any = None, dpi: Any = None,
+           facecolor: Any = None, edgecolor: Any = None, **kwargs: Any) -> Figure:
     """Create or activate a figure.
 
     A leading sequence sets `figsize`, as elsewhere in this facade. A leading
@@ -109,7 +109,7 @@ def figure(*args, num=None, figsize=None, dpi=None, facecolor=None,
                                   facecolor=facecolor, edgecolor=edgecolor)
 
 
-def gcf():
+def gcf() -> Figure:
     """Return the current figure, creating one if none exists."""
     with _figure_lock:
         if _current_fig is not None:
@@ -119,7 +119,7 @@ def gcf():
         return figure()
 
 
-def gca():
+def gca() -> Any:
     """Return the current axes, creating one if none exists."""
     return gcf().gca()
 
@@ -164,8 +164,9 @@ def fignum_exists(num):
         return num in _figures
 
 
-def subplots(nrows=1, ncols=1, *, sharex=False, sharey=False, squeeze=True,
-             subplot_kw=None, gridspec_kw=None, **fig_kw):
+def subplots(nrows: Any = 1, ncols: Any = 1, *, sharex: Any = False,
+             sharey: Any = False, squeeze: Any = True, subplot_kw: Any = None,
+             gridspec_kw: Any = None, **fig_kw: Any) -> tuple[Figure, Any]:
     """Create a figure and a grid of axes, returning both."""
     fig = figure(**fig_kw)
     return fig, fig.subplots(nrows, ncols, sharex=sharex, sharey=sharey,

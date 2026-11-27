@@ -389,18 +389,18 @@ def _register_custom_cmap(cmap, name=None, anonymous=False):
     return key
 
 
-def _cmap_name(cmap):
+def _cmap_name(cmap: Any) -> str:
     """Canonical registry name; `None` picks up the `image.cmap` rcParam."""
     if isinstance(cmap, Colormap):
-        return cmap.name
+        return str(cmap.name)
     if isinstance(cmap, _ListedColormap):
         name = str(getattr(cmap, "name", "custom"))
         if name in _CMAP_DATA and name not in _AUTO_CMAP_KEYS:
             return name
-        return _register_custom_cmap(cmap, anonymous=True)
+        return str(_register_custom_cmap(cmap, anonymous=True))
     if cmap is None:
         cmap = rcParams.get("image.cmap", "viridis")
-    return _core_cmap_name(str(cmap))
+    return str(_core_cmap_name(str(cmap)))
 
 
 def get_cmap(name: Any = None, lut: Any = None) -> Colormap:

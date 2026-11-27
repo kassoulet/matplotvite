@@ -243,8 +243,9 @@ class Figure:
             out[label] = self.add_subplot(SubplotSpec(gs, (r0, r1), (c0, c1)))
         return out
 
-    def subplots(self, nrows=1, ncols=1, *, sharex=False, sharey=False,
-                 squeeze=True, subplot_kw=None, gridspec_kw=None):
+    def subplots(self, nrows: Any = 1, ncols: Any = 1, *, sharex: Any = False,
+                 sharey: Any = False, squeeze: Any = True, subplot_kw: Any = None,
+                 gridspec_kw: Any = None) -> Any:
         nrows, ncols = _validate_grid_shape(nrows, ncols)
         # `plt.subplots` builds its grid from a GridSpec in Matplotlib, so
         # `ax.get_gridspec()` must return one here too.
@@ -258,7 +259,7 @@ class Figure:
         out = np.array(axs, dtype=object).reshape(nrows, ncols)
         return out.squeeze() if squeeze else out
 
-    def gca(self):
+    def gca(self) -> Any:
         return self._cur or self.add_subplot()
 
     def add_axes(self, rect: Any = None, **kwargs: Any) -> Any:
@@ -372,8 +373,8 @@ class Figure:
     def get_facecolor(self): return self.facecolor or "white"
     def get_edgecolor(self): return self.edgecolor
     def get_size_inches(self): return self.figsize
-    def get_label(self): return self._label
-    def set_label(self, label): self._label = str(label); return self
+    def get_label(self) -> str: return self._label
+    def set_label(self, label: Any) -> "Figure": self._label = str(label); return self
 
     def set_facecolor(self, color):
         self.facecolor = _norm_color(color)
