@@ -148,13 +148,13 @@ def close(fig: Any = None) -> Any:
             _current_fig = max(_figures, default=None)
 
 
-def get_fignums() -> Any:
+def get_fignums() -> list[int]:
     """Return the numbers of all open figures, in ascending order."""
     with _figure_lock:
         return sorted(_figures)
 
 
-def fignum_exists(num: Any) -> Any:
+def fignum_exists(num: Any) -> bool:
     """Return whether a figure with the given number is open."""
     if isinstance(num, np.integer):
         num = int(num)
@@ -573,7 +573,7 @@ def xkcd(scale: Any = 1, length: Any = 100, randomness: Any = 2) -> Any:
     """
     _ignored("xkcd")
     return _NoopContext()
-def get_data_path() -> Any:
+def get_data_path() -> str:
     """Return the directory that holds the bundled data files."""
     return os.path.dirname(os.path.abspath(__file__))
 def _delegate_probe(method: Any) -> Any:
@@ -599,12 +599,12 @@ def axes(*args: Any, **kwargs: Any) -> Any:
 
 
 
-def get_backend() -> Any:
+def get_backend() -> str:
     """Return the active backend name; matplotvite always renders statically."""
     return _backend
 
 
-def switch_backend(newbackend: Any) -> Any:
+def switch_backend(newbackend: Any) -> None:
     """Record a backend name; the renderer and encoded formats do not change."""
     global _backend
     _backend = str(newbackend).lower()
@@ -639,9 +639,9 @@ def ion(*args: Any, **kwargs: Any) -> Any:
 def ioff(*args: Any, **kwargs: Any) -> Any:
     """Disable interactive mode; Matplotvite always renders statically."""
     pass
-def use(*args: Any, **kwargs: Any) -> Any: pass
-def connect(*args: Any, **kwargs: Any) -> Any: return 1
-def figaspect(aspect: Any) -> Any:
+def use(*args: Any, **kwargs: Any) -> None: pass
+def connect(*args: Any, **kwargs: Any) -> int: return 1
+def figaspect(aspect: Any) -> tuple[float, float]:
     """Return a figure size with the requested height/width ratio."""
     aspect = float(aspect)
     if aspect < 1.0:
@@ -649,7 +649,7 @@ def figaspect(aspect: Any) -> Any:
     return (4.0 * aspect, 4.0)
 
 
-def get_figlabels() -> Any:
+def get_figlabels() -> list[str]:
     """Return the labels of all open figures, in figure-number order."""
     with _figure_lock:
         return [_figures[number].get_label() for number in sorted(_figures)]
@@ -740,7 +740,7 @@ def ylim(*args: Any, **kwargs: Any) -> Any:
     return ax.get_ylim()
 
 
-def _is_artist_sequence(obj: Any) -> Any:
+def _is_artist_sequence(obj: Any) -> bool:
     """True for a list of artists such as a `BarContainer`, not a string."""
     return isinstance(obj, (list, tuple, np.flatiter)) and not isinstance(obj, (str, bytes))
 

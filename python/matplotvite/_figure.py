@@ -313,28 +313,28 @@ class Figure:
                               else _LayoutEngine(engine))
 
     def get_layout_engine(self) -> Any: return getattr(self, "layout_engine", None)
-    def get_axes(self) -> Any: return list(self.axes)
-    def get_dpi(self) -> Any: return self.dpi or DPI
-    def get_figwidth(self) -> Any: return self.figsize[0]
-    def get_figheight(self) -> Any: return self.figsize[1]
-    def get_linewidth(self) -> Any: return self._linewidth
-    def get_suptitle(self) -> Any: return self._suptitle["raw"] if self._suptitle else ""
-    def get_supxlabel(self) -> Any: return self._supxlabel
-    def get_supylabel(self) -> Any: return self._supylabel
+    def get_axes(self) -> list[Any]: return list(self.axes)
+    def get_dpi(self) -> float: return float(self.dpi or DPI)
+    def get_figwidth(self) -> float: return float(self.figsize[0])
+    def get_figheight(self) -> float: return float(self.figsize[1])
+    def get_linewidth(self) -> float: return self._linewidth
+    def get_suptitle(self) -> str: return str(self._suptitle["raw"]) if self._suptitle else ""
+    def get_supxlabel(self) -> str: return self._supxlabel
+    def get_supylabel(self) -> str: return self._supylabel
 
-    def set_figwidth(self, width: Any, forward: Any = True) -> Any:
+    def set_figwidth(self, width: Any, forward: Any = True) -> None:
         self.figsize = (_validate_dimension(width, "figwidth"), self.figsize[1])
 
-    def set_figheight(self, height: Any, forward: Any = True) -> Any:
+    def set_figheight(self, height: Any, forward: Any = True) -> None:
         self.figsize = (self.figsize[0], _validate_dimension(height, "figheight"))
 
-    def set_linewidth(self, width: Any) -> Any:
+    def set_linewidth(self, width: Any) -> None:
         value = float(width)
         if not _math.isfinite(value) or value < 0.0:
             raise ValueError(f"linewidth must be finite and non-negative, got {width!r}")
         self._linewidth = value
 
-    def set_dpi(self, value: Any) -> Any:
+    def set_dpi(self, value: Any) -> None:
         self.dpi = _validate_dimension(value, "dpi")
 
     def get_constrained_layout_pads(self, which: Any = None, **kwargs: Any) -> Any:
@@ -346,7 +346,7 @@ class Figure:
         self._cur = ax
         return ax
 
-    def clf(self, keep_observers: Any = False) -> Any:
+    def clf(self, keep_observers: Any = False) -> None:
         """Clear every axes and figure-level artist, keeping the figure itself."""
         for ax in self.axes:
             ax._fig = None
@@ -361,7 +361,7 @@ class Figure:
         self.patches = []
         self._render_cache = None
 
-    def delaxes(self, ax: Any) -> Any:
+    def delaxes(self, ax: Any) -> None:
         if ax in self.axes:
             self.axes.remove(ax)
             if self._cur is ax:
@@ -370,19 +370,19 @@ class Figure:
 
     @property
     def dpi_scale_trans(self) -> Any: return _Transform()
-    def get_facecolor(self) -> Any: return self.facecolor or "white"
-    def get_edgecolor(self) -> Any: return self.edgecolor
-    def get_size_inches(self) -> Any: return self.figsize
+    def get_facecolor(self) -> str: return str(self.facecolor or "white")
+    def get_edgecolor(self) -> Optional[str]: return self.edgecolor
+    def get_size_inches(self) -> tuple[float, float]: return (float(self.figsize[0]), float(self.figsize[1]))
     def get_label(self) -> str: return self._label
     def set_label(self, label: Any) -> "Figure": self._label = str(label); return self
 
-    def set_facecolor(self, color: Any) -> Any:
+    def set_facecolor(self, color: Any) -> "Figure":
         self.facecolor = _norm_color(color)
         if getattr(self, "patch", None) is not None:
             self.patch.set_facecolor(self.facecolor)
         return self
 
-    def set_edgecolor(self, color: Any) -> Any:
+    def set_edgecolor(self, color: Any) -> "Figure":
         self.edgecolor = _norm_color(color)
         if getattr(self, "patch", None) is not None:
             self.patch.set_edgecolor(self.edgecolor)
@@ -467,9 +467,9 @@ class Figure:
 
     get_tightbbox = _noop_method("get_tightbbox", 'self, renderer=None, *args, **kwargs')
     set_tight_layout = _noop_method("set_tight_layout", 'self, value')
-    def get_tight_layout(self) -> Any: return False
+    def get_tight_layout(self) -> bool: return False
     set_constrained_layout = _noop_method("set_constrained_layout", 'self, value')
-    def get_constrained_layout(self) -> Any: return False
+    def get_constrained_layout(self) -> bool: return False
     set_constrained_layout_pads = _noop_method("set_constrained_layout_pads", 'self, **kwargs')
 
     def set_size_inches(self, width: Any, height: Any = None) -> Any:
@@ -716,7 +716,7 @@ class _SubFigure:
         self._bounds = tuple(bounds)
         self._zorder = 0
 
-    def get_position(self) -> Any:
+    def get_position(self) -> _Bbox:
         x, y, width, height = self._bounds
         return _Bbox(x, y, x + width, y + height)
 
@@ -776,9 +776,9 @@ class _SubFigure:
         return self.figure.text(left + x * width, bottom + y * height, text,
                                 ha="center", va="bottom", fontsize=fontsize, **kwargs)
 
-    def set_facecolor(self, color: Any) -> Any: return self
-    def set_zorder(self, zorder: Any) -> Any: self._zorder = int(zorder); return self
-    def get_zorder(self) -> Any: return self._zorder
+    def set_facecolor(self, color: Any) -> "_SubFigure": return self
+    def set_zorder(self, zorder: Any) -> "_SubFigure": self._zorder = int(zorder); return self
+    def get_zorder(self) -> int: return self._zorder
 
 
 # The pyplot shims share a process-wide registry. The lock only protects the
