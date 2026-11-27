@@ -50,7 +50,7 @@ def _as_image(X: Any) -> Any:
     raise ValueError("imshow expects a 2-D array or an (H, W, 3|4) RGB(A) array")
 
 
-def _convert_units(values, axis, unit=None):
+def _convert_units(values: Any, axis: Any, unit: Any = None) -> Any:
     """Apply a registered `matplotlib.units` converter, if the data has one."""
     if values is None:
         return values
@@ -220,7 +220,7 @@ def _panel_cache_key(panel):
         return ""
 
 
-def _resolve_data_args(args, data, x, y):
+def _resolve_data_args(args: Any, data: Any, x: Any, y: Any) -> Any:
     """Resolve `data=` columns for `plot(..., x=, y=)` and `plot("x", "y", data=)`."""
     def with_index(values):
         index = getattr(values, "index", None)
@@ -249,7 +249,7 @@ def _resolve_data_args(args, data, x, y):
     return args
 
 
-def _plot_args(args, fmt):
+def _plot_args(args: Any, fmt: Any) -> Any:
     """Split plot args into (x, y, fmt) groups, supporting multiple data sets.
 
     `plot(y)`, `plot(x, y)`, `plot(y, "r--")`, `plot(x, y, "r--")` and the
@@ -315,7 +315,7 @@ class MarkerStyle:
     def __repr__(self): return f"MarkerStyle({self._marker!r})"
 
 
-def _parse_fmt(fmt):
+def _parse_fmt(fmt: Any) -> Any:
     """Split a matplotlib fmt string into (colour, linestyle, marker)."""
     color_map = {"b": "blue", "g": "green", "r": "red", "c": "cyan",
                  "m": "magenta", "y": "yellow", "k": "black", "w": "white"}
@@ -396,7 +396,7 @@ def _line_colors(colors: Any, n: int) -> list[Any]:
     return vals
 
 
-def _line_styles(styles, n):
+def _line_styles(styles: Any, n: Any) -> Any:
     if styles is None:
         return ["-"] * n
     if isinstance(styles, str):
@@ -447,7 +447,7 @@ def _band(xs: Any, ys: Any, color: Any, alpha: Any,
                 cells=0, cell_colors="", gid="")
 
 
-def _mid_steps(x, y):
+def _mid_steps(x: Any, y: Any) -> Any:
     """Expand a line into matplotlib's `steps-mid` vertex sequence."""
     x_arr = _as_f64(x)
     y_arr = _as_f64(y)
@@ -463,7 +463,7 @@ def _mid_steps(x, y):
     return x_out, y_out
 
 
-def _runs(x, y1, y2, where):
+def _runs(x: Any, y1: Any, y2: Any, where: Any) -> Any:
     """Split the curve into contiguous runs where `where` is true."""
     if where is None:
         mask = np.ones(x.size, dtype=bool)
@@ -600,7 +600,7 @@ def _bar_colors(color: Any, n: int) -> list[Optional[str]]:
     return [vals[i % len(vals)] for i in range(n)]
 
 
-def _sizes(s, n):
+def _sizes(s: Any, n: Any) -> Any:
     if s is None:
         return np.full(n, 36.0)
     a = np.asarray(s, dtype=np.float64)
@@ -619,7 +619,7 @@ def _is_color_sequence(value):
     return all(isinstance(v, str) or _is_rgb(v) for v in value)
 
 
-def _scatter_colors(c, n):
+def _scatter_colors(c: Any, n: Any) -> Any:
     """Split `c` into (numeric values for cmap, explicit colour strings)."""
     if c is None:
         return None, []
@@ -686,7 +686,7 @@ def _mesh_args(args: Any) -> tuple[Any, Any, Any, bool]:
     return x, y, z, edges
 
 
-def _err_pair(err, n, name):
+def _err_pair(err: Any, n: Any, name: Any) -> Any:
     if err is None:
         z = np.zeros(n)
         return z, z.copy()

@@ -1030,7 +1030,7 @@ class Line2D:
     fillStyles: ClassVar[tuple[str, ...]] = (
         "full", "left", "right", "bottom", "top", "none")
 
-    def __init__(self, series, ydata=None, **kwargs):
+    def __init__(self, series: Any, ydata: Any = None, **kwargs: Any) -> None:
         if ydata is not None:
             series = _series(np.arange(len(series)), series,
                              kwargs.get("label", ""), kwargs.get("color", _CYCLE[0]),
@@ -1602,12 +1602,12 @@ class _LayoutEngine:
 class _GroupedBarResult:
     """Result of `Axes.grouped_bar`: one bar container per data series."""
 
-    def __init__(self, bar_containers):
+    def __init__(self, bar_containers: Any) -> None:
         self.bar_containers = list(bar_containers)
 
 
-def _spectral_estimates(x, y=None, NFFT=256, Fs=2.0, Fc=0.0, window=None,
-                        noverlap=None, pad_to=None):
+def _spectral_estimates(x: Any, y: Any = None, NFFT: Any = 256, Fs: Any = 2.0, Fc: Any = 0.0, window: Any = None,
+                        noverlap: Any = None, pad_to: Any = None) -> Any:
     """One-sided periodogram estimates used by the signal-processing helpers."""
     x = _as_f64(x)
     nfft = max(int(NFFT), 2)

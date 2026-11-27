@@ -16,12 +16,12 @@ from ._helpers import (
 class _Wedge:
     """Placeholder wedge returned by `pie`."""
 
-    def __init__(self, color=None, center=(0.0, 0.0), r=1.0,
-                 theta1=0.0, theta2=360.0, band=None, label=""):
+    def __init__(self, color: Any = None, center: Any = (0.0, 0.0), r: Any = 1.0,
+                 theta1: Any = 0.0, theta2: Any = 360.0, band: Any = None, label: Any = "") -> None:
         self._color = color
         self._band = band
         self._label = str(label or "")
-        self._gid = None
+        self._gid: Any = None
         self._zorder = 1
         self.center = (float(center[0]), float(center[1]))
         self.r = float(r)
@@ -67,7 +67,7 @@ class HandlerLineCollection:
 class _PieResult:
     """Matplotlib's PieResult: unpackable and attribute-accessible."""
 
-    def __init__(self, wedges, texts, autotexts, values=None, fracs=None):
+    def __init__(self, wedges: Any, texts: Any, autotexts: Any, values: Any = None, fracs: Any = None) -> None:
         self.wedges, self.texts, self.autotexts = wedges, texts, autotexts
         self.values = np.asarray([] if values is None else values, dtype=float)
         self.fracs = np.asarray([] if fracs is None else fracs, dtype=float)
@@ -98,7 +98,7 @@ class _LegendHandle:
 class _BarHandle:
     """One bar, mirroring the mutable part of matplotlib's `Rectangle`."""
 
-    def __init__(self, axes, group, index):
+    def __init__(self, axes: Any, group: Any, index: Any) -> None:
         self._axes = axes
         self._group = group
         self._index = index
@@ -216,7 +216,7 @@ class _LineGroupHandle(list[Any]):
 class _StemContainer:
     """`markerline`, `stemlines` and `baseline`, unpackable as Matplotlib's."""
 
-    def __init__(self, markerline, stemlines, baseline):
+    def __init__(self, markerline: Any, stemlines: Any, baseline: Any) -> None:
         self.markerline, self.stemlines, self.baseline = markerline, stemlines, baseline
 
     def __iter__(self):
@@ -266,7 +266,7 @@ class _QuiverHandle:
 class _ScatterHandle:
     """Handle for one scatter collection, including its color scale."""
 
-    def __init__(self, entry, axes=None):
+    def __init__(self, entry: Any, axes: Any = None) -> None:
         self._e = entry
         self.axes = axes
 

@@ -1153,7 +1153,7 @@ class Text(_TextArt):
 class _TextLabel:
     """Minimal tick-label stand-in for code that pokes at Text objects."""
 
-    def __init__(self, text="", fontsize=10.0):
+    def __init__(self, text: Any = "", fontsize: Any = 10.0) -> None:
         self._text, self._visible, self._fontsize = str(text), True, float(fontsize)
         self._rotation = 0.0
         self._color = "black"
@@ -1253,7 +1253,7 @@ def _span_extent(ext):
     return (lo, hi) if lo < hi else (lo - 1.0, lo + 1.0)
 
 
-def _as_list(values):
+def _as_list(values: Any) -> Any:
     """Materialise dict views and other one-shot iterables as a list."""
     if isinstance(values, (str, bytes)) or np.isscalar(values):
         return values
@@ -1268,7 +1268,7 @@ def _as_list(values):
     return values
 
 
-def _looks_like_categories(values):
+def _looks_like_categories(values: Any) -> Any:
     """True for string scalars or sequences, which matplotlib treats as categories."""
     if isinstance(values, str):
         return True
@@ -1660,7 +1660,7 @@ def _normalize_legend_loc(loc: Any) -> Optional[str]:
         f"loc must be string, coordinate tuple, or an integer 0-10, not {loc!r}")
 
 
-def _validate_linestyle(style):
+def _validate_linestyle(style: Any) -> Any:
     """Reject line-style strings the renderer cannot draw."""
     if not isinstance(style, str):
         raise NotImplementedError("custom dash patterns are not supported")

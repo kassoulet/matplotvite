@@ -215,10 +215,10 @@ class _PlotAxes(_AxesMixinBase):
             handles.append(Line2D(handle))
         return handles
 
-    def specgram(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-                 noverlap=None, cmap=None, xextent=None, pad_to=None, sides=None,
-                 scale_by_freq=None, mode=None, scale=None, vmin=None, vmax=None,
-                 **kwargs):
+    def specgram(self, x: Any, NFFT: Any = 256, Fs: Any = 2, Fc: Any = 0, detrend: Any = None, window: Any = None,
+                 noverlap: Any = None, cmap: Any = None, xextent: Any = None, pad_to: Any = None, sides: Any = None,
+                 scale_by_freq: Any = None, mode: Any = None, scale: Any = None, vmin: Any = None, vmax: Any = None,
+                 **kwargs: Any) -> Any:
         """Windowed FFT magnitude, drawn as an image; returns (Pxx, freqs, bins, image)."""
         data = _as_f64(x)
         fs = 2.0 if Fs is None else float(Fs)
@@ -242,9 +242,9 @@ class _PlotAxes(_AxesMixinBase):
                                     float(freqs[0]), float(freqs[-1])), **kwargs)
         return pxx, freqs, bins, image
 
-    def psd(self, x, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
-            return_line=False, **kwargs):
+    def psd(self, x: Any, NFFT: Any = 256, Fs: Any = 2, Fc: Any = 0, detrend: Any = None, window: Any = None,
+            noverlap: Any = None, pad_to: Any = None, sides: Any = "default", scale_by_freq: Any = None,
+            return_line: Any = False, **kwargs: Any) -> Any:
         """Plot a one-sided power spectral density estimate."""
         pxx, freqs = _spectral_estimates(
             x, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
@@ -252,9 +252,9 @@ class _PlotAxes(_AxesMixinBase):
         line = self.plot(freqs, 10.0 * np.log10(np.maximum(pxx, 1e-20)), **kwargs)
         return (line if return_line else (pxx, freqs))
 
-    def csd(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-            noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
-            return_line=False, **kwargs):
+    def csd(self, x: Any, y: Any, NFFT: Any = 256, Fs: Any = 2, Fc: Any = 0, detrend: Any = None, window: Any = None,
+            noverlap: Any = None, pad_to: Any = None, sides: Any = "default", scale_by_freq: Any = None,
+            return_line: Any = False, **kwargs: Any) -> Any:
         """Plot the cross spectral density of two signals."""
         _, _, pxy, freqs = _spectral_estimates(
             x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
@@ -263,9 +263,9 @@ class _PlotAxes(_AxesMixinBase):
                          **kwargs)
         return (line if return_line else (pxy, freqs))
 
-    def cohere(self, x, y, NFFT=256, Fs=2, Fc=0, detrend=None, window=None,
-               noverlap=None, pad_to=None, sides="default", scale_by_freq=None,
-               **kwargs):
+    def cohere(self, x: Any, y: Any, NFFT: Any = 256, Fs: Any = 2, Fc: Any = 0, detrend: Any = None, window: Any = None,
+               noverlap: Any = None, pad_to: Any = None, sides: Any = "default", scale_by_freq: Any = None,
+               **kwargs: Any) -> Any:
         """Plot the magnitude-squared coherence of two signals."""
         pxx, pyy, pxy, freqs = _spectral_estimates(
             x, y, NFFT=NFFT, Fs=Fs, Fc=Fc, window=window, noverlap=noverlap,
@@ -274,8 +274,8 @@ class _PlotAxes(_AxesMixinBase):
         self.plot(freqs, coh, **kwargs)
         return coh, freqs
 
-    def magnitude_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
-                           sides="default", scale="linear", **kwargs):
+    def magnitude_spectrum(self, x: Any, Fs: Any = 2, Fc: Any = 0, window: Any = None, pad_to: Any = None,
+                           sides: Any = "default", scale: Any = "linear", **kwargs: Any) -> Any:
         """Plot the single-sided magnitude spectrum of a signal."""
         pxx, freqs = _spectral_estimates(
             x, NFFT=min(max(len(np.asarray(x).ravel()), 2), 256), Fs=Fs, Fc=Fc,
@@ -286,8 +286,8 @@ class _PlotAxes(_AxesMixinBase):
         line = self.plot(freqs, magnitude, **kwargs)
         return magnitude, freqs, line[0]
 
-    def angle_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
-                       sides="default", **kwargs):
+    def angle_spectrum(self, x: Any, Fs: Any = 2, Fc: Any = 0, window: Any = None, pad_to: Any = None,
+                       sides: Any = "default", **kwargs: Any) -> Any:
         """Plot the wrapped phase spectrum of a signal."""
         x = _as_f64(x)
         taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
@@ -297,8 +297,8 @@ class _PlotAxes(_AxesMixinBase):
         line = self.plot(freqs[:angle.size], angle, **kwargs)
         return angle, freqs[:angle.size], line[0]
 
-    def phase_spectrum(self, x, Fs=2, Fc=0, window=None, pad_to=None,
-                       sides="default", **kwargs):
+    def phase_spectrum(self, x: Any, Fs: Any = 2, Fc: Any = 0, window: Any = None, pad_to: Any = None,
+                       sides: Any = "default", **kwargs: Any) -> Any:
         """Plot the unwrapped phase spectrum of a signal."""
         x = _as_f64(x)
         taper = np.ones(x.size) if window is None else np.asarray(window(np.ones(x.size)))
@@ -308,7 +308,7 @@ class _PlotAxes(_AxesMixinBase):
         line = self.plot(freqs[:phase.size], phase, **kwargs)
         return phase, freqs[:phase.size], line[0]
 
-    def xcorr(self, x, y, normed=False, maxlags=10, usevlines=True, **kwargs):
+    def xcorr(self, x: Any, y: Any, normed: Any = False, maxlags: Any = 10, usevlines: Any = True, **kwargs: Any) -> Any:
         """Plot the cross-correlation of two signals."""
         x = _as_f64(x)
         y = _as_f64(y)
@@ -325,13 +325,13 @@ class _PlotAxes(_AxesMixinBase):
             self.axhline(0, color="black", linewidth=0.8)
         return lags, corr, line, None
 
-    def acorr(self, x, normed=False, maxlags=10, usevlines=True, **kwargs):
+    def acorr(self, x: Any, normed: Any = False, maxlags: Any = 10, usevlines: Any = True, **kwargs: Any) -> Any:
         """Plot the autocorrelation of a signal."""
         return self.xcorr(x, x, normed=normed, maxlags=maxlags,
                           usevlines=usevlines, **kwargs)
 
-    def ecdf(self, x, weights=None, complementary=False, orientation="vertical",
-             **kwargs):
+    def ecdf(self, x: Any, weights: Any = None, complementary: Any = False, orientation: Any = "vertical",
+             **kwargs: Any) -> Any:
         """Plot the empirical cumulative distribution function of a sample."""
         x = np.sort(_as_f64(x))
         if weights is None:
@@ -349,15 +349,15 @@ class _PlotAxes(_AxesMixinBase):
             line = self.step(x, y, where="post", **kwargs)
         return x, y, line
 
-    def barbs(self, *args, **kwargs):
+    def barbs(self, *args: Any, **kwargs: Any) -> Any:
         pivot = kwargs.get("pivot")
         if isinstance(pivot, (int, float, np.number)):
             kwargs["pivot"] = "middle"
         return self.quiver(*args, **kwargs)
 
-    def hist(self, x, bins=10, range=None, density=False, weights=None, cumulative=False,
-             bottom=None, histtype="bar", align="mid", orientation="vertical", color=None,
-             label=None, alpha=None, edgecolor=None, stacked=False, data=None, **kwargs):
+    def hist(self, x: Any, bins: Any = 10, range: Any = None, density: Any = False, weights: Any = None, cumulative: Any = False,
+             bottom: Any = None, histtype: Any = "bar", align: Any = "mid", orientation: Any = "vertical", color: Any = None,
+             label: Any = None, alpha: Any = None, edgecolor: Any = None, stacked: Any = False, data: Any = None, **kwargs: Any) -> Any:
         """Histogram of `x`, drawn as bars; returns `(counts, edges, handles)`."""
         _check_kwargs(kwargs, "hist", _HIST_KWARGS)
         if histtype == "barstacked":
@@ -461,8 +461,8 @@ class _PlotAxes(_AxesMixinBase):
         handles = self.plot(sx, sy, color=color, label=lab)
         return np.asarray(counts, dtype=np.float64), edges, handles
 
-    def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None, label="",
-            align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
+    def bar(self, x: Any, height: Any, width: Any = 0.8, bottom: Any = 0.0, color: Any = None, edgecolor: Any = None, label: Any = "",
+            align: Any = "center", alpha: Any = None, linewidth: Any = None, yerr: Any = None, **kwargs: Any) -> Any:
         """Vertical bars; `color` may be a single colour or one per bar."""
         hist = kwargs.pop("_hist", False)
         _check_kwargs(kwargs, "bar", _BAR_KWARGS)
@@ -490,8 +490,8 @@ class _PlotAxes(_AxesMixinBase):
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
                              str(label))
 
-    def bar_label(self, container, labels=None, fmt="%g", label_type="edge", padding=0,
-                  **kwargs):
+    def bar_label(self, container: Any, labels: Any = None, fmt: Any = "%g", label_type: Any = "edge", padding: Any = 0,
+                  **kwargs: Any) -> Any:
         """Annotate each bar with its length, at the bar end or centred."""
         if label_type not in ("edge", "center"):
             raise ValueError(f"unsupported label_type: {label_type!r}")
@@ -535,8 +535,8 @@ class _PlotAxes(_AxesMixinBase):
             out.append(text)
         return out
 
-    def barh(self, y, width, height=0.8, left=0.0, color=None, edgecolor=None, label="",
-             align="center", alpha=None, linewidth=None, **kwargs):
+    def barh(self, y: Any, width: Any, height: Any = 0.8, left: Any = 0.0, color: Any = None, edgecolor: Any = None, label: Any = "",
+             align: Any = "center", alpha: Any = None, linewidth: Any = None, **kwargs: Any) -> Any:
         """Horizontal bars, stored as the same rectangles as `bar`."""
         hist = kwargs.pop("_hist", False)
         _check_kwargs(kwargs, "barh", _BAR_KWARGS)
@@ -557,8 +557,8 @@ class _PlotAxes(_AxesMixinBase):
         return _BarContainer([_BarHandle(self, len(self.bars) - 1, i) for i in range(n)],
                              str(label))
 
-    def grouped_bar(self, data, tick_labels=None, labels=None, bottom=None,
-                    group_spacing=None, colors=None, edgecolor=None, **kwargs):
+    def grouped_bar(self, data: Any, tick_labels: Any = None, labels: Any = None, bottom: Any = None,
+                    group_spacing: Any = None, colors: Any = None, edgecolor: Any = None, **kwargs: Any) -> Any:
         """Side-by-side bars for several series, one `BarContainer` per series."""
         if isinstance(data, dict):
             series = [str(v) for v in (labels if labels is not None else data.keys())]
@@ -586,8 +586,8 @@ class _PlotAxes(_AxesMixinBase):
             self.set_xticks(centers, labels=list(tick_labels))
         return _GroupedBarResult(containers)
 
-    def fill_between(self, x, y1, y2=0.0, where=None, interpolate=False, color=None,
-                     alpha=None, label="", step=None, **kwargs):
+    def fill_between(self, x: Any, y1: Any, y2: Any = 0.0, where: Any = None, interpolate: Any = False, color: Any = None,
+                     alpha: Any = None, label: Any = "", step: Any = None, **kwargs: Any) -> Any:
         """Fill between two curves; `where` masks split the area into runs."""
         x = _as_f64(self._xdate(x))
         a, b = _fill(y1, x.size), _fill(y2, x.size)
@@ -596,8 +596,8 @@ class _PlotAxes(_AxesMixinBase):
             self._append_band(_band(np.concatenate([xs, xs[::-1]]),
                                     np.concatenate([ya, yb[::-1]]), c, alpha, label))
 
-    def fill_betweenx(self, y, x1, x2=0.0, where=None, color=None, alpha=None, label="",
-                      **kwargs):
+    def fill_betweenx(self, y: Any, x1: Any, x2: Any = 0.0, where: Any = None, color: Any = None, alpha: Any = None, label: Any = "",
+                      **kwargs: Any) -> Any:
         y = _as_f64(y)
         a, b = _fill(self._xdate(x1), y.size), _fill(self._xdate(x2), y.size)
         c = color if color is not None else self._next_color(patch=True)
@@ -627,43 +627,43 @@ class _PlotAxes(_AxesMixinBase):
             c = spec or color or self._next_color(patch=True)
             self._append_band(_band(_as_f64(self._xdate(x)), _as_f64(y), c, alpha, label))
 
-    def axhline(self, y=0.0, xmin=0.0, xmax=1.0, color=None, linestyle=None, linewidth=None,
-                alpha=None, label="", **kwargs):
+    def axhline(self, y: Any = 0.0, xmin: Any = 0.0, xmax: Any = 1.0, color: Any = None, linestyle: Any = None, linewidth: Any = None,
+                alpha: Any = None, label: Any = "", **kwargs: Any) -> Any:
         """Horizontal line at data `y`, spanning an axes-fraction x range."""
         y = _as_f64(y)[0]
         self._hline_refs.append(dict(y=float(y), xmin=float(xmin), xmax=float(xmax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
 
-    def axvline(self, x=0.0, ymin=0.0, ymax=1.0, color=None, linestyle=None, linewidth=None,
-                alpha=None, label="", **kwargs):
+    def axvline(self, x: Any = 0.0, ymin: Any = 0.0, ymax: Any = 1.0, color: Any = None, linestyle: Any = None, linewidth: Any = None,
+                alpha: Any = None, label: Any = "", **kwargs: Any) -> Any:
         """Vertical line at data `x`, spanning an axes-fraction y range."""
         x = _as_f64(self._xdate(x))[0]
         self._vline_refs.append(dict(x=float(x), ymin=float(ymin), ymax=float(ymax), color=color,
                                 linestyle=linestyle, linewidth=linewidth, alpha=alpha,
                                 label=str(label)))
 
-    def axhspan(self, ymin, ymax, xmin=0.0, xmax=1.0, color=None, alpha=None, label="",
-                **kwargs):
+    def axhspan(self, ymin: Any, ymax: Any, xmin: Any = 0.0, xmax: Any = 1.0, color: Any = None, alpha: Any = None, label: Any = "",
+                **kwargs: Any) -> Any:
         """Horizontal band between two data y values, over an axes-fraction x range."""
         ymin, ymax = _as_f64((ymin, ymax))
         self.hspans.append(dict(ymin=float(ymin), ymax=float(ymax), xmin=float(xmin),
                                 xmax=float(xmax), color=color, alpha=alpha, label=str(label)))
 
-    def axvspan(self, xmin, xmax, ymin=0.0, ymax=1.0, color=None, alpha=None, label="",
-                **kwargs):
+    def axvspan(self, xmin: Any, xmax: Any, ymin: Any = 0.0, ymax: Any = 1.0, color: Any = None, alpha: Any = None, label: Any = "",
+                **kwargs: Any) -> Any:
         """Vertical band between two data x values, over an axes-fraction y range."""
         values = _as_f64(self._xdate((xmin, xmax)))
         self.vspans.append(dict(xmin=float(values[0]), xmax=float(values[1]), ymin=float(ymin),
                                 ymax=float(ymax), color=color, alpha=alpha, label=str(label)))
 
-    def scatter(self, x, y, s=None, c=None, alpha=None, cmap=None, label="", marker="o",
-                vmin=None, vmax=None, data=None, norm=None, **kwargs):
+    def scatter(self, x: Any, y: Any, s: Any = None, c: Any = None, alpha: Any = None, cmap: Any = None, label: Any = "", marker: Any = "o",
+                vmin: Any = None, vmax: Any = None, data: Any = None, norm: Any = None, **kwargs: Any) -> Any:
         """Scatter markers; `s` is an area in points^2 and `c` a colour, a list of
         colours, or numeric values mapped through `cmap`. `data=` may supply columns."""
         _check_kwargs(kwargs, "scatter", _SCATTER_KWARGS)
         if data is not None:
-            def column(value):
+            def column(value: Any) -> Any:
                 return data[value] if isinstance(value, str) and value in data else value
             x, y, s, c = column(x), column(y), column(s), column(c)
         x = _as_f64(self._xdate(x))
@@ -682,8 +682,8 @@ class _PlotAxes(_AxesMixinBase):
         self._append_scatter(entry)
         return _ScatterHandle(entry, self)
 
-    def errorbar(self, x, y, yerr=None, xerr=None, fmt="", ecolor=None, elinewidth=None,
-                 capsize=None, label="", color=None, **kwargs):
+    def errorbar(self, x: Any, y: Any, yerr: Any = None, xerr: Any = None, fmt: Any = "", ecolor: Any = None, elinewidth: Any = None,
+                 capsize: Any = None, label: Any = "", color: Any = None, **kwargs: Any) -> Any:
         """Plot `y` against `x` with vertical (`yerr`) and/or horizontal (`xerr`)
         error bars; each error may be a scalar, a length-N array, or (2, N) lo/hi."""
         x = _as_f64(self._xdate(x))
@@ -705,8 +705,8 @@ class _PlotAxes(_AxesMixinBase):
         if marker:
             self.scatter(x, y, s=36, c=c, marker=marker)
 
-    def eventplot(self, positions, orientation="horizontal", lineoffsets=0.0, linelengths=1.0,
-                  colors=None, linestyles=None, linewidths=None, **kwargs):
+    def eventplot(self, positions: Any, orientation: Any = "horizontal", lineoffsets: Any = 0.0, linelengths: Any = 1.0,
+                  colors: Any = None, linestyles: Any = None, linewidths: Any = None, **kwargs: Any) -> Any:
         """One short line per event position, one row per positions array."""
         data = kwargs.pop("data", None)
         if data is not None:
@@ -746,8 +746,8 @@ class _PlotAxes(_AxesMixinBase):
                 raise ValueError(f"unsupported orientation: {orientation!r}")
         return collections
 
-    def broken_barh(self, xranges, yrange, colors=None, edgecolor=None, alpha=None,
-                    linewidth=None, **kwargs):
+    def broken_barh(self, xranges: Any, yrange: Any, colors: Any = None, edgecolor: Any = None, alpha: Any = None,
+                    linewidth: Any = None, **kwargs: Any) -> Any:
         """Horizontal bars from `(xstart, width)` pairs over a shared y range."""
         colors = kwargs.get("facecolors", colors)
         pairs = [(float(a), float(b)) for a, b in xranges]
@@ -771,7 +771,7 @@ class _PlotAxes(_AxesMixinBase):
                               label="", vertical=True))
         return None
 
-    def axline(self, xy1, xy2=None, slope=None, **kwargs):
+    def axline(self, xy1: Any, xy2: Any = None, slope: Any = None, **kwargs: Any) -> Any:
         """Infinite line through `xy1`/`xy2` (or `xy1` with `slope`), clipped to
         the axes. It never contributes to the data limits."""
         if (xy2 is None) == (slope is None):
@@ -786,8 +786,8 @@ class _PlotAxes(_AxesMixinBase):
             alpha=kwargs.get("alpha"), label=str(kwargs.get("label", ""))))
         return None
 
-    def hlines(self, y, xmin, xmax, colors=None, linestyles=None, linewidths=None,
-               label="", **kwargs):
+    def hlines(self, y: Any, xmin: Any, xmax: Any, colors: Any = None, linestyles: Any = None, linewidths: Any = None,
+               label: Any = "", **kwargs: Any) -> Any:
         """Horizontal segments from `xmin` to `xmax` at every `y`."""
         ys = _as_f64(y)
         lo, hi = _fill(self._xdate(xmin), ys.size), _fill(self._xdate(xmax), ys.size)
@@ -801,8 +801,8 @@ class _PlotAxes(_AxesMixinBase):
             handles.append(_LineHandle(self.lines[-1]))
         return handles
 
-    def vlines(self, x, ymin, ymax, colors=None, linestyles=None, linewidths=None,
-               label="", **kwargs):
+    def vlines(self, x: Any, ymin: Any, ymax: Any, colors: Any = None, linestyles: Any = None, linewidths: Any = None,
+               label: Any = "", **kwargs: Any) -> Any:
         """Vertical segments from `ymin` to `ymax` at every `x`."""
         xs = _as_f64(self._xdate(x))
         lo, hi = _fill(ymin, xs.size), _fill(ymax, xs.size)
@@ -816,8 +816,8 @@ class _PlotAxes(_AxesMixinBase):
             handles.append(_LineHandle(self.lines[-1]))
         return handles
 
-    def stem(self, *args, linefmt=None, markerfmt=None, basefmt=None, bottom=0.0, label="",
-             orientation="vertical", **kwargs):
+    def stem(self, *args: Any, linefmt: Any = None, markerfmt: Any = None, basefmt: Any = None, bottom: Any = 0.0, label: Any = "",
+             orientation: Any = "vertical", **kwargs: Any) -> Any:
         """Stem plot: one segment per point plus a marker at the tip."""
         if len(args) == 1:
             y = _as_f64(args[0])
@@ -858,8 +858,8 @@ class _PlotAxes(_AxesMixinBase):
                 baseline = _LineGroupHandle(base_lines)[0] if base_lines else None
         return _StemContainer(marker, stemlines, baseline)
 
-    def pie(self, x, labels=None, colors=None, autopct=None, explode=None, startangle=0,
-            normalize=True, shadow=False, **kwargs):
+    def pie(self, x: Any, labels: Any = None, colors: Any = None, autopct: Any = None, explode: Any = None, startangle: Any = 0,
+            normalize: Any = True, shadow: Any = False, **kwargs: Any) -> Any:
         """Pie chart drawn as filled wedges; returns `(wedges, texts, autotexts)`."""
         values = _as_f64(x)
         if values.size == 0 or np.any(values < 0):
@@ -903,8 +903,8 @@ class _PlotAxes(_AxesMixinBase):
         self.set_axis_off()
         return _PieResult(wedges, texts, autotexts, values=values, fracs=fracs)
 
-    def stackplot(self, x, *ys, labels=(), colors=None, alpha=None, baseline="zero",
-                  **kwargs):
+    def stackplot(self, x: Any, *ys: Any, labels: Any = (), colors: Any = None, alpha: Any = None, baseline: Any = "zero",
+                  **kwargs: Any) -> Any:
         """Stacked areas: each layer fills between the running total and itself."""
         if baseline not in ("zero", "sym", "wiggle", "weighted_wiggle"):
             raise NotImplementedError(f"baseline={baseline!r} is not supported yet")
@@ -958,7 +958,7 @@ class _PlotAxes(_AxesMixinBase):
                 hi = 0.0
             self.set_ylim(lo, hi)
 
-    def step(self, x, y, fmt="", where="pre", label="", color=None, **kwargs):
+    def step(self, x: Any, y: Any, fmt: Any = "", where: Any = "pre", label: Any = "", color: Any = None, **kwargs: Any) -> Any:
         """Staircase line through `x`/`y`; `where` picks the corner placement."""
         if where in ("pre", "post"):
             return self.plot(x, y, fmt, label=label, color=color,
@@ -969,8 +969,8 @@ class _PlotAxes(_AxesMixinBase):
         else:
             raise ValueError(f"unsupported where: {where!r}")
 
-    def stairs(self, values, edges=None, baseline=0.0, orientation="vertical", fill=False,
-               color=None, label="", **kwargs):
+    def stairs(self, values: Any, edges: Any = None, baseline: Any = 0.0, orientation: Any = "vertical", fill: Any = False,
+               color: Any = None, label: Any = "", **kwargs: Any) -> Any:
         """Step chart from bin `values` and `edges` (one longer than `values`)."""
         v = _as_f64(values)
         if edges is None:
@@ -1010,7 +1010,7 @@ class _PlotAxes(_AxesMixinBase):
         return None
 
 
-def _hist_datasets(x):
+def _hist_datasets(x: Any) -> Any:
     """The per-dataset arrays of a multi-histogram call, or `None`."""
     if isinstance(x, (list, tuple)) and x:
         try:
@@ -1027,7 +1027,7 @@ def _hist_datasets(x):
     return None
 
 
-def _hist_centers(edges, align):
+def _hist_centers(edges: Any, align: Any) -> Any:
     """`(bar_align, centers)` for a histogram's bin edges."""
     bar_align = "edge" if align in ("left", "edge") else "center"
     centers = (edges[:-1] if bar_align == "edge"
@@ -1035,14 +1035,14 @@ def _hist_centers(edges, align):
     return bar_align, centers
 
 
-def _hist_step_x(edges, count):
+def _hist_step_x(edges: Any, count: Any) -> Any:
     """Staircase x coordinates with one repeated edge per bin."""
     sx = np.empty(2 * count)
     sx[0::2], sx[1::2] = edges[:-1], edges[1:]
     return sx
 
 
-def _hist_steps(edges, counts):
+def _hist_steps(edges: Any, counts: Any) -> Any:
     """`(x, y)` staircase of a vertical step histogram."""
     sx = _hist_step_x(edges, counts.size)
     sy = np.empty(2 * counts.size)
@@ -1050,7 +1050,7 @@ def _hist_steps(edges, counts):
     return sx, sy
 
 
-def _hist_steps_horizontal(edges, counts):
+def _hist_steps_horizontal(edges: Any, counts: Any) -> Any:
     """`(x, y)` staircase of a horizontal step histogram."""
     sx = np.repeat(counts, 2)
     sy = np.empty(2 * counts.size)
