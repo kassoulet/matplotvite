@@ -184,3 +184,11 @@ module = ["matplotvite._axes_decor", "matplotvite._colors", "matplotvite._misc",
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true
+
+[[tool.mypy.overrides]]
+# These modules annotate every definition of their own, but they still call
+# into the plotting core, so untyped calls stay allowed until the ratchet
+# annotates what they call.
+module = ["matplotvite._pandas", "matplotvite.offsetbox"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

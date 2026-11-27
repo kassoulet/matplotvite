@@ -11,6 +11,8 @@ kinds raise ``ValueError`` instead of drawing a different chart.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from . import _plotting
@@ -29,17 +31,17 @@ _HIST_KWARGS = ("alpha", "cumulative", "edgecolor", "histtype", "linewidth",
 _SCATTER_KWARGS = ("alpha", "cmap", "marker", "s", "vmin", "vmax", "zorder")
 
 
-def _is_series(data) -> bool:
+def _is_series(data: Any) -> bool:
     return hasattr(data, "index") and not hasattr(data, "columns")
 
 
-def _label(value) -> str:
+def _label(value: Any) -> str:
     if isinstance(value, tuple):
         return " / ".join(str(part) for part in value)
     return str(value)
 
 
-def _index_label(index) -> str:
+def _index_label(index: Any) -> str:
     names = [str(name) for name in getattr(index, "names", ()) if name is not None]
     if names:
         return " / ".join(names)
@@ -47,19 +49,19 @@ def _index_label(index) -> str:
     return "" if name is None else str(name)
 
 
-def _column_labels(data, selected) -> list[str]:
+def _column_labels(data: Any, selected: Any) -> list[str]:
     if _is_series(data):
         name = getattr(data, "name", None)
         return ["" if name is None else str(name)]
     return [_label(column) for column in selected]
 
 
-def _values(data, column) -> np.ndarray:
+def _values(data: Any, column: Any) -> np.ndarray:
     values = data.to_numpy() if column is None else data[column].to_numpy()
     return np.asarray(values, dtype=float)
 
 
-def _selected_columns(data, y, kind) -> list[object]:
+def _selected_columns(data: Any, y: Any, kind: str) -> list[Any]:
     if _is_series(data):
         return [None]
     columns = list(data.columns)
@@ -73,7 +75,7 @@ def _selected_columns(data, y, kind) -> list[object]:
     return candidates
 
 
-def _axis_values(data, x, use_index):
+def _axis_values(data: Any, x: Any, use_index: Any) -> tuple[Any, Any, str]:
     """Return (x values, categorical labels or None, default x label)."""
     if x is None:
         if not use_index:
@@ -97,7 +99,7 @@ def _axis_values(data, x, use_index):
     return np.arange(len(labels), dtype=float), labels, xlabel
 
 
-def _categorical_axis(data, x, use_index):
+def _categorical_axis(data: Any, x: Any, use_index: Any) -> tuple[Any, Any, str]:
     """Force labels for bar/barh, including datetime and MultiIndex axes."""
     positions, labels, xlabel = _axis_values(data, x, use_index)
     if labels is None:
@@ -112,19 +114,20 @@ def _categorical_axis(data, x, use_index):
     return positions, labels, xlabel
 
 
-def _color_for(colors, index: int):
+def _color_for(colors: Any, index: int) -> Any:
     if isinstance(colors, list) and len(colors) > index:
         return colors[index]
     return colors
 
 
-def _take(kwargs, names):
+def _take(kwargs: dict[str, Any], names: Any) -> dict[str, Any]:
     return {name: kwargs[name] for name in names if name in kwargs}
 
 
-def _finish(axes, *, title=None, xlabel=None, ylabel=None, legend=False,
-            grid=None, rot=None, logx=False, logy=False, xlim=None, ylim=None,
-            fontsize=None):
+def _finish(axes: Any, *, title: Any = None, xlabel: Any = None, ylabel: Any = None,
+            legend: Any = False, grid: Any = None, rot: Any = None,
+            logx: Any = False, logy: Any = False, xlim: Any = None,
+            ylim: Any = None, fontsize: Any = None) -> None:
     if title:
         axes.set_title(str(title))
     if xlabel not in (None, ""):
@@ -149,7 +152,8 @@ def _finish(axes, *, title=None, xlabel=None, ylabel=None, legend=False,
         axes.legend()
 
 
-def _line_plot(data, axes, columns, x, use_index, kwargs, colors):
+def _line_plot(data: Any, axes: Any, columns: Any, x: Any, use_index: Any,
+               kwargs: dict[str, Any], colors: Any) -> tuple[Any, str, bool]:
     positions, labels, xlabel = _axis_values(data, x, use_index)
     arrays = [_values(data, column) for column in columns]
     stacked = bool(kwargs.pop("stacked", False))
@@ -169,7 +173,9 @@ def _line_plot(data, axes, columns, x, use_index, kwargs, colors):
     return xlabel, "", labels is not None
 
 
-def _bar_plot(data, axes, columns, x, use_index, kwargs, colors, horizontal=False):
+def _bar_plot(data: Any, axes: Any, columns: Any, x: Any, use_index: Any,
+              kwargs: dict[str, Any], colors: Any,
+              horizontal: bool = False) -> tuple[Any, str, bool]:
     positions, labels, xlabel = _categorical_axis(data, x, use_index)
     arrays = [_values(data, column) for column in columns]
     stacked = bool(kwargs.pop("stacked", False))
@@ -204,7 +210,8 @@ def _bar_plot(data, axes, columns, x, use_index, kwargs, colors, horizontal=Fals
     return xlabel, "", labels is not None
 
 
-def _hist_plot(data, axes, columns, x, kwargs, colors):
+def _hist_plot(data: Any, axes: Any, columns: Any, x: Any,
+               kwargs: dict[str, Any], colors: Any) -> tuple[str, str]:
     bins = kwargs.pop("bins", 10)
     density = bool(kwargs.pop("density", False))
     stacked = bool(kwargs.pop("stacked", False))
@@ -220,7 +227,8 @@ def _hist_plot(data, axes, columns, x, kwargs, colors):
     return "", "Frequency"
 
 
-def _box_plot(data, axes, columns, kwargs, colors):
+def _box_plot(data: Any, axes: Any, columns: Any, kwargs: dict[str, Any],
+              colors: Any) -> tuple[str, str]:
     arrays = [_values(data, column) for column in columns]
     labels = _column_labels(data, columns)
     orientation = "horizontal" if kwargs.pop("vert", True) is False else "vertical"
@@ -236,7 +244,8 @@ def _box_plot(data, axes, columns, kwargs, colors):
     return "", ""
 
 
-def _area_plot(data, axes, columns, x, use_index, kwargs, colors):
+def _area_plot(data: Any, axes: Any, columns: Any, x: Any, use_index: Any,
+               kwargs: dict[str, Any], colors: Any) -> tuple[Any, str, bool]:
     positions, labels, xlabel = _axis_values(data, x, use_index)
     arrays = [_values(data, column) for column in columns]
     labels_for_series = _column_labels(data, columns)
@@ -255,7 +264,8 @@ def _area_plot(data, axes, columns, x, use_index, kwargs, colors):
     return xlabel, "", labels is not None
 
 
-def _scatter_plot(data, axes, x, y, kwargs, colors):
+def _scatter_plot(data: Any, axes: Any, x: Any, y: Any,
+                  kwargs: dict[str, Any], colors: Any) -> tuple[Any, Any]:
     if x is None or y is None:
         raise ValueError("scatter requires both x= and y=")
     xvalues, xlabels, xlabel = _axis_values(data, x, False)
@@ -275,7 +285,8 @@ def _scatter_plot(data, axes, x, y, kwargs, colors):
     return xlabel, ylabel
 
 
-def _pie_plot(data, axes, columns, kwargs, colors):
+def _pie_plot(data: Any, axes: Any, columns: Any, kwargs: dict[str, Any],
+              colors: Any) -> tuple[str, str]:
     values = _values(data, columns[0])
     labels = [_label(value) for value in data.index]
     if colors is None:
@@ -292,7 +303,7 @@ def _pie_plot(data, axes, columns, kwargs, colors):
     return "", ""
 
 
-def plot(data, kind="line", **kwargs):
+def plot(data: Any, kind: Any = "line", **kwargs: Any) -> Any:
     """Pandas backend entry point; return the axes (or list for subplots)."""
     kind = "line" if kind is None else str(kind).lower()
     if kind not in SUPPORTED_KINDS:

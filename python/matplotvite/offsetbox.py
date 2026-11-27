@@ -1,5 +1,7 @@
 """Anchored artist shims used by the `axes_grid1` gallery."""
 
+from typing import Any
+
 from matplotvite import _mathtext, rcParams
 
 _LOCS = {
@@ -15,7 +17,7 @@ _LOCS = {
 }
 
 
-def _anchor(loc, pad):
+def _anchor(loc: Any, pad: Any) -> tuple[Any, Any, Any, Any]:
     x, y, ha, va = _LOCS.get(str(loc).lower(), _LOCS["upper left"])
     pad = float(pad)
     if "center" not in str(loc).lower():
@@ -27,16 +29,16 @@ def _anchor(loc, pad):
 class _Box:
     """Minimal text-frame handle; styling is accepted and ignored."""
 
-    def set_boxstyle(self, *args, **kwargs):
+    def set_boxstyle(self, *args: Any, **kwargs: Any) -> Any:
         return self
 
 
 class AnchoredText:
     """Text pinned to one corner of an axes."""
 
-    def __init__(self, s, loc, *, pad=0.0, borderpad=0.5, prop=None,
-                 frameon=True, bbox_to_anchor=None, bbox_transform=None,
-                 **kwargs):
+    def __init__(self, s: Any, loc: Any, *, pad: Any = 0.0, borderpad: Any = 0.5,
+                 prop: Any = None, frameon: Any = True, bbox_to_anchor: Any = None,
+                 bbox_transform: Any = None, **kwargs: Any) -> None:
         self.text = str(s)
         self.loc = loc
         self.pad = pad
@@ -48,7 +50,7 @@ class AnchoredText:
         self.kwargs = kwargs
         self.patch = _Box()
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         size = self.prop.pop("size", self.kwargs.pop("fontsize", None))
         if size is None:
             size = rcParams.get("font.size", 10.0)
@@ -63,10 +65,10 @@ class AnchoredText:
                        transform=ax.transAxes, ha=ha, va=va,
                        fontsize=size, **self.kwargs)
 
-    def get_text(self):
+    def get_text(self) -> str:
         return self.text
 
-    def set_text(self, s):
+    def set_text(self, s: Any) -> "AnchoredText":
         self.text = str(s)
         return self
 
@@ -74,8 +76,9 @@ class AnchoredText:
 class AnchoredDrawingArea:
     """Fixed-size drawing area anchored to an axes corner."""
 
-    def __init__(self, width, height, xdescent, ydescent, *, loc="upper left",
-                 pad=0.0, borderpad=0.5, frameon=True, **kwargs):
+    def __init__(self, width: Any, height: Any, xdescent: Any, ydescent: Any, *,
+                 loc: Any = "upper left", pad: Any = 0.0, borderpad: Any = 0.5,
+                 frameon: Any = True, **kwargs: Any) -> None:
         self.width = float(width)
         self.height = float(height)
         self.xdescent = float(xdescent)
@@ -87,7 +90,7 @@ class AnchoredDrawingArea:
         self.kwargs = kwargs
         self.da = _DrawingArea()
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         x, y, ha, va = _anchor(self.loc, self.pad)
         # A compact marker is enough to show the anchored drawing area; the
         # stored child artists do not have a renderer-level pixel canvas.
@@ -98,10 +101,10 @@ class AnchoredDrawingArea:
 
 
 class _DrawingArea:
-    def __init__(self):
-        self.artists = []
+    def __init__(self) -> None:
+        self.artists: list[Any] = []
 
-    def add_artist(self, artist):
+    def add_artist(self, artist: Any) -> Any:
         self.artists.append(artist)
         return artist
 
@@ -109,11 +112,13 @@ class _DrawingArea:
 class AnchoredDirectionArrows:
     """Two perpendicular direction arrows pinned to an axes corner."""
 
-    def __init__(self, transform, main_direction, cross_direction,
-                 loc="upper left", *, pad=0.0, borderpad=0.0, sep_x=0.06,
-                 sep_y=0.05, arrow_props=None, text_props=None, angle=0.0,
-                 aspect_ratio=1.0, length=0.15, color="k",
-                 fontproperties=None, **kwargs):
+    def __init__(self, transform: Any, main_direction: Any, cross_direction: Any,
+                 loc: Any = "upper left", *, pad: Any = 0.0, borderpad: Any = 0.0,
+                 sep_x: float = 0.06, sep_y: float = 0.05, arrow_props: Any = None,
+                 text_props: Any = None, angle: float = 0.0,
+                 aspect_ratio: float = 1.0, length: float = 0.15,
+                 color: Any = "k", fontproperties: Any = None,
+                 **kwargs: Any) -> None:
         self.transform = transform
         self.main_direction = str(main_direction)
         self.cross_direction = str(cross_direction)
@@ -130,7 +135,7 @@ class AnchoredDirectionArrows:
         self.text_props = dict(text_props or {})
         self.kwargs = kwargs
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         x, y, ha, va = _anchor(self.loc, self.pad)
         size = None if self.fontproperties is None else self.fontproperties.get_size()
         family = None if self.fontproperties is None else self.fontproperties.get_family()
@@ -153,9 +158,10 @@ class AnchoredDirectionArrows:
 class AnchoredSizeBar:
     """A horizontal scale bar pinned to one side of an axes."""
 
-    def __init__(self, transform, size, label, loc, *, pad=0.1,
-                 borderpad=0.5, sep=5, frameon=True, size_vertical=0,
-                 color="black", **kwargs):
+    def __init__(self, transform: Any, size: Any, label: Any, loc: Any, *,
+                 pad: Any = 0.1, borderpad: Any = 0.5, sep: Any = 5,
+                 frameon: Any = True, size_vertical: Any = 0,
+                 color: Any = "black", **kwargs: Any) -> None:
         self.transform = transform
         self.size = float(size)
         self.label = str(label)
@@ -168,7 +174,7 @@ class AnchoredSizeBar:
         self.color = color
         self.kwargs = kwargs
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         x0, x1 = sorted(ax.get_xlim())
         y0, y1 = sorted(ax.get_ylim())
         span = x1 - x0
@@ -192,15 +198,16 @@ class AnchoredSizeBar:
 class TextArea:
     """Plain text box used by offset-box layouts."""
 
-    def __init__(self, s, textprops=None, multilinebaseline=False):
+    def __init__(self, s: Any, textprops: Any = None,
+                 multilinebaseline: Any = False) -> None:
         self._text = str(s)
         self.textprops = dict(textprops or {})
         self.multilinebaseline = multilinebaseline
 
-    def get_text(self): return self._text
-    def set_text(self, s): self._text = str(s); return self
+    def get_text(self) -> str: return self._text
+    def set_text(self, s: Any) -> "TextArea": self._text = str(s); return self
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         props = dict(self.textprops)
         props.setdefault("transform", ax.transAxes)
         props.setdefault("ha", "left")
@@ -212,16 +219,17 @@ class TextArea:
 class PaddedBox:
     """A child offset box with padding; the renderer has no frame model."""
 
-    def __init__(self, child, pad=0.0, draw_frame=False, patch_attrs=None, **kwargs):
+    def __init__(self, child: Any, pad: Any = 0.0, draw_frame: Any = False,
+                 patch_attrs: Any = None, **kwargs: Any) -> None:
         self.child = child
         self.pad = float(pad)
         self.draw_frame = bool(draw_frame)
         self.patch_attrs = dict(patch_attrs or {})
         self.kwargs = kwargs
 
-    def get_children(self): return [self.child] if self.child is not None else []
+    def get_children(self) -> list[Any]: return [self.child] if self.child is not None else []
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         if self.child is not None:
             if hasattr(self.child, "_add_to_axes"):
                 self.child._add_to_axes(ax)
@@ -233,21 +241,22 @@ class PaddedBox:
 class DrawingArea:
     """A fixed-size box of arbitrary artists."""
 
-    def __init__(self, width, height, xdescent=0, ydescent=0, clip=False):
+    def __init__(self, width: Any, height: Any, xdescent: Any = 0,
+                 ydescent: Any = 0, clip: Any = False) -> None:
         self.width = float(width)
         self.height = float(height)
         self.xdescent = float(xdescent)
         self.ydescent = float(ydescent)
         self.clip = bool(clip)
-        self.artists = []
+        self.artists: list[Any] = []
 
-    def add_artist(self, artist):
+    def add_artist(self, artist: Any) -> Any:
         self.artists.append(artist)
         return artist
 
-    def get_children(self): return list(self.artists)
+    def get_children(self) -> list[Any]: return list(self.artists)
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         for artist in self.artists:
             if hasattr(artist, "_add_to_axes"):
                 artist._add_to_axes(ax)
@@ -259,8 +268,8 @@ class DrawingArea:
 class VPacker:
     """Vertical packer; children are added in order by the axes adapter."""
 
-    def __init__(self, children=(), align="left", pad=0, sep=0,
-                 mode="fixed", **kwargs):
+    def __init__(self, children: Any = (), align: Any = "left", pad: Any = 0,
+                 sep: Any = 0, mode: Any = "fixed", **kwargs: Any) -> None:
         self.children = list(children)
         self.align = align
         self.pad = pad
@@ -268,7 +277,7 @@ class VPacker:
         self.mode = mode
         self.kwargs = kwargs
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         for child in self.children:
             if hasattr(child, "_add_to_axes"):
                 child._add_to_axes(ax)
@@ -284,39 +293,41 @@ class HPacker(VPacker):
 class OffsetImage:
     """Image container for annotations; the array is retained for callers."""
 
-    def __init__(self, arr, zoom=1, cmap=None, norm=None, interpolation=None,
-                 origin=None, filternorm=True, filterrad=4.0, resample=False,
-                 dpi_cor=True, **kwargs):
+    def __init__(self, arr: Any, zoom: Any = 1, cmap: Any = None, norm: Any = None,
+                 interpolation: Any = None, origin: Any = None,
+                 filternorm: Any = True, filterrad: Any = 4.0,
+                 resample: Any = False, dpi_cor: Any = True,
+                 **kwargs: Any) -> None:
         self._arr = arr
         self.zoom = float(zoom)
         self.cmap = cmap
         self.image = _NamespaceLike(arr=arr, axes=None)
 
-    def get_data(self): return self._arr
+    def get_data(self) -> Any: return self._arr
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         self.image.axes = ax  # type: ignore[attr-defined]
         return self
 
 
 class _NamespaceLike:
-    def __init__(self, **kwargs): self.__dict__.update(kwargs)
+    def __init__(self, **kwargs: Any) -> None: self.__dict__.update(kwargs)
 
 
 class AuxTransformBox:
     """Container for artists drawn in an auxiliary transform."""
 
-    def __init__(self, aux_transform=None, **kwargs):
+    def __init__(self, aux_transform: Any = None, **kwargs: Any) -> None:
         self.aux_transform = aux_transform
-        self.artists = []
+        self.artists: list[Any] = []
 
-    def add_artist(self, artist):
+    def add_artist(self, artist: Any) -> Any:
         self.artists.append(artist)
         return artist
 
-    def get_children(self): return list(self.artists)
+    def get_children(self) -> list[Any]: return list(self.artists)
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         for artist in self.artists:
             if hasattr(artist, "_add_to_axes"):
                 artist._add_to_axes(ax)
@@ -328,8 +339,10 @@ class AuxTransformBox:
 class AnchoredOffsetbox:
     """Offset box pinned to an axes corner."""
 
-    def __init__(self, loc, child=None, pad=0.4, borderpad=0.5, frameon=True,
-                 bbox_to_anchor=None, bbox_transform=None, **kwargs):
+    def __init__(self, loc: Any, child: Any = None, pad: Any = 0.4,
+                 borderpad: Any = 0.5, frameon: Any = True,
+                 bbox_to_anchor: Any = None, bbox_transform: Any = None,
+                 **kwargs: Any) -> None:
         self.loc = loc
         self.child = child
         self.pad = pad
@@ -340,7 +353,7 @@ class AnchoredOffsetbox:
         self.kwargs = kwargs
         self.patch = _Box()
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         if self.child is not None:
             if hasattr(self.child, "_add_to_axes"):
                 self.child._add_to_axes(ax)
@@ -352,8 +365,10 @@ class AnchoredOffsetbox:
 class AnnotationBbox:
     """Place an offset box at a point on the axes."""
 
-    def __init__(self, offsetbox, xy, xybox=None, xycoords="data",
-                 boxcoords=None, frameon=True, box_alignment=(0.5, 0.5), **kwargs):
+    def __init__(self, offsetbox: Any, xy: Any, xybox: Any = None,
+                 xycoords: Any = "data", boxcoords: Any = None,
+                 frameon: Any = True, box_alignment: Any = (0.5, 0.5),
+                 **kwargs: Any) -> None:
         self.offsetbox = offsetbox
         self.xy = xy
         self.xybox = xybox
@@ -363,7 +378,7 @@ class AnnotationBbox:
         self.box_alignment = box_alignment
         self.kwargs = kwargs
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         if hasattr(self.offsetbox, "_add_to_axes"):
             self.offsetbox._add_to_axes(ax)
         return self
@@ -372,25 +387,25 @@ class AnnotationBbox:
 class Shadow:
     """Decorative shadow wrapper; the wrapped patch carries the drawing."""
 
-    def __init__(self, patch, ox, oy, **kwargs):
+    def __init__(self, patch: Any, ox: Any, oy: Any, **kwargs: Any) -> None:
         self.patch = patch
         self.ox = float(ox)
         self.oy = float(oy)
         self.kwargs = kwargs
 
-    def draw(self, renderer=None): return None
+    def draw(self, renderer: Any = None) -> None: return None
 
-    def set_gid(self, gid): self._gid = gid
+    def set_gid(self, gid: Any) -> None: self._gid = gid
 
-    def get_gid(self): return getattr(self, "_gid", None)
+    def get_gid(self) -> Any: return getattr(self, "_gid", None)
 
-    def set_zorder(self, zorder): self._zorder = zorder
+    def set_zorder(self, zorder: Any) -> None: self._zorder = zorder
 
-    def get_zorder(self): return getattr(self, "_zorder", 1)
+    def get_zorder(self) -> Any: return getattr(self, "_zorder", 1)
 
-    def get_visible(self): return True
+    def get_visible(self) -> bool: return True
 
-    def _add_to_axes(self, ax):
+    def _add_to_axes(self, ax: Any) -> Any:
         # The underlying patch is already added by the offset box.
         return self
 
