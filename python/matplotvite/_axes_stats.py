@@ -1,6 +1,6 @@
 """Axes mixin for box, violin and other summary plots."""
 import datetime as _datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -13,13 +13,18 @@ from ._helpers import _CYCLE, _date_to_num, _datetime_to_num, _looks_like_dates
 class _StatsAxes(_AxesMixinBase):
     """Statistical plots: box, whisker and violin summaries."""
 
-    def boxplot(self, x, notch=None, sym=None, vert=None, whis=None, positions=None,
-                widths=None, patch_artist=None, labels=None, orientation=None,
-                showmeans=False, showcaps=None, showbox=None, showfliers=None,
-                meanline=False, capwidths=None, boxprops=None, medianprops=None,
-                whiskerprops=None, capprops=None, flierprops=None, meanprops=None,
-                manage_ticks=True, autorange=False, label=None, tick_labels=None,
-                **kwargs):
+    def boxplot(self, x: Any, notch: Any = None, sym: Any = None, vert: Any = None,
+                whis: Any = None, positions: Any = None, widths: Any = None,
+                patch_artist: Any = None, labels: Any = None,
+                orientation: Any = None, showmeans: Any = False,
+                showcaps: Any = None, showbox: Any = None,
+                showfliers: Any = None, meanline: Any = False,
+                capwidths: Any = None, boxprops: Any = None,
+                medianprops: Any = None, whiskerprops: Any = None,
+                capprops: Any = None, flierprops: Any = None,
+                meanprops: Any = None, manage_ticks: Any = True,
+                autorange: Any = False, label: Any = None,
+                tick_labels: Any = None, **kwargs: Any) -> Any:
         """Box-and-whisker plot for one dataset or a sequence of datasets.
 
         Returns a dict with `boxes`, `medians`, `whiskers`, `caps`, `fliers`
@@ -132,11 +137,15 @@ class _StatsAxes(_AxesMixinBase):
                 self.set_yticks(pos, labels=shown)
         return out
 
-    def bxp(self, bxpstats, positions=None, widths=None, vert=None, orientation=None,
-            patch_artist=False, shownotches=False, showmeans=False, showcaps=True,
-            showbox=True, showfliers=True, boxprops=None, whiskerprops=None,
-            flierprops=None, medianprops=None, meanprops=None, meanline=False,
-            manage_ticks=True, zorder=2, **kwargs):
+    def bxp(self, bxpstats: Any, positions: Any = None, widths: Any = None,
+            vert: Any = None, orientation: Any = None,
+            patch_artist: Any = False, shownotches: Any = False,
+            showmeans: Any = False, showcaps: Any = True, showbox: Any = True,
+            showfliers: Any = True, boxprops: Any = None,
+            whiskerprops: Any = None, flierprops: Any = None,
+            medianprops: Any = None, meanprops: Any = None,
+            meanline: Any = False, manage_ticks: Any = True, zorder: Any = 2,
+            **kwargs: Any) -> Any:
         """Draw precomputed boxplot statistics, as returned by `cbook.boxplot_stats`."""
         stats = list(bxpstats)
         if not stats:
@@ -228,16 +237,19 @@ class _StatsAxes(_AxesMixinBase):
                 self.set_yticks(pos, labels=shown)
         return out
 
-    def _stats_line(self, x, y, color, linewidth=1.5, linestyle="-"):
+    def _stats_line(self, x: Any, y: Any, color: Any, linewidth: Any = 1.5,
+                    linestyle: Any = "-") -> Any:
         """Append one statistics line and return its mutable handle."""
         entry = _series(x, y, "", color, linestyle=linestyle, linewidth=linewidth)
         self._append_series(entry)
         return _LineHandle(entry)
 
-    def violinplot(self, dataset, positions=None, vert=None, widths=0.5,
-                   showmeans=False, showextrema=True, showmedians=False,
-                   quantiles=None, points=100, bw_method=None, orientation=None,
-                   side="both", **kwargs):
+    def violinplot(self, dataset: Any, positions: Any = None, vert: Any = None,
+                   widths: Any = 0.5, showmeans: Any = False,
+                   showextrema: Any = True, showmedians: Any = False,
+                   quantiles: Any = None, points: Any = 100,
+                   bw_method: Any = None, orientation: Any = None,
+                   side: Any = "both", **kwargs: Any) -> Any:
         """Violin plot: a Gaussian KDE per dataset drawn as a filled violin.
 
         Returns a dict with `bodies`, `cmeans`, `cmaxes`, `cmins` and `cbars`
@@ -329,9 +341,11 @@ class _StatsAxes(_AxesMixinBase):
                         [loc - half, loc + half], [value, value], line_color))
         return out
 
-    def violin(self, vpstats, positions=None, vert=None, orientation="vertical",
-               widths=0.5, showmeans=False, showextrema=True, showmedians=False,
-               side="both", facecolor=None, linecolor=None):
+    def violin(self, vpstats: Any, positions: Any = None, vert: Any = None,
+               orientation: Any = "vertical", widths: Any = 0.5,
+               showmeans: Any = False, showextrema: Any = True,
+               showmedians: Any = False, side: Any = "both",
+               facecolor: Any = None, linecolor: Any = None) -> Any:
         """Draw violins from pre-computed statistics, as `Axes.violin`.
 
         Each entry in `vpstats` carries `coords` and `vals` for the density
@@ -353,7 +367,7 @@ class _StatsAxes(_AxesMixinBase):
         line_ends = _violin_line_ends(pos_num, width_num, side)
         horizontal = orientation == "horizontal"
 
-        def number(value):
+        def number(value: Any) -> float:
             if isinstance(value, (np.datetime64, _datetime.datetime, _datetime.date)):
                 return float(_datetime_to_num(value))
             return float(value)
@@ -385,7 +399,8 @@ class _StatsAxes(_AxesMixinBase):
                 out["bodies"].append(_ViolinBody(entry, color))
             lo_end, hi_end = float(line_ends[0, i]), float(line_ends[1, i])
 
-            def perp(value, lo=lo_end, hi=hi_end, color=line_color):
+            def perp(value: float, lo: float = lo_end, hi: float = hi_end,
+                     color: Any = line_color) -> Any:
                 if horizontal:
                     return self._stats_line([value, value], [lo, hi], color)
                 return self._stats_line([lo, hi], [value, value], color)
@@ -408,7 +423,8 @@ class _StatsAxes(_AxesMixinBase):
         return out
 
 
-def _box_stats(vals, whis, autorange):
+def _box_stats(vals: Any, whis: Any, autorange: Any
+               ) -> tuple[float, float, float, float, float, Any, float, float]:
     """Quartiles, whisker ends, outliers and mean of one boxplot dataset."""
     q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
     iqr = q3 - q1
@@ -426,7 +442,7 @@ def _box_stats(vals, whis, autorange):
     return q1, med, q3, lo, hi, fliers, float(vals.mean()), iqr
 
 
-def _bxp_fields(stat):
+def _bxp_fields(stat: Any) -> tuple[float, float, float, float, float]:
     """Quartiles and whisker ends from one `cbook.boxplot_stats` entry."""
     q1 = float(stat.get("q1", 0.0))
     q3 = float(stat.get("q3", q1))
@@ -436,8 +452,9 @@ def _bxp_fields(stat):
     return q1, q3, med, lo, hi
 
 
-def _box_style(boxprops, medianprops, whiskerprops, capprops, flierprops,
-               meanprops, sym):
+def _box_style(boxprops: Any, medianprops: Any, whiskerprops: Any,
+               capprops: Any, flierprops: Any, meanprops: Any,
+               sym: Any) -> tuple[Any, ...]:
     """Parsed box, median, whisker, cap, flier and mean styles."""
     box_style = dict(boxprops or {})
     median_style = dict(medianprops or {})
@@ -476,7 +493,7 @@ def _box_style(boxprops, medianprops, whiskerprops, capprops, flierprops,
             flier_width, flier_size)
 
 
-def _violin_axes(stats, positions, widths):
+def _violin_axes(stats: Any, positions: Any, widths: Any) -> tuple[Any, Any]:
     """Validated numeric `(positions, widths)` of one `Axes.violin` call."""
     n = len(stats)
     message = "List of violinplot statistics and `%s` values must have the same length"
@@ -511,14 +528,15 @@ def _violin_axes(stats, positions, widths):
     return pos_num, width_num
 
 
-def _violin_line_ends(pos_num, width_num, side):
+def _violin_line_ends(pos_num: Any, width_num: Any, side: Any) -> Any:
     """Start and end of the extrema lines drawn across each violin."""
     return np.array([[-0.25 if side in ("both", "low") else 0.0],
                      [0.25 if side in ("both", "high") else 0.0]]) \
         * width_num + pos_num
 
 
-def _violinplot_outline(grid, density, pos, half, orientation, side):
+def _violinplot_outline(grid: Any, density: Any, pos: float, half: float,
+                        orientation: Any, side: Any) -> tuple[Any, Any]:
     """`(x, y)` outline of one KDE violin, scaled to `half` its width."""
     peak = float(density.max())
     if not np.isfinite(peak) or peak <= 0.0:

@@ -363,7 +363,8 @@ def _log_bounds(lo, hi, scale, extent):
 _STEM_MARKERS = "os^v<>Dx+.*hHpPXd8|_1234"
 
 
-def _stem_fmt(fmt, default_marker=None):
+def _stem_fmt(fmt: Any, default_marker: Any = None
+              ) -> tuple[Optional[str], Any, Any]:
     """Split a stem `linefmt`/`markerfmt` into (colour, style, marker)."""
     text = str(fmt or "")
     colour = _FMT_COLORS.get(text[:1]) if text[:1] in _FMT_COLORS else None
@@ -439,7 +440,8 @@ def _as_f64(v: Any) -> np.ndarray:
     return np.ascontiguousarray(np.asarray(arr, dtype=np.float64).ravel())
 
 
-def _band(xs, ys, color, alpha, label=""):
+def _band(xs: Any, ys: Any, color: Any, alpha: Any,
+          label: Any = "") -> dict[str, Any]:
     return dict(x=_as_f64(xs), y=_as_f64(ys), color=_norm_color(color),
                 alpha=None if alpha is None else float(alpha), label=str(label),
                 cells=0, cell_colors="", gid="")
@@ -491,7 +493,7 @@ def _fill(values: Any, n: int) -> Any:
     return np.ascontiguousarray(a)
 
 
-def _box_datasets(x):
+def _box_datasets(x: Any) -> list[Any]:
     """Split `boxplot`/`violinplot` input into one 1-D array per dataset."""
     if isinstance(x, np.ndarray):
         if x.ndim == 2:
@@ -542,7 +544,8 @@ def _boxplot_stats(x, whis=1.5, bootstrap=None, labels=None, autorange=False):
     return stats
 
 
-def _kde(values, points=100, bw_method=None):
+def _kde(values: Any, points: int = 100,
+         bw_method: Any = None) -> tuple[Any, Any]:
     """Gaussian KDE on a regular grid, with Scott/Silverman or scalar bandwidth."""
     vals = _as_f64(values)
     vals = vals[np.isfinite(vals)]

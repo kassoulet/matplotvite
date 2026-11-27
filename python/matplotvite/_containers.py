@@ -371,7 +371,7 @@ class _HexbinHandle:
 class _ViolinBody:
     """Handle for one filled violin polygon."""
 
-    def __init__(self, entry, facecolor=None):
+    def __init__(self, entry: Any, facecolor: Any = None) -> None:
         self._e = entry
         self._facecolor = facecolor
 
@@ -444,7 +444,7 @@ class _GridLine:
 class _LineHandle:
     """Mutable handle around one stored `_series` entry."""
 
-    def __init__(self, entry, facecolor=None):
+    def __init__(self, entry: Any, facecolor: Any = None) -> None:
         self._e = entry
         self._facecolor = facecolor
 
@@ -610,7 +610,7 @@ def _numbers(value):
         return []
 
 
-def _single_color(value, fallback=None):
+def _single_color(value: Any, fallback: Any = None) -> Any:
     """Pick one colour from a matplotlib colour, list or colour array."""
     if value is None:
         return fallback
