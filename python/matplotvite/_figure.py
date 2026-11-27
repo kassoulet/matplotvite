@@ -2,7 +2,7 @@
 import hashlib as _hashlib
 import math as _math
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
@@ -58,13 +58,16 @@ from ._plot_helpers import (
 
 class Figure:
     """A figure holding one or more axes plus figure-level artists."""
-    def __init__(self, figsize=None, dpi=None, facecolor=None, edgecolor=None):
+    def __init__(self, figsize: Any = None, dpi: Any = None,
+                 facecolor: Any = None, edgecolor: Any = None) -> None:
         if figsize is None:
             figsize = rcParams.get("figure.figsize", (6.4, 4.8))
         self.figsize = _validate_figsize(figsize)
-        self.number = None
-        self.grid, self.axes, self._cur = (1, 1), [], None
-        self._colorbar = None
+        self.number: Optional[int] = None
+        self.grid: tuple[int, int] = (1, 1)
+        self.axes: list[Any] = []
+        self._cur: Any = None
+        self._colorbar: Any = None
         self.dpi = _validate_dimension(
             dpi if dpi is not None else rcParams.get("figure.dpi", DPI), "dpi"
         )
@@ -72,14 +75,14 @@ class Figure:
             facecolor if facecolor is not None else rcParams.get("figure.facecolor"))
         self.edgecolor = _norm_color(edgecolor)
         self._linewidth = 0.0
-        self._suptitle = None
+        self._suptitle: Any = None
         self._supxlabel = ""
         self._supylabel = ""
-        self._figure_texts = []
-        self._figure_images = []
-        self.artists = []
-        self.patches = []
-        self._render_cache = None
+        self._figure_texts: list[Any] = []
+        self._figure_images: list[Any] = []
+        self.artists: list[Any] = []
+        self.patches: list[Any] = []
+        self._render_cache: Any = None
         self.transFigure = _CoordTransform("figure")
         self.transSubfigure = self.transFigure
         self.canvas = _Canvas(self)
@@ -87,7 +90,7 @@ class Figure:
         self.subplotpars = _SubplotPars()
         self.patch = Rectangle((0, 0), 1, 1, transform=self.transFigure,
                                facecolor=self.get_facecolor())
-        self._gridspec = None
+        self._gridspec: Any = None
         self._label = ""
         self.callbacks = _Callbacks()
 
@@ -258,7 +261,7 @@ class Figure:
     def gca(self):
         return self._cur or self.add_subplot()
 
-    def add_axes(self, rect=None, **kwargs):
+    def add_axes(self, rect: Any = None, **kwargs: Any) -> Any:
         """Add an axes whose figure-fraction rectangle is the plotting area."""
         if isinstance(rect, Axes):
             ax = rect
@@ -542,10 +545,12 @@ class Figure:
         return Colorbar(entry)
 
 
-    def savefig(self, fname=None, format=None, dpi=None, bbox_inches=None,
-                transparent=None, facecolor=None, edgecolor=None,
-                compression=None, pad_inches=None, metadata=None,
-                pil_kwargs=None, **kwargs):
+    def savefig(self, fname: Any = None, format: Any = None, dpi: Any = None,
+                bbox_inches: Any = None, transparent: Any = None,
+                facecolor: Any = None, edgecolor: Any = None,
+                compression: Any = None, pad_inches: Any = None,
+                metadata: Any = None, pil_kwargs: Any = None,
+                **kwargs: Any) -> Any:
         """Write this figure, or return its bytes when `fname` is None or a
         file-like object. `format` overrides the extension, `dpi` scales the
         pixel size and `bbox_inches="tight"` crops to the drawn content.

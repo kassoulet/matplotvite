@@ -1,6 +1,6 @@
 """Image, contour and colorbar artists."""
 import math as _math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -498,9 +498,10 @@ class SubplotSpec:
 class GridSpec:
     """Irregular row/column layout; index it to get a `SubplotSpec`."""
 
-    def __init__(self, nrows, ncols, figure=None, left=0.0, right=1.0,
-                 bottom=0.0, top=1.0, wspace=None, hspace=None,
-                 width_ratios=None, height_ratios=None):
+    def __init__(self, nrows: int, ncols: int, figure: Any = None,
+                 left: float = 0.0, right: float = 1.0, bottom: float = 0.0,
+                 top: float = 1.0, wspace: Any = None, hspace: Any = None,
+                 width_ratios: Any = None, height_ratios: Any = None) -> None:
         self.nrows, self.ncols = _validate_grid_shape(nrows, ncols)
         self.figure = figure
         self.left, self.right = float(left), float(right)

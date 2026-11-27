@@ -1,6 +1,6 @@
 """Patches, collections, lines and the artist base classes."""
 import math as _math
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 
@@ -390,8 +390,9 @@ class RegularPolygon(Patch):
 
 
 class FancyArrow(Patch):
-    def __init__(self, x, y, dx, dy, width=0.001, length_includes_head=False,
-                 head_width=None, head_length=None, **kwargs):
+    def __init__(self, x: Any, y: Any, dx: Any, dy: Any, width: float = 0.001,
+                 length_includes_head: bool = False, head_width: Any = None,
+                 head_length: Any = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.x, self.y, self.dx, self.dy = map(float, (x, y, dx, dy))
         self.width = float(width)

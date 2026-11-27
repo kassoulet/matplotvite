@@ -83,7 +83,7 @@ class _PieResult:
 class _LegendHandle:
     """Return value of `legend`, with the mutable frame patch."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.legendPatch = Rectangle((0, 0), 1, 1)
         self._zorder = 5
 

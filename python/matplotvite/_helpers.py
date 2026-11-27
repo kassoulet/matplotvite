@@ -61,7 +61,7 @@ _IGNORED_CALLS: list[str] = []
 _IGNORED_WARNED: set[str] = set()
 
 
-def _ignored(name):
+def _ignored(name: str) -> None:
     _IGNORED_CALLS.append(name)
     if name not in _IGNORED_WARNED:
         _IGNORED_WARNED.add(name)
@@ -403,7 +403,7 @@ def _cmap_name(cmap):
     return _core_cmap_name(str(cmap))
 
 
-def get_cmap(name=None, lut=None):
+def get_cmap(name: Any = None, lut: Any = None) -> Colormap:
     """Return a `Colormap` by registry name (or the `image.cmap` default)."""
     cmap = name.copy() if isinstance(name, Colormap) else Colormap(
         name if name is not None else rcParams.get("image.cmap", "viridis"))  # type: ignore[arg-type]
@@ -609,7 +609,7 @@ def _cycle_colors(value):
 class _CoordTransform:
     """Marker for `text(transform=...)`: data, axes or figure coordinates."""
 
-    def __init__(self, kind):
+    def __init__(self, kind: Any) -> None:
         self.kind = kind
 
     def transform(self, points): return np.asarray(points, dtype=np.float64)
@@ -912,7 +912,7 @@ Bbox = _Bbox
 class _Transform:
     """Stand-in for a matplotlib transform: data coordinates pass through."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._args, self._kwargs = args, kwargs
 
     linthresh = 1.0
@@ -992,7 +992,7 @@ def _segment_intersects_bbox(start, end, bbox):
 class _TextArt:
     """Return value for text creation; carries the mutable bbox patch."""
 
-    def __init__(self, text=""):
+    def __init__(self, text: Any = "") -> None:
         self._bbox_patch = _BboxPatch()
         self._text = str(text)
 
