@@ -1,4 +1,6 @@
 """Polar, 3D and geographic projections."""
+from typing import Any, Optional
+
 import numpy as np
 
 from ._artists import Circle, Polygon, RegularPolygon
@@ -40,23 +42,24 @@ from ._ticker import (
 class _Tick:
     """Minimal tick container for projection subclasses."""
 
-    def __init__(self, axes=None, loc=None, major=True):
+    def __init__(self, axes: Any = None, loc: Any = None,
+                 major: Any = True) -> None:
         self.axes = axes
         self._loc = loc
         self.major = major
 
-    def get_loc(self): return self._loc
+    def get_loc(self) -> Any: return self._loc
 
 
 class _ProjectionAxis:
     """Minimal axis object for custom projection class definitions."""
 
-    def __init__(self, axes=None): self.axes = axes
+    def __init__(self, axes: Any = None) -> None: self.axes = axes
 
     set_minor_locator = _noop_method("set_minor_locator", 'self, locator')
     set_major_locator = _noop_method("set_major_locator", 'self, locator')
     set_ticks_position = _noop_method("set_ticks_position", 'self, position')
-    def get_view_interval(self): return (0.0, 1.0)
+    def get_view_interval(self) -> tuple[float, float]: return (0.0, 1.0)
 
 
 class _XAxis(_ProjectionAxis): pass
@@ -70,13 +73,13 @@ axis = _AxisModule(Axis=_ProjectionAxis, XAxis=_XAxis, YAxis=_YAxis,
 _PROJECTIONS = {}
 
 
-def _register_projection(cls):
+def _register_projection(cls: Any) -> None:
     """Register a projection class under its `name`, as Matplotlib does."""
     _PROJECTIONS[str(getattr(cls, "name", cls.__name__)).lower()] = cls
     return None
 
 
-def _get_projection_class(projection):
+def _get_projection_class(projection: Any) -> Any:
     if isinstance(projection, type):
         return projection
     name = str(projection).lower()
@@ -86,11 +89,11 @@ def _get_projection_class(projection):
     return cls
 
 
-def _get_projection_names():
+def _get_projection_names() -> tuple[str, ...]:
     return tuple(sorted(_PROJECTIONS))
 
 
-def _polar_text(texts, x, y, label, ha, va):
+def _polar_text(texts: Any, x: Any, y: Any, label: Any, ha: Any, va: Any) -> None:
     """Append one data-space label used by the polar grid."""
     texts.append((float(x), float(y), str(label),
                   rcParams.get("xtick.color", "black"), 10.0, ha, va,
@@ -107,35 +110,36 @@ class PolarAxes(Axes):
     name = "polar"
 
     class PolarTransform:
-        def __init__(self, axis=None): self.axis = axis
+        def __init__(self, axis: Any = None) -> None: self.axis = axis
 
-        def transform(self, values):
+        def transform(self, values: Any) -> Any:
             values = np.asarray(values, dtype=float)
             theta, radius = values[..., 0], values[..., 1]
             return np.stack((radius * np.cos(theta),
                              radius * np.sin(theta)), axis=-1)
 
-        def transform_non_affine(self, values): return self.transform(values)
+        def transform_non_affine(self, values: Any) -> Any:
+            return self.transform(values)
 
-        def transform_path_non_affine(self, path):
+        def transform_path_non_affine(self, path: Any) -> Path:
             return Path(self.transform(path.vertices), getattr(path, "codes", None))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._polar = True
         self._axis_off = True
         self.aspect = 1.0
         self._polar_theta_offset = 0.0
         self._polar_theta_direction = 1.0
-        self._polar_rmax = None
+        self._polar_rmax: Optional[float] = None
         self._polar_rmin = 0.0
         self._polar_data_max = 0.0
-        self._polar_rgrids = []
-        self._polar_rgrid_labels = []
-        self._polar_thetagrids = []
-        self._polar_thetagrid_labels = None
-        self._polar_thetamin = None
-        self._polar_thetamax = None
+        self._polar_rgrids: list[float] = []
+        self._polar_rgrid_labels: list[str] = []
+        self._polar_thetagrids: list[float] = []
+        self._polar_thetagrid_labels: Optional[list[str]] = None
+        self._polar_thetamin: Optional[float] = None
+        self._polar_thetamax: Optional[float] = None
         self._polar_rlabel_position = 22.5
         self._polar_frame = "circle"
         self._polar_num_vertices = 0
@@ -145,23 +149,23 @@ class PolarAxes(Axes):
             self._polar_num_vertices = int(getattr(patch, "numvertices", 0))
         self._update_polar_limits()
 
-    def _gen_axes_patch(self): return Circle((0.5, 0.5), 0.5)
-    def _gen_axes_spines(self): return {}  # noqa: V105 (Matplotlib hook, called by name)
+    def _gen_axes_patch(self) -> Any: return Circle((0.5, 0.5), 0.5)
+    def _gen_axes_spines(self) -> dict[str, Any]: return {}  # noqa: V105 (Matplotlib hook, called by name)
 
-    def _polar_rmax_value(self):
+    def _polar_rmax_value(self) -> float:
         if self._polar_rmax is not None:
             return max(float(self._polar_rmax), 1e-9)
         return self._polar_data_max if self._polar_data_max > 0 else 1.0
 
-    def _polar_limit(self):
+    def _polar_limit(self) -> float:
         return max(self._polar_rmax_value() * 1.18, 1e-6)
 
-    def _update_polar_limits(self):
+    def _update_polar_limits(self) -> None:
         limit = self._polar_limit()
         self.xlim = (-limit, limit)
         self.ylim = (-limit, limit)
 
-    def _limits(self):
+    def _limits(self) -> Any:
         radii = []
         for entry in list(self.lines) + list(self.bands):
             values = np.asarray(entry["y"], dtype=float)
@@ -173,7 +177,7 @@ class PolarAxes(Axes):
         self._update_polar_limits()
         return super()._limits()
 
-    def _polar_xy(self, theta, radius):
+    def _polar_xy(self, theta: Any, radius: Any) -> Any:
         theta = np.asarray(theta, dtype=float)
         radius = np.asarray(radius, dtype=float)
         theta, radius = np.broadcast_arrays(theta, radius)
@@ -185,12 +189,14 @@ class PolarAxes(Axes):
         self._update_polar_limits()
         return radius * np.cos(angle), radius * np.sin(angle)
 
-    def plot(self, *args, **kwargs): return super().plot(*args, **kwargs)
+    def plot(self, *args: Any, **kwargs: Any) -> Any:
+        return super().plot(*args, **kwargs)
 
-    def fill(self, *args, closed=True, **kwargs):
+    def fill(self, *args: Any, closed: Any = True, **kwargs: Any) -> Any:
         """Polar fill, closing the polygon at the first theta by default."""
         if closed:
-            values, i = [], 0
+            values: list[Any] = []
+            i = 0
             args = list(args)  # type: ignore[assignment]
             while i < len(args):
                 if isinstance(args[i], str) or i + 1 >= len(args):
@@ -206,7 +212,7 @@ class PolarAxes(Axes):
             args = values  # type: ignore[assignment]
         return super().fill(*args, **kwargs)
 
-    def set_theta_zero_location(self, loc, offset=0.0):
+    def set_theta_zero_location(self, loc: Any, offset: Any = 0.0) -> None:
         points = {"N": 90.0, "NNE": 67.5, "NE": 45.0, "ENE": 22.5,
                   "E": 0.0, "ESE": -22.5, "SE": -45.0, "SSE": -67.5,
                   "S": -90.0, "SSW": -112.5, "SW": -135.0, "WSW": -157.5,
@@ -217,23 +223,25 @@ class PolarAxes(Axes):
             raise ValueError(f"unknown theta zero location: {loc!r}") from None
         self._polar_theta_offset = np.deg2rad(degrees + float(offset))
 
-    def set_theta_offset(self, offset): self._polar_theta_offset = float(offset)
+    def set_theta_offset(self, offset: Any) -> None:
+        self._polar_theta_offset = float(offset)
 
-    def set_theta_direction(self, direction):
+    def set_theta_direction(self, direction: Any) -> None:
         if isinstance(direction, str):
             direction = -1.0 if direction.lower() == "clockwise" else 1.0
         self._polar_theta_direction = 1.0 if float(direction) >= 0 else -1.0
 
-    def set_rlabel_position(self, value): self._polar_rlabel_position = float(value)
-    def set_rorigin(self, value): self._polar_rorigin = float(value)
+    def set_rlabel_position(self, value: Any) -> None:
+        self._polar_rlabel_position = float(value)
+    def set_rorigin(self, value: Any) -> None: self._polar_rorigin = float(value)
 
-    def _polar_theta_limits(self):
+    def _polar_theta_limits(self) -> Optional[tuple[float, float]]:
         if self._polar_thetamin is None or self._polar_thetamax is None:
             return None
         lo, hi = sorted((float(self._polar_thetamin), float(self._polar_thetamax)))
         return None if hi - lo >= 2.0 * np.pi - 1e-12 else (lo, hi)
 
-    def set_thetalim(self, *args, **kwargs):
+    def set_thetalim(self, *args: Any, **kwargs: Any) -> Any:
         left = kwargs.pop("left", kwargs.pop("thetamin", None))
         right = kwargs.pop("right", kwargs.pop("thetamax", None))
         if args:
@@ -249,27 +257,28 @@ class PolarAxes(Axes):
             self._polar_thetamax = float(right)
         return self.get_thetalim()
 
-    def set_thetamin(self, value):
+    def set_thetamin(self, value: Any) -> Any:
         self._polar_thetamin = np.deg2rad(float(value))
         return self.get_thetamin()
 
-    def set_thetamax(self, value):
+    def set_thetamax(self, value: Any) -> Any:
         self._polar_thetamax = np.deg2rad(float(value))
         return self.get_thetamax()
 
-    def get_thetamin(self):
-        return np.rad2deg(self._polar_theta_limits()[0]
-                          if self._polar_theta_limits() else 0.0)
+    def get_thetamin(self) -> Any:
+        limits = self._polar_theta_limits()
+        return np.rad2deg(limits[0] if limits else 0.0)
 
-    def get_thetamax(self):
-        return np.rad2deg(self._polar_theta_limits()[1]
-                          if self._polar_theta_limits() else 360.0)
+    def get_thetamax(self) -> Any:
+        limits = self._polar_theta_limits()
+        return np.rad2deg(limits[1] if limits else 360.0)
 
-    def get_thetalim(self):
+    def get_thetalim(self) -> Any:
         limits = self._polar_theta_limits()
         return limits if limits is not None else (0.0, 2.0 * np.pi)
 
-    def _polar_arc(self, radius, start=None, stop=None, count=181):
+    def _polar_arc(self, radius: Any, start: Any = None, stop: Any = None,
+                   count: Any = 181) -> Any:
         limits = self._polar_theta_limits()
         if start is None or stop is None:
             start, stop = limits if limits is not None else (0.0, 2.0 * np.pi)
@@ -277,7 +286,7 @@ class PolarAxes(Axes):
                   + self._polar_theta_direction * np.linspace(start, stop, count))
         return radius * np.cos(angles), radius * np.sin(angles)
 
-    def _polar_segments(self, theta, radius):
+    def _polar_segments(self, theta: Any, radius: Any) -> list[Any]:
         """Split a theta/r path into the pieces inside the theta limits."""
         theta = _as_f64(theta)
         radius = _as_f64(radius)
@@ -289,9 +298,11 @@ class PolarAxes(Axes):
             return [(theta, radius)]
         lo, hi = limits
         inside = (theta >= lo - 1e-12) & (theta <= hi + 1e-12)
-        segments, current_t, current_r = [], [], []  # type: ignore[var-annotated]
+        segments: list[Any] = []
+        current_t: list[float] = []
+        current_r: list[float] = []
 
-        def crossing(i, j, boundary):
+        def crossing(i: int, j: int, boundary: float) -> tuple[float, float]:
             span = theta[j] - theta[i]
             if abs(span) < 1e-15:
                 return float(boundary), float(radius[j])
@@ -318,8 +329,10 @@ class PolarAxes(Axes):
             segments.append((np.asarray(current_t), np.asarray(current_r)))
         return segments
 
-    def bar(self, x, height, width=0.8, bottom=0.0, color=None, edgecolor=None,
-            label="", align="center", alpha=None, linewidth=None, yerr=None, **kwargs):
+    def bar(self, x: Any, height: Any, width: Any = 0.8, bottom: Any = 0.0,
+            color: Any = None, edgecolor: Any = None, label: Any = "",
+            align: Any = "center", alpha: Any = None, linewidth: Any = None,
+            yerr: Any = None, **kwargs: Any) -> Any:
         """Polar bars as filled annular wedges."""
         theta = _as_f64(x)
         n = theta.size
@@ -332,7 +345,7 @@ class PolarAxes(Axes):
         edges = _bar_colors(edgecolor, n) if edgecolor is not None else None
         line_widths = None if linewidth is None else _fill(linewidth, n)
         limits = self._polar_theta_limits()
-        wedges = []  # type: ignore[var-annotated]
+        wedges: list[Any] = []
         for i in range(n):
             start, end = float(starts[i]), float(ends[i])
             if limits is not None:
@@ -363,7 +376,8 @@ class PolarAxes(Axes):
         self._update_polar_limits()
         return _BarContainer(wedges, str(label))
 
-    def set_rlim(self, bottom=None, top=None, **kwargs):
+    def set_rlim(self, bottom: Any = None, top: Any = None,
+                 **kwargs: Any) -> Any:
         if top is None and bottom is not None:
             values = _as_f64(bottom)
             if values.size == 2:
@@ -375,24 +389,25 @@ class PolarAxes(Axes):
         self._update_polar_limits()
         return self.get_rlim()
 
-    def set_rmax(self, value):
+    def set_rmax(self, value: Any) -> Any:
         self._polar_rmax = float(value)
         self._update_polar_limits()
         return self.get_rmax()
 
-    def set_rmin(self, value):
+    def set_rmin(self, value: Any) -> Any:
         self._polar_rmin = float(value)
         return self.get_rmin()
 
-    def get_rmax(self): return self._polar_rmax_value()
-    def get_rmin(self): return self._polar_rmin
-    def get_rlim(self): return (self._polar_rmin, self.get_rmax())
+    def get_rmax(self) -> float: return self._polar_rmax_value()
+    def get_rmin(self) -> float: return self._polar_rmin
+    def get_rlim(self) -> tuple[float, float]: return (self._polar_rmin, self.get_rmax())
 
-    def set_rscale(self, value, base=10, **kwargs):
+    def set_rscale(self, value: Any, base: Any = 10, **kwargs: Any) -> None:
         self.set_yscale(value, base=base, **kwargs)
-    def get_rscale(self): return self.yscale
+    def get_rscale(self) -> Any: return self.yscale
 
-    def set_rgrids(self, radii, labels=None, angle=None, fmt=None, **kwargs):
+    def set_rgrids(self, radii: Any, labels: Any = None, angle: Any = None,
+                   fmt: Any = None, **kwargs: Any) -> None:
         radii = [float(v) for v in _as_f64(radii)]
         if labels is None and fmt is not None:
             labels = [fmt % r for r in radii]
@@ -403,10 +418,12 @@ class PolarAxes(Axes):
         self._yticks = radii
         self._yticklabels = self._polar_rgrid_labels or None
 
-    def set_rticks(self, ticks, labels=None, **kwargs):
+    def set_rticks(self, ticks: Any, labels: Any = None,
+                   **kwargs: Any) -> None:
         return self.set_rgrids(ticks, labels=labels)
 
-    def set_thetagrids(self, angles, labels=None, fmt=None, **kwargs):
+    def set_thetagrids(self, angles: Any, labels: Any = None, fmt: Any = None,
+                       **kwargs: Any) -> None:
         angles = [float(v) for v in _as_f64(angles)]
         if labels is None and fmt is not None:
             labels = [fmt % a for a in angles]
@@ -416,13 +433,14 @@ class PolarAxes(Axes):
         self._xticks = angles
         self._xticklabels = self._polar_thetagrid_labels
 
-    def _polar_grid(self):
+    def _polar_grid(self) -> tuple[list[Any], list[Any]]:
         rmax = self._polar_rmax_value()
         limits = self._polar_theta_limits()
         offset, direction = self._polar_theta_offset, self._polar_theta_direction
         edge = rcParams.get("axes.edgecolor", "black")
         grid = rcParams.get("grid.color", "#b0b0b0")
-        lines, texts = [], []  # type: ignore[var-annotated]
+        lines: list[Any] = []
+        texts: list[Any] = []
 
         if limits is None and self._polar_frame == "polygon" and self._polar_num_vertices >= 3:
             angles = (offset + direction * np.arange(self._polar_num_vertices + 1)
@@ -491,7 +509,7 @@ class Axes3D(Axes):
     """
     name = "3d"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         if args and not isinstance(args[0], (int, np.integer)):
             fig = args[0]
             super().__init__(0)
@@ -500,16 +518,20 @@ class Axes3D(Axes):
                 self.set_position(args[1])
         else:
             super().__init__(*args, **kwargs)
-        self._zlim = None
+        self._zlim: Optional[tuple[float, float]] = None
         self.zaxis = _ProjectionAxis(self)
 
-    def add_collection3d(self, collection, zs=None, zdir="z", **kwargs):
+    def add_collection3d(self, collection: Any, zs: Any = None,
+                         zdir: Any = "z", **kwargs: Any) -> Any:
         self.add_collection(collection)
         return collection
 
-    def set_xlim3d(self, *args, **kwargs): return self.set_xlim(*args, **kwargs)
-    def set_ylim3d(self, *args, **kwargs): return self.set_ylim(*args, **kwargs)
-    def set_zlim3d(self, bottom=None, top=None, **kwargs):
+    def set_xlim3d(self, *args: Any, **kwargs: Any) -> Any:
+        return self.set_xlim(*args, **kwargs)
+    def set_ylim3d(self, *args: Any, **kwargs: Any) -> Any:
+        return self.set_ylim(*args, **kwargs)
+    def set_zlim3d(self, bottom: Any = None, top: Any = None,
+                   **kwargs: Any) -> Any:
         if top is None and bottom is not None:
             values = _as_f64(bottom)
             if values.size == 2:
@@ -517,7 +539,7 @@ class Axes3D(Axes):
         self._zlim = (0.0 if bottom is None else float(bottom),
                       1.0 if top is None else float(top))
         return self._zlim
-    def get_zlim3d(self): return self._zlim or (0.0, 1.0)
+    def get_zlim3d(self) -> Any: return self._zlim or (0.0, 1.0)
     set_zlim = set_zlim3d
     get_zlim = get_zlim3d
 
@@ -533,7 +555,7 @@ class GeoAxes(PolarAxes):
     name = "geo"
     _geo_height = 0.5
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._polar_thetagrids = []
         self._polar_rgrids = []
@@ -541,13 +563,13 @@ class GeoAxes(PolarAxes):
         self.xlim = (-1.05, 1.05)
         self.ylim = (-0.55, 0.55)
 
-    def _limits(self):
+    def _limits(self) -> Any:
         return self.xlim, self.ylim
 
-    def _polar_grid(self):
+    def _polar_grid(self) -> tuple[list[Any], list[Any]]:
         edge = rcParams.get("axes.edgecolor", "black")
         grid = rcParams.get("grid.color", "#b0b0b0")
-        lines = []
+        lines: list[Any] = []
         angles = np.linspace(0.0, 2.0 * np.pi, 181)
         lines.append(_series(np.cos(angles), self._geo_height * np.sin(angles),
                              "", edge, linewidth=0.8))

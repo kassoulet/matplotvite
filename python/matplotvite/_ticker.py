@@ -1,7 +1,7 @@
 """Locators, formatters, transforms and font properties."""
 import datetime as _datetime
 import math as _math
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -23,9 +23,10 @@ from ._pyplot import subplots
 class _NoopLocator:
     """Locator that deliberately produces no ticks."""
 
-    def __init__(self, *args, **kwargs): pass
-    def __call__(self): return []
-    def tick_values(self, vmin, vmax): return np.array([vmin, vmax], dtype=float)
+    def __init__(self, *args: Any, **kwargs: Any) -> None: pass
+    def __call__(self) -> Any: return []
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
+        return np.array([vmin, vmax], dtype=float)
     set_params = _noop_method("set_params", 'self, **kwargs')
     set_axis = _noop_method("set_axis", 'self, axis')
 
@@ -42,22 +43,22 @@ class _Locator:
     need to be accepted, such as `LogLocator` and `NullLocator`.
     """
 
-    axis = None
+    axis: Any = None
 
     set_axis = _state_setter(
         "axis", 'axis', 'axis')
     set_params = _noop_method("set_params", 'self, **kwargs')
-    def __call__(self, vmin=None, vmax=None):
+    def __call__(self, vmin: Any = None, vmax: Any = None) -> Any:
         if vmin is None or vmax is None:
             raise ValueError("a locator needs the axis limits")
         return self.tick_values(vmin, vmax)  # type: ignore[attr-defined]
 
 
-def _locator_span(vmin, vmax):
+def _locator_span(vmin: Any, vmax: Any) -> tuple[Any, Any]:
     return (vmin, vmax) if vmin <= vmax else (vmax, vmin)
 
 
-def _locator_value(value):
+def _locator_value(value: Any) -> float:
     """Drop the binary noise so 3 * 0.1 reads as 0.3."""
     return float(f"{value:.12g}")
 
@@ -65,16 +66,16 @@ def _locator_value(value):
 class _MultipleLocator(_Locator):
     """Ticks at multiples of `base`, as `ticker.MultipleLocator`."""
 
-    def __init__(self, base=1.0, offset=0.0):
+    def __init__(self, base: Any = 1.0, offset: Any = 0.0) -> None:
         self.base, self.offset = float(base), float(offset)
 
-    def set_params(self, base=None, offset=None):
+    def set_params(self, base: Any = None, offset: Any = None) -> None:
         if base is not None:
             self.base = float(base)
         if offset is not None:
             self.offset = float(offset)
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         lo, hi = _locator_span(vmin, vmax)
         base = self.base if self.base > 0 else 1.0
         first = _math.ceil((lo - self.offset) / base - 1e-9) * base + self.offset
@@ -86,10 +87,10 @@ class _MultipleLocator(_Locator):
 class _IndexLocator(_Locator):
     """Ticks at `offset + base * i`, as `ticker.IndexLocator`."""
 
-    def __init__(self, base, offset=0.0):
+    def __init__(self, base: Any, offset: Any = 0.0) -> None:
         self.base, self.offset = float(base), float(offset)
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         lo, hi = _locator_span(vmin, vmax)
         if self.base <= 0:
             return np.asarray([], dtype=float)
@@ -101,12 +102,14 @@ class _IndexLocator(_Locator):
 class _LogLocator(_Locator):
     """Ticks at powers of `base`, optionally at `subs` multiples of each power."""
 
-    def __init__(self, base=10.0, subs=(1.0,), numticks=None, **kwargs):
+    def __init__(self, base: Any = 10.0, subs: Any = (1.0,),
+                 numticks: Any = None, **kwargs: Any) -> None:
         self.base = float(base)
         self.subs = subs
         self.numticks = numticks
 
-    def set_params(self, base=None, subs=None, numticks=None):
+    def set_params(self, base: Any = None, subs: Any = None,
+                   numticks: Any = None) -> None:
         if base is not None:
             self.base = float(base)
         if subs is not None:
@@ -114,7 +117,7 @@ class _LogLocator(_Locator):
         if numticks is not None:
             self.numticks = numticks
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         lo, hi = sorted((float(vmin), float(vmax)))
         if hi <= 0.0:
             return np.array([], dtype=float)
@@ -122,12 +125,13 @@ class _LogLocator(_Locator):
         base = self.base if self.base > 1.0 else 10.0
         first = int(_math.floor(_math.log(lo, base))) - 1
         last = int(_math.ceil(_math.log(hi, base))) + 1
+        subs: tuple[float, ...]
         if self.subs is None:
             subs = (1.0,)
         elif np.isscalar(self.subs):
             subs = (float(self.subs),)
         else:
-            subs = tuple(float(s) for s in np.ravel(self.subs))  # type: ignore[assignment]
+            subs = tuple(float(s) for s in np.ravel(self.subs))
         values = [sub * base ** exp
                   for exp in range(first, last + 1) for sub in subs]
         values = [v for v in values if lo * (1 - 1e-9) <= v <= hi * (1 + 1e-9)]
@@ -139,17 +143,19 @@ class _MaxNLocator(_Locator):
 
     _STEPS = (1.0, 2.0, 2.5, 5.0, 10.0)
 
-    def __init__(self, nbins=None, steps=None, **kwargs):
+    def __init__(self, nbins: Any = None, steps: Any = None,
+                 **kwargs: Any) -> None:
         self.nbins = nbins
         self.steps = tuple(float(v) for v in steps) if steps else self._STEPS
 
-    def set_params(self, nbins=None, steps=None, **kwargs):
+    def set_params(self, nbins: Any = None, steps: Any = None,
+                   **kwargs: Any) -> None:
         if nbins is not None:
             self.nbins = nbins
         if steps is not None:
             self.steps = tuple(float(v) for v in steps)
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         lo, hi = _locator_span(vmin, vmax)
         if not hi > lo:
             return np.asarray([_locator_value(lo)])
@@ -169,31 +175,31 @@ class _MaxNLocator(_Locator):
 class _FixedLocator(_Locator):
     """Ticks exactly at `locs`."""
 
-    def __init__(self, locs, **kwargs):
+    def __init__(self, locs: Any, **kwargs: Any) -> None:
         self.locs = _as_f64(locs)
 
-    def tick_values(self, vmin, vmax): return self.locs
-    def __call__(self, vmin=None, vmax=None): return self.locs
+    def tick_values(self, vmin: Any, vmax: Any) -> Any: return self.locs
+    def __call__(self, vmin: Any = None, vmax: Any = None) -> Any: return self.locs
 
 
 class _LinearLocator(_Locator):
     """`numticks` ticks evenly spaced over the axis limits."""
 
-    def __init__(self, numticks=None, **kwargs):
+    def __init__(self, numticks: Any = None, **kwargs: Any) -> None:
         self.numticks = numticks
 
-    def set_params(self, numticks=None, **kwargs):
+    def set_params(self, numticks: Any = None, **kwargs: Any) -> None:
         if numticks is not None:
             self.numticks = numticks
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         num = 6 if self.numticks is None else max(2, int(self.numticks))
         return np.linspace(vmin, vmax, num)
 
 
 class _NoopFormatter:
-    def __init__(self, *args, **kwargs): self.args = args
-    def __call__(self, value, pos=None): return str(value)
+    def __init__(self, *args: Any, **kwargs: Any) -> None: self.args = args
+    def __call__(self, value: Any, pos: Any = None) -> str: return str(value)
     set_axis = _noop_method("set_axis", 'self, axis')
     set_locs = _noop_method("set_locs", 'self, locs')
     create_dummy_axis = _noop_method("create_dummy_axis", 'self, **kwargs')
@@ -201,49 +207,53 @@ class _NoopFormatter:
 
 class _PathEffects:
     class Normal:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
     class SimplePatchShadow:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
     class SimpleLineShadow:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
     class Stroke:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
     class PathPatchEffect:
-        def __init__(self, *args, **kwargs): pass
+        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
 
     @staticmethod
-    def withStroke(*args, **kwargs): return _PathEffects.Stroke()
+    def withStroke(*args: Any, **kwargs: Any) -> "_PathEffects.Stroke":
+        return _PathEffects.Stroke()
 
     @staticmethod
-    def withTickedStroke(*args, **kwargs): return _PathEffects.Stroke()
+    def withTickedStroke(*args: Any, **kwargs: Any) -> "_PathEffects.Stroke":
+        return _PathEffects.Stroke()
 
     @staticmethod
-    def withSimplePatchShadow(*args, **kwargs): return _PathEffects.SimplePatchShadow()
+    def withSimplePatchShadow(*args: Any,
+                              **kwargs: Any) -> "_PathEffects.SimplePatchShadow":
+        return _PathEffects.SimplePatchShadow()
 
 
 class _TransformedBbox:
     """Bbox carried through a transform; matplotvite transforms are identities."""
 
-    def __init__(self, bbox, transform=None):
+    def __init__(self, bbox: Any, transform: Any = None) -> None:
         self._bbox, self._transform = bbox, transform
 
     @property
-    def x0(self): return float(self._bbox.x0)
+    def x0(self) -> float: return float(self._bbox.x0)
     @property
-    def y0(self): return float(self._bbox.y0)
+    def y0(self) -> float: return float(self._bbox.y0)
     @property
-    def x1(self): return float(self._bbox.x1)
+    def x1(self) -> float: return float(self._bbox.x1)
     @property
-    def y1(self): return float(self._bbox.y1)
+    def y1(self) -> float: return float(self._bbox.y1)
     @property
-    def width(self): return self.x1 - self.x0
+    def width(self) -> float: return self.x1 - self.x0
     @property
-    def height(self): return self.y1 - self.y0
+    def height(self) -> float: return self.y1 - self.y0
 
-    def get_points(self):
+    def get_points(self) -> Any:
         return np.asarray([[self.x0, self.y0], [self.x1, self.y1]], dtype=float)
 
-    def transformed(self, transform):
+    def transformed(self, transform: Any) -> "_TransformedBbox":
         return _TransformedBbox(self._bbox, transform)
 
 
@@ -251,13 +261,15 @@ class FontProperties:
     """`FontProperties` accepts Matplotlib's font settings; size is the one the
     renderer uses, the rest are kept for code that reads them back."""
 
-    def __init__(self, family=None, style=None, variant=None, weight=None,
-                 stretch=None, size=None, fname=None, math_fontfamily=None, **kwargs):
+    def __init__(self, family: Any = None, style: Any = None, variant: Any = None,
+                 weight: Any = None, stretch: Any = None, size: Any = None,
+                 fname: Any = None, math_fontfamily: Any = None,
+                 **kwargs: Any) -> None:
         self._family, self._style, self._variant = family, style, variant
         self._weight, self._stretch, self._size = weight, stretch, size
         self._fname, self._math_fontfamily = fname, math_fontfamily
 
-    def copy(self):
+    def copy(self) -> "FontProperties":
         return FontProperties(self._family, self._style, self._variant, self._weight,
                               self._stretch, self._size, self._fname,
                               self._math_fontfamily)
@@ -280,15 +292,15 @@ class FontProperties:
 
 
 class _StyleValue(str):
-    def __new__(cls, value, name):
+    def __new__(cls, value: Any, name: Any) -> "_StyleValue":
         obj = super().__new__(cls, value)
         obj.name = name  # type: ignore[attr-defined]
         return obj
 
 
 class _StyleMeta(type):
-    def __iter__(cls): return iter(cls._members())  # type: ignore[attr-defined]
-    def __len__(cls): return len(cls._members())  # type: ignore[attr-defined]
+    def __iter__(cls) -> Any: return iter(cls._members())  # type: ignore[attr-defined]
+    def __len__(cls) -> int: return len(cls._members())  # type: ignore[attr-defined]
 
 
 class CapStyle(str, metaclass=_StyleMeta):
@@ -297,10 +309,10 @@ class CapStyle(str, metaclass=_StyleMeta):
     projecting = _StyleValue("projecting", "projecting")
 
     @classmethod
-    def _members(cls): return (cls.butt, cls.round, cls.projecting)
+    def _members(cls) -> tuple[Any, ...]: return (cls.butt, cls.round, cls.projecting)
 
     @staticmethod
-    def demo():
+    def demo() -> None:
         _, ax = subplots(figsize=(5, 2.5))
         for row, style in enumerate(("butt", "round", "projecting")):
             line, = ax.plot([0.2, 0.8], [row, row], linewidth=12)
@@ -316,10 +328,10 @@ class JoinStyle(str, metaclass=_StyleMeta):
     bevel = _StyleValue("bevel", "bevel")
 
     @classmethod
-    def _members(cls): return (cls.miter, cls.round, cls.bevel)
+    def _members(cls) -> tuple[Any, ...]: return (cls.miter, cls.round, cls.bevel)
 
     @staticmethod
-    def demo():
+    def demo() -> None:
         _, ax = subplots(figsize=(5, 2.5))
         for row, style in enumerate(("miter", "round", "bevel")):
             line, = ax.plot([0.1, 0.4, 0.7], [row, row + 0.8, row], linewidth=12)
@@ -329,33 +341,35 @@ class JoinStyle(str, metaclass=_StyleMeta):
         ax.set_axis_off()
 
 
-def same_color(*colors):
+def same_color(*colors: Any) -> bool:
     """True when every colour argument normalises to the same value."""
     return len({_norm_color(c) for c in colors}) == 1
 
 
-def _num_to_date(value, tz=None): return _date_from_num(float(value))
+def _num_to_date(value: Any, tz: Any = None) -> _datetime.datetime:
+    return _date_from_num(float(value))
 
 
 class _DateFormatter:
     """Format a date number with `strftime`; `fmt` is Matplotlib's format."""
 
-    def __init__(self, fmt="%Y-%m-%d", tz=None):
+    def __init__(self, fmt: Any = "%Y-%m-%d", tz: Any = None) -> None:
         self.fmt, self.tz = str(fmt), tz
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> str:
         return _date_from_num(float(x)).strftime(self.fmt)
 
     set_tzinfo = _state_setter(
         "tz", 'tz', 'tz')
-    def get_offset(self): return ""
+    def get_offset(self) -> str: return ""
 
 
 class _AutoDateFormatter:
     """Date formatter that chooses a readable format from the tick value."""
 
-    def __init__(self, locator=None, tz=None, formats=None, offset_formats=None,
-                 zero_formats=None, show_offset=True):
+    def __init__(self, locator: Any = None, tz: Any = None, formats: Any = None,
+                 offset_formats: Any = None, zero_formats: Any = None,
+                 show_offset: Any = True) -> None:
         self.locator = locator
         self.tz = tz
         self.formats = formats
@@ -363,16 +377,16 @@ class _AutoDateFormatter:
         self.zero_formats = zero_formats
         self.show_offset = show_offset
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> str:
         dt = _date_from_num(float(x))
         if dt.hour or dt.minute or dt.second or dt.microsecond:
             return dt.strftime("%Y-%m-%d %H:%M:%S")
         return dt.strftime("%Y-%m-%d")
 
-    def format_ticks(self, values):
+    def format_ticks(self, values: Any) -> list[str]:
         return [self(value, i) for i, value in enumerate(values)]
 
-    def get_offset(self): return ""
+    def get_offset(self) -> str: return ""
     set_axis = _state_setter(
         "axis", 'axis', 'axis')
 
@@ -383,8 +397,9 @@ class _ConciseDateFormatter:
     _DEFAULT_FORMATS: ClassVar[tuple[str, ...]] = (
         "%Y", "%b", "%d", "%H:%M", "%H:%M", "%S.%f")
 
-    def __init__(self, locator=None, tz=None, formats=None,
-                 offset_formats=None, zero_formats=None, show_offset=True):
+    def __init__(self, locator: Any = None, tz: Any = None, formats: Any = None,
+                 offset_formats: Any = None, zero_formats: Any = None,
+                 show_offset: Any = True) -> None:
         self.locator = locator
         self.tz = tz
         self.formats = list(formats or self._DEFAULT_FORMATS)
@@ -392,7 +407,7 @@ class _ConciseDateFormatter:
         self.offset_formats = list(offset_formats or [""] * 6)
         self.show_offset = show_offset
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> str:
         dt = _date_from_num(float(x))
         if dt.microsecond or dt.second:
             level = 5
@@ -409,12 +424,12 @@ class _ConciseDateFormatter:
         fmt = self.formats[min(level, len(self.formats) - 1)]
         return dt.strftime(fmt)
 
-    def format_ticks(self, values):
+    def format_ticks(self, values: Any) -> list[str]:
         return [self(value, i) for i, value in enumerate(values)]
 
-    def format_data(self, value): return self(value)
-    def format_data_short(self, value): return self(value)
-    def get_offset(self): return ""
+    def format_data(self, value: Any) -> str: return self(value)
+    def format_data_short(self, value: Any) -> str: return self(value)
+    def get_offset(self) -> str: return ""
     set_axis = _state_setter(
         "axis", 'axis', 'axis')
     set_tzinfo = _state_setter(
@@ -424,12 +439,13 @@ class _ConciseDateFormatter:
 class _ConciseDateConverter:
     """Units converter that installs the concise date locator and formatter."""
 
-    def __init__(self, formats=None, zero_formats=None, offset_formats=None):
+    def __init__(self, formats: Any = None, zero_formats: Any = None,
+                 offset_formats: Any = None) -> None:
         self.formats = formats
         self.zero_formats = zero_formats
         self.offset_formats = offset_formats
 
-    def axisinfo(self, unit, axis):
+    def axisinfo(self, unit: Any, axis: Any) -> Any:
         locator = _AutoDateLocator()
         formatter = _ConciseDateFormatter(
             locator, formats=self.formats, zero_formats=self.zero_formats,
@@ -438,19 +454,21 @@ class _ConciseDateConverter:
 
     default_units = _noop_method("default_units", 'self, x, axis')
 
-    def convert(self, value, unit, axis): return _date_to_num(value)
+    def convert(self, value: Any, unit: Any, axis: Any) -> Any:
+        return _date_to_num(value)
 
 
 class _AutoDateLocator:
     """Calendar-aware locator on the date-number axis."""
 
-    def __init__(self, *args, **kwargs): pass
+    def __init__(self, *args: Any, **kwargs: Any) -> None: pass
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         ticks, _ = _date_ticks(float(vmin), float(vmax))
         return np.asarray(ticks, dtype=float)
 
-    def __call__(self, vmin, vmax): return self.tick_values(vmin, vmax)
+    def __call__(self, vmin: Any, vmax: Any) -> Any:
+        return self.tick_values(vmin, vmax)
     set_axis = _state_setter(
         "axis", 'axis', 'axis')
 
@@ -458,7 +476,7 @@ class _AutoDateLocator:
 class _rrulewrapper:
     """Store recurrence-rule arguments; date ticks use the calendar fallback."""
 
-    def __init__(self, freq, **kwargs):
+    def __init__(self, freq: Any, **kwargs: Any) -> None:
         self.freq = freq
         self.kwargs = kwargs
 
@@ -466,12 +484,12 @@ class _rrulewrapper:
 class _RRuleLocator(_AutoDateLocator):
     """Recurrence-rule locator, backed by the calendar locator."""
 
-    def __init__(self, rule=None, *args, **kwargs):
+    def __init__(self, rule: Any = None, *args: Any, **kwargs: Any) -> None:
         super().__init__()
         self.rule = rule
 
 
-def _drange(dstart, dend, delta):
+def _drange(dstart: Any, dend: Any, delta: Any) -> list[Any]:
     """Inclusive sequence of dates from `dstart` to `dend` by `delta`."""
     out = []
     current = dstart
@@ -490,7 +508,8 @@ class _CalendarLocator:
 
     unit = "day"
 
-    def __init__(self, interval=1, bymonth=None, bymonthday=None, **kwargs):
+    def __init__(self, interval: Any = 1, bymonth: Any = None,
+                 bymonthday: Any = None, **kwargs: Any) -> None:
         if isinstance(interval, (list, tuple, range, np.ndarray)):
             self.byhour = list(interval)
             interval = 1
@@ -503,7 +522,7 @@ class _CalendarLocator:
     set_axis = _state_setter(
         "axis", 'axis', 'axis')
 
-    def tick_values(self, vmin, vmax):
+    def tick_values(self, vmin: Any, vmax: Any) -> Any:
         vmin, vmax = float(vmin), float(vmax)
         if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmax <= vmin:
             return np.asarray([vmin], dtype=float)
@@ -516,9 +535,10 @@ class _CalendarLocator:
             ticks = [first + i * step for i in range(50) if first + i * step <= vmax + 1e-9]
         return np.asarray(ticks, dtype=float)
 
-    def __call__(self, vmin, vmax): return self.tick_values(vmin, vmax)
+    def __call__(self, vmin: Any, vmax: Any) -> Any:
+        return self.tick_values(vmin, vmax)
 
-    def _calendar_ticks(self, vmin, vmax):
+    def _calendar_ticks(self, vmin: Any, vmax: Any) -> list[Any]:
         start = _date_from_num(vmin)
         if self.unit == "year":
             month = (self.bymonth or [1])[0]
@@ -578,13 +598,14 @@ class _SecondLocator(_CalendarLocator):
 class _PercentFormatter:
     """Format a value as a percentage of `xmax`."""
 
-    def __init__(self, xmax=100, decimals=None, symbol="%", is_latex=False):
+    def __init__(self, xmax: Any = 100, decimals: Any = None,
+                 symbol: Any = "%", is_latex: Any = False) -> None:
         self.xmax = float(xmax)
         self.decimals = decimals
         self.symbol = symbol
         self.is_latex = is_latex
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> str:
         if self.xmax == 0:
             return ""
         value = float(x) / self.xmax * 100.0
@@ -602,13 +623,14 @@ class _EngFormatter:
     _PREFIXES = (("", 0), ("k", 3), ("M", 6), ("G", 9), ("T", 12),
                  ("P", 15), ("E", 18), ("Z", 21), ("Y", 24))
 
-    def __init__(self, unit="", places=None, sep=" ", format=None, **kwargs):
+    def __init__(self, unit: Any = "", places: Any = None, sep: Any = " ",
+                 format: Any = None, **kwargs: Any) -> None:
         self.unit = str(unit)
         self.places = places
         self.sep = str(sep)
         self.format = format
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> str:
         value = float(x)
         if value == 0 or not np.isfinite(value):
             return f"0{self.sep}{self.unit}" if self.unit else "0"
@@ -638,9 +660,9 @@ class _EngFormatter:
 class _FixedFormatter:
     """Formatter that returns `seq[pos]`, as Matplotlib's FixedFormatter."""
 
-    def __init__(self, seq): self.seq = list(seq)
+    def __init__(self, seq: Any) -> None: self.seq = list(seq)
 
-    def __call__(self, x, pos=None):
+    def __call__(self, x: Any, pos: Any = None) -> Any:
         if pos is None or not 0 <= int(pos) < len(self.seq):
             raise IndexError("FixedFormatter position out of range")
         return self.seq[int(pos)]

@@ -1323,7 +1323,7 @@ def _date_to_num(values):
     return result.item() if result.ndim == 0 else result
 
 
-def _date_from_num(value):
+def _date_from_num(value: Any) -> _datetime.datetime:
     ordinal = int(_math.floor(value))
     seconds = int(round(float(value - ordinal) * 86400.0))
     return (_datetime.datetime.fromordinal(ordinal)
