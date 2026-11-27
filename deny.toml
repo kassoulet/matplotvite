@@ -7,9 +7,12 @@ all-features = true
 [advisories]
 # CI runs the advisory check so a yanked crate cannot enter the lockfile.
 yanked = "deny"
-# The PDF/font stack pins these unmaintained crates; there is no safe upgrade
-# until svg2pdf moves off usvg 0.45. Track them rather than suppressing the
-# whole advisory class.
+# The PDF stack pins these unmaintained crates and there is no safe upgrade
+# yet: svg2pdf 0.13.0 (still the latest release, checked 27 Nov 2026) needs
+# usvg/resvg ^0.45 and uses ttf-parser ^0.25 directly for the font subsetting
+# behind its default `text` feature. usvg only moved to harfrust/skrifa in
+# 0.49, and svg2pdf main has reached 0.46, so both notices stay until a
+# release follows. Track them rather than suppressing the whole class.
 ignore = [
     "RUSTSEC-2026-0192",  # ttf-parser
     "RUSTSEC-2026-0206",  # rustybuzz
