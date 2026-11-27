@@ -69,7 +69,8 @@ def _ignored(name: str) -> None:
                       RuntimeWarning, stacklevel=3)
 
 
-def _noop_method(name, signature, *, warn=None, returns_self=False):
+def _noop_method(name: str, signature: str, *, warn: Optional[str] = None,
+                 returns_self: bool = False) -> Any:
     """Build a compatibility method whose body only returns `None` or `self`.
 
     `warn` names the call recorded by :func:`_ignored`; the plain `return None`
@@ -88,7 +89,7 @@ def _noop_method(name, signature, *, warn=None, returns_self=False):
     return function
 
 
-def _state_setter(attribute, signature, argument):
+def _state_setter(attribute: str, signature: str, argument: str) -> Any:
     """Build a `set_x(self, value)` method that only stores its argument."""
     scope: dict[str, Any] = {"__name__": __name__}
     source = f"def _set(self, {signature}):\n    self.{attribute} = {argument}\n"
@@ -657,7 +658,7 @@ class Path:
     NUM_VERTICES_FOR_CODE: ClassVar[dict[int, int]] = {
         STOP: 1, MOVETO: 1, LINETO: 1, CURVE3: 2, CURVE4: 3, CLOSEPOLY: 1}
 
-    def __init__(self, vertices, codes=None, **kwargs):
+    def __init__(self, vertices: Any, codes: Any = None, **kwargs: Any) -> None:
         self.vertices = np.asarray(vertices, dtype=float).reshape(-1, 2)
         self.codes = codes
 
@@ -1294,11 +1295,11 @@ def _looks_like_dates(values):
     return False
 
 
-def _datetime_to_num(value):
+def _datetime_to_num(value: Any) -> float:
     """Matplotlib date number: proleptic Gregorian ordinal plus day fraction."""
     if isinstance(value, np.datetime64):
         if np.isnat(value):
-            return np.nan
+            return float(np.nan)
         delta = value - np.datetime64("1970-01-01T00:00:00")
         return 719163.0 + float(delta / np.timedelta64(1, "D"))
     if isinstance(value, _datetime.datetime):
@@ -1306,11 +1307,11 @@ def _datetime_to_num(value):
             value = value.astimezone(_datetime.timezone.utc).replace(tzinfo=None)
         seconds = (value.hour * 3600.0 + value.minute * 60.0 + value.second
                    + value.microsecond / 1e6)
-        return value.toordinal() + seconds / 86400.0
+        return float(value.toordinal() + seconds / 86400.0)
     return float(value.toordinal())
 
 
-def _date_to_num(values):
+def _date_to_num(values: Any) -> Any:
     """Convert date-like input to a float array of matplotlib date numbers."""
     array = np.asarray(values)
     if array.dtype.kind == "M":
@@ -1379,7 +1380,7 @@ def _scale_values(forward, values):
     return np.ascontiguousarray(result, dtype=np.float64)
 
 
-def _add_months(value, months):
+def _add_months(value: _datetime.datetime, months: Any) -> _datetime.datetime:
     total = value.year * 12 + (value.month - 1) + int(months)
     year, month = divmod(total, 12)
     month += 1
@@ -1443,7 +1444,7 @@ def _auto_ticks(lo, hi, log=False, base=10.0, target=8):
     return _auto_ticks_core(float(lo), float(hi), bool(log), float(base), int(target))
 
 
-def _date_ticks(lo, hi):
+def _date_ticks(lo: float, hi: float) -> tuple[list[float], list[str]]:
     """Calendar-aligned tick positions and labels for a date-number range."""
     if not (np.isfinite(lo) and np.isfinite(hi)) or hi <= lo:
         return [float(lo)], [_date_label(lo)]
@@ -1455,7 +1456,8 @@ def _date_ticks(lo, hi):
                                            microsecond=0)
         if _datetime_to_num(start) < lo:
             start = _add_months(start, 1)
-        ticks, labels = [], []  # type: ignore[var-annotated]
+        ticks: list[float] = []
+        labels: list[str] = []
         current = start
         while len(ticks) < 20:
             value = _datetime_to_num(current)

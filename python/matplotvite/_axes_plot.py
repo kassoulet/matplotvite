@@ -144,11 +144,14 @@ class _AxesMixinBase:
 class _PlotAxes(_AxesMixinBase):
     """Plot families: lines, points, bars, fills and categorical plots."""
 
-    def plot(self, *args, label="", color=None, c=None, linestyle=None, ls=None,
-             linewidth=None, lw=None, marker=None, markersize=None, ms=None,
-             markerfacecolor=None, mfc=None, markeredgecolor=None, mec=None,
-             markeredgewidth=None, mew=None, alpha=None, drawstyle="default", fmt=None,
-             data=None, x=None, y=None, **kwargs):
+    def plot(self, *args: Any, label: Any = "", color: Any = None, c: Any = None,
+             linestyle: Any = None, ls: Any = None, linewidth: Any = None,
+             lw: Any = None, marker: Any = None, markersize: Any = None,
+             ms: Any = None, markerfacecolor: Any = None, mfc: Any = None,
+             markeredgecolor: Any = None, mec: Any = None,
+             markeredgewidth: Any = None, mew: Any = None, alpha: Any = None,
+             drawstyle: Any = "default", fmt: Any = None, data: Any = None,
+             x: Any = None, y: Any = None, **kwargs: Any) -> list[Any]:
         """Line plot with matplotlib's styling keywords (`lw`, `ls`, `marker`, `ms`,
         `mfc`/`mec`, `alpha`, `drawstyle`) and fmt-string shorthand (`"r--o"`).
         `data=` accepts a DataFrame/Series and `x=`/`y=` may name its columns."""
@@ -602,7 +605,8 @@ class _PlotAxes(_AxesMixinBase):
             self._append_band(_band(np.concatenate([xa, xb[::-1]]),
                                     np.concatenate([ys, ys[::-1]]), c, alpha, label))
 
-    def fill(self, *args, color=None, alpha=None, label="", **kwargs):
+    def fill(self, *args: Any, color: Any = None, alpha: Any = None,
+             label: Any = "", **kwargs: Any) -> None:
         """Filled polygons: every `x, y` pair is one polygon, optionally
         followed by its own colour, as in Matplotlib (`fill(x, y, x2, y2)`
         draws two polygons, not one polygon through both)."""

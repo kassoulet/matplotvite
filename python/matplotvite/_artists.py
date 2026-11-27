@@ -232,7 +232,7 @@ class Rectangle(Patch):
 
 
 class Circle(Patch):
-    def __init__(self, xy, radius=5, **kwargs):
+    def __init__(self, xy: Any, radius: Any = 5, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._center = (float(xy[0]), float(xy[1]))
         self._radius = float(radius)
@@ -294,7 +294,7 @@ class Ellipse(Patch):
 
 
 class Polygon(Patch):
-    def __init__(self, xy, closed=True, **kwargs):
+    def __init__(self, xy: Any, closed: Any = True, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._xy = np.asarray(xy, dtype=float).reshape(-1, 2)
         self._closed = bool(closed)

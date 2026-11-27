@@ -180,17 +180,9 @@ disallow_untyped_calls = true
 # call are annotated too, so the whole call path is checked.
 module = ["matplotvite._axes_decor", "matplotvite._cm", "matplotvite._colors",
            "matplotvite._fonts", "matplotvite._misc", "matplotvite._pandas",
-           "matplotvite._png", "matplotvite.offsetbox", "matplotvite.sankey",
-           "matplotvite.scale", "matplotvite.spines", "matplotvite.tri",
-           "matplotvite.widgets"]
+           "matplotvite._png", "matplotvite._projections", "matplotvite._ticker",
+           "matplotvite.offsetbox", "matplotvite.sankey", "matplotvite.scale",
+           "matplotvite.spines", "matplotvite.tri", "matplotvite.widgets"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true
-
-[[tool.mypy.overrides]]
-# These modules annotate every definition of their own, but they still call
-# into the plotting core, so untyped calls stay allowed until the ratchet
-# annotates what they call.
-module = ["matplotvite._ticker", "matplotvite._projections"]
-disallow_untyped_defs = true
-disallow_incomplete_defs = true

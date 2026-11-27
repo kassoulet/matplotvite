@@ -1,6 +1,6 @@
 """The Axes class: lifecycle, layout, ticks, scales and panel assembly."""
 import math as _math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -64,7 +64,7 @@ from ._helpers import (
 
 class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     """Matplotlib-style axes: plotting calls and axis configuration for one panel."""
-    def __init__(self, pos=0, *args, **kwargs):
+    def __init__(self, pos: Any = 0, *args: Any, **kwargs: Any) -> None:
         # axes_grid creates Axes(fig, rect) directly. Preserve the rectangle
         # when one is supplied; normal pyplot paths pass a single index.
         fig_arg = pos if args else None
@@ -80,7 +80,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.scatter_pts = []
         self.arrows = []
         self.bars = []
-        self.bands = []
+        self.bands: list[Any] = []
         self._hline_refs = []
         self._vline_refs = []
         self.hspans = []
@@ -92,7 +92,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.legend_labels = None  # type: ignore[assignment]
         self._sticky_x, self._sticky_y = [], []
         self.visible, self._removed, self._axis_off = True, False, False
-        self.artists, self.label, self.zorder = [], "", 0
+        self.artists: list[Any] = []
+        self.label, self.zorder = "", 0
         self.facecolor, self.alpha = None, None
         self.xscale = self.yscale = "linear"
         self.log_base = 10.0
@@ -110,8 +111,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.minor_ticks = False
         self.tick_params_box = {}
         self._yside = ""
-        self.tick_params_x = {}
-        self.tick_params_y = {}
+        self.tick_params_x: dict[Any, Any] = {}
+        self.tick_params_y: dict[Any, Any] = {}
         self.legend_loc = "best"
         self.legend_ncol = 1
         self.legend_frameon = True
@@ -133,7 +134,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._xlocator = self._ylocator = None
         self._xticklabels = self._yticklabels = None
         self._x_date = False
-        self._categories = []
+        self._categories: list[Any] = []
         self._inverted = [False, False]
         self._autoscale_on = True
         self._autoscalex_on = True
@@ -148,7 +149,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self._sketch = (None, None, None)
         self._clip_box = None
         self._agg_filter = None
-        self._path_effects = []
+        self._path_effects: list[Any] = []
         self._anchor = "C"
         self._axisbelow = rcParams.get("axes.axisbelow", "line")
         self._transform = None
@@ -178,8 +179,8 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.yaxis = _Axis(self, "y")
         self.spines = _Spines()
         self.axis = _AxisAccessor(self)  # type: ignore[method-assign]
-        self.patches = []
-        self.collections = []
+        self.patches: list[Any] = []
+        self.collections: list[Any] = []
         self.callbacks = _Callbacks()
         self._box_aspect = None
         self._axes_locator = None
@@ -190,7 +191,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
     _set_lim_and_transforms = _noop_method("_set_lim_and_transforms", 'self')
 
-    def _next_color(self, patch=False):
+    def _next_color(self, patch: bool = False) -> Any:
         # Matplotlib keeps one cycle position for lines and another for
         # patches (bar, fill*, scatter, ...).
         cycle = self._prop_cycle or _CYCLE
@@ -269,7 +270,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         r, c = divmod(self.pos, cols)
         return _Bbox(c / cols, 1.0 - (r + 1) / rows, (c + 1) / cols, 1.0 - r / rows)
 
-    def set_position(self, pos):
+    def set_position(self, pos: Any) -> None:
         self._pos_override = tuple(float(v) for v in pos)
         self._bounds_are_axes = True
 
@@ -558,7 +559,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def xaxis_inverted(self): return self._inverted[0]
     def yaxis_inverted(self): return self._inverted[1]
 
-    def _limits(self):
+    def _limits(self) -> Any:
         """Drawing limits; the getters already apply axis inversion."""
         return self.get_xlim(), self.get_ylim()
 
@@ -1028,7 +1029,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return image
         raise TypeError("add_image expects an AxesImage or NonUniformImage")
 
-    def add_patch(self, patch):
+    def add_patch(self, patch: Any) -> Any:
         try:
             patch.axes = self
             patch.figure = self._fig
@@ -1037,7 +1038,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         self.artists.append(self._stamp(patch))
         self.patches.append(patch)
         return patch
-    def add_collection(self, collection, autolim=True):
+    def add_collection(self, collection: Any, autolim: Any = True) -> Any:
         self.artists.append(self._stamp(collection))
         self.collections.append(collection)
         return collection
@@ -1431,7 +1432,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
     def set_xscale(self, value, base=10, **kwargs):
         return self._set_scale("x", value, base, **kwargs)
 
-    def set_yscale(self, value, base=10, **kwargs):
+    def set_yscale(self, value: Any, base: Any = 10, **kwargs: Any) -> Any:
         return self._set_scale("y", value, base, **kwargs)
 
     @staticmethod
@@ -1604,7 +1605,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
 
 
 
-    def set_xlim(self, left=None, right=None, **kwargs):
+    def set_xlim(self, left: Any = None, right: Any = None, **kwargs: Any) -> Any:
         """Set the x limits; accepts `left`/`right` or Matplotlib's `xmin`/`xmax`.
 
         `auto` turns x autoscaling on (`True`), off (`False`, the default), or
@@ -1630,7 +1631,7 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             self._share_x.limits = limits
         return self.get_xlim()
 
-    def set_ylim(self, bottom=None, top=None, **kwargs):
+    def set_ylim(self, bottom: Any = None, top: Any = None, **kwargs: Any) -> Any:
         """Set the y limits; accepts `bottom`/`top` or `ymin`/`ymax`.
 
         `auto` behaves like `set_xlim(auto=...)`.

@@ -2,7 +2,7 @@
 import datetime as _datetime
 import hashlib as _hashlib
 import math as _math
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Optional
 
 import numpy as np
 
@@ -74,8 +74,10 @@ def _convert_units(values, axis, unit=None):
     return converter.convert(values, unit, axis)
 
 
-def _series(x, y, label, color, linestyle="-", linewidth=2.0, marker="", markersize=6.0,
-            mfc=None, mec=None, mew=1.0, alpha=None, drawstyle="default", gid=""):
+def _series(x: Any, y: Any, label: Any, color: Any, linestyle: Any = "-",
+            linewidth: Any = 2.0, marker: Any = "", markersize: Any = 6.0,
+            mfc: Any = None, mec: Any = None, mew: Any = 1.0, alpha: Any = None,
+            drawstyle: Any = "default", gid: Any = "") -> dict[str, Any]:
     return dict(x=_as_f64(x), y=_as_f64(y),
                 label=str(label), color=_norm_color(color), linestyle=str(linestyle),
                 linewidth=float(linewidth), marker=str(marker), markersize=float(markersize),
@@ -478,7 +480,7 @@ def _runs(x, y1, y2, where):
     return runs
 
 
-def _fill(values, n):
+def _fill(values: Any, n: int) -> Any:
     a = _as_f64(values)
     if a.size == 1:
         return np.full(n, float(a[0]))
@@ -577,7 +579,7 @@ def _cmap_colors(cmap, values):
     return [f"#{int(r):02x}{int(g):02x}{int(b):02x}" for r, g, b in rgb]
 
 
-def _bar_colors(color, n):
+def _bar_colors(color: Any, n: int) -> list[Optional[str]]:
     """One colour per bar; a short list cycles, as Matplotlib's fill loop does."""
     if color is None:
         return []

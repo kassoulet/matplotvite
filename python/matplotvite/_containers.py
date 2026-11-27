@@ -230,7 +230,7 @@ class _BarContainer(list[object]):
     # identity hash while keeping the list behaviour.
     __hash__: ClassVar[Any] = object.__hash__
 
-    def __init__(self, handles, label=""):
+    def __init__(self, handles: Any, label: Any = "") -> None:
         super().__init__(handles)
         self.label = label
 
