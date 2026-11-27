@@ -32,7 +32,7 @@ Wheels are published to PyPI from each `v*` version tag: Linux glibc and musl 1.
 stable ABI, so a single wheel serves CPython 3.9 and newer; other platforms
 install from the sdist.
 
-The latest release is 0.6.0; version tags after it publish automatically.
+The latest release is 0.7.0; version tags after it publish automatically.
 
 ### Python support
 

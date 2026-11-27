@@ -9,8 +9,8 @@ authors:
 repository-code: "https://github.com/kassoulet/matplotvite"
 url: "https://kassoulet.github.io/matplotvite/"
 license: "MIT"
-version: "0.6.0"
-date-released: "2026-11-13"
+version: "0.7.0"
+date-released: "2026-11-27"
 keywords:
   - plotting
   - visualization

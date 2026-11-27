@@ -9,6 +9,8 @@ Before 1.0, a minor release may contain a breaking change; see
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-27
+
 ### Added
 
 - `Axes.label_outer`, `Axes.quiverkey` and `Axes.pie_label` (with
@@ -168,5 +170,6 @@ Before 1.0, a minor release may contain a breaking change; see
 - A bundled example gallery, harvested Matplotlib and Seaborn comparisons,
   KARIOS report figures, and benchmark and visual-difference tooling.
 
-[Unreleased]: https://github.com/kassoulet/matplotvite/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/kassoulet/matplotvite/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/kassoulet/matplotvite/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kassoulet/matplotvite/releases/tag/v0.6.0
