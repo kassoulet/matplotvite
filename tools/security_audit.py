@@ -4,7 +4,7 @@
 The checks are intentionally dependency-audit focused:
   * cargo audit   - RustSec advisories against Cargo.lock
   * bandit        - static analysis of the shipped Python package
-  * pip-audit     - known vulnerabilities in the pinned CI/dev requirements
+  * pip-audit     - known vulnerabilities in the hash-pinned CI/dev requirements
 
 Pre-push installs Bandit and pip-audit through prek. CI installs the same
 tools explicitly. cargo-audit must be available on the developer's PATH:
@@ -55,11 +55,17 @@ def main() -> int:
         "-s", "B404,B603,B607,B105",
     ])
     # Audit the pinned requirements, not the (tool-only) environment pip-audit
-    # happens to run in.
-    run([
-        sys.executable, "-m", "pip_audit", "-r", ".github/requirements-ci.txt",
-        "--no-deps", "--disable-pip",
-    ])
+    # happens to run in. Every hash-pinned file is separate so each CI job can
+    # install exactly what it needs.
+    requirements = sorted((ROOT / ".github" / "requirements").glob("*.txt"))
+    if not requirements:
+        print("no pinned requirements found in .github/requirements", file=sys.stderr)
+        return 1
+    for requirement in requirements:
+        run([
+            sys.executable, "-m", "pip_audit", "-r",
+            str(requirement.relative_to(ROOT)), "--no-deps", "--disable-pip",
+        ])
     return 0
 
 

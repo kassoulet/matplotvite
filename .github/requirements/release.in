@@ -1,0 +1,5 @@
+# Release-time tooling (3.13 jobs). Regenerate with:
+#   uv pip compile --universal --generate-hashes --no-header \
+#       --python-version 3.13 release.in -o release.txt
+twine==7.0.0
+numpy==2.5.4

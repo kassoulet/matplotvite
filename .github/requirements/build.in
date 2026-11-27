@@ -1,0 +1,4 @@
+# The PEP 517 backend used to build and install the extension. Regenerate with:
+#   uv pip compile --universal --generate-hashes --no-header \
+#       --python-version 3.9 build.in -o build.txt
+maturin==1.16.0

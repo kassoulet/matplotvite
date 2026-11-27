@@ -24,6 +24,11 @@ jobs:
           persist-credentials: false
       - uses: ossf/scorecard-action@23f22cd43608bae7a1f1fa2603d7314dee9538a5 # v2.6.0
         with:
+          # The default token cannot read the branch-protection rules, which
+          # leaves that check unscored (`-1`). A `SCORECARD_TOKEN` secret with
+          # administration read raises it; until it exists this falls back to
+          # the workflow token.
+          repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}
           results_file: results.sarif
           results_format: sarif
           # Publish the score so the README badge has data on the default branch.

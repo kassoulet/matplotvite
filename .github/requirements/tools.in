@@ -1,0 +1,8 @@
+# Development tools that run on the project floor, so the whole matrix can
+# install them. Regenerate with:
+#   uv pip compile --universal --generate-hashes --no-header \
+#       --python-version 3.9 tools.in -o tools.txt
+mypy==1.19.1
+pip-audit==2.10.1
+bandit==1.9.4
+vulture==2.16

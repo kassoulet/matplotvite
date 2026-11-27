@@ -1,20 +1,12 @@
-# Constraints for CI's ad-hoc pip installs. Keep these exact-version pins in
-# sync with the supported Python matrix (3.9 through 3.14).
-maturin==1.16.0
+# Test dependencies for the Python 3.9-3.14 matrix. Regenerate with:
+#   uv pip compile --universal --generate-hashes --no-header \
+#       --python-version 3.9 test.in -o test.txt
 numpy==2.0.2; python_version < "3.12"
 numpy==2.5.4; python_version >= "3.12"
 pandas==2.2.3; python_version < "3.12"
 pandas==3.1.1; python_version >= "3.12"
 pytest==8.4.2; python_version < "3.10"
 pytest==9.0.3; python_version >= "3.10"
-mypy==1.19.1
+pytest-cov==7.1.0
 hypothesis==6.100.0; python_version < "3.11"
 hypothesis==6.170.15; python_version >= "3.11"
-pytest-cov==7.1.0
-twine==7.0.0
-matplotlib==3.11.2
-bandit==1.9.4
-vulture==2.16
-pip-audit==2.10.1
-pypdfium2==4.30.0
-cairosvg==2.9.1

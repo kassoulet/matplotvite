@@ -33,13 +33,14 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install -c .github/requirements-ci.txt maturin numpy pandas "matplotlib==3.11.2" pypdfium2 cairosvg Pillow
+          pip install --require-hashes -r .github/requirements/build.txt \
+            -r .github/requirements/test.txt -r .github/requirements/corpus.txt
           maturin develop --release
 
       - name: Build the API reference
         run: |
           . .venv/bin/activate
-          python -m pip install "sphinx>=8"
+          python -m pip install --require-hashes -r .github/requirements/docs.txt
           mkdir -p dist
           python -m sphinx -W -b html docs dist/api
 

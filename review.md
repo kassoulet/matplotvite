@@ -120,12 +120,12 @@ Security-Policy, Dangerous-Workflow, Token-Permissions, Fuzzing (License 9).
 
 | # | Task |
 |---|------|
-| S1 | **Open — Pinned-Dependencies 6.** 22 `pip install` lines are not hash-pinned (`ci.yml` 44, 121, 210-212, 263-264, 299, 318, 343-344, 384-385, 550-551, 576-577; `pages.yml` 36, 42; `publish.yml` 176, 184-185). Generate `requirements-ci.txt` with `pip-compile --generate-hashes` (per Python marker) and install with `--require-hashes`. Done when the Scorecard check reaches 10. |
+| S1 | **Done in-repo — hash-pinned installs.** `.github/requirements/` holds purpose-scoped `*.in` sources compiled with `uv pip compile --universal --generate-hashes` into `*.txt` files that carry every wheel and sdist hash for Python 3.9–3.14 (`tools`, `test`, `runtime`, `build`, `docs`, `corpus`, `release`). Every `pip install` in `ci.yml`, `pages.yml` and `publish.yml` now runs `--require-hashes -r <file>`, and the built wheel is installed by path (`dist/*.whl`) so Scorecard counts it as pinned instead of as a bare package name. `tools/security_audit.py` audits every file and the `dep-audit` hook watches the directory. The installs were verified with pip on 3.9, 3.12, 3.13 and 3.14; the score itself moves on the next scan of `main`. |
 | S2 | **Open — Code-Review 0 and CI-Tests 0.** Every change lands directly on `main`. Open PRs for changes (even self-merged) so CI runs before merge and a review is recorded; enable branch protection requiring the CI checks. Scores rise as new changesets are merged through PRs. |
-| S3 | **Open — SAST 7.** CodeQL runs on a schedule or on pushes, but 0 of the last 5 commits were checked. Run `codeql.yml` on `pull_request` too, so each merged PR is scanned. |
-| S4 | **Open — Branch-Protection (−1, unreadable).** The scan token cannot read the rules. Enable protection on `main` (required checks, no force push) and add a `SCORECARD_TOKEN` PAT with repo admin read to `scorecard.yml` so the check can be scored. |
+| S3 | **Done — SAST.** `codeql.yml` already runs `python`, `rust` and `actions` analysis on `pull_request` as well as on pushes and weekly (`59b686d`, 25 Nov). The check reads 0 of the last 5 commits because those landed directly on `main` without a PR; it rises once changes arrive through PRs (see S2). |
+| S4 | **Manual — Branch-Protection (−1, unreadable).** The scan token cannot read the rules. `scorecard.yml` now passes `repo_token: ${{ secrets.SCORECARD_TOKEN || github.token }}`, so a `SCORECARD_TOKEN` secret with administration read turns the check on without another workflow edit. Enabling protection on `main` (required checks, no force push) and creating that PAT are repository settings, not code. |
 | S5 | **Open — Vulnerabilities 7 (3 findings, none exploitable).** `RUSTSEC-2026-0192` (`ttf-parser`) and `RUSTSEC-2026-0206` (`rustybuzz`) are "unmaintained" notices with no fix; both are ignored in `deny.toml` with a reason. `PYSEC-2026-1845` is `pytest` 8.4.2, dev only, pinned for Python 3.9/3.10. Track a replacement for the unmaintained text-shaping crates (for example `cosmic-text` or `swash`) and drop the ignores when done. |
-| S6 | **Open — release hygiene (Packaging, Signed-Releases at −1).** Publish a first tagged release from `publish.yml` with signed provenance (Sigstore or SLSA attestations) so both checks are scored. |
+| S6 | **Waiting — release hygiene (Packaging, Signed-Releases at −1).** `publish.yml` already builds the wheels and sdist, attests both with `actions/attest-build-provenance`, uploads them through PyPI trusted publishing and records a GitHub release. Both checks need a first tagged release, which is a publishing action rather than a code change. |
 | S7 | **Open — CII-Best-Practices 0.** Apply for the OpenSSF Best Practices (passing) badge; most criteria are already met by the CI and policy files. |
 | S8 | **Waiting — Maintained 0 and Contributors 0.** Clear with time (project under 90 days) and with contributors from other organizations. No code action. |
 
@@ -137,7 +137,7 @@ the pinned requirements instead of the tool-only environment. CI already ran
 
 ## Status
 
-No security or parity findings remain open; the F1–F11 refactoring tasks above are proposals. The 23 Nov re-audit is complete: the facade
+No security or parity findings remain open. The Scorecard pass pinned every CI dependency by hash (S1), confirmed CodeQL runs on PRs (S3) and made the branch-protection token a secret away (S4); S2, S5–S8 still need repository settings, a tagged release, a crate replacement or time. The F1–F11 refactoring tasks above are proposals. The 23 Nov re-audit is complete: the facade
 introspection fix (R10), Figure state accessors (R11), Axes state accessors
 (R12), Axes hit-testing/cursor formatting (R13), the remaining Axes APIs (R14)
 and the Figure/pyplot coverage (R15) lift the TRACE report from 9178/10098 to

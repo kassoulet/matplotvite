@@ -1,0 +1,6 @@
+# The only runtime dependency, for jobs that install the wheel offline.
+# Regenerate with:
+#   uv pip compile --universal --generate-hashes --no-header \
+#       --python-version 3.9 runtime.in -o runtime.txt
+numpy==2.0.2; python_version < "3.12"
+numpy==2.5.4; python_version >= "3.12"

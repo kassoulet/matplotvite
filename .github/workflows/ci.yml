@@ -41,7 +41,7 @@ jobs:
           python-version: "3.13"
       - name: Type-check the Python package
         run: |
-          python -m pip install -c .github/requirements-ci.txt mypy
+          python -m pip install --require-hashes -r .github/requirements/tools.txt
           python -m mypy
 
   coverage:
@@ -118,7 +118,7 @@ jobs:
           python-version: "3.13"
       - name: Run dependency and static security checks
         run: |
-          python -m pip install -c .github/requirements-ci.txt "pip-audit>=2.9" bandit vulture
+          python -m pip install --require-hashes -r .github/requirements/tools.txt
           python tools/security_audit.py
       - name: Check for dead code
         run: python tools/dead_code.py
@@ -200,16 +200,15 @@ jobs:
           python-version: "3.13"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: wheel-*
+          name: wheel-linux-x86_64
           path: dist
-          merge-multiple: true
       - name: Install the wheel and Sphinx
         run: |
           # The wheel install is offline, so numpy must be resolved first or pip
           # fails on the wheel's only runtime dependency.
-          python -m pip install -c .github/requirements-ci.txt numpy
-          python -m pip install --no-index --find-links dist matplotvite
-          python -m pip install -c .github/requirements-ci.txt "sphinx>=8"
+          python -m pip install --require-hashes -r .github/requirements/runtime.txt
+          python -m pip install --no-index --no-deps dist/*.whl
+          python -m pip install --require-hashes -r .github/requirements/docs.txt
       - name: Check public docstring coverage
         run: python tools/check_docstrings.py
       - name: Build the API reference
@@ -253,15 +252,31 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python }}
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      # Only this runner's wheel is needed, and each one is a stable-ABI build
+      # for the whole platform, so a conditional download beats merging every
+      # platform's artifact and relying on pip to pick a compatible file.
+      - name: Download the Linux wheel
+        if: runner.os == 'Linux'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: wheel-*
+          name: wheel-linux-x86_64
           path: dist
-          merge-multiple: true
+      - name: Download the macOS wheel
+        if: runner.os == 'macOS'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheel-macos-arm64
+          path: dist
+      - name: Download the Windows wheel
+        if: runner.os == 'Windows'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheel-windows-x86_64
+          path: dist
       - name: Install the built wheel
         run: |
-          python -m pip install -c .github/requirements-ci.txt numpy pandas pytest pytest-cov hypothesis
-          python -m pip install --no-index --find-links dist matplotvite
+          python -m pip install --require-hashes -r .github/requirements/test.txt
+          python -m pip install --no-index --no-deps dist/*.whl
       - name: Run the test suite against the installed wheel
         # The repo root is not on sys.path ahead of site-packages, so these
         # imports resolve to the installed wheel rather than the source tree.
@@ -296,7 +311,7 @@ jobs:
         # platform without a wheel, using the pinned maturin instead of an
         # isolated resolution. Building twice catches non-deterministic output.
         run: |
-          python -m pip install -c .github/requirements-ci.txt maturin
+          python -m pip install --require-hashes -r .github/requirements/build.txt
           SOURCE_DATE_EPOCH=0 python -m pip wheel --no-deps --no-build-isolation --wheel-dir wheel-a dist/*.tar.gz
           SOURCE_DATE_EPOCH=0 python -m pip wheel --no-deps --no-build-isolation --wheel-dir wheel-b dist/*.tar.gz
           python tools/check_reproducible_wheel.py wheel-a wheel-b
@@ -315,7 +330,7 @@ jobs:
           PY
       - name: Install and smoke-test the sdist wheel
         run: |
-          python -m pip install -c .github/requirements-ci.txt numpy pytest
+          python -m pip install --require-hashes -r .github/requirements/test.txt
           python -m pip install --no-deps wheel-a/*.whl
           python -m pytest -q tests/test_wheel.py
 
@@ -340,8 +355,8 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install -c .github/requirements-ci.txt numpy "matplotlib==3.11.2"
-          pip install --no-index --no-deps --find-links wheel matplotvite
+          pip install --require-hashes -r .github/requirements/corpus.txt
+          pip install --no-index --no-deps wheel/*.whl
           python tools/benchmark.py --quick --out dist/benchmarks.json
           python tools/benchmark_guard.py --warn-only dist/benchmarks.json tools/benchmark_baseline.json
           python tools/visual_compare.py dist/visual --json dist/visual_diff.json
@@ -381,8 +396,8 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install -c .github/requirements-ci.txt numpy "matplotlib==3.11.2" pypdfium2 cairosvg Pillow
-          pip install --no-index --no-deps --find-links wheel matplotvite
+          pip install --require-hashes -r .github/requirements/corpus.txt
+          pip install --no-index --no-deps wheel/*.whl
       - name: Cache the Matplotlib sdist and tests
         if: matrix.name == 'corpus'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -547,8 +562,9 @@ jobs:
         # classes are final, so the PEP 800 disjoint-base heuristic does not
         # apply to them.
         run: |
-          python -m pip install -c .github/requirements-ci.txt numpy mypy
-          python -m pip install --no-index --no-deps --find-links wheel matplotvite
+          python -m pip install --require-hashes -r .github/requirements/runtime.txt \
+            -r .github/requirements/tools.txt
+          python -m pip install --no-index --no-deps wheel/*.whl
           python -m mypy.stubtest matplotvite --ignore-missing-stub \
             --ignore-disjoint-bases \
             --mypy-config-file tools/stubtest.ini \
@@ -573,7 +589,7 @@ jobs:
         run: |
           python -m venv .venv
           . .venv/bin/activate
-          pip install -c .github/requirements-ci.txt numpy "matplotlib==3.11.2"
-          pip install --no-index --no-deps --find-links wheel matplotvite
+          pip install --require-hashes -r .github/requirements/corpus.txt
+          pip install --no-index --no-deps wheel/*.whl
           TRACE_DIR=$(python -c "import matplotlib, pathlib; print(pathlib.Path(matplotlib.__file__).parent / 'tests')")
           python tools/trace_unsupported.py --check "$TRACE_DIR"
