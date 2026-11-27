@@ -36,10 +36,11 @@ from ._plot_helpers import (
 class ContourSet:
     """Handle returned by `Axes.contour` / `Axes.contourf`."""
 
-    def __init__(self, ax=None, levels=None, segments=None, *args, axes=None, **kwargs):
+    def __init__(self, ax: Any = None, levels: Any = None, segments: Any = None,
+                 *args: Any, axes: Any = None, **kwargs: Any) -> None:
         self.axes = ax if axes is None else axes
-        self._manual = None
-        self._manual_kinds = None
+        self._manual: Any = None
+        self._manual_kinds: Any = None
         if isinstance(ax, dict) and levels is None and segments is None:
             self._e = ax
             return
@@ -250,8 +251,8 @@ class ContourSet:
         if self._manual is not None:
             out = []
             for index, group in enumerate(self._manual):
-                level_kinds = (self._manual_kinds[index]  # type: ignore[index]
-                               if index < len(self._manual_kinds) else None)  # type: ignore[arg-type]
+                level_kinds = (self._manual_kinds[index]
+                               if index < len(self._manual_kinds) else None)
                 for path_index, vertices in enumerate(group):
                     codes = (level_kinds[path_index] if level_kinds is not None
                              and path_index < len(level_kinds) else None)
@@ -351,8 +352,10 @@ class AxesImage:
     use before calling `set_array`.
     """
 
-    def __init__(self, entry=None, axes=None, *, extent=None, cmap="viridis",
-                 interpolation="nearest", alpha=1.0, origin="upper", **kwargs):
+    def __init__(self, entry: Any = None, axes: Any = None, *,
+                 extent: Any = None, cmap: Any = "viridis",
+                 interpolation: Any = "nearest", alpha: Any = 1.0,
+                 origin: Any = "upper", **kwargs: Any) -> None:
         if isinstance(entry, dict):  # internal entry from Axes.imshow
             self._e = entry
             self.axes = axes

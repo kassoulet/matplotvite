@@ -1,6 +1,6 @@
 """Axes mixin for images, contours, quiver and hexbin."""
 import math as _math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 
@@ -26,17 +26,19 @@ from ._helpers import (
 class _FieldAxes(_AxesMixinBase):
     """Gridded and vector fields: images, contours, quiver and hexbin."""
 
-    def clabel(self, *args, **kwargs):
+    def clabel(self, *args: Any, **kwargs: Any) -> Any:
         if args and hasattr(args[0], "clabel"):
             return args[0].clabel(*args[1:], **kwargs)
         return []
 
-    def table(self, cellText=None, cellColours=None, **kwargs):
+    def table(self, cellText: Any = None, cellColours: Any = None,
+              **kwargs: Any) -> Any:
         """Add a table to the Axes, as `Axes.table`."""
         return Table(self, cellText=cellText, cellColours=cellColours, **kwargs)
 
-    def spy(self, Z, precision=0, marker=None, markersize=None,
-            aspect="equal", origin="upper", **kwargs):
+    def spy(self, Z: Any, precision: Any = 0, marker: Any = None,
+            markersize: Any = None, aspect: Any = "equal",
+            origin: Any = "upper", **kwargs: Any) -> Any:
         """Plot the sparsity pattern of an array."""
         data = np.asarray(Z)
         if precision == "present":
@@ -52,9 +54,11 @@ class _FieldAxes(_AxesMixinBase):
         self.set_yticks([])
         return image
 
-    def imshow(self, X, cmap=None, vmin=None, vmax=None, extent=None, origin="upper",
-               interpolation=None, aspect=None, alpha=None, clim=None, norm=None,
-               colorizer=None, **kwargs):
+    def imshow(self, X: Any, cmap: Any = None, vmin: Any = None, vmax: Any = None,
+               extent: Any = None, origin: Any = "upper",
+               interpolation: Any = None, aspect: Any = None, alpha: Any = None,
+               clim: Any = None, norm: Any = None, colorizer: Any = None,
+               **kwargs: Any) -> Any:
         """Draw an array as an image. `X` is 2-D (mapped through `cmap`) or
         (H, W, 3|4) RGB(A) floats in 0-1. `interpolation` accepts `none`,
         `nearest`, `antialiased`, `bilinear` or `bicubic`; `alpha` scales the
@@ -150,8 +154,9 @@ class _FieldAxes(_AxesMixinBase):
         self.set_aspect("equal" if aspect is None else aspect)
         return image
 
-    def pcolormesh(self, *args, cmap=None, vmin=None, vmax=None, shading="auto",
-                   alpha=None, norm=None, **kwargs):
+    def pcolormesh(self, *args: Any, cmap: Any = None, vmin: Any = None,
+                   vmax: Any = None, shading: Any = "auto", alpha: Any = None,
+                   norm: Any = None, **kwargs: Any) -> Any:
         """Quad mesh: each Z cell is filled through `cmap` via the image path.
 
         `X`/`Y` may be cell edges (one longer than Z's axis) or cell centres.
@@ -169,14 +174,16 @@ class _FieldAxes(_AxesMixinBase):
         return self.imshow(z, cmap=_cmap_name(cmap), vmin=vmin, vmax=vmax,
                            extent=extent, origin="lower", alpha=alpha, norm=norm)
 
-    def pcolor(self, *args, **kwargs):
+    def pcolor(self, *args: Any, **kwargs: Any) -> Any:
         return self.pcolormesh(*args, **kwargs)
 
-    def pcolorfast(self, *args, **kwargs):
+    def pcolorfast(self, *args: Any, **kwargs: Any) -> Any:
         return self.pcolormesh(*args, **kwargs)
 
-    def hist2d(self, x, y, bins=10, range=None, density=False, weights=None,
-               cmin=None, cmax=None, cmap=None, data=None, **kwargs):
+    def hist2d(self, x: Any, y: Any, bins: Any = 10, range: Any = None,
+               density: Any = False, weights: Any = None, cmin: Any = None,
+               cmax: Any = None, cmap: Any = None, data: Any = None,
+               **kwargs: Any) -> Any:
         """2-D histogram rasterised through `imshow`; returns
         `(counts, xedges, yedges, image)`."""
         if data is not None:
@@ -195,10 +202,13 @@ class _FieldAxes(_AxesMixinBase):
         self.set_aspect("auto")
         return counts, xedges, yedges, image
 
-    def hexbin(self, x, y, C=None, gridsize=100, bins=None, xscale="linear",
-               yscale="linear", extent=None, cmap=None, norm=None, vmin=None,
-               vmax=None, alpha=None, linewidths=None, edgecolors="face",
-               reduce_C_function=None, mincnt=None, marginals=False, data=None, **kwargs):
+    def hexbin(self, x: Any, y: Any, C: Any = None, gridsize: Any = 100,
+               bins: Any = None, xscale: Any = "linear", yscale: Any = "linear",
+               extent: Any = None, cmap: Any = None, norm: Any = None,
+               vmin: Any = None, vmax: Any = None, alpha: Any = None,
+               linewidths: Any = None, edgecolors: Any = "face",
+               reduce_C_function: Any = None, mincnt: Any = None,
+               marginals: Any = False, data: Any = None, **kwargs: Any) -> Any:
         """Hexagonal binning: one coloured hexagon per occupied grid cell."""
         if data is not None:
             x = data[x] if isinstance(x, str) else x
@@ -256,12 +266,15 @@ class _FieldAxes(_AxesMixinBase):
         self._sticky_y += [ey0, ey1]
         return _HexbinHandle(values[shown], centers[shown], colors, cmap)
 
-    def streamplot(self, x, y, u, v, density=1, linewidth=None, color=None,
-                   cmap=None, norm=None, arrowsize=1, arrowstyle="-|>",
-                   minlength=0.1, maxlength=4.0, integration_direction="both",
-                   broken_streamlines=True, start_points=None, num_arrows=1,
-                   integration_max_step_scale=1.0,
-                   integration_max_error_scale=1.0, **kwargs):
+    def streamplot(self, x: Any, y: Any, u: Any, v: Any, density: Any = 1,
+                   linewidth: Any = None, color: Any = None, cmap: Any = None,
+                   norm: Any = None, arrowsize: Any = 1, arrowstyle: Any = "-|>",
+                   minlength: Any = 0.1, maxlength: Any = 4.0,
+                   integration_direction: Any = "both",
+                   broken_streamlines: Any = True, start_points: Any = None,
+                   num_arrows: Any = 1, integration_max_step_scale: Any = 1.0,
+                   integration_max_error_scale: Any = 1.0,
+                   **kwargs: Any) -> Any:
         """Draw streamlines for a 2-D vector field.
 
         This is a compact integrator: it seeds a regular grid (or the supplied
@@ -328,10 +341,12 @@ class _FieldAxes(_AxesMixinBase):
         arrows = Collection(colors=[])
         return _StreamplotSet(lines, arrows)
 
-    def quiver(self, *args, U=None, V=None, C=None, color=None, angles="xy",
-               scale=None, scale_units=None, units="width", width=None,
-               headwidth=3.0, headlength=5.0, headaxislength=4.5, pivot="tail",
-               **kwargs):
+    def quiver(self, *args: Any, U: Any = None, V: Any = None, C: Any = None,
+               color: Any = None, angles: Any = "xy", scale: Any = None,
+               scale_units: Any = None, units: Any = "width", width: Any = None,
+               headwidth: Any = 3.0, headlength: Any = 5.0,
+               headaxislength: Any = 4.5, pivot: Any = "tail",
+               **kwargs: Any) -> Any:
         """Vector field arrows from `quiver(U, V)` or `quiver(X, Y, U, V)`.
 
         `scale` and `units` set the arrow length from the finished axes box, as
@@ -424,9 +439,10 @@ class _FieldAxes(_AxesMixinBase):
         self.arrows.append(entry)
         return _QuiverHandle(entry)
 
-    def quiverkey(self, Q, X, Y, U, label, *, angle=0.0, coordinates="axes",
-                  color=None, labelsep=0.1, labelpos="E", fontproperties=None,
-                  **kwargs):
+    def quiverkey(self, Q: Any, X: Any, Y: Any, U: Any, label: Any, *,
+                  angle: Any = 0.0, coordinates: Any = "axes",
+                  color: Any = None, labelsep: Any = 0.1, labelpos: Any = "E",
+                  fontproperties: Any = None, **kwargs: Any) -> None:
         """Draw a labelled reference arrow for a quiver, as `Axes.quiverkey`.
 
         `(X, Y)` and `U` follow Matplotlib's axes-fraction placement and arrow
@@ -479,20 +495,22 @@ class _FieldAxes(_AxesMixinBase):
         self.text(tx, ty, label, ha=ha, va=va, color=arrow_color)
         return None
 
-    def contour(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
-                alpha=None, locator=None, **kwargs):
+    def contour(self, *args: Any, levels: Any = None, colors: Any = None,
+                cmap: Any = None, linewidths: Any = None, alpha: Any = None,
+                locator: Any = None, **kwargs: Any) -> Any:
         """Iso-lines of a 2-D array: `contour(Z)` or `contour(X, Y, Z)`, optionally
         followed by `levels`. Matplotlib contour kwargs are accepted."""
         return self._add_contour(args, levels, colors, cmap, False, linewidths,
                                  alpha, locator)
 
-    def contourf(self, *args, levels=None, colors=None, cmap=None, linewidths=None,
-                 alpha=None, locator=None, **kwargs):
+    def contourf(self, *args: Any, levels: Any = None, colors: Any = None,
+                 cmap: Any = None, linewidths: Any = None, alpha: Any = None,
+                 locator: Any = None, **kwargs: Any) -> Any:
         """Filled iso-bands of a 2-D array; takes the same forms as `contour`."""
         return self._add_contour(args, levels, colors, cmap, True, linewidths,
                                  alpha, locator)
 
-    def triplot(self, *args, **kwargs):
+    def triplot(self, *args: Any, **kwargs: Any) -> Any:
         """Draw the edges of an unstructured triangular grid.
 
         Accepts `triplot(triangulation, fmt, ...)` or `triplot(x, y, triangles,
@@ -512,8 +530,9 @@ class _FieldAxes(_AxesMixinBase):
         return self.plot(np.asarray(ex), np.asarray(ey), fmt or "-",
                          color=color, **kwargs)
 
-    def tricontour(self, *args, levels=None, colors=None, cmap=None,
-                   linewidths=None, alpha=None, **kwargs):
+    def tricontour(self, *args: Any, levels: Any = None, colors: Any = None,
+                   cmap: Any = None, linewidths: Any = None, alpha: Any = None,
+                   **kwargs: Any) -> Any:
         """Iso-lines of data on an unstructured triangular grid."""
         triangulation, z, rest = _tri_args(args)
         if levels is None and rest:
@@ -522,8 +541,9 @@ class _FieldAxes(_AxesMixinBase):
         return self.contour(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
                             linewidths=linewidths, alpha=alpha, **kwargs)
 
-    def tricontourf(self, *args, levels=None, colors=None, cmap=None,
-                    linewidths=None, alpha=None, **kwargs):
+    def tricontourf(self, *args: Any, levels: Any = None, colors: Any = None,
+                    cmap: Any = None, linewidths: Any = None, alpha: Any = None,
+                    **kwargs: Any) -> Any:
         """Filled iso-bands of data on an unstructured triangular grid."""
         triangulation, z, rest = _tri_args(args)
         if levels is None and rest:
@@ -532,8 +552,9 @@ class _FieldAxes(_AxesMixinBase):
         return self.contourf(xi, yi, zi, levels=levels, colors=colors, cmap=cmap,
                              linewidths=linewidths, alpha=alpha, **kwargs)
 
-    def tripcolor(self, *args, shading="flat", facecolors=None, edgecolors=None,
-                  cmap=None, vmin=None, vmax=None, alpha=None, **kwargs):
+    def tripcolor(self, *args: Any, shading: Any = "flat", facecolors: Any = None,
+                  edgecolors: Any = None, cmap: Any = None, vmin: Any = None,
+                  vmax: Any = None, alpha: Any = None, **kwargs: Any) -> Any:
         """Pseudocolour of an unstructured triangular grid."""
         triangulation, z, _ = _tri_args(args)
         if z is None and facecolors is not None:
@@ -554,8 +575,9 @@ class _FieldAxes(_AxesMixinBase):
             self.triplot(triangulation, color=edgecolors)
         return image
 
-    def _add_contour(self, args, levels, colors, cmap, filled, linewidths=None,
-                     alpha=None, locator=None):
+    def _add_contour(self, args: Any, levels: Any, colors: Any, cmap: Any,
+                     filled: Any, linewidths: Any = None, alpha: Any = None,
+                     locator: Any = None) -> Any:
         x, y, z, levels = _contour_args(args, levels)
         levels = _levels(z, levels, allow_single=not filled, locator=locator)
         if linewidths is None:
@@ -577,7 +599,8 @@ class _FieldAxes(_AxesMixinBase):
         return ContourSet(entry, axes=self)
 
 
-def _hexbin_grid(gridsize, extent, x, y):
+def _hexbin_grid(gridsize: Any, extent: Any, x: Any, y: Any
+                 ) -> tuple[int, int, float, float, float, float]:
     """Validated `(nx, ny, ex0, ex1, ey0, ey1)` of one hexbin call."""
     gridsize = _validate_bins(gridsize, name="gridsize")
     if isinstance(gridsize, (tuple, list, np.ndarray)):
@@ -603,7 +626,9 @@ def _hexbin_grid(gridsize, extent, x, y):
     return nx, ny, ex0, ex1, ey0, ey1
 
 
-def _hexbin_cells(x, y, nx, ny, ex0, ex1, ey0, ey1):
+def _hexbin_cells(x: Any, y: Any, nx: int, ny: int, ex0: float, ex1: float,
+                  ey0: float, ey1: float
+                  ) -> tuple[Any, Any, Any, int, float, float]:
     """Lattice centres, occupied cells and cell size of a hexbin grid."""
     sx = (ex1 - ex0) / nx
     sy = (ey1 - ey0) / ny
@@ -637,7 +662,8 @@ def _hexbin_cells(x, y, nx, ny, ex0, ex1, ey0, ey1):
     return centers, cell[valid], valid, nx1 * ny1 + nx2 * ny2, sx, sy
 
 
-def _streamplot_check(direction, max_step_scale, max_error_scale):
+def _streamplot_check(direction: Any, max_step_scale: Any,
+                      max_error_scale: Any) -> None:
     """Validate the streamplot integration options."""
     if max_step_scale <= 0:
         raise ValueError("The value of integration_max_step_scale must be > 0")
@@ -647,7 +673,8 @@ def _streamplot_check(direction, max_step_scale, max_error_scale):
         raise ValueError(f"unsupported integration_direction: {direction!r}")
 
 
-def _streamplot_seeds(density, start_points, xs, ys, x0, x1, y0, y1):
+def _streamplot_seeds(density: Any, start_points: Any, xs: Any, ys: Any,
+                      x0: float, x1: float, y0: float, y1: float) -> Any:
     """The seed points streamlines start from: explicit or a regular grid."""
     if start_points is not None:
         seeds = np.asarray(start_points, dtype=float)
@@ -665,19 +692,22 @@ def _streamplot_seeds(density, start_points, xs, ys, x0, x1, y0, y1):
                      for sx in np.linspace(x0, x1, nx)])
 
 
-def _streamplot_trajectories(xs, ys, uu, vv, mask, seeds, direction, step,
-                             max_steps, max_distance, x0, x1, y0, y1):
+def _streamplot_trajectories(xs: Any, ys: Any, uu: Any, vv: Any, mask: Any,
+                             seeds: Any, direction: Any, step: float,
+                             max_steps: int, max_distance: float,
+                             x0: float, x1: float, y0: float,
+                             y1: float) -> list[Any]:
     """Integrate the normalised field from every seed inside the grid."""
     sampler = _streamplot_sampler(xs, ys, uu, vv, mask)
 
-    def field(px, py):
+    def field(px: float, py: float) -> Optional[tuple[float, float]]:
         ux, vy = sampler(px, py)
         speed = _math.hypot(ux, vy)
         if not np.isfinite(speed) or speed <= 1e-12:
             return None
         return ux / speed, vy / speed
 
-    def advance(px, py, sign):
+    def advance(px: float, py: float, sign: int) -> Optional[tuple[float, float]]:
         first = field(px, py)
         if first is None:
             return None
@@ -688,7 +718,7 @@ def _streamplot_trajectories(xs, ys, uu, vv, mask, seeds, direction, step,
             return None
         return px + sign * step * mid[0], py + sign * step * mid[1]
 
-    def trace(sx, sy, sign):
+    def trace(sx: float, sy: float, sign: int) -> list[tuple[float, float]]:
         points = [(float(sx), float(sy))]
         px, py, travelled = float(sx), float(sy), 0.0
         for _ in range(max_steps):
@@ -705,7 +735,7 @@ def _streamplot_trajectories(xs, ys, uu, vv, mask, seeds, direction, step,
             px, py = nxv, nyv
         return points
 
-    trajectories = []
+    trajectories: list[Any] = []
     for sx, sy in seeds:
         if not (x0 <= sx <= x1 and y0 <= sy <= y1):
             continue
@@ -721,8 +751,10 @@ def _streamplot_trajectories(xs, ys, uu, vv, mask, seeds, direction, step,
     return trajectories
 
 
-def _streamplot_segments(trajectories, color_at, dx, dy, num_arrows, arrowsize,
-                         color_values, xs, ys):
+def _streamplot_segments(trajectories: Any, color_at: Any, dx: float, dy: float,
+                         num_arrows: Any, arrowsize: Any, color_values: Any,
+                         xs: Any, ys: Any
+                         ) -> tuple[list[Any], list[Any], list[Any]]:
     """Line segments, their colours, arrow segments and sampled field values."""
     segments, colors, shown_values = [], [], []
     arrow_segments, arrow_colors = [], []

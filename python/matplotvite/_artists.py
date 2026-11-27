@@ -681,8 +681,10 @@ def _collection_entry(artist):
 class Collection:
     """Base compatibility object for Matplotlib collection artists."""
 
-    def __init__(self, colors=None, facecolor=None, edgecolor=None, linewidths=None,
-                 alpha=None, label="", zorder=1, **kwargs):
+    def __init__(self, colors: Any = None, facecolor: Any = None,
+                 edgecolor: Any = None, linewidths: Any = None,
+                 alpha: Any = None, label: Any = "", zorder: Any = 1,
+                 **kwargs: Any) -> None:
         self._colors = colors
         self._facecolor = facecolor if facecolor is not None else colors
         self._edgecolor = edgecolor if edgecolor is not None else colors
@@ -693,7 +695,7 @@ class Collection:
         self._visible = True
         self._array = kwargs.get("array")
         self._cmap = kwargs.get("cmap")
-        self._clim = None
+        self._clim: Any = None
 
     def get_facecolor(self): return self._facecolor
     def get_edgecolor(self): return self._edgecolor
@@ -756,7 +758,8 @@ class Collection:
 
 
 class LineCollection(Collection):
-    def __init__(self, segments, colors=None, linewidths=None, label="", **kwargs):
+    def __init__(self, segments: Any, colors: Any = None, linewidths: Any = None,
+                 label: Any = "", **kwargs: Any) -> None:
         if colors is None and kwargs.get("array") is not None:
             values = _as_f64(kwargs["array"])
             finite = values[np.isfinite(values)]

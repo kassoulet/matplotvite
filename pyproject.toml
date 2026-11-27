@@ -186,3 +186,9 @@ module = ["matplotvite._axes_decor", "matplotvite._cm", "matplotvite._colors",
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true
+
+[[tool.mypy.overrides]]
+# The field mixin is the first `Axes` module through the ratchet: its call path
+# into the image, contour and streamplot helpers is typed end to end.
+module = ["matplotvite._axes_field"]
+disallow_untyped_calls = true

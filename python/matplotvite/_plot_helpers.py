@@ -41,7 +41,7 @@ def _figimage_payload_estimate(data):
     return (pixels * 4 + 2) // 3 * 4
 
 
-def _as_image(X):
+def _as_image(X: Any) -> Any:
     a = np.asarray(X, dtype=np.float64)
     if a.ndim == 3 and a.shape[2] in (3, 4):
         return a
@@ -86,7 +86,8 @@ def _series(x: Any, y: Any, label: Any, color: Any, linestyle: Any = "-",
                 gid=str(gid or ""))
 
 
-def _streamplot_field(x, y, u, v):
+def _streamplot_field(x: Any, y: Any, u: Any, v: Any
+                      ) -> tuple[Any, Any, Any, Any, Any]:
     """Validate and unpack a streamplot's rectangular vector field."""
     xa, ya = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
     mask = np.ma.getmaskarray(u) if np.ma.isMaskedArray(u) else None
@@ -138,7 +139,7 @@ def _streamplot_bracket(values, coordinate):
     return index, float(t)
 
 
-def _streamplot_sample(values, xs, ys, px, py):
+def _streamplot_sample(values: Any, xs: Any, ys: Any, px: float, py: float) -> Any:
     """Bilinear sample of a scalar field, returning NaN outside the grid."""
     ix, tx = _streamplot_bracket(xs, px)
     iy, ty = _streamplot_bracket(ys, py)
@@ -150,7 +151,7 @@ def _streamplot_sample(values, xs, ys, px, py):
                  + (1 - tx) * ty * v10 + tx * ty * v11)
 
 
-def _streamplot_sampler(xs, ys, u, v, mask):
+def _streamplot_sampler(xs: Any, ys: Any, u: Any, v: Any, mask: Any) -> Any:
     """Bilinear vector-field sampler that rejects samples touching a mask."""
     def sample(px, py):
         ix, tx = _streamplot_bracket(xs, px)
@@ -378,7 +379,7 @@ def _stem_fmt(fmt, default_marker=None):
     return colour, style, marker
 
 
-def _line_colors(colors, n):
+def _line_colors(colors: Any, n: int) -> list[Any]:
     if colors is None:
         return [_CYCLE[0]] * n
     if isinstance(colors, str):
@@ -405,7 +406,8 @@ def _line_styles(styles, n):
     return vals
 
 
-def _check_same_length(a, b, message="x and y must have the same length"):
+def _check_same_length(a: Any, b: Any,
+                       message: str = "x and y must have the same length") -> None:
     """Raise the axis-length error shared by the plotting helpers."""
     if a.size != b.size:
         raise ValueError(message)
@@ -571,7 +573,7 @@ def _kde(values, points=100, bw_method=None):
     return grid, density
 
 
-def _cmap_colors(cmap, values):
+def _cmap_colors(cmap: Any, values: Any) -> list[str]:
     """Map normalised values through any registered colormap to hex colours."""
     arr = _as_f64(values)
     clean = np.where(np.isfinite(arr), arr, 0.0)
@@ -641,7 +643,7 @@ def _scatter_colors(c, n):
     return None, [_norm_color(v) for v in seq]
 
 
-def _mesh_args(args):
+def _mesh_args(args: Any) -> tuple[Any, Any, Any, bool]:
     if len(args) == 1:
         x = y = None
         z = args[0]
@@ -703,7 +705,8 @@ def _err_pair(err, n, name):
     raise ValueError(f"{name} must be a scalar, a length-{n} array, or shape (2, {n})")
 
 
-def _levels(z, levels, allow_single=False, locator=None):
+def _levels(z: Any, levels: Any, allow_single: bool = False,
+            locator: Any = None) -> Any:
     lo, hi = float(np.nanmin(z)), float(np.nanmax(z))
     if not hi > lo:
         hi = lo + 1.0
@@ -728,7 +731,7 @@ def _levels(z, levels, allow_single=False, locator=None):
     return [float(v) for v in np.sort(lv)]
 
 
-def _colors(colors):
+def _colors(colors: Any) -> Any:
     if colors is None:
         return []
     if isinstance(colors, str) or _is_rgb(colors):
@@ -740,7 +743,7 @@ def _is_triangulation(value):
     return all(hasattr(value, name) for name in ("x", "y", "triangles", "mask"))
 
 
-def _tri_args(args):
+def _tri_args(args: Any) -> tuple[Any, Any, Any]:
     """Resolve (triangulation, z, remaining) from tripcolor-style arguments."""
     if not args:
         raise TypeError("expected a triangulation or x, y arrays")
@@ -761,7 +764,8 @@ def _tri_args(args):
     return triangulation, z, rest
 
 
-def _tri_field(triangulation, z, resolution=100):
+def _tri_field(triangulation: Any, z: Any, resolution: int = 100
+               ) -> tuple[Any, Any, Any]:
     """Sample a triangular field on a rectilinear grid for the contour path."""
     values = _as_f64(z)
     if values.size != len(triangulation.x):
@@ -775,7 +779,7 @@ def _tri_field(triangulation, z, resolution=100):
     return xi, yi, zi
 
 
-def _contour_args(args, levels):
+def _contour_args(args: Any, levels: Any) -> tuple[Any, Any, Any, Any]:
     if args and isinstance(args[0], ContourSet):
         # `contour(cs, ...)` re-contours an existing set at new levels.
         if levels is None and len(args) > 1:

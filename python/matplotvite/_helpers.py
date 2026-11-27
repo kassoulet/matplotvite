@@ -1057,10 +1057,13 @@ class _TableCell:
 class Table:
     """A lightweight table drawn with axes-fraction text cells."""
 
-    def __init__(self, ax, cellText=None, cellColours=None, cellLoc="right",
-                 colWidths=None, rowLabels=None, rowColours=None, rowLoc="left",
-                 colLabels=None, colColours=None, colLoc="center", loc="bottom",
-                 bbox=None, edges="closed", **kwargs):
+    def __init__(self, ax: Any, cellText: Any = None, cellColours: Any = None,
+                 cellLoc: Any = "right", colWidths: Any = None,
+                 rowLabels: Any = None, rowColours: Any = None,
+                 rowLoc: Any = "left", colLabels: Any = None,
+                 colColours: Any = None, colLoc: Any = "center",
+                 loc: Any = "bottom", bbox: Any = None, edges: Any = "closed",
+                 **kwargs: Any) -> None:
         rows = [list(row) for row in (cellText or [])]
         nrows = len(rows)
         ncols = max((len(row) for row in rows), default=0)
@@ -1280,7 +1283,7 @@ def _looks_like_categories(values):
             and isinstance(array.ravel()[0], str))
 
 
-def _looks_like_dates(values):
+def _looks_like_dates(values: Any) -> bool:
     """True for date/datetime/`datetime64` scalars or sequences of them."""
     if isinstance(values, (np.datetime64, _datetime.date)):
         return True
@@ -1547,7 +1550,8 @@ def _apply_axes_options(ax, options, grid_helper=None):
     return ax
 
 
-def _validate_bins(bins, name="bins", max_cells=None):
+def _validate_bins(bins: Any, name: str = "bins",
+                   max_cells: Optional[int] = None) -> Any:
     """Reject bin counts that would allocate unbounded arrays."""
     if isinstance(bins, (int, np.integer)) and not isinstance(bins, bool):
         n = int(bins)

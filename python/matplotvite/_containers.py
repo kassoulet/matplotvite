@@ -245,7 +245,7 @@ class _BarContainer(list[object]):
 class _StreamplotSet:
     """Lines and arrows returned by `Axes.streamplot`."""
 
-    def __init__(self, lines, arrows):
+    def __init__(self, lines: Any, arrows: Any) -> None:
         self.lines = lines
         self.arrows = arrows
 
@@ -253,7 +253,7 @@ class _StreamplotSet:
 class _QuiverHandle:
     """Handle for one `quiver` collection."""
 
-    def __init__(self, entry): self._e = entry
+    def __init__(self, entry: Any) -> None: self._e = entry
 
     def get_offsets(self):
         return np.column_stack([self._e["x"], self._e["y"]])
@@ -348,7 +348,7 @@ class _ScatterHandle:
 class _HexbinHandle:
     """Handle for the hexagonal cells drawn by `hexbin`."""
 
-    def __init__(self, values, offsets, colors, cmap):
+    def __init__(self, values: Any, offsets: Any, colors: Any, cmap: Any) -> None:
         self._values = np.asarray(values, dtype=np.float64)
         self._offsets = np.asarray(offsets, dtype=np.float64).reshape(-1, 2)
         self._colors = list(colors)
@@ -532,7 +532,7 @@ def _call(obj, name):
         return None
 
 
-def _number(value, default):
+def _number(value: Any, default: float) -> float:
     try:
         return float(value) if value is not None else default
     except (TypeError, ValueError):
