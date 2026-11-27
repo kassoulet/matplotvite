@@ -1,4 +1,5 @@
-# The PEP 517 backend used to build and install the extension. Regenerate with:
-#   uv pip compile --universal --generate-hashes --no-header \
-#       --python-version 3.9 build.in -o build.txt
+# python-floor: 3.9
+# The PEP 517 backend used to build and install the extension.
+#
+# Regenerate with `python tools/check_requirements.py --write`.
 maturin==1.16.0

@@ -1,7 +1,8 @@
-# Development tools that run on the project floor, so the whole matrix can
-# install them. Regenerate with:
-#   uv pip compile --universal --generate-hashes --no-header \
-#       --python-version 3.9 tools.in -o tools.txt
+# python-floor: 3.13
+# Linters and auditors plus their dependencies. Every job that installs them
+# runs Python 3.13.
+#
+# Regenerate with `python tools/check_requirements.py --write`.
 mypy==1.19.1
 pip-audit==2.10.1
 bandit==1.9.4

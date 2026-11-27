@@ -35,6 +35,9 @@ hooks = [
   # Builds the extension first so the tests never run against a stale binary.
   { id = "pytest", name = "pytest", entry = "sh -c 'maturin develop --release -q && python -m pytest -q'", language = "system", pass_filenames = false, stages = ["pre-push"] },
   { id = "security-audit", name = "security audit", entry = "python tools/security_audit.py", language = "python", additional_dependencies = ["bandit>=1.9", "pip-audit>=2.9", "numpy"], pass_filenames = false, stages = ["pre-push"] },
+  # The pinned files are compiled output: editing a pin by hand, or bumping a
+  # dependency without refreshing its hashes, fails here.
+  { id = "requirements", name = "pinned requirements", entry = "python tools/check_requirements.py", language = "python", additional_dependencies = ["uv==0.13.8"], files = '^\.github/requirements/', pass_filenames = false },
   # Dependency advisories: on every commit that touches a lockfile or pin, so a
   # vulnerable bump is caught before it lands (pre-push runs the full audit).
   { id = "dep-audit", name = "dependency advisories", entry = "python tools/security_audit.py", language = "python", additional_dependencies = ["bandit>=1.9", "pip-audit>=2.9", "numpy"], files = '^(Cargo\.lock|\.github/requirements/.*|pyproject\.toml|deny\.toml)$', pass_filenames = false },

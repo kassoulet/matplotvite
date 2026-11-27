@@ -1,6 +1,7 @@
-# Test dependencies for the Python 3.9-3.14 matrix. Regenerate with:
-#   uv pip compile --universal --generate-hashes --no-header \
-#       --python-version 3.9 test.in -o test.txt
+# python-floor: 3.9
+# Test dependencies for the Python 3.9-3.14 matrix.
+#
+# Regenerate with `python tools/check_requirements.py --write`.
 numpy==2.0.2; python_version < "3.12"
 numpy==2.5.4; python_version >= "3.12"
 pandas==2.2.3; python_version < "3.12"

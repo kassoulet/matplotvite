@@ -1,5 +1,6 @@
-# Release-time tooling (3.13 jobs). Regenerate with:
-#   uv pip compile --universal --generate-hashes --no-header \
-#       --python-version 3.13 release.in -o release.txt
+# python-floor: 3.13
+# Release-time tooling, run on Python 3.13.
+#
+# Regenerate with `python tools/check_requirements.py --write`.
 twine==7.0.0
 numpy==2.5.4

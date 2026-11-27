@@ -1,5 +1,5 @@
+# python-floor: 3.12
 # Sphinx only supports 3.10 and newer, and the docs jobs run 3.12/3.13.
-# Regenerate with:
-#   uv pip compile --universal --generate-hashes --no-header \
-#       --python-version 3.12 docs.in -o docs.txt
+#
+# Regenerate with `python tools/check_requirements.py --write`.
 sphinx>=8,<9
