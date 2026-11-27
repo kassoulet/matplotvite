@@ -6,19 +6,22 @@ Callbacks are accepted for API compatibility; clicks are not simulated.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from typing import Any
+
 import numpy as np
 
 from . import Circle, Rectangle
 
 
-def _lookup(props, key, index, default=None):
+def _lookup(props: Any, key: str, index: int, default: Any = None) -> Any:
     value = (props or {}).get(key, default)
     if isinstance(value, (list, tuple, np.ndarray)):
         return value[index % len(value)] if len(value) else default
     return value
 
 
-def _grid(layout, count):
+def _grid(layout: Any, count: int) -> tuple[int, int]:
     if layout == "horizontal":
         return 1, max(count, 1)
     if layout is None or layout == "vertical":
@@ -28,7 +31,7 @@ def _grid(layout, count):
     return max(int(layout), 1), 1
 
 
-def _cells(layout, count):
+def _cells(layout: Any, count: int) -> Iterator[tuple[int, float, float, int, int]]:
     rows, cols = _grid(layout, count)
     for index in range(count):
         row, col = divmod(index, cols)
@@ -40,12 +43,13 @@ def _cells(layout, count):
 class RadioButtons:
     """A vertical, horizontal, or gridded radio-button selector."""
 
-    def __init__(self, ax, labels, active=0, layout=None, label_props=None,
-                 radio_props=None, **kwargs):
+    def __init__(self, ax: Any, labels: Any, active: int = 0,
+                 layout: Any = None, label_props: Any = None,
+                 radio_props: Any = None, **kwargs: Any) -> None:
         self.ax = ax
         self.labels = list(labels)
         self.active = int(active or 0)
-        self._callbacks = []
+        self._callbacks: list[Any] = []
         self._circles = []
         self._texts = []
         ax.set_xlim(0.0, 1.0)
@@ -68,35 +72,37 @@ class RadioButtons:
                 x + radius * 2.0, y, self.labels[index], color=colour,
                 fontsize=size, ha="left", va="center"))
 
-    def on_clicked(self, func):
+    def on_clicked(self, func: Any) -> int:
         self._callbacks.append(func)
         return len(self._callbacks)
 
-    def disconnect(self, cid):
+    def disconnect(self, cid: Any) -> None:
         return None
 
-    def set_active(self, index):
+    def set_active(self, index: int) -> None:
         self.active = int(index)
 
-    def get_status(self):
+    def get_status(self) -> list[bool]:
         return [index == self.active for index in range(len(self.labels))]
 
-    def set_label_props(self, props):
+    def set_label_props(self, props: Any) -> None:
         self._label_props = props
 
-    def set_radio_props(self, props):
+    def set_radio_props(self, props: Any) -> None:
         self._radio_props = props
 
 
 class CheckButtons:
     """A vertical, horizontal, or gridded multi-select button group."""
 
-    def __init__(self, ax, labels, actives=None, layout=None, label_props=None,
-                 frame_props=None, check_props=None, **kwargs):
+    def __init__(self, ax: Any, labels: Any, actives: Any = None,
+                 layout: Any = None, label_props: Any = None,
+                 frame_props: Any = None, check_props: Any = None,
+                 **kwargs: Any) -> None:
         self.ax = ax
         self.labels = list(labels)
         self.actives = list(actives) if actives is not None else [False] * len(labels)
-        self._callbacks = []
+        self._callbacks: list[Any] = []
         self._frames = []
         self._checks = []
         self._texts = []
@@ -126,27 +132,27 @@ class CheckButtons:
                 x + size * 0.9, y, self.labels[index], color=colour,
                 fontsize=fontsize, ha="left", va="center"))
 
-    def on_clicked(self, func):
+    def on_clicked(self, func: Any) -> int:
         self._callbacks.append(func)
         return len(self._callbacks)
 
-    def disconnect(self, cid):
+    def disconnect(self, cid: Any) -> None:
         return None
 
-    def set_active(self, index):
+    def set_active(self, index: int) -> None:
         if 0 <= int(index) < len(self.actives):
             self.actives[int(index)] = not self.actives[int(index)]
 
-    def get_status(self):
+    def get_status(self) -> list[bool]:
         return list(self.actives)
 
-    def set_label_props(self, props):
+    def set_label_props(self, props: Any) -> None:
         self._label_props = props
 
-    def set_frame_props(self, props):
+    def set_frame_props(self, props: Any) -> None:
         self._frame_props = props
 
-    def set_check_props(self, props):
+    def set_check_props(self, props: Any) -> None:
         self._check_props = props
 
 
