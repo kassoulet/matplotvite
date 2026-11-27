@@ -29,17 +29,18 @@ where
         return Ok(());
     }
     let twin_side = p.twin.as_str();
-    let x_desc = if twin_side.is_empty() && p.xlabel_color.is_none() && p.xlabel_family.is_none() {
-        p.xlabel.as_str()
+    let x_desc = if twin_side.is_empty() && p.x.label_color.is_none() && p.x.label_family.is_none()
+    {
+        p.x.label.as_str()
     } else {
         ""
     };
     let y_desc = if twin_side.is_empty()
-        && p.ylabel_color.is_none()
-        && p.ylabel_family.is_none()
+        && p.y.label_color.is_none()
+        && p.y.label_family.is_none()
         && !p.axes_bounds
     {
-        p.ylabel.as_str()
+        p.y.label.as_str()
     } else {
         ""
     };
@@ -59,7 +60,7 @@ where
         .y_label_formatter(&|_| String::new())
         .draw()?;
 
-    if p.grid.minor_show && !p.x_log && !p.y_log {
+    if p.grid.minor_show && !p.x.log && !p.y.log {
         // Plotters only draws major gridlines, so add the minor ones in
         // the same style. They sit under the series, like the mesh.
         let base = area.get_base_pixel();

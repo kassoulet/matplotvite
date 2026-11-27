@@ -2565,9 +2565,9 @@ def test_function_scale_transforms_coordinates_and_keeps_labels(tmp_path):
     ax.set_yticks([0.0, 0.25, 1.0])
 
     panel = ax._panel()
-    assert np.isfinite(panel["ylim"]).all()
-    assert panel["ylim"][0] > 0
-    assert panel["ylim"][1] == pytest.approx(1.0)
+    assert np.isfinite(panel["y"]["lim"]).all()
+    assert panel["y"]["lim"][0] > 0
+    assert panel["y"]["lim"][1] == pytest.approx(1.0)
     assert panel["ticks"]["yticks"] == pytest.approx([0.0, 0.5, 1.0])
     assert panel["ticks"]["yticklabels"] == ["0", "0.25", "1"]
 
@@ -2595,7 +2595,7 @@ def test_registered_custom_scale_transforms_coordinates(tmp_path):
     ax.set_yticks([1, 2, 3])
 
     panel = ax._panel()
-    assert panel["ylim"] == pytest.approx(np.asarray(ax.get_ylim()) ** 3)
+    assert panel["y"]["lim"] == pytest.approx(np.asarray(ax.get_ylim()) ** 3)
     assert panel["ticks"]["yticks"] == pytest.approx([1, 8, 27])
     assert panel["ticks"]["yticklabels"] == ["1", "2", "3"]
 
@@ -4213,7 +4213,7 @@ def test_title_fontsize(tmp_path):
     ax.set_title("Big", fontsize=20)
     ax.set_xlabel("xx", fontsize=14)
     panel = ax._panel()
-    assert panel["title_size"] == 20.0 and panel["xlabel_size"] == 14.0
+    assert panel["title_size"] == 20.0 and panel["x"]["label_size"] == 14.0
     p = tmp_path / "font.svg"
     fig.savefig(p)
     sizes = [float(v) for v in re.findall(r'font-size="([\d.]+)"', p.read_text(encoding="utf-8"))]
@@ -4272,8 +4272,8 @@ def test_default_font_sizes_and_tick_label_handles():
     fig.suptitle("Sup")
     panel = ax._panel()
     assert panel["title_size"] == 12.0
-    assert panel["xlabel_size"] == 10.0
-    assert panel["ylabel_size"] == 10.0
+    assert panel["x"]["label_size"] == 10.0
+    assert panel["y"]["label_size"] == 10.0
     assert fig._suptitle["size"] == 12.0
     assert ax.get_xticklabels()[0].get_fontsize() == 10.0
     assert ax.get_yticklabels()[0].get_fontsize() == 10.0
@@ -4485,8 +4485,8 @@ def test_twinx_adds_right_axis_on_the_same_panel(tmp_path):
     assert twin.get_position().bounds == original
     assert ax._panel()["twin_reserve"] == "y"
     assert twin._panel()["twin_reserve"] == "y"
-    assert ax._panel()["ylabel_color"] == "#c44e52"
-    assert twin._panel()["ylabel_color"] == "#4c72b0"
+    assert ax._panel()["y"]["label_color"] == "#c44e52"
+    assert twin._panel()["y"]["label_color"] == "#4c72b0"
     assert ax._panel()["bounds"] is not None and twin._panel()["bounds"] is not None
     assert twin._panel()["ticks"]["hide_xlabels"]
     p = tmp_path / "twinx.svg"
@@ -5346,7 +5346,7 @@ def test_symlog_scale_renders_symmetric_decade_ticks(tmp_path):
     axes.plot([-1000, -10, -1, 0, 1, 10, 1000],
               [-1000, -10, -1, 0, 1, 10, 1000])
     panel = axes._panel()
-    assert panel["y_symlog"] is True and panel["y_symlog_linthresh"] == 1.0
+    assert panel["y"]["symlog"] is True and panel["y"]["symlog_linthresh"] == 1.0
     assert panel["ticks"]["yticklabels"] == ["−1000", "−100", "−10", "−1", "0",
                                             "1", "10", "100", "1000"]
     assert axes.get_yscale() == "symlog"

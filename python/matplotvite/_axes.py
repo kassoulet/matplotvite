@@ -1880,15 +1880,26 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
         for payload in [*series, *bars, *bands]:
             payload.pop("_seq", None)
             payload.pop("_container", None)
+        x_axis = dict(lim=(x0, x1), log=self.xscale == "log",
+                      symlog=self.xscale == "symlog", logit=self.xscale == "logit",
+                      asinh=self.xscale == "asinh",
+                      symlog_linthresh=float(self.symlog_linthresh_x),
+                      asinh_linear_width=float(self.asinh_linear_width_x),
+                      label=self.xlabel, label_size=self.xlabel_size,
+                      label_color=self.xlabel_color, label_family=self.xlabel_family)
+        y_axis = dict(lim=(y0, y1), log=self.yscale == "log",
+                      symlog=self.yscale == "symlog", logit=self.yscale == "logit",
+                      asinh=self.yscale == "asinh",
+                      symlog_linthresh=float(self.symlog_linthresh_y),
+                      asinh_linear_width=float(self.asinh_linear_width_y),
+                      label=self.ylabel, label_size=self.ylabel_size,
+                      label_color=self.ylabel_color, label_family=self.ylabel_family)
         panel = dict(pos=self.pos, series=series, texts=texts, title=self.title,
                     font_family=_font_family(),
                     title_family=self.title_family,
-                    xlabel_family=self.xlabel_family,
-                    ylabel_family=self.ylabel_family,
                     dpi=float(self._fig.dpi if self._fig is not None else DPI),
-                    xlabel=self.xlabel, ylabel=self.ylabel,
-                    title_size=self.title_size, xlabel_size=self.xlabel_size,
-                    ylabel_size=self.ylabel_size,
+                    title_size=self.title_size,
+                    x=x_axis, y=y_axis,
                     legend=dict(show=self.show_legend, loc=self.legend_loc,
                                 ncol=self.legend_ncol, frameon=self.legend_frameon,
                                 fontsize=legend_font, family=self.legend_family or _font_family(),
@@ -1896,21 +1907,13 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                                 title_fontsize=legend_title, anchor=self.legend_anchor,
                                 labels=list(self.legend_labels or []),
                                 order=self._legend_order()),
-                    xlim=(x0, x1), ylim=(y0, y1), annotations=self.annotations,
+                    annotations=self.annotations,
                     aspect=self.aspect,
                     aspect_datalim=self._adjustable == "datalim",
                     contours=contours,
                     errors=self.errors,
                     bars=bars,
                     bands=bands,
-                    x_log=self.xscale == "log", y_log=self.yscale == "log",
-                    x_symlog=self.xscale == "symlog", y_symlog=self.yscale == "symlog",
-                    x_logit=self.xscale == "logit", y_logit=self.yscale == "logit",
-                    x_asinh=self.xscale == "asinh", y_asinh=self.yscale == "asinh",
-                    x_symlog_linthresh=float(self.symlog_linthresh_x),
-                    y_symlog_linthresh=float(self.symlog_linthresh_y),
-                    x_asinh_linear_width=float(self.asinh_linear_width_x),
-                    y_asinh_linear_width=float(self.asinh_linear_width_y),
                     log_base=float(getattr(self, "log_base", 10.0)),
                     grid=dict(show=self.show_grid, color=self.grid_color,
                               linewidth=self.grid_linewidth, alpha=self.grid_alpha,
@@ -1938,7 +1941,6 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
                     bounds=self._render_bounds(dpi), axes_bounds=self._exact_axes_box(),
                     twin=self._twin, twin_gap=self._twin_gap,
                     twin_reserve=self._twin_reserve,
-                    xlabel_color=self.xlabel_color, ylabel_color=self.ylabel_color,
                     patches=patches, collections=collections,
                     images=[(im._e["data"], im._e["cmap"], im._e["vmin"],
                              im._e["vmax"], im._e["extent"], True,
@@ -2143,9 +2145,9 @@ class Axes(_PlotAxes, _StatsAxes, _FieldAxes, _DecorAxes):
             return tuple(float(v) for v in values)
 
         if fx is not None:
-            panel["xlim"] = scaled_limits(fx, panel["xlim"], "x")
+            panel["x"]["lim"] = scaled_limits(fx, panel["x"]["lim"], "x")
         if fy is not None:
-            panel["ylim"] = scaled_limits(fy, panel["ylim"], "y")
+            panel["y"]["lim"] = scaled_limits(fy, panel["y"]["lim"], "y")
 
     def _apply_axis_scales(self, panel):
         """Map panel coordinates through function or registered custom scales."""

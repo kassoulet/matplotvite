@@ -36,6 +36,8 @@ def test_panel_payload_matches_rust_model():
     panel["cache_key"] = ""
 
     assert set(panel) == _rust_fields("Panel")
+    assert set(panel["x"]) == _rust_fields("AxisSpec")
+    assert set(panel["y"]) == _rust_fields("AxisSpec")
     assert set(panel["legend"]) == _rust_fields("Legend")
     assert set(panel["grid"]) == _rust_fields("Grid")
     assert set(panel["ticks"]) == _rust_fields("Ticks")

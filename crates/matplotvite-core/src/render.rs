@@ -219,18 +219,26 @@ mod tests {
     use super::*;
     use crate::color::Color;
     use crate::fonts::SANS_FAMILY;
-    use crate::model::{DrawStyle, LineStyle, Panel, RenderOptions, Series};
+    use crate::model::{AxisSpec, DrawStyle, LineStyle, Panel, RenderOptions, Series};
 
     fn smoke_panel() -> Panel {
         Panel {
             dpi: 100.0,
             font_family: SANS_FAMILY.to_string(),
             title: "Smoke".to_string(),
-            xlabel: "x".to_string(),
-            ylabel: "y".to_string(),
+            x: AxisSpec {
+                label: "x".to_string(),
+                symlog_linthresh: 1.0,
+                asinh_linear_width: 1.0,
+                ..Default::default()
+            },
+            y: AxisSpec {
+                label: "y".to_string(),
+                symlog_linthresh: 1.0,
+                asinh_linear_width: 1.0,
+                ..Default::default()
+            },
             title_size: Some(12.0),
-            xlabel_size: Some(10.0),
-            ylabel_size: Some(10.0),
             series: vec![Series {
                 x: vec![0.0, 1.0, 2.0].into(),
                 y: vec![0.0, 1.0, 0.0].into(),

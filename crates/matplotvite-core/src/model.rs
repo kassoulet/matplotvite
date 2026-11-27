@@ -647,6 +647,41 @@ pub struct Grid {
     pub minor_alpha: Option<f64>,
 }
 
+/// One axis of a panel: limits, scale flags and label presentation.
+#[derive(Default)]
+#[cfg_attr(feature = "python", derive(FromPyObject))]
+pub struct AxisSpec {
+    /// Explicit `(low, high)` limits; `None` autoscales the axis.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub lim: Option<(f64, f64)>,
+    /// Evenly spaced `log_base` data values, drawn on a log scale.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub log: bool,
+    /// Symmetric-log scale: linear inside `±symlog_linthresh`.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub symlog: bool,
+    /// Logit scale: probabilities mapped through `log(p / (1 - p))`.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub logit: bool,
+    /// Asinh scale: smooth log-like scaling, linear near zero.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub asinh: bool,
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub symlog_linthresh: f64,
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub asinh_linear_width: f64,
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub label: String,
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub label_size: Option<f64>,
+    /// Explicit axis-label colours; `None` follows the axes foreground.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub label_color: Option<Color>,
+    /// Per-axis label font; `None` follows the panel family.
+    #[cfg_attr(feature = "python", pyo3(item))]
+    pub label_family: Option<String>,
+}
+
 #[derive(Default)]
 #[cfg_attr(feature = "python", derive(FromPyObject))]
 pub struct Panel {
@@ -659,10 +694,6 @@ pub struct Panel {
     /// Per-artist overrides; `None` follows `font_family`.
     #[cfg_attr(feature = "python", pyo3(item))]
     pub title_family: Option<String>,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub xlabel_family: Option<String>,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub ylabel_family: Option<String>,
     /// Effective output resolution, used to convert point sizes to pixels.
     #[cfg_attr(feature = "python", pyo3(item))]
     pub dpi: f64,
@@ -673,21 +704,14 @@ pub struct Panel {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub title: String,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub xlabel: String,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub ylabel: String,
-    #[cfg_attr(feature = "python", pyo3(item))]
     pub title_size: Option<f64>,
+    /// The x and y axes: limits, scale flags and label presentation.
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub xlabel_size: Option<f64>,
+    pub x: AxisSpec,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub ylabel_size: Option<f64>,
+    pub y: AxisSpec,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub legend: Legend,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub xlim: Option<(f64, f64)>,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub ylim: Option<(f64, f64)>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub texts: Vec<TextItem>,
     #[cfg_attr(feature = "python", pyo3(item))]
@@ -719,34 +743,7 @@ pub struct Panel {
     #[cfg_attr(feature = "python", pyo3(item))]
     pub ticks: Ticks,
     #[cfg_attr(feature = "python", pyo3(item))]
-    pub x_log: bool,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub y_log: bool,
-    #[cfg_attr(feature = "python", pyo3(item))]
     pub log_base: f64,
-    /// Symmetric-log axes: linear inside `±linthresh`, logarithmic outside.
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub x_symlog: bool,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub y_symlog: bool,
-    /// Logit axes: probabilities mapped through log(p / (1 - p)).
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub x_logit: bool,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub y_logit: bool,
-    /// Asinh axes: smooth log-like scaling with a linear width around zero.
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub x_asinh: bool,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub y_asinh: bool,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub x_symlog_linthresh: f64,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub y_symlog_linthresh: f64,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub x_asinh_linear_width: f64,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub y_asinh_linear_width: f64,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub colorbar: Option<ColorbarItem>,
     /// `axis("off")`: keep the data, drop axes, ticks and tick labels.
@@ -773,11 +770,6 @@ pub struct Panel {
     /// Side that reserves label room for a twin axis, on both panels.
     #[cfg_attr(feature = "python", pyo3(item))]
     pub twin_reserve: String,
-    /// Explicit axis-label colours; `None` follows the axes foreground.
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub xlabel_color: Option<Color>,
-    #[cfg_attr(feature = "python", pyo3(item))]
-    pub ylabel_color: Option<Color>,
     #[cfg_attr(feature = "python", pyo3(item))]
     pub patches: Vec<ArtistPatch>,
     #[cfg_attr(feature = "python", pyo3(item))]

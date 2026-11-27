@@ -134,27 +134,27 @@ where
     let grid_dash = p.grid.linestyle.and_then(|style| style.dash_pattern());
 
     let to_chart_x = |v: f64| {
-        if p.x_log {
+        if p.x.log {
             v.max(f64::MIN_POSITIVE).log(log_base)
-        } else if p.x_symlog {
-            symlog(v, p.x_symlog_linthresh, 10.0, 1.0)
-        } else if p.x_logit {
+        } else if p.x.symlog {
+            symlog(v, p.x.symlog_linthresh, 10.0, 1.0)
+        } else if p.x.logit {
             logit(v)
-        } else if p.x_asinh {
-            asinh_scale(v, p.x_asinh_linear_width)
+        } else if p.x.asinh {
+            asinh_scale(v, p.x.asinh_linear_width)
         } else {
             v
         }
     };
     let to_chart_y = |v: f64| {
-        if p.y_log {
+        if p.y.log {
             v.max(f64::MIN_POSITIVE).log(log_base)
-        } else if p.y_symlog {
-            symlog(v, p.y_symlog_linthresh, 10.0, 1.0)
-        } else if p.y_logit {
+        } else if p.y.symlog {
+            symlog(v, p.y.symlog_linthresh, 10.0, 1.0)
+        } else if p.y.logit {
             logit(v)
-        } else if p.y_asinh {
-            asinh_scale(v, p.y_asinh_linear_width)
+        } else if p.y.asinh {
+            asinh_scale(v, p.y.asinh_linear_width)
         } else {
             v
         }
@@ -163,11 +163,11 @@ where
     let y_labels = tick_target((bottom - top).abs() as f64, 45.0);
     let xs: Vec<f64> = match &p.ticks.xticks {
         Some(v) => v.iter().map(|&v| to_chart_x(v)).collect(),
-        None => auto_ticks_for(x0, x1, p.x_log, x_labels),
+        None => auto_ticks_for(x0, x1, p.x.log, x_labels),
     };
     let ys: Vec<f64> = match &p.ticks.yticks {
         Some(v) => v.iter().map(|&v| to_chart_y(v)).collect(),
-        None => auto_ticks_for(y0, y1, p.y_log, y_labels),
+        None => auto_ticks_for(y0, y1, p.y.log, y_labels),
     };
     let xformat = tick_format(&xs);
     let yformat = tick_format(&ys);
@@ -178,10 +178,10 @@ where
         _ => xs
             .iter()
             .map(|v| {
-                if p.x_log {
+                if p.x.log {
                     log_label(*v, log_base)
-                } else if p.x_asinh {
-                    tick_label(asinh_inverse(*v, p.x_asinh_linear_width), xformat)
+                } else if p.x.asinh {
+                    tick_label(asinh_inverse(*v, p.x.asinh_linear_width), xformat)
                 } else {
                     tick_label(*v, xformat)
                 }
@@ -195,10 +195,10 @@ where
         _ => ys
             .iter()
             .map(|v| {
-                if p.y_log {
+                if p.y.log {
                     log_label(*v, log_base)
-                } else if p.y_asinh {
-                    tick_label(asinh_inverse(*v, p.y_asinh_linear_width), yformat)
+                } else if p.y.asinh {
+                    tick_label(asinh_inverse(*v, p.y.asinh_linear_width), yformat)
                 } else {
                     tick_label(*v, yformat)
                 }
@@ -335,11 +335,11 @@ where
         }
     }
     let fg = default_tick;
-    let ylabel_col = p.ylabel_color.map(|c| c.rgba()).unwrap_or(fg);
-    let xlabel_col = p.xlabel_color.map(|c| c.rgba()).unwrap_or(fg);
-    if side == "right" && !p.ylabel.is_empty() {
-        let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
-        let family = p.ylabel_family.as_deref().unwrap_or(&p.font_family);
+    let ylabel_col = p.y.label_color.map(|c| c.rgba()).unwrap_or(fg);
+    let xlabel_col = p.x.label_color.map(|c| c.rgba()).unwrap_or(fg);
+    if side == "right" && !p.y.label.is_empty() {
+        let size = p.y.label_size.unwrap_or(10.0).max(6.0);
+        let family = p.y.label_family.as_deref().unwrap_or(&p.font_family);
         let style = rotated_style(size, ylabel_col, 270.0, dpi, family)
             .pos(Pos::new(HPos::Center, VPos::Center));
         // Sit just past the widest right-hand tick label (matplotlib's
@@ -351,34 +351,34 @@ where
             .fold(0.0, f64::max);
         let x = (right as f64 + ytick_len + 4.0 + widest + 10.0).min((right + gap - 8) as f64);
         area.draw(&Text::new(
-            p.ylabel.clone(),
+            p.y.label.clone(),
             (x.round() as i32, (top + bottom) / 2),
             style,
         ))?;
-    } else if side == "top" && !p.xlabel.is_empty() {
-        let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
+    } else if side == "top" && !p.x.label.is_empty() {
+        let size = p.x.label_size.unwrap_or(10.0).max(6.0);
         let style = rotated_style(
             size,
             xlabel_col,
             0.0,
             dpi,
-            p.xlabel_family.as_deref().unwrap_or(&p.font_family),
+            p.x.label_family.as_deref().unwrap_or(&p.font_family),
         )
         .pos(Pos::new(HPos::Center, VPos::Center));
         area.draw(&Text::new(
-            p.xlabel.clone(),
+            p.x.label.clone(),
             ((left + right) / 2, top - gap + 10),
             style,
         ))?;
     } else if side.is_empty() {
-        if (p.ylabel_color.is_some() || p.axes_bounds) && !p.ylabel.is_empty() {
-            let size = p.ylabel_size.unwrap_or(10.0).max(6.0);
+        if (p.y.label_color.is_some() || p.axes_bounds) && !p.y.label.is_empty() {
+            let size = p.y.label_size.unwrap_or(10.0).max(6.0);
             let style = rotated_style(
                 size,
                 ylabel_col,
                 270.0,
                 dpi,
-                p.ylabel_family.as_deref().unwrap_or(&p.font_family),
+                p.y.label_family.as_deref().unwrap_or(&p.font_family),
             )
             .pos(Pos::new(HPos::Center, VPos::Center));
             // Sit just left of the widest tick label instead of 52 px out,
@@ -390,25 +390,29 @@ where
                 .fold(0.0, f64::max);
             let x = (left as f64 - ytick_len - 4.0 - widest - 8.0).max(2.0);
             area.draw(&Text::new(
-                p.ylabel.clone(),
+                p.y.label.clone(),
                 (x.round() as i32, (top + bottom) / 2),
                 style,
             ))?;
         }
-        if p.xlabel_color.is_some() && !p.xlabel.is_empty() {
-            let size = p.xlabel_size.unwrap_or(10.0).max(6.0);
+        if p.x.label_color.is_some() && !p.x.label.is_empty() {
+            let size = p.x.label_size.unwrap_or(10.0).max(6.0);
             let style = rotated_style(
                 size,
                 xlabel_col,
                 0.0,
                 dpi,
-                p.xlabel_family.as_deref().unwrap_or(&p.font_family),
+                p.x.label_family.as_deref().unwrap_or(&p.font_family),
             )
             .pos(Pos::new(HPos::Center, VPos::Center));
             // Clear the tick labels, whose height grows with `labelsize`.
             let tick_height = text_px(xstyle.labelsize.max(6.0), dpi) * 1.2;
             let y = bottom + (tick_height + 10.0 + size * dpi / 72.0 * 0.5).round() as i32;
-            area.draw(&Text::new(p.xlabel.clone(), ((left + right) / 2, y), style))?;
+            area.draw(&Text::new(
+                p.x.label.clone(),
+                ((left + right) / 2, y),
+                style,
+            ))?;
         }
     }
     Ok(())

@@ -89,38 +89,38 @@ where
     // transformed, and the tick labels are converted back to powers of ten.
     let base = if p.log_base > 1.0 { p.log_base } else { 10.0 };
     let tx = |v: f64| {
-        if p.x_log {
+        if p.x.log {
             v.max(f64::MIN_POSITIVE).log(base)
-        } else if p.x_symlog {
-            symlog(v, p.x_symlog_linthresh, 10.0, 1.0)
-        } else if p.x_logit {
+        } else if p.x.symlog {
+            symlog(v, p.x.symlog_linthresh, 10.0, 1.0)
+        } else if p.x.logit {
             logit(v)
-        } else if p.x_asinh {
-            asinh_scale(v, p.x_asinh_linear_width)
+        } else if p.x.asinh {
+            asinh_scale(v, p.x.asinh_linear_width)
         } else {
             v
         }
     };
     let ty = |v: f64| {
-        if p.y_log {
+        if p.y.log {
             v.max(f64::MIN_POSITIVE).log(base)
-        } else if p.y_symlog {
-            symlog(v, p.y_symlog_linthresh, 10.0, 1.0)
-        } else if p.y_logit {
+        } else if p.y.symlog {
+            symlog(v, p.y.symlog_linthresh, 10.0, 1.0)
+        } else if p.y.logit {
             logit(v)
-        } else if p.y_asinh {
-            asinh_scale(v, p.y_asinh_linear_width)
+        } else if p.y.asinh {
+            asinh_scale(v, p.y.asinh_linear_width)
         } else {
             v
         }
     };
-    if p.x_log || p.x_symlog || p.x_logit || p.x_asinh {
+    if p.x.log || p.x.symlog || p.x.logit || p.x.asinh {
         (x0, x1) = (tx(x0), tx(x1));
         if x1 <= x0 {
             x1 = x0 + 1.0;
         }
     }
-    if p.y_log || p.y_symlog || p.y_logit || p.y_asinh {
+    if p.y.log || p.y.symlog || p.y.logit || p.y.asinh {
         (y0, y1) = (ty(y0), ty(y1));
         if y1 <= y0 {
             y1 = y0 + 1.0;
@@ -128,8 +128,8 @@ where
     }
     // Apply matplotlib's default 5% autoscale margin in the (possibly
     // log-transformed) coordinate space. Explicit limits bypass it unchanged.
-    (x0, x1) = axis_bounds((x0, x1), p.xlim.map(|(lo, hi)| (tx(lo), tx(hi))));
-    (y0, y1) = axis_bounds((y0, y1), p.ylim.map(|(lo, hi)| (ty(lo), ty(hi))));
+    (x0, x1) = axis_bounds((x0, x1), p.x.lim.map(|(lo, hi)| (tx(lo), tx(hi))));
+    (y0, y1) = axis_bounds((y0, y1), p.y.lim.map(|(lo, hi)| (ty(lo), ty(hi))));
     // A fixed aspect either shrinks the plotting box (matplotlib's
     // adjustable="box", the set_aspect/imshow default) or bends the data
     // limits so the box keeps its size (adjustable="datalim", chosen by
@@ -147,11 +147,11 @@ where
     let margin = (panel_h / 10.0).clamp(4.0, 25.0).round() as u32;
     let xs_for_grid: Vec<f64> = match &p.ticks.xticks {
         Some(values) => values.iter().map(|&v| tx(v)).collect(),
-        None => auto_ticks(x0, x1, p.x_log),
+        None => auto_ticks(x0, x1, p.x.log),
     };
     let ys_for_grid: Vec<f64> = match &p.ticks.yticks {
         Some(values) => values.iter().map(|&v| ty(v)).collect(),
-        None => auto_ticks(y0, y1, p.y_log),
+        None => auto_ticks(y0, y1, p.y.log),
     };
     let ys_for_labels = &ys_for_grid;
     let ylabels: Vec<String> = match (&p.ticks.yticklabels, &p.ticks.yticks) {
@@ -163,7 +163,7 @@ where
             ys_for_labels
                 .iter()
                 .map(|v| {
-                    if p.y_log {
+                    if p.y.log {
                         ticks::log_label(*v, base)
                     } else {
                         ticks::tick_label(*v, format)
@@ -173,9 +173,9 @@ where
         }
     };
     let desc_size = text_px(
-        p.xlabel_size
+        p.x.label_size
             .unwrap_or(10.0)
-            .max(p.ylabel_size.unwrap_or(10.0))
+            .max(p.y.label_size.unwrap_or(10.0))
             .max(6.0),
         dpi,
     )
@@ -195,12 +195,12 @@ where
         .iter()
         .map(|label| crate::fonts::text_width(label, tick_px))
         .fold(0.0, f64::max);
-    let x_desc_pad = if p.xlabel.is_empty() {
+    let x_desc_pad = if p.x.label.is_empty() {
         0.0
     } else {
         desc_size as f64 + 6.0
     };
-    let y_desc_pad = if p.ylabel.is_empty() {
+    let y_desc_pad = if p.y.label.is_empty() {
         0.0
     } else {
         desc_size as f64 + 6.0

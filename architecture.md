@@ -72,7 +72,7 @@ its optional `python` feature for the extraction traits.
 | `python/matplotvite/__init__.pyi` | PEP 561 type surface shipped with the wheel. |
 | `crates/matplotvite-core/src/lib.rs` | Pure renderer crate: model, layout, drawing, rasterisation and export, with no Python dependency by default. |
 | `crates/matplotvite-core/src/render.rs` | Canvas/format/compression validation, direct-PNG vs SVG routing, tight cropping, and output encoding. |
-| `crates/matplotvite-core/src/model.rs` | `Panel`, `RenderOptions`, and the typed artist records extracted from Python. |
+| `crates/matplotvite-core/src/model.rs` | `Panel` (including its per-axis `AxisSpec`), `RenderOptions`, and the typed artist records extracted from Python. |
 | `crates/matplotvite-core/src/layout.rs` | Data ranges, autoscaling, axis bounds, and tick generation. |
 | `crates/matplotvite-core/src/draw.rs`, `.../draw/*` | Panel orchestration, plus the axes, bars, collection, colorbar, contour, image, legend, markers, polyline, quiver, series, text and tick drawing modules. |
 | `crates/matplotvite-core/src/fonts.rs` | Registration of the embedded DejaVu Sans and Geist faces used by the drawing stack. |
@@ -82,7 +82,7 @@ its optional `python` feature for the extraction traits.
 | `crates/matplotvite-core/src/color.rs`, `.../cmap_data.rs`, `.../cmaps.txt` | Colour normalisation and colormap tables. |
 | `crates/matplotvite-core/src/scale.rs` | Axis scale transforms (`symlog`, `logit`, `asinh`) and the integer-oversampling drawing backend used by the bitmap path. |
 | `crates/matplotvite-core/src/stats.rs` | Shared violin geometry and autoscale margin arithmetic, called by both the Python facade and the native builder. |
-| `crates/matplotvite/src/api.rs` | Native Rust `Figure`/`Axes` builder for the priority plotting methods, rendering through the shared panel pipeline. |
+| `crates/matplotvite/src/api/mod.rs`, `.../api/plot.rs`, `.../api/field.rs`, `.../api/axis.rs` | Native Rust `Figure`/`Axes` builder for the priority plotting methods, split into figure lifecycle, plot families, field artists and axis styling, rendering through the shared panel pipeline. |
 | `crates/matplotvite-py/src/lib.rs`, `.../py.rs` | Thin PyO3 extension: GIL release, error mapping, module exports, norms and colormaps. |
 | `crates/matplotvite-core/src/bench.rs`, `.../benches/render.rs` | Criterion-facing output-stage benchmarks. |
 
