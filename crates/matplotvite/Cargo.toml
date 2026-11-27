@@ -14,7 +14,7 @@ publish = false
 [dependencies]
 # The version requirement keeps the path dependency out of cargo-deny's
 # wildcard ban; the path keeps it building from the workspace.
-matplotvite-core = { version = "0.6.1-dev", path = "../matplotvite-core" }
+matplotvite-core = { version = "0.7.0", path = "../matplotvite-core" }
 ndarray = { workspace = true }
 
 [dev-dependencies]

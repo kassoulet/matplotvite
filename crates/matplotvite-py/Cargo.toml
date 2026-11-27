@@ -18,7 +18,7 @@ default = ["python"]
 python = []
 
 [dependencies]
-matplotvite-core = { version = "0.6.1-dev", path = "../matplotvite-core", features = ["python"] }
+matplotvite-core = { version = "0.7.0", path = "../matplotvite-core", features = ["python"] }
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 
