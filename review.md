@@ -113,6 +113,28 @@ Suggested order: F10 and F4 (low risk, shrink the surface), F1 with F2 and F3
 (the structural change), then F6 and F7 (Rust and Python together), F5, F8,
 F9 and F11.
 
+## OpenSSF Scorecard (26 Nov, 6.6 / 10)
+
+Scanned at `cbb6971`. Already 10: Dependency-Update-Tool, Binary-Artifacts,
+Security-Policy, Dangerous-Workflow, Token-Permissions, Fuzzing (License 9).
+
+| # | Task |
+|---|------|
+| S1 | **Open — Pinned-Dependencies 6.** 22 `pip install` lines are not hash-pinned (`ci.yml` 44, 121, 210-212, 263-264, 299, 318, 343-344, 384-385, 550-551, 576-577; `pages.yml` 36, 42; `publish.yml` 176, 184-185). Generate `requirements-ci.txt` with `pip-compile --generate-hashes` (per Python marker) and install with `--require-hashes`. Done when the Scorecard check reaches 10. |
+| S2 | **Open — Code-Review 0 and CI-Tests 0.** Every change lands directly on `main`. Open PRs for changes (even self-merged) so CI runs before merge and a review is recorded; enable branch protection requiring the CI checks. Scores rise as new changesets are merged through PRs. |
+| S3 | **Open — SAST 7.** CodeQL runs on a schedule or on pushes, but 0 of the last 5 commits were checked. Run `codeql.yml` on `pull_request` too, so each merged PR is scanned. |
+| S4 | **Open — Branch-Protection (−1, unreadable).** The scan token cannot read the rules. Enable protection on `main` (required checks, no force push) and add a `SCORECARD_TOKEN` PAT with repo admin read to `scorecard.yml` so the check can be scored. |
+| S5 | **Open — Vulnerabilities 7 (3 findings, none exploitable).** `RUSTSEC-2026-0192` (`ttf-parser`) and `RUSTSEC-2026-0206` (`rustybuzz`) are "unmaintained" notices with no fix; both are ignored in `deny.toml` with a reason. `PYSEC-2026-1845` is `pytest` 8.4.2, dev only, pinned for Python 3.9/3.10. Track a replacement for the unmaintained text-shaping crates (for example `cosmic-text` or `swash`) and drop the ignores when done. |
+| S6 | **Open — release hygiene (Packaging, Signed-Releases at −1).** Publish a first tagged release from `publish.yml` with signed provenance (Sigstore or SLSA attestations) so both checks are scored. |
+| S7 | **Open — CII-Best-Practices 0.** Apply for the OpenSSF Best Practices (passing) badge; most criteria are already met by the CI and policy files. |
+| S8 | **Waiting — Maintained 0 and Contributors 0.** Clear with time (project under 90 days) and with contributors from other organizations. No code action. |
+
+Done in this pass: `dep-audit` pre-commit hook (runs `cargo audit`, bandit and
+`pip-audit` when `Cargo.lock`, `requirements-ci.txt`, `pyproject.toml` or
+`deny.toml` change); `cargo deny check` pre-push hook; `pip-audit` now audits
+the pinned requirements instead of the tool-only environment. CI already ran
+`cargo deny`, `cargo audit`, `pip-audit` and trivy.
+
 ## Status
 
 No security or parity findings remain open; the F1–F11 refactoring tasks above are proposals. The 23 Nov re-audit is complete: the facade
