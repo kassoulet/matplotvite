@@ -3,30 +3,33 @@
 The renderer draws the standard four spines itself, so these objects only
 carry the geometry and axis registration that projection code inspects.
 """
+from typing import Any
+
 import numpy as np
 
 from . import _Spine
 
 
 class _SpinePath:
-    def __init__(self, vertices):
+    def __init__(self, vertices: Any) -> None:
         self.vertices = np.asarray(vertices, dtype=float)
-        self.codes = None
+        self.codes: object = None
 
 
 class Spine(_Spine):
     """A single axes spine, compatible with custom projection subclasses."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.axes = None
+        self.axes: object = None
         self.spine_type = ""
         self._path = _SpinePath(((0.0, 0.0), (0.0, 0.0)))
         self._axis = None
         self._patch = None
 
     @classmethod
-    def linear_spine(cls, axes, spine_type, path=None):
+    def linear_spine(cls, axes: object, spine_type: str,
+                     path: object = None) -> "Spine":
         spine = cls()
         spine.axes = axes
         spine.spine_type = spine_type
@@ -39,7 +42,7 @@ class Spine(_Spine):
         return spine
 
     @classmethod
-    def circular_spine(cls, axes, center, radius):
+    def circular_spine(cls, axes: object, center: Any, radius: float) -> "Spine":
         spine = cls()
         spine.axes = axes
         spine.spine_type = "circle"
@@ -50,22 +53,22 @@ class Spine(_Spine):
         )
         return spine
 
-    def register_axis(self, axis):
+    def register_axis(self, axis: Any) -> None:
         self._axis = axis
 
-    def get_path(self):
+    def get_path(self) -> _SpinePath:
         return self._path
 
-    def get_spine_transform(self, *args, **kwargs):
+    def get_spine_transform(self, *args: Any, **kwargs: Any) -> None:
         return None
 
-    def set_patch(self, patch):
+    def set_patch(self, patch: Any) -> None:
         self._patch = patch
 
-    def get_patch(self):
+    def get_patch(self) -> Any:
         return self._patch
 
-    def _adjust_location(self):  # noqa: V105 (Matplotlib hook, called by name)
+    def _adjust_location(self) -> None:  # noqa: V105 (Matplotlib hook, called by name)
         return None
 
 

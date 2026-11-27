@@ -2,6 +2,7 @@
 import os
 import struct as _struct
 import zlib as _zlib
+from typing import Any, Callable, NoReturn, Optional
 
 import numpy as np
 
@@ -11,7 +12,8 @@ from ._helpers import _FORMATS, get_cmap
 from ._ticker import _PNG_SIGNATURE
 
 
-def _png_unfilter_serial(row, previous, bpp, filter_type):
+def _png_unfilter_serial(row: np.ndarray, previous: np.ndarray, bpp: int,
+                         filter_type: int) -> None:
     """Undo PNG filter 3 (average) or 4 (Paeth) in place; both depend on the left byte."""
     cur, up = row.tolist(), previous.tolist()
     for i in range(len(cur)):
@@ -31,7 +33,7 @@ def _png_unfilter_serial(row, previous, bpp, filter_type):
 _PNG_MAX_BYTES = 1 << 29  # 512 MiB of inflated scanlines
 
 
-def _decode_png(data):
+def _decode_png(data: bytes) -> np.ndarray:
     """Decode a non-interlaced PNG into a float array in the range 0-1.
 
     Matplotlib's image tests use every PNG colour type and bit depth, while
@@ -40,8 +42,13 @@ def _decode_png(data):
     """
     if data[:8] != _PNG_SIGNATURE:
         raise ValueError("not a PNG file")
-    width = height = depth = color = interlace = None
-    palette = transparency = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    depth: Optional[int] = None
+    color: Optional[int] = None
+    interlace: Optional[int] = None
+    palette: Optional[bytes] = None
+    transparency: Optional[bytes] = None
     compressed = bytearray()
     pos = 8
     while pos + 12 <= len(data):
@@ -64,14 +71,15 @@ def _decode_png(data):
             compressed.extend(body)
         elif kind == b"IEND":
             break
-    if width is None:
+    if width is None or height is None:
         raise ValueError("PNG has no IHDR chunk")
     if interlace:
         raise NotImplementedError("interlaced PNG files are not supported")
     channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)  # type: ignore[arg-type]
     if channels is None:
         raise ValueError(f"unsupported PNG colour type {color}")
-    if depth not in (1, 2, 4, 8, 16) or (depth < 8 and color not in (0, 3)):
+    if depth is None or depth not in (1, 2, 4, 8, 16) \
+            or (depth < 8 and color not in (0, 3)):
         raise ValueError(f"unsupported PNG bit depth {depth}")
     if color == 3 and palette is None:
         raise ValueError("palette PNG has no PLTE chunk")
@@ -93,11 +101,11 @@ def _decode_png(data):
     if len(raw) < height * (stride + 1):
         raise ValueError("truncated PNG image data")
     lines = np.frombuffer(raw, dtype=np.uint8, count=expected).reshape(height, stride + 1)
-    data = lines[:, 1:].copy()
+    pixels = lines[:, 1:].copy()
     previous = np.zeros(stride, dtype=np.uint8)
-    for y in range(height):  # type: ignore[arg-type]
+    for y in range(height):
         filter_type = int(lines[y, 0])
-        row = data[y]
+        row = pixels[y]
         if filter_type == 1:
             row[:] = row.reshape(-1, bpp).cumsum(axis=0, dtype=np.uint64).astype(
                 np.uint8).reshape(-1)
@@ -111,11 +119,11 @@ def _decode_png(data):
 
     count = width * channels
     if depth == 8:
-        samples = data[:, :count]
+        samples = pixels[:, :count]
     elif depth == 16:
-        samples = np.ascontiguousarray(data[:, :count * 2]).view(">u2")
+        samples = np.ascontiguousarray(pixels[:, :count * 2]).view(">u2")
     else:
-        bits = np.unpackbits(data, axis=1).reshape(height, -1, depth)
+        bits = np.unpackbits(pixels, axis=1).reshape(height, -1, depth)
         samples = (bits * (1 << np.arange(depth - 1, -1, -1))).sum(axis=2)[:, :count]
     scale = (float((1 << depth) - 1) if color == 0 and depth < 8
              else 255.0 if depth <= 8 else 65535.0)
@@ -148,7 +156,7 @@ def _decode_png(data):
     return image
 
 
-def _write_png_image(fname, rgba):
+def _write_png_image(fname: Any, rgba: Any) -> None:
     """Write an HxW(x1/2/3/4) uint8 image as PNG without Pillow."""
     rgba = np.ascontiguousarray(np.asarray(rgba, dtype=np.uint8))
     if rgba.ndim == 2:
@@ -159,7 +167,7 @@ def _write_png_image(fname, rgba):
     color_type = {1: 0, 2: 4, 3: 2, 4: 6}[rgba.shape[2]]
     raw = b"".join(b"\x00" + rgba[row].tobytes() for row in range(height))
 
-    def chunk(tag, payload):
+    def chunk(tag: bytes, payload: bytes) -> bytes:
         crc = _zlib.crc32(tag + payload) & 0xFFFFFFFF
         return (_struct.pack(">I", len(payload)) + tag + payload
                 + _struct.pack(">I", crc))
@@ -176,8 +184,11 @@ def _write_png_image(fname, rgba):
         stream.write(png)
 
 
-def imsave(fname, arr, vmin=None, vmax=None, cmap=None, format=None, origin=None,
-           dpi=100, *, metadata=None, pil_kwargs=None):
+def imsave(fname: Any, arr: Any, vmin: Optional[float] = None,
+           vmax: Optional[float] = None, cmap: Any = None,
+           format: Optional[str] = None, origin: Optional[str] = None,
+           dpi: float = 100, *, metadata: Any = None,
+           pil_kwargs: Optional[dict[str, Any]] = None) -> None:
     """Save an array as an image file, as `matplotlib.pyplot.imsave`.
 
     A 2-D array is mapped through `cmap`; an HxWx3/HxWx4 array is written as
@@ -246,7 +257,7 @@ def imsave(fname, arr, vmin=None, vmax=None, cmap=None, format=None, origin=None
     fig.savefig(fname, format=fmt, dpi=dpi or 100)
 
 
-def _imread(fname, format=None):
+def _imread(fname: Any, format: Optional[str] = None) -> np.ndarray:
     """Read a PNG natively, or another image format through Pillow."""
     if hasattr(fname, "read"):
         data = fname.read()
@@ -274,13 +285,13 @@ def _imread(fname, format=None):
 imread = _imread
 
 
-def _get_sample_data(name, asfileobj=True):
+def _get_sample_data(name: str, asfileobj: bool = True) -> NoReturn:
     """Matplotlib's sample-data directory is not shipped with matplotvite."""
     raise FileNotFoundError(
         f"matplotvite does not bundle Matplotlib's sample data ({name!r})")
 
 
-def _flatten(seq, scalarp=None):
+def _flatten(seq: Any, scalarp: Optional[Callable[[Any], bool]] = None) -> list[Any]:
     """Depth-first flatten of nested sequences, as `cbook.flatten`."""
     if scalarp is None:
         scalarp = lambda value: not hasattr(value, "__iter__") or isinstance(value, str)

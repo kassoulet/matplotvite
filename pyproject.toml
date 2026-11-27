@@ -174,3 +174,11 @@ module = ["matplotvite._config", "matplotvite.units"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_calls = true
+
+[[tool.mypy.overrides]]
+# These modules annotate every definition of their own, but they still call
+# into the plotting core, which is not annotated yet, so untyped calls stay
+# allowed until that ratchet reaches it.
+module = ["matplotvite._misc", "matplotvite._png", "matplotvite.spines"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

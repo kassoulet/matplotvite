@@ -1,4 +1,6 @@
 """GridSpec subclasses and small transform helpers."""
+from typing import Any, Union
+
 from ._artists import (
     Collection,
     EllipseCollection,
@@ -44,17 +46,20 @@ from ._ticker import _TransformedBbox
 class GridSpecFromSubplotSpec(GridSpec):
     """A GridSpec rooted at an existing SubplotSpec."""
 
-    def __init__(self, nrows, ncols, subplot_spec=None, **kwargs):
+    def __init__(self, nrows: int, ncols: int, subplot_spec: object = None,
+                 **kwargs: Any) -> None:
         super().__init__(nrows, ncols, **kwargs)
         self.subplot_spec = subplot_spec
 
 
-def _offset_copy(trans, fig=None, x=0, y=0, units="inches", **kwargs):
+def _offset_copy(trans: object, fig: object = None, x: float = 0, y: float = 0,
+                 units: str = "inches", **kwargs: Any) -> _Transform:
     _ignored("mtransforms.offset_copy")
     return _Transform()
 
 
-def _blended_transform_factory(x_transform, y_transform):
+def _blended_transform_factory(x_transform: object,
+                               y_transform: object) -> Union[_Transform, _CoordTransform]:
     """Combined transform: matplotvite only distinguishes data/axes/figure."""
     kinds = {getattr(t, "kind", None) for t in (x_transform, y_transform)}
     for kind in ("axes", "figure"):
