@@ -560,40 +560,18 @@ class Figure:
         if kwargs:
             unexpected = next(iter(kwargs))
             raise TypeError(f"savefig() got an unexpected keyword argument {unexpected!r}")
-        if transparent is None:
-            transparent = bool(rcParams.get("savefig.transparent", False))
-        metadata = _validate_savefig_mapping(metadata, "metadata")
-        pil_kwargs = _validate_savefig_mapping(pil_kwargs, "pil_kwargs")
-        if metadata:
-            _ignored("savefig(metadata=...)")
-        if pil_kwargs:
-            _ignored("savefig(pil_kwargs=...)")
-        dpi = _validate_dimension(dpi if dpi is not None else (self.dpi or DPI), "dpi")
-        if compression is not None:
-            compression = str(compression).lower()
-            if compression not in _COMPRESSIONS:
-                raise ValueError(
-                    f"unsupported compression: {compression!r} "
-                    "(use 'fast', 'default', or 'best')"
-                )
-        if bbox_inches not in (None, "tight"):
-            raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
-        fmt = _output_format(fname, format)
-        # Matplotlib truncates fractional pixels here (`int(width * dpi)`),
-        # matching its canvas; rounding made 6.4x4.8 in at 72 dpi 461x346
-        # instead of 460x345.
-        rw, rh = (int(v * dpi) for v in self.figsize)
-        if rw < 1 or rh < 1:
-            raise ValueError(f"figure dimensions ({rw}x{rh}) must be at least 1x1 pixels")
-        if rw > _MAX_CANVAS_DIM or rh > _MAX_CANVAS_DIM:
-            raise ValueError(
-                f"figure dimension ({rw}x{rh}) exceeds maximum allowed dimension of {_MAX_CANVAS_DIM}px"
-            )
-        if rw * rh > _MAX_CANVAS_AREA:
-            raise ValueError(
-                f"total figure pixel count ({rw * rh}) exceeds maximum allowed ({_MAX_CANVAS_AREA}px)"
-            )
-        w, h = rw, rh
+        fmt, dpi, transparent, compression = _savefig_request(
+            fname, format, dpi, bbox_inches, transparent, compression,
+            metadata, pil_kwargs, self.dpi or DPI)
+        w, h = _canvas_pixels(self.figsize, dpi)
+        panels = self._render_panels(dpi, transparent)
+        options = self._savefig_options(fmt, dpi, bbox_inches, transparent,
+                                        compression, facecolor, edgecolor)
+        data = self._encode((w, h), panels, options)
+        return _write_output(fname, data)
+
+    def _render_panels(self, dpi, transparent):
+        """Panel payloads for one save, already stamped with the render dpi."""
         panels = [a._panel(dpi) for a in self.axes if a.visible and not a._removed]
         # savefig(dpi=) overrides the figure default, and text sizes scale with it.
         for panel in panels:
@@ -604,7 +582,12 @@ class Figure:
                 panel["facecolor"] = None
         for panel in panels:
             panel["cache_key"] = _panel_cache_key(panel)
-        options = {
+        return panels
+
+    def _savefig_options(self, fmt, dpi, bbox_inches, transparent, compression,
+                         facecolor, edgecolor):
+        """Renderer options for one save; they are part of the cache key."""
+        return {
             "format": fmt,
             "transparent": bool(transparent),
             "tight": bbox_inches == "tight",
@@ -623,31 +606,82 @@ class Figure:
                               e["alpha"], True, e["xo"], e["yo"])
                              for e in self._figure_images],
         }
-        # An unchanged figure reuses its last encoded bytes. The key covers both
-        # the panel payload and every render option, so any edit invalidates it.
+
+    def _encode(self, size, panels, options):
+        """Encode the figure, reusing the last bytes when nothing changed.
+
+        The key covers both the panel payload and every render option, so any
+        edit invalidates it.
+        """
         panel_keys = [panel.get("cache_key", "") for panel in panels]
         try:
             if any(not panel_key for panel_key in panel_keys):
                 raise TypeError("panel data is not hashable")
             hasher = _hashlib.blake2b(digest_size=16)
-            _hash_value(hasher, ((w, h), self.grid, panel_keys, options))
+            _hash_value(hasher, (size, self.grid, panel_keys, options))
             key = hasher.digest()
         except (TypeError, ValueError):
             key = None
         if key is not None and self._render_cache is not None and self._render_cache[0] == key:
-            data = self._render_cache[1]
-        else:
-            data = _render((w, h), self.grid, panels, options)
-            if key is not None:
-                self._render_cache = (key, data)
-        if fname is None:
-            return data
-        if hasattr(fname, "write"):
-            fname.write(data)
-            return None
-        with open(os.fspath(fname), "wb") as fh:
-            fh.write(data)
+            return self._render_cache[1]
+        data = _render(size, self.grid, panels, options)
+        if key is not None:
+            self._render_cache = (key, data)
+        return data
+
+
+def _savefig_request(fname, format, dpi, bbox_inches, transparent, compression,
+                     metadata, pil_kwargs, default_dpi):
+    """Validate savefig's output request: `(fmt, dpi, transparent, compression)`."""
+    if transparent is None:
+        transparent = bool(rcParams.get("savefig.transparent", False))
+    metadata = _validate_savefig_mapping(metadata, "metadata")
+    pil_kwargs = _validate_savefig_mapping(pil_kwargs, "pil_kwargs")
+    if metadata:
+        _ignored("savefig(metadata=...)")
+    if pil_kwargs:
+        _ignored("savefig(pil_kwargs=...)")
+    dpi = _validate_dimension(dpi if dpi is not None else default_dpi, "dpi")
+    if compression is not None:
+        compression = str(compression).lower()
+        if compression not in _COMPRESSIONS:
+            raise ValueError(
+                f"unsupported compression: {compression!r} "
+                "(use 'fast', 'default', or 'best')"
+            )
+    if bbox_inches not in (None, "tight"):
+        raise ValueError(f"unsupported bbox_inches: {bbox_inches!r} (use 'tight')")
+    return _output_format(fname, format), dpi, transparent, compression
+
+
+def _canvas_pixels(figsize, dpi):
+    """Pixel size for `figsize` at `dpi`, with the renderer's canvas limits."""
+    # Matplotlib truncates fractional pixels here (`int(width * dpi)`), matching
+    # its canvas; rounding made 6.4x4.8 in at 72 dpi 461x346 instead of 460x345.
+    rw, rh = (int(v * dpi) for v in figsize)
+    if rw < 1 or rh < 1:
+        raise ValueError(f"figure dimensions ({rw}x{rh}) must be at least 1x1 pixels")
+    if rw > _MAX_CANVAS_DIM or rh > _MAX_CANVAS_DIM:
+        raise ValueError(
+            f"figure dimension ({rw}x{rh}) exceeds maximum allowed dimension of {_MAX_CANVAS_DIM}px"
+        )
+    if rw * rh > _MAX_CANVAS_AREA:
+        raise ValueError(
+            f"total figure pixel count ({rw * rh}) exceeds maximum allowed ({_MAX_CANVAS_AREA}px)"
+        )
+    return rw, rh
+
+
+def _write_output(fname, data):
+    """Return the encoded bytes, or write them to a path or file-like object."""
+    if fname is None:
+        return data
+    if hasattr(fname, "write"):
+        fname.write(data)
         return None
+    with open(os.fspath(fname), "wb") as fh:
+        fh.write(data)
+    return None
 
 
 def _subfigure_array(figure, nrows=1, ncols=1, squeeze=True, bounds=(0.0, 0.0, 1.0, 1.0),

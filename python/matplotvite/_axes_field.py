@@ -211,58 +211,9 @@ class _FieldAxes(_AxesMixinBase):
             handle = Collection(colors=[])
             self.add_collection(handle)
             return handle
-        gridsize = _validate_bins(gridsize, name="gridsize")
-        if isinstance(gridsize, (tuple, list, np.ndarray)):
-            nx, ny = (max(int(v), 1) for v in np.asarray(gridsize).ravel()[:2])
-        else:
-            nx = max(int(gridsize), 1)
-            ny = None
-        if extent is None:
-            extent = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
-        ex0, ex1, ey0, ey1 = (float(v) for v in extent)
-        if ex1 <= ex0:
-            ex0, ex1 = ex0 - 0.5, ex1 + 0.5
-        if ey1 <= ey0:
-            ey0, ey1 = ey0 - 0.5, ey1 + 0.5
-        if ny is None:
-            ny = max(int(nx / np.sqrt(3.0)), 1)
-        ny = max(int(ny), 1)
-        if nx * ny > _MAX_BIN_CELLS // 2:
-            raise ValueError(
-                f"gridsize=({nx}, {ny}) creates too many hexagons "
-                f"({nx * ny} > {_MAX_BIN_CELLS // 2})"
-            )
-        sx = (ex1 - ex0) / nx
-        sy = (ey1 - ey0) / ny
-        nx1, ny1 = nx + 1, ny + 1
-        nx2, ny2 = nx, ny
-        # Two interleaved rectangular grids form a triangular lattice. The
-        # nearest of their centres gives the hexagonal Voronoi cell for a point.
-        centers = np.column_stack([
-            np.concatenate([
-                np.repeat(np.arange(nx1), ny1),
-                np.repeat(np.arange(nx2) + 0.5, ny2),
-            ]) * sx + ex0,
-            np.concatenate([
-                np.tile(np.arange(ny1), nx1),
-                np.tile(np.arange(ny2), nx2) + 0.5,
-            ]) * sy + ey0,
-        ])
-        ix = (x - ex0) / sx
-        iy = (y - ey0) / sy
-        ix1 = np.rint(ix).astype(int)
-        iy1 = np.rint(iy).astype(int)
-        ix2 = np.floor(ix).astype(int)
-        iy2 = np.floor(iy).astype(int)
-        valid1 = (ix1 >= 0) & (ix1 < nx1) & (iy1 >= 0) & (iy1 < ny1)
-        valid2 = (ix2 >= 0) & (ix2 < nx2) & (iy2 >= 0) & (iy2 < ny2)
-        d1 = (ix - ix1) ** 2 + 3.0 * (iy - iy1) ** 2
-        d2 = (ix - ix2 - 0.5) ** 2 + 3.0 * (iy - iy2 - 0.5) ** 2
-        use1 = valid1 & (~valid2 | (d1 <= d2))
-        valid = valid1 | valid2
-        cell = np.where(use1, ix1 * ny1 + iy1, nx1 * ny1 + ix2 * ny2 + iy2)
-        cell = cell[valid]
-        total = nx1 * ny1 + nx2 * ny2
+        nx, ny, ex0, ex1, ey0, ey1 = _hexbin_grid(gridsize, extent, x, y)
+        centers, cell, valid, total, sx, sy = _hexbin_cells(
+            x, y, nx, ny, ex0, ex1, ey0, ey1)
         counts = np.bincount(cell, minlength=total).astype(np.float64)
         if C is None:
             values = counts.copy()
@@ -320,12 +271,8 @@ class _FieldAxes(_AxesMixinBase):
         and draws each streamline as a segment collection so colour can vary
         along the path.
         """
-        if integration_max_step_scale <= 0:
-            raise ValueError("The value of integration_max_step_scale must be > 0")
-        if integration_max_error_scale <= 0:
-            raise ValueError("The value of integration_max_error_scale must be > 0")
-        if integration_direction not in ("forward", "backward", "both"):
-            raise ValueError(f"unsupported integration_direction: {integration_direction!r}")
+        _streamplot_check(integration_direction, integration_max_step_scale,
+                          integration_max_error_scale)
         xs, ys, uu, vv, mask = _streamplot_field(x, y, u, v)
         x0, x1, y0, y1 = xs[0], xs[-1], ys[0], ys[-1]
         dx = abs(xs[1] - xs[0]) if xs.size > 1 else 1.0
@@ -334,72 +281,10 @@ class _FieldAxes(_AxesMixinBase):
         max_distance = float(maxlength) * max(x1 - x0, y1 - y0, 1.0)
         max_steps = min(600, max(10, int(np.ceil(max_distance / max(step, 1e-12)))))
 
-        if start_points is not None:
-            seeds = np.asarray(start_points, dtype=float)
-            if seeds.ndim == 1:
-                seeds = seeds.reshape(1, -1)
-            if seeds.shape[0] == 2 and seeds.shape[1] != 2:
-                seeds = seeds.T
-            seeds = seeds[:, :2]
-        else:
-            dens = _as_f64(density)
-            if dens.size == 1:
-                dens = np.repeat(dens, 2)
-            nx = max(2, int(round((xs.size - 1) / 10.0 * dens[0])))
-            ny = max(2, int(round((ys.size - 1) / 10.0 * dens[1])))
-            seeds = np.array([[sx, sy] for sy in np.linspace(y0, y1, ny)
-                              for sx in np.linspace(x0, x1, nx)])
-
-        sampler = _streamplot_sampler(xs, ys, uu, vv, mask)
-
-        def field(px, py):
-            ux, vy = sampler(px, py)
-            speed = _math.hypot(ux, vy)
-            if not np.isfinite(speed) or speed <= 1e-12:
-                return None
-            return ux / speed, vy / speed
-
-        def advance(px, py, sign):
-            first = field(px, py)
-            if first is None:
-                return None
-            mx = px + sign * step * 0.5 * first[0]
-            my = py + sign * step * 0.5 * first[1]
-            mid = field(mx, my)
-            if mid is None:
-                return None
-            return px + sign * step * mid[0], py + sign * step * mid[1]
-
-        def trace(sx, sy, sign):
-            points = [(float(sx), float(sy))]
-            px, py, travelled = float(sx), float(sy), 0.0
-            for _ in range(max_steps):
-                nxt = advance(px, py, sign)
-                if nxt is None:
-                    break
-                nxv, nyv = nxt
-                if not (x0 - step <= nxv <= x1 + step and y0 - step <= nyv <= y1 + step):
-                    break
-                travelled += _math.hypot(nxv - px, nyv - py)
-                if travelled > max_distance:
-                    break
-                points.append((nxv, nyv))
-                px, py = nxv, nyv
-            return points
-
-        trajectories = []
-        for sx, sy in seeds:
-            if not (x0 <= sx <= x1 and y0 <= sy <= y1):
-                continue
-            if integration_direction == "forward":
-                pts = trace(sx, sy, 1)
-            elif integration_direction == "backward":
-                pts = trace(sx, sy, -1)
-            else:
-                back = trace(sx, sy, -1)[1:]
-                pts = list(reversed(back)) + trace(sx, sy, 1)
-            if len(pts) >= 2:
-                trajectories.append(np.asarray(pts, dtype=float))
+        seeds = _streamplot_seeds(density, start_points, xs, ys, x0, x1, y0, y1)
+        trajectories = _streamplot_trajectories(
+            xs, ys, uu, vv, mask, seeds, integration_direction, step,
+            max_steps, max_distance, x0, x1, y0, y1)
 
         color_values = None
         if color is not None and not isinstance(color, str):
@@ -429,41 +314,9 @@ class _FieldAxes(_AxesMixinBase):
         else:
             line_width = 2.0 if linewidth is None else float(linewidth)
 
-        segments, colors, shown_values = [], [], []
-        arrow_segments, arrow_colors = [], []
-        for pts in trajectories:
-            good = np.isfinite(pts).all(axis=1)
-            pts = pts[good]
-            if len(pts) < 2:
-                continue
-            for i in range(len(pts) - 1):
-                p0, p1 = pts[i], pts[i + 1]
-                if np.allclose(p0, p1):
-                    continue
-                segments.append(np.vstack([p0, p1]).ravel().tolist())
-                mid = (p0 + p1) * 0.5
-                colors.append(color_at(mid[0], mid[1]))
-                if color_values is not None:
-                    shown_values.append(_streamplot_sample(color_values, xs, ys, mid[0], mid[1]))
-            if num_arrows and arrowsize and arrowsize > 1e-3 and len(pts) > 2:
-                count = max(1, int(num_arrows))
-                for idx in np.linspace(1, len(pts) - 1, count, endpoint=False):
-                    i = int(np.clip(round(idx), 1, len(pts) - 1))
-                    tip = pts[i]
-                    direction = pts[i] - pts[i - 1]
-                    norm = _math.hypot(direction[0], direction[1])
-                    if not norm:
-                        continue
-                    direction = direction / norm
-                    normal = np.array([-direction[1], direction[0]])
-                    size = 0.45 * min(dx, dy)
-                    left = tip - direction * size + normal * size * 0.45
-                    right = tip - direction * size - normal * size * 0.45
-                    arrow_segments.append(np.vstack([left, tip, right]).ravel().tolist())
-                    arrow_colors.append(color_at(tip[0], tip[1]))
-
-        segments.extend(arrow_segments)
-        colors.extend(arrow_colors)
+        segments, colors, shown_values = _streamplot_segments(
+            trajectories, color_at, dx, dy, num_arrows, arrowsize,
+            color_values, xs, ys)
         lines = LineCollection(segments, colors=colors, linewidths=line_width,
                                label=kwargs.get("label", ""))
         lines.axes = self  # type: ignore[attr-defined]
@@ -724,6 +577,191 @@ class _FieldAxes(_AxesMixinBase):
                      alpha=float(np.clip(opacity, 0.0, 1.0)))
         self.contours.append(entry)
         return ContourSet(entry, axes=self)
+
+
+def _hexbin_grid(gridsize, extent, x, y):
+    """Validated `(nx, ny, ex0, ex1, ey0, ey1)` of one hexbin call."""
+    gridsize = _validate_bins(gridsize, name="gridsize")
+    if isinstance(gridsize, (tuple, list, np.ndarray)):
+        nx, ny = (max(int(v), 1) for v in np.asarray(gridsize).ravel()[:2])
+    else:
+        nx = max(int(gridsize), 1)
+        ny = None
+    if extent is None:
+        extent = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
+    ex0, ex1, ey0, ey1 = (float(v) for v in extent)
+    if ex1 <= ex0:
+        ex0, ex1 = ex0 - 0.5, ex1 + 0.5
+    if ey1 <= ey0:
+        ey0, ey1 = ey0 - 0.5, ey1 + 0.5
+    if ny is None:
+        ny = max(int(nx / np.sqrt(3.0)), 1)
+    ny = max(int(ny), 1)
+    if nx * ny > _MAX_BIN_CELLS // 2:
+        raise ValueError(
+            f"gridsize=({nx}, {ny}) creates too many hexagons "
+            f"({nx * ny} > {_MAX_BIN_CELLS // 2})"
+        )
+    return nx, ny, ex0, ex1, ey0, ey1
+
+
+def _hexbin_cells(x, y, nx, ny, ex0, ex1, ey0, ey1):
+    """Lattice centres, occupied cells and cell size of a hexbin grid."""
+    sx = (ex1 - ex0) / nx
+    sy = (ey1 - ey0) / ny
+    nx1, ny1 = nx + 1, ny + 1
+    nx2, ny2 = nx, ny
+    # Two interleaved rectangular grids form a triangular lattice. The
+    # nearest of their centres gives the hexagonal Voronoi cell for a point.
+    centers = np.column_stack([
+        np.concatenate([
+            np.repeat(np.arange(nx1), ny1),
+            np.repeat(np.arange(nx2) + 0.5, ny2),
+        ]) * sx + ex0,
+        np.concatenate([
+            np.tile(np.arange(ny1), nx1),
+            np.tile(np.arange(ny2), nx2) + 0.5,
+        ]) * sy + ey0,
+    ])
+    ix = (x - ex0) / sx
+    iy = (y - ey0) / sy
+    ix1 = np.rint(ix).astype(int)
+    iy1 = np.rint(iy).astype(int)
+    ix2 = np.floor(ix).astype(int)
+    iy2 = np.floor(iy).astype(int)
+    valid1 = (ix1 >= 0) & (ix1 < nx1) & (iy1 >= 0) & (iy1 < ny1)
+    valid2 = (ix2 >= 0) & (ix2 < nx2) & (iy2 >= 0) & (iy2 < ny2)
+    d1 = (ix - ix1) ** 2 + 3.0 * (iy - iy1) ** 2
+    d2 = (ix - ix2 - 0.5) ** 2 + 3.0 * (iy - iy2 - 0.5) ** 2
+    use1 = valid1 & (~valid2 | (d1 <= d2))
+    valid = valid1 | valid2
+    cell = np.where(use1, ix1 * ny1 + iy1, nx1 * ny1 + ix2 * ny2 + iy2)
+    return centers, cell[valid], valid, nx1 * ny1 + nx2 * ny2, sx, sy
+
+
+def _streamplot_check(direction, max_step_scale, max_error_scale):
+    """Validate the streamplot integration options."""
+    if max_step_scale <= 0:
+        raise ValueError("The value of integration_max_step_scale must be > 0")
+    if max_error_scale <= 0:
+        raise ValueError("The value of integration_max_error_scale must be > 0")
+    if direction not in ("forward", "backward", "both"):
+        raise ValueError(f"unsupported integration_direction: {direction!r}")
+
+
+def _streamplot_seeds(density, start_points, xs, ys, x0, x1, y0, y1):
+    """The seed points streamlines start from: explicit or a regular grid."""
+    if start_points is not None:
+        seeds = np.asarray(start_points, dtype=float)
+        if seeds.ndim == 1:
+            seeds = seeds.reshape(1, -1)
+        if seeds.shape[0] == 2 and seeds.shape[1] != 2:
+            seeds = seeds.T
+        return seeds[:, :2]
+    dens = _as_f64(density)
+    if dens.size == 1:
+        dens = np.repeat(dens, 2)
+    nx = max(2, int(round((xs.size - 1) / 10.0 * dens[0])))
+    ny = max(2, int(round((ys.size - 1) / 10.0 * dens[1])))
+    return np.array([[sx, sy] for sy in np.linspace(y0, y1, ny)
+                     for sx in np.linspace(x0, x1, nx)])
+
+
+def _streamplot_trajectories(xs, ys, uu, vv, mask, seeds, direction, step,
+                             max_steps, max_distance, x0, x1, y0, y1):
+    """Integrate the normalised field from every seed inside the grid."""
+    sampler = _streamplot_sampler(xs, ys, uu, vv, mask)
+
+    def field(px, py):
+        ux, vy = sampler(px, py)
+        speed = _math.hypot(ux, vy)
+        if not np.isfinite(speed) or speed <= 1e-12:
+            return None
+        return ux / speed, vy / speed
+
+    def advance(px, py, sign):
+        first = field(px, py)
+        if first is None:
+            return None
+        mx = px + sign * step * 0.5 * first[0]
+        my = py + sign * step * 0.5 * first[1]
+        mid = field(mx, my)
+        if mid is None:
+            return None
+        return px + sign * step * mid[0], py + sign * step * mid[1]
+
+    def trace(sx, sy, sign):
+        points = [(float(sx), float(sy))]
+        px, py, travelled = float(sx), float(sy), 0.0
+        for _ in range(max_steps):
+            nxt = advance(px, py, sign)
+            if nxt is None:
+                break
+            nxv, nyv = nxt
+            if not (x0 - step <= nxv <= x1 + step and y0 - step <= nyv <= y1 + step):
+                break
+            travelled += _math.hypot(nxv - px, nyv - py)
+            if travelled > max_distance:
+                break
+            points.append((nxv, nyv))
+            px, py = nxv, nyv
+        return points
+
+    trajectories = []
+    for sx, sy in seeds:
+        if not (x0 <= sx <= x1 and y0 <= sy <= y1):
+            continue
+        if direction == "forward":
+            pts = trace(sx, sy, 1)
+        elif direction == "backward":
+            pts = trace(sx, sy, -1)
+        else:
+            back = trace(sx, sy, -1)[1:]
+            pts = list(reversed(back)) + trace(sx, sy, 1)
+        if len(pts) >= 2:
+            trajectories.append(np.asarray(pts, dtype=float))
+    return trajectories
+
+
+def _streamplot_segments(trajectories, color_at, dx, dy, num_arrows, arrowsize,
+                         color_values, xs, ys):
+    """Line segments, their colours, arrow segments and sampled field values."""
+    segments, colors, shown_values = [], [], []
+    arrow_segments, arrow_colors = [], []
+    for pts in trajectories:
+        good = np.isfinite(pts).all(axis=1)
+        pts = pts[good]
+        if len(pts) < 2:
+            continue
+        for i in range(len(pts) - 1):
+            p0, p1 = pts[i], pts[i + 1]
+            if np.allclose(p0, p1):
+                continue
+            segments.append(np.vstack([p0, p1]).ravel().tolist())
+            mid = (p0 + p1) * 0.5
+            colors.append(color_at(mid[0], mid[1]))
+            if color_values is not None:
+                shown_values.append(_streamplot_sample(color_values, xs, ys, mid[0], mid[1]))
+        if num_arrows and arrowsize and arrowsize > 1e-3 and len(pts) > 2:
+            count = max(1, int(num_arrows))
+            for idx in np.linspace(1, len(pts) - 1, count, endpoint=False):
+                i = int(np.clip(round(idx), 1, len(pts) - 1))
+                tip = pts[i]
+                direction = pts[i] - pts[i - 1]
+                norm = _math.hypot(direction[0], direction[1])
+                if not norm:
+                    continue
+                direction = direction / norm
+                normal = np.array([-direction[1], direction[0]])
+                size = 0.45 * min(dx, dy)
+                left = tip - direction * size + normal * size * 0.45
+                right = tip - direction * size - normal * size * 0.45
+                arrow_segments.append(np.vstack([left, tip, right]).ravel().tolist())
+                arrow_colors.append(color_at(tip[0], tip[1]))
+
+    segments.extend(arrow_segments)
+    colors.extend(arrow_colors)
+    return segments, colors, shown_values
 
 
 # Bound by `_plotting` once every module is imported: importing

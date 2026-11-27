@@ -36,37 +36,10 @@ class _StatsAxes(_AxesMixinBase):
         wid = _fill(0.5 if widths is None else widths, n)
         # Matplotlib's caps are half the box width unless `capwidths` says otherwise.
         cap = _fill([0.5 * v for v in wid] if capwidths is None else capwidths, n)
-        box_style = dict(boxprops or {})
-        median_style = dict(medianprops or {})
-        whisker_style = dict(whiskerprops or {})
-        cap_style = dict(capprops or {})
-        flier_style = dict(flierprops or {})
-        mean_style = dict(meanprops or {})
-        box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
-        box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
-        box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.0)
-        median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
-        median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
-        whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
-        whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
-        cap_color = _single_color(cap_style.get("color", cap_style.get("c")), "black")
-        cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.0)
-        mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
-        # `sym=None` means matplotlib's default flier (`o`); only an explicit
-        # empty string (`sym=""`) hides the outliers.
-        flier_format = "o" if sym is None else str(sym)
-        parsed_color, _, parsed_marker = _stem_fmt(flier_format, None)
-        flier_edge = _single_color(
-            flier_style.get("markeredgecolor", flier_style.get("mec",
-                             flier_style.get("color", flier_style.get("c")))),
-            parsed_color or "black")
-        flier_face = _single_color(
-            flier_style.get("markerfacecolor", flier_style.get("mfc")),
-            parsed_color or "none")
-        flier_marker = str(flier_style.get("marker", parsed_marker or "o"))
-        flier_width = _number(
-            flier_style.get("markeredgewidth", flier_style.get("mew")), 1.0)
-        flier_size = _number(flier_style.get("markersize", flier_style.get("ms")), 8.0)
+        (box_color, box_edge, box_width, box_alpha, median_color, median_width,
+         whisker_color, whisker_width, cap_color, cap_width, mean_color, flier_format,
+         flier_marker, flier_face, flier_edge, flier_width, flier_size) = _box_style(
+            boxprops, medianprops, whiskerprops, capprops, flierprops, meanprops, sym)
         draw_caps = True if showcaps is None else bool(showcaps)
         draw_box = True if showbox is None else bool(showbox)
         draw_fliers = True if showfliers is None else bool(showfliers)
@@ -78,19 +51,7 @@ class _StatsAxes(_AxesMixinBase):
             vals = vals[np.isfinite(vals)]
             if vals.size == 0:
                 raise ValueError("boxplot datasets must not be empty")
-            q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
-            iqr = q3 - q1
-            if autorange:
-                lo, hi = float(vals.min()), float(vals.max())
-            elif isinstance(whis, (tuple, list)):
-                lo = float(np.percentile(vals, float(whis[0])))
-                hi = float(np.percentile(vals, float(whis[1])))
-            else:
-                bound = 1.5 if whis is None else float(whis)
-                low_bound, high_bound = q1 - bound * iqr, q3 + bound * iqr
-                inside = vals[(vals >= low_bound) & (vals <= high_bound)]
-                lo, hi = (float(inside.min()), float(inside.max())) if inside.size else (q1, q3)
-            fliers = vals[(vals < lo) | (vals > hi)]
+            q1, med, q3, lo, hi, fliers, mean, iqr = _box_stats(vals, whis, autorange)
             loc, half = float(pos[i]), float(wid[i]) / 2.0
             if draw_box:
                 if notch:
@@ -108,7 +69,7 @@ class _StatsAxes(_AxesMixinBase):
                               loc + inner, loc + inner, loc + half, loc + half, loc - half]
                         xs = [q1, nlo, nlo, nhi, nhi, q3, q3, nhi, nhi, nlo, nlo, q1, q1]
                     if patch_artist:
-                        self._append_band(_band(xs, ys, box_color, box_style.get("alpha")))
+                        self._append_band(_band(xs, ys, box_color, box_alpha))
                     entry = _series(xs, ys, "", box_edge, linewidth=box_width)
                     self._append_series(entry)
                     out["boxes"].append(_LineHandle(entry, box_color if patch_artist else "none"))
@@ -145,7 +106,6 @@ class _StatsAxes(_AxesMixinBase):
                             [x1, x1], [loc - cap[i] / 2.0, loc + cap[i] / 2.0],
                             cap_color, cap_width))
             if showmeans:
-                mean = float(vals.mean())
                 if orientation == "vertical":
                     out["means"].append(self._stats_line(
                         [loc - half, loc + half], [mean, mean], mean_color))
@@ -207,11 +167,7 @@ class _StatsAxes(_AxesMixinBase):
         flier_marker = str(flier_style.get("marker", "o"))
         out = dict(boxes=[], medians=[], whiskers=[], caps=[], fliers=[], means=[])  # type: ignore[var-annotated]
         for i, stat in enumerate(stats):
-            q1 = float(stat.get("q1", 0.0))
-            q3 = float(stat.get("q3", q1))
-            med = float(stat.get("med", 0.5 * (q1 + q3)))
-            lo = float(stat.get("whislo", q1))
-            hi = float(stat.get("whishi", q3))
+            q1, q3, med, lo, hi = _bxp_fields(stat)
             loc, half = float(pos[i]), float(wid[i]) / 2.0
             cap_half = half / 2.0
             if showbox:
@@ -326,29 +282,8 @@ class _StatsAxes(_AxesMixinBase):
             if vals.size == 0:
                 raise ValueError("violinplot datasets must not be empty")
             grid, density = _kde(vals, points, bw_method)
-            peak = float(density.max())
-            if not np.isfinite(peak) or peak <= 0.0:
-                peak = 1.0
             loc, half = float(pos[i]), float(wid[i]) / 2.0
-            scale = half / peak
-            if orientation == "vertical":
-                if side == "both":
-                    xs = np.concatenate([loc + density * scale,
-                                         (loc - density * scale)[::-1]])
-                    ys = np.concatenate([grid, grid[::-1]])
-                else:
-                    sign = -1.0 if side in ("left", "low") else 1.0
-                    xs = np.concatenate([[loc], loc + sign * density * scale, [loc]])
-                    ys = np.concatenate([[grid[0]], grid, [grid[-1]]])
-            else:
-                if side == "both":
-                    ys = np.concatenate([loc + density * scale,
-                                         (loc - density * scale)[::-1]])
-                    xs = np.concatenate([grid, grid[::-1]])
-                else:
-                    sign = -1.0 if side in ("left", "low") else 1.0
-                    ys = np.concatenate([[loc], loc + sign * density * scale, [loc]])
-                    xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
+            xs, ys = _violinplot_outline(grid, density, loc, half, orientation, side)
             color = colors[i] if i < len(colors) else colors[0]
             entry = _band(xs, ys, color, body_alpha)
             self._append_band(entry)
@@ -410,43 +345,12 @@ class _StatsAxes(_AxesMixinBase):
         if side not in ("both", "low", "high"):
             raise ValueError(f"unsupported side: {side!r}")
         stats = list(vpstats)
-        n = len(stats)
-        message = "List of violinplot statistics and `%s` values must have the same length"
-        if positions is None:
-            positions = list(range(1, n + 1))
-        elif len(positions) != n:
-            raise ValueError(message % "positions")
-        if np.isscalar(widths):
-            widths = [widths] * n
-        elif len(widths) != n:
-            raise ValueError(message % "widths")
-        if n:
-            pos0, width0 = positions[0], widths[0]
-            if isinstance(pos0, np.datetime64):
-                if not isinstance(width0, np.timedelta64):
-                    raise TypeError(
-                        "np.datetime64 'position' values require np.timedelta64 'widths'")
-            elif (isinstance(pos0, (_datetime.datetime, _datetime.date))
-                  and not isinstance(width0, _datetime.timedelta)):
-                raise TypeError(
-                    "datetime/date 'position' values require timedelta 'widths'")
-        if n and isinstance(positions[0], (np.datetime64, _datetime.datetime,
-                                           _datetime.date)):
-            pos_num = np.atleast_1d(_date_to_num(positions)).astype(float)
-            width_num = np.asarray([
-                (w / np.timedelta64(1, "D"))
-                if isinstance(w, np.timedelta64) else w.total_seconds() / 86400.0
-                for w in widths], dtype=float)
-        else:
-            pos_num = np.asarray(positions, dtype=float)
-            width_num = np.asarray(widths, dtype=float)
+        pos_num, width_num = _violin_axes(stats, positions, widths)
 
         facecolors = _colors(facecolor) if facecolor is not None else [self._next_color()]
         body_alpha = None if facecolor is not None else 0.3
         linecolors = _colors(linecolor) if linecolor is not None else list(facecolors)
-        line_ends = np.array([[-0.25 if side in ("both", "low") else 0.0],
-                              [0.25 if side in ("both", "high") else 0.0]]) \
-            * width_num + pos_num
+        line_ends = _violin_line_ends(pos_num, width_num, side)
         horizontal = orientation == "horizontal"
 
         def number(value):
@@ -503,6 +407,143 @@ class _StatsAxes(_AxesMixinBase):
         if quantile_lines:
             out["cquantiles"] = quantile_lines
         return out
+
+
+def _box_stats(vals, whis, autorange):
+    """Quartiles, whisker ends, outliers and mean of one boxplot dataset."""
+    q1, med, q3 = (float(v) for v in np.percentile(vals, [25.0, 50.0, 75.0]))
+    iqr = q3 - q1
+    if autorange:
+        lo, hi = float(vals.min()), float(vals.max())
+    elif isinstance(whis, (tuple, list)):
+        lo = float(np.percentile(vals, float(whis[0])))
+        hi = float(np.percentile(vals, float(whis[1])))
+    else:
+        bound = 1.5 if whis is None else float(whis)
+        low_bound, high_bound = q1 - bound * iqr, q3 + bound * iqr
+        inside = vals[(vals >= low_bound) & (vals <= high_bound)]
+        lo, hi = (float(inside.min()), float(inside.max())) if inside.size else (q1, q3)
+    fliers = vals[(vals < lo) | (vals > hi)]
+    return q1, med, q3, lo, hi, fliers, float(vals.mean()), iqr
+
+
+def _bxp_fields(stat):
+    """Quartiles and whisker ends from one `cbook.boxplot_stats` entry."""
+    q1 = float(stat.get("q1", 0.0))
+    q3 = float(stat.get("q3", q1))
+    med = float(stat.get("med", 0.5 * (q1 + q3)))
+    lo = float(stat.get("whislo", q1))
+    hi = float(stat.get("whishi", q3))
+    return q1, q3, med, lo, hi
+
+
+def _box_style(boxprops, medianprops, whiskerprops, capprops, flierprops,
+               meanprops, sym):
+    """Parsed box, median, whisker, cap, flier and mean styles."""
+    box_style = dict(boxprops or {})
+    median_style = dict(medianprops or {})
+    whisker_style = dict(whiskerprops or {})
+    cap_style = dict(capprops or {})
+    flier_style = dict(flierprops or {})
+    mean_style = dict(meanprops or {})
+    box_color = _single_color(box_style.get("color", box_style.get("c")), _CYCLE[0])
+    box_edge = _single_color(box_style.get("edgecolor", box_style.get("ec")), "black")
+    box_width = _number(box_style.get("linewidth", box_style.get("lw")), 1.0)
+    median_color = _single_color(median_style.get("color", median_style.get("c")), _CYCLE[1])
+    median_width = _number(median_style.get("linewidth", median_style.get("lw")), 1.5)
+    whisker_color = _single_color(whisker_style.get("color", whisker_style.get("c")), "black")
+    whisker_width = _number(whisker_style.get("linewidth", whisker_style.get("lw")), 1.0)
+    cap_color = _single_color(cap_style.get("color", cap_style.get("c")), "black")
+    cap_width = _number(cap_style.get("linewidth", cap_style.get("lw")), 1.0)
+    mean_color = _single_color(mean_style.get("color", mean_style.get("c")), _CYCLE[2])
+    # `sym=None` means matplotlib's default flier (`o`); only an explicit
+    # empty string (`sym=""`) hides the outliers.
+    flier_format = "o" if sym is None else str(sym)
+    parsed_color, _, parsed_marker = _stem_fmt(flier_format, None)
+    flier_edge = _single_color(
+        flier_style.get("markeredgecolor", flier_style.get("mec",
+                         flier_style.get("color", flier_style.get("c")))),
+        parsed_color or "black")
+    flier_face = _single_color(
+        flier_style.get("markerfacecolor", flier_style.get("mfc")),
+        parsed_color or "none")
+    flier_marker = str(flier_style.get("marker", parsed_marker or "o"))
+    flier_width = _number(
+        flier_style.get("markeredgewidth", flier_style.get("mew")), 1.0)
+    flier_size = _number(flier_style.get("markersize", flier_style.get("ms")), 8.0)
+    return (box_color, box_edge, box_width, box_style.get("alpha"), median_color,
+            median_width, whisker_color, whisker_width, cap_color, cap_width,
+            mean_color, flier_format, flier_marker, flier_face, flier_edge,
+            flier_width, flier_size)
+
+
+def _violin_axes(stats, positions, widths):
+    """Validated numeric `(positions, widths)` of one `Axes.violin` call."""
+    n = len(stats)
+    message = "List of violinplot statistics and `%s` values must have the same length"
+    if positions is None:
+        positions = list(range(1, n + 1))
+    elif len(positions) != n:
+        raise ValueError(message % "positions")
+    if np.isscalar(widths):
+        widths = [widths] * n
+    elif len(widths) != n:
+        raise ValueError(message % "widths")
+    if n:
+        pos0, width0 = positions[0], widths[0]
+        if isinstance(pos0, np.datetime64):
+            if not isinstance(width0, np.timedelta64):
+                raise TypeError(
+                    "np.datetime64 'position' values require np.timedelta64 'widths'")
+        elif (isinstance(pos0, (_datetime.datetime, _datetime.date))
+              and not isinstance(width0, _datetime.timedelta)):
+            raise TypeError(
+                "datetime/date 'position' values require timedelta 'widths'")
+    if n and isinstance(positions[0], (np.datetime64, _datetime.datetime,
+                                       _datetime.date)):
+        pos_num = np.atleast_1d(_date_to_num(positions)).astype(float)
+        width_num = np.asarray([
+            (w / np.timedelta64(1, "D"))
+            if isinstance(w, np.timedelta64) else w.total_seconds() / 86400.0
+            for w in widths], dtype=float)
+    else:
+        pos_num = np.asarray(positions, dtype=float)
+        width_num = np.asarray(widths, dtype=float)
+    return pos_num, width_num
+
+
+def _violin_line_ends(pos_num, width_num, side):
+    """Start and end of the extrema lines drawn across each violin."""
+    return np.array([[-0.25 if side in ("both", "low") else 0.0],
+                     [0.25 if side in ("both", "high") else 0.0]]) \
+        * width_num + pos_num
+
+
+def _violinplot_outline(grid, density, pos, half, orientation, side):
+    """`(x, y)` outline of one KDE violin, scaled to `half` its width."""
+    peak = float(density.max())
+    if not np.isfinite(peak) or peak <= 0.0:
+        peak = 1.0
+    scale = half / peak
+    if orientation == "vertical":
+        if side == "both":
+            xs = np.concatenate([pos + density * scale,
+                                 (pos - density * scale)[::-1]])
+            ys = np.concatenate([grid, grid[::-1]])
+        else:
+            sign = -1.0 if side in ("left", "low") else 1.0
+            xs = np.concatenate([[pos], pos + sign * density * scale, [pos]])
+            ys = np.concatenate([[grid[0]], grid, [grid[-1]]])
+    else:
+        if side == "both":
+            ys = np.concatenate([pos + density * scale,
+                                 (pos - density * scale)[::-1]])
+            xs = np.concatenate([grid, grid[::-1]])
+        else:
+            sign = -1.0 if side in ("left", "low") else 1.0
+            ys = np.concatenate([[pos], pos + sign * density * scale, [pos]])
+            xs = np.concatenate([[grid[0]], grid, [grid[-1]]])
+    return xs, ys
 
 
 # Bound by `_plotting` once every module is imported: importing

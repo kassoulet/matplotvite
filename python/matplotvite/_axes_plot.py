@@ -367,19 +367,7 @@ class _PlotAxes(_AxesMixinBase):
         if data is not None and isinstance(x, str):
             x = data[x]
         bins = _validate_bins(bins)
-        datasets = None
-        if isinstance(x, (list, tuple)) and x:
-            try:
-                candidate = np.asarray(x, dtype=np.float64)
-                if candidate.ndim == 2:
-                    datasets = list(candidate)
-                elif candidate.ndim == 1:
-                    datasets = [candidate]
-            except (TypeError, ValueError):
-                # Ragged sample sizes are the usual multi-histogram input.
-                datasets = [_as_f64(item) for item in x]
-        elif isinstance(x, np.ndarray) and x.ndim == 2:
-            datasets = list(x)
+        datasets = _hist_datasets(x)
         if datasets is not None and len(datasets) > 1 and not stacked:
             # Overlaid histograms: one pass per data set, as Matplotlib draws them.
             counts_list, handles = [], []
@@ -406,8 +394,7 @@ class _PlotAxes(_AxesMixinBase):
                     count = np.cumsum(count)
                 counts_list.append(np.asarray(count, dtype=np.float64))
             widths = np.diff(edges)
-            bar_align = "edge" if align in ("left", "edge") else "center"
-            centers = edges[:-1] if bar_align == "edge" else (edges[:-1] + edges[1:]) / 2.0
+            bar_align, centers = _hist_centers(edges, align)
             handles = []
             running = np.zeros(counts_list[0].size)
             for i, count in enumerate(counts_list):
@@ -425,8 +412,7 @@ class _PlotAxes(_AxesMixinBase):
                 elif orientation != "vertical":
                     raise NotImplementedError("stacked hist steps need orientation='vertical'")
                 else:
-                    sx = np.empty(2 * count.size)
-                    sx[0::2], sx[1::2] = edges[:-1], edges[1:]
+                    sx = _hist_step_x(edges, count.size)
                     if histtype == "stepfilled":
                         self.fill_between(sx, np.repeat(running, 2),
                                           np.repeat(running + count, 2),
@@ -443,11 +429,7 @@ class _PlotAxes(_AxesMixinBase):
             counts = np.cumsum(counts)
         widths = np.diff(edges)
         base = np.zeros(counts.size) if bottom is None else _fill(bottom, counts.size)
-        bar_align = "edge" if align in ("left", "edge") else "center"
-        if bar_align == "edge":
-            centers = edges[:-1]
-        else:
-            centers = (edges[:-1] + edges[1:]) / 2.0
+        bar_align, centers = _hist_centers(edges, align)
         lab = "" if label is None else str(label)
         if histtype == "bar":
             if orientation == "horizontal":
@@ -462,9 +444,7 @@ class _PlotAxes(_AxesMixinBase):
                 raise ValueError(f"unsupported orientation: {orientation!r}")
             return np.asarray(counts, dtype=np.float64), edges, handles
         if orientation == "horizontal":
-            sx = np.repeat(counts, 2)
-            sy = np.empty(2 * counts.size)
-            sy[0::2], sy[1::2] = edges[:-1], edges[1:]
+            sx, sy = _hist_steps_horizontal(edges, counts)
             if histtype == "stepfilled":
                 self.fill_betweenx(sy, np.repeat(base, 2), sx,
                                    color=color, alpha=alpha)
@@ -472,10 +452,7 @@ class _PlotAxes(_AxesMixinBase):
             return np.asarray(counts, dtype=np.float64), edges, handles
         if orientation != "vertical":
             raise ValueError(f"unsupported orientation: {orientation!r}")
-        sx = np.empty(2 * counts.size)
-        sy = np.empty(2 * counts.size)
-        sx[0::2], sx[1::2] = edges[:-1], edges[1:]
-        sy[0::2], sy[1::2] = counts, counts
+        sx, sy = _hist_steps(edges, counts)
         if histtype == "stepfilled":
             self.fill_between(sx, sy, np.repeat(base, 2), color=color, alpha=alpha)
         handles = self.plot(sx, sy, color=color, label=lab)
@@ -1027,6 +1004,56 @@ class _PlotAxes(_AxesMixinBase):
             self.plot(xs, ys, color=edge, alpha=alpha, label="",
                       linewidth=linewidth if linewidth is not None else 1.0)
         return None
+
+
+def _hist_datasets(x):
+    """The per-dataset arrays of a multi-histogram call, or `None`."""
+    if isinstance(x, (list, tuple)) and x:
+        try:
+            candidate = np.asarray(x, dtype=np.float64)
+            if candidate.ndim == 2:
+                return list(candidate)
+            if candidate.ndim == 1:
+                return [candidate]
+        except (TypeError, ValueError):
+            # Ragged sample sizes are the usual multi-histogram input.
+            return [_as_f64(item) for item in x]
+    elif isinstance(x, np.ndarray) and x.ndim == 2:
+        return list(x)
+    return None
+
+
+def _hist_centers(edges, align):
+    """`(bar_align, centers)` for a histogram's bin edges."""
+    bar_align = "edge" if align in ("left", "edge") else "center"
+    if bar_align == "edge":
+        centers = edges[:-1]
+    else:
+        centers = (edges[:-1] + edges[1:]) / 2.0
+    return bar_align, centers
+
+
+def _hist_step_x(edges, count):
+    """Staircase x coordinates with one repeated edge per bin."""
+    sx = np.empty(2 * count)
+    sx[0::2], sx[1::2] = edges[:-1], edges[1:]
+    return sx
+
+
+def _hist_steps(edges, counts):
+    """`(x, y)` staircase of a vertical step histogram."""
+    sx = _hist_step_x(edges, counts.size)
+    sy = np.empty(2 * counts.size)
+    sy[0::2], sy[1::2] = counts, counts
+    return sx, sy
+
+
+def _hist_steps_horizontal(edges, counts):
+    """`(x, y)` staircase of a horizontal step histogram."""
+    sx = np.repeat(counts, 2)
+    sy = np.empty(2 * counts.size)
+    sy[0::2], sy[1::2] = edges[:-1], edges[1:]
+    return sx, sy
 
 
 # Bound by `_plotting` once every module is imported: importing
