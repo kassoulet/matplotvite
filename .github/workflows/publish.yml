@@ -47,15 +47,17 @@ jobs:
           project = load("pyproject.toml")["project"]
           if "version" in project or project.get("dynamic") != ["version"]:
               sys.exit("pyproject.toml must declare dynamic = [\"version\"] and no static version")
-          cargo = load("Cargo.toml")["package"]
+          # The workspace owns the version; maturin builds the extension crate.
+          workspace_version = load("Cargo.toml")["workspace"]["package"]["version"]
+          crate = "matplotvite-py"
           locked = next(
-              (item["version"] for item in load("Cargo.lock")["package"] if item["name"] == cargo["name"]),
+              (item["version"] for item in load("Cargo.lock")["package"] if item["name"] == crate),
               None,
           )
           if locked is None:
-              sys.exit(f"{cargo['name']} is missing from Cargo.lock")
+              sys.exit(f"{crate} is missing from Cargo.lock")
           versions = {
-              "Cargo.toml": cargo["version"],
+              "Cargo.toml": workspace_version,
               "Cargo.lock": locked,
           }
           mismatched = {path: version for path, version in versions.items() if version != wanted}
