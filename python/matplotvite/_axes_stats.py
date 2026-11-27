@@ -6,6 +6,7 @@ import numpy as np
 
 from ._axes_plot import _AxesMixinBase
 from ._containers import _LineHandle, _number, _single_color, _ViolinBody
+from ._core import violin_outline as _violin_outline_core
 from ._helpers import _CYCLE, _date_to_num, _datetime_to_num, _looks_like_dates
 
 
@@ -468,32 +469,13 @@ class _StatsAxes(_AxesMixinBase):
             else:
                 coords = _as_f64(coords)
             vals = _as_f64(stat["vals"])
-            if vals.size != coords.size:
-                raise ValueError("violin `coords` and `vals` must have the same length")
-            if vals.size and vals.max() > 0.0:
-                vals = 0.5 * width_num[i] * vals / vals.max()
             pos = float(pos_num[i])
             color = facecolors[i] if i < len(facecolors) else facecolors[0]
             line_color = linecolors[i] if i < len(linecolors) else linecolors[0]
-            if coords.size:
-                if horizontal:
-                    xs = np.concatenate([coords, coords[::-1]])
-                    ys = np.concatenate([pos - vals, (pos + vals)[::-1]])
-                    if side == "low":
-                        xs = np.concatenate([[coords[0]], coords, [coords[-1]]])
-                        ys = np.concatenate([[pos], pos - vals, [pos]])
-                    elif side == "high":
-                        xs = np.concatenate([[coords[0]], coords, [coords[-1]]])
-                        ys = np.concatenate([[pos], pos + vals, [pos]])
-                else:
-                    xs = np.concatenate([pos - vals, (pos + vals)[::-1]])
-                    ys = np.concatenate([coords, coords[::-1]])
-                    if side == "low":
-                        xs = np.concatenate([[pos], pos - vals, [pos]])
-                        ys = np.concatenate([[coords[0]], coords, [coords[-1]]])
-                    elif side == "high":
-                        xs = np.concatenate([[pos], pos + vals, [pos]])
-                        ys = np.concatenate([[coords[0]], coords, [coords[-1]]])
+            if coords.size or vals.size:
+                xs, ys = _violin_outline_core(
+                    np.atleast_1d(coords), np.atleast_1d(vals), pos,
+                    float(width_num[i]), horizontal, side)
                 entry = _band(xs, ys, color, body_alpha)
                 self._append_band(entry)
                 out["bodies"].append(_ViolinBody(entry, color))

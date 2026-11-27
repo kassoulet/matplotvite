@@ -26,6 +26,9 @@ from ._core import (
     colormaps as _colormaps,
 )
 from ._core import (
+    margin_pad as _margin_pad_core,
+)
+from ._core import (
     register_colormap as _register_colormap,
 )
 
@@ -1184,7 +1187,7 @@ def _margin(lo, hi, scale, sticky=(), fraction=0.05):
     f = np.log10 if scale == "log" else float
     lo, hi = f(lo), f(hi)
     sticky = [f(e) for e in sticky if e > 0 or scale != "log"]
-    pad = (hi - lo) * float(fraction)
+    pad = _margin_pad_core(lo, hi, float(fraction))
     plo, phi = lo - pad, hi + pad
     below = [e for e in sticky if plo < e <= lo]
     above = [e for e in sticky if hi <= e < phi]

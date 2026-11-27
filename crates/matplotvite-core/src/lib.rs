@@ -13,6 +13,7 @@ pub mod model;
 mod raster;
 pub mod render;
 pub mod scale;
+pub mod stats;
 
 #[cfg(feature = "python")]
 mod model_py;

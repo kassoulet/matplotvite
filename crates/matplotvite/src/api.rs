@@ -18,6 +18,7 @@ use matplotvite_core::model::{
     OwnedArray2, OwnedArrayD, Panel, QuiverUnits, RenderOptions, Scatter, Series, TickStyle,
 };
 use matplotvite_core::render::render_figure;
+use matplotvite_core::stats as stats_core;
 
 const COLORS: [&str; 10] = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f",
@@ -485,50 +486,33 @@ impl Axes<'_> {
     /// bodies in one call share the next cycle colour, like Matplotlib.
     pub fn violin(&mut self, stats: &[ViolinStat]) -> Result<&mut Self, ApiError> {
         for stat in stats {
-            if stat.coords.is_empty() || stat.coords.len() != stat.vals.len() {
+            if stat.coords.is_empty() {
                 return Err(ApiError::InvalidArgument(
-                    "violin coords and vals must be non-empty and the same length".into(),
+                    "violin coords and vals must be non-empty".into(),
                 ));
             }
-            if !(stat.position.is_finite() && stat.width.is_finite()) {
-                return Err(ApiError::InvalidArgument(
-                    "violin position and width must be finite".into(),
-                ));
-            }
+            stats_core::validate_violin(&stat.coords, &stat.vals, stat.position, stat.width)
+                .map_err(|err| ApiError::InvalidArgument(err.message().into()))?;
             if !(stat.min.is_finite() && stat.max.is_finite()) {
                 return Err(ApiError::InvalidArgument(
                     "violin min and max must be finite".into(),
                 ));
             }
-            if !stat.coords.iter().all(|c| c.is_finite())
-                || !stat.vals.iter().all(|v| v.is_finite() && *v >= 0.0)
-            {
-                return Err(ApiError::InvalidArgument(
-                    "violin coords must be finite and vals finite and non-negative".into(),
-                ));
-            }
         }
         let color = self.next_color();
         for stat in stats {
-            let peak = stat.vals.iter().copied().fold(0.0_f64, f64::max);
-            let scale = if peak > 0.0 {
-                0.5 * stat.width / peak
-            } else {
-                0.0
-            };
-            let mut xs = Vec::with_capacity(stat.coords.len() * 2);
-            let mut ys = Vec::with_capacity(stat.coords.len() * 2);
-            for (coord, value) in stat.coords.iter().zip(&stat.vals) {
-                xs.push(stat.position - value * scale);
-                ys.push(*coord);
-            }
-            for (coord, value) in stat.coords.iter().zip(&stat.vals).rev() {
-                xs.push(stat.position + value * scale);
-                ys.push(*coord);
-            }
+            let outline = stats_core::violin_outline(
+                &stat.coords,
+                &stat.vals,
+                stat.position,
+                stat.width,
+                false,
+                stats_core::ViolinSide::Both,
+            )
+            .map_err(|err| ApiError::InvalidArgument(err.message().into()))?;
             self.panel.bands.push(Band {
-                x: OwnedArray1::from(xs),
-                y: OwnedArray1::from(ys),
+                x: OwnedArray1::from(outline.xs),
+                y: OwnedArray1::from(outline.ys),
                 color,
                 alpha: Some(0.3),
                 label: String::new(),
@@ -558,15 +542,11 @@ impl Axes<'_> {
     /// view limits `savefig` renders.
     pub fn margins(&mut self, x: f64, y: f64) -> &mut Self {
         let (x0, x1, y0, y1) = matplotvite_core::layout::panel_ranges(self.panel);
-        let (x0, x1) = (x0.min(x1), x0.max(x1));
-        let (y0, y1) = (y0.min(y1), y0.max(y1));
         if !(x0.is_finite() && x1.is_finite() && y0.is_finite() && y1.is_finite()) {
             return self;
         }
-        let pad_x = (x1 - x0) * x;
-        let pad_y = (y1 - y0) * y;
-        self.panel.xlim = Some((x0 - pad_x, x1 + pad_x));
-        self.panel.ylim = Some((y0 - pad_y, y1 + pad_y));
+        self.panel.xlim = Some(stats_core::expand_limits(x0, x1, x));
+        self.panel.ylim = Some(stats_core::expand_limits(y0, y1, y));
         self
     }
 

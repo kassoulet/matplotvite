@@ -10,6 +10,7 @@ use matplotvite_core::layout;
 use matplotvite_core::model::{Panel, RenderOptions};
 use matplotvite_core::render::render_figure;
 use matplotvite_core::scale as scales;
+use matplotvite_core::stats;
 
 use crate::cmap_py;
 use crate::cmap_py::Colormap;
@@ -184,6 +185,47 @@ fn asinh_inverse_py<'py>(
     PyArray1::from_vec(py, out)
 }
 
+/// `(xs, ys)` of one violin outline.
+type ViolinArrays<'py> = (Bound<'py, PyArray1<f64>>, Bound<'py, PyArray1<f64>>);
+
+/// The shared violin outline, so the Python facade draws the same body as
+/// `matplotvite::Axes::violin`.
+#[pyfunction]
+#[pyo3(name = "violin_outline")]
+#[pyo3(signature = (coords, vals, position, width, horizontal=false, side="both"))]
+fn violin_outline_py<'py>(
+    py: Python<'py>,
+    coords: PyReadonlyArray1<'py, f64>,
+    vals: PyReadonlyArray1<'py, f64>,
+    position: f64,
+    width: f64,
+    horizontal: bool,
+    side: &str,
+) -> PyResult<ViolinArrays<'py>> {
+    let side = stats::ViolinSide::parse(side)
+        .ok_or_else(|| PyValueError::new_err(format!("unsupported side: {side:?}")))?;
+    let outline = stats::violin_outline(
+        coords.as_slice()?,
+        vals.as_slice()?,
+        position,
+        width,
+        horizontal,
+        side,
+    )
+    .map_err(|err| PyValueError::new_err(err.message()))?;
+    Ok((
+        PyArray1::from_vec(py, outline.xs),
+        PyArray1::from_vec(py, outline.ys),
+    ))
+}
+
+/// Padding for one autoscaled axis: a fraction of the data span.
+#[pyfunction]
+#[pyo3(name = "margin_pad")]
+fn margin_pad_py(lo: f64, hi: f64, fraction: f64) -> f64 {
+    stats::margin_pad(lo, hi, fraction)
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
@@ -200,6 +242,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(logit_inverse_py, m)?)?;
     m.add_function(wrap_pyfunction!(asinh_py, m)?)?;
     m.add_function(wrap_pyfunction!(asinh_inverse_py, m)?)?;
+    m.add_function(wrap_pyfunction!(violin_outline_py, m)?)?;
+    m.add_function(wrap_pyfunction!(margin_pad_py, m)?)?;
     m.add_class::<Colormap>()?;
     m.add_class::<crate::norms::Normalize>()?;
     m.add_class::<crate::norms::LogNorm>()?;
