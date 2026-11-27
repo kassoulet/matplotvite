@@ -278,6 +278,8 @@ jobs:
           name: wheel-windows-x86_64
           path: dist
       - name: Install the built wheel
+        # bash everywhere: PowerShell on Windows does not expand dist/*.whl.
+        shell: bash
         run: |
           python -m pip install --require-hashes -r .github/requirements/test.txt
           python -m pip install --no-index --no-deps dist/*.whl
