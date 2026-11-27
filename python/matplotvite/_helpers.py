@@ -1,6 +1,7 @@
 """Shared helpers: colours, mathtext, validation, rc defaults."""
 import copy
 import datetime as _datetime
+import hashlib as _hashlib
 import math as _math
 import os
 import re as _re
@@ -357,21 +358,33 @@ def _mathtext(text, family=None):
     return "".join(out)
 
 
-def _register_custom_cmap(cmap):
+# Names registered only so the renderer can read a Python-built table. Using a
+# `_ListedColormap` in a plot must not add it to the public registry, and two
+# colormaps from different levels must not share one table.
+_AUTO_CMAP_KEYS: set[str] = set()
+
+
+def _register_custom_cmap(cmap, name=None, anonymous=False):
     """Add a `Colormap` built in Python to the table the renderer reads."""
-    name = str(getattr(cmap, "name", "custom"))
-    if name not in _CMAP_DATA:
-        rgb = np.asarray(cmap._rgb, dtype=np.float64)
-        if rgb.ndim != 2 or rgb.shape[1] != 3 or not len(rgb):
-            raise ValueError(f"unsupported colormap: {cmap!r}")
-        positions = np.linspace(0.0, 1.0, rgb.shape[0])
-        samples = np.linspace(0.0, 1.0, 256)
-        table = np.stack([np.interp(samples, positions, rgb[:, channel])
-                          for channel in range(3)], axis=1)
-        pixels = np.clip(table * 255.0, 0, 255).astype(np.uint8)
-        _CMAP_DATA[name] = pixels
-        _register_colormap(name, pixels.tobytes())
-    return name
+    base = str(name or getattr(cmap, "name", "custom"))
+    rgb = np.asarray(cmap._rgb, dtype=np.float64)
+    if rgb.ndim != 2 or rgb.shape[1] != 3 or not len(rgb):
+        raise ValueError(f"unsupported colormap: {cmap!r}")
+    positions = np.linspace(0.0, 1.0, rgb.shape[0])
+    samples = np.linspace(0.0, 1.0, 256)
+    table = np.stack([np.interp(samples, positions, rgb[:, channel])
+                      for channel in range(3)], axis=1)
+    pixels = np.clip(table * 255.0, 0, 255).astype(np.uint8)
+    if anonymous:
+        # The key carries a fingerprint of the table, so different levels keep
+        # their own colours and the registry listing stays unchanged.
+        key = f"{base}#{_hashlib.sha1(pixels.tobytes(), usedforsecurity=False).hexdigest()[:12]}"
+        _AUTO_CMAP_KEYS.add(key)
+    else:
+        key = base
+    _CMAP_DATA[key] = pixels
+    _register_colormap(key, pixels.tobytes())
+    return key
 
 
 def _cmap_name(cmap):
@@ -379,7 +392,10 @@ def _cmap_name(cmap):
     if isinstance(cmap, Colormap):
         return cmap.name
     if isinstance(cmap, _ListedColormap):
-        return _register_custom_cmap(cmap)
+        name = str(getattr(cmap, "name", "custom"))
+        if name in _CMAP_DATA and name not in _AUTO_CMAP_KEYS:
+            return name
+        return _register_custom_cmap(cmap, anonymous=True)
     if cmap is None:
         cmap = rcParams.get("image.cmap", "viridis")
     return _core_cmap_name(str(cmap))
@@ -393,7 +409,8 @@ def get_cmap(name=None, lut=None):
 
 
 def _colormap_names():
-    return sorted([*_CMAP_DATA, *(f"{name}_r" for name in _CMAP_DATA)])
+    names = [name for name in _CMAP_DATA if name not in _AUTO_CMAP_KEYS]
+    return sorted([*names, *(f"{name}_r" for name in names)])
 
 
 class _ColormapRegistry:
@@ -402,7 +419,7 @@ class _ColormapRegistry:
     def __call__(self): return _colormap_names()
     def __getitem__(self, name): return get_cmap(name)
     def __iter__(self): return iter(_colormap_names())
-    def __len__(self): return len(_CMAP_DATA) * 2
+    def __len__(self): return len(_colormap_names())
     def __contains__(self, name):
         try:
             _core_cmap_name(str(name))
@@ -425,7 +442,8 @@ class _ColormapRegistry:
             raise ValueError("a registered colormap needs a name")
         if cmap_name in _CMAP_DATA and not force:
             raise ValueError(f"colormap {cmap_name!r} is already registered")
-        _register_custom_cmap(cmap)
+        _AUTO_CMAP_KEYS.difference_update([cmap_name])
+        _register_custom_cmap(cmap, name=cmap_name)
         return cmap
 
 
